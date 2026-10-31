@@ -51,3 +51,37 @@ public enum JSONValue: Equatable, Hashable, Sendable, Codable {
         return nil
     }
 }
+
+extension JSONValue {
+    public var boolValue: Bool? {
+        if case .bool(let bool) = self { return bool }
+        return nil
+    }
+
+    public var numberValue: Double? {
+        if case .number(let number) = self { return number }
+        return nil
+    }
+
+    public var arrayValue: [JSONValue]? {
+        if case .array(let array) = self { return array }
+        return nil
+    }
+
+    /// The object this holds, or the object a string holds as JSON text. The
+    /// server sends `metadata` either way, and sometimes encoded twice.
+    public var objectValue: [String: JSONValue]? {
+        switch self {
+        case .object(let object):
+            return object
+        case .string(let text):
+            guard text.hasPrefix("{") || text.hasPrefix("\""), let data = text.data(using: .utf8),
+                let parsed = try? JSONDecoder().decode(JSONValue.self, from: data)
+            else { return nil }
+            if case .string = parsed { return parsed.objectValue }
+            return parsed.objectValue
+        default:
+            return nil
+        }
+    }
+}

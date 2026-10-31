@@ -61,3 +61,16 @@ public struct Profile: Equatable, Sendable {
         Persona.resolve(isMujinOrganization: isMujinOrganization, permissions: me.permissions ?? [])
     }
 }
+
+/// AssistantDisplay decides how much of the assistant's work a transcript shows.
+public enum AssistantDisplay {
+    /// Tool details are on for staff and off for customers until the person
+    /// chooses: a stored "1" or "0" wins over the persona.
+    public static func showsToolDetails(setting: String, persona: Persona) -> Bool {
+        switch setting {
+        case "1": true
+        case "0": false
+        default: persona == .staff
+        }
+    }
+}

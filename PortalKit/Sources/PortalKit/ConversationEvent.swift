@@ -28,10 +28,15 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
         public let toolCallId: String
         public let toolName: String?
         public let result: String?
-        public init(toolCallId: String, toolName: String? = nil, result: String? = nil) {
+        /// One short line the tool wrote about the call, such as "3 controllers".
+        public let toolNote: String?
+        public let durationMS: Int?
+        public init(toolCallId: String, toolName: String? = nil, result: String? = nil, toolNote: String? = nil, durationMS: Int? = nil) {
             self.toolCallId = toolCallId
             self.toolName = toolName
             self.result = result
+            self.toolNote = toolNote
+            self.durationMS = durationMS
         }
     }
 
@@ -67,12 +72,52 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
 
     public struct RunComplete: Codable, Equatable, Sendable {
         public let stopReason: String?
-        public init(stopReason: String? = nil) { self.stopReason = stopReason }
+        /// The sentence to show when the runner ended the turn itself.
+        public let turnEndReason: String?
+        public init(stopReason: String? = nil, turnEndReason: String? = nil) {
+            self.stopReason = stopReason
+            self.turnEndReason = turnEndReason
+        }
     }
 
     public struct RunError: Codable, Equatable, Sendable {
+        /// The operator's text. It is not shown to the person.
         public let error: String?
-        public init(error: String? = nil) { self.error = error }
+        /// The bounded sentence for a failed run.
+        public let turnEndReason: String?
+        public init(error: String? = nil, turnEndReason: String? = nil) {
+            self.error = error
+            self.turnEndReason = turnEndReason
+        }
+    }
+
+    public struct RoundRetry: Codable, Equatable, Sendable {
+        public let discardedMessageId: String
+        public init(discardedMessageId: String) { self.discardedMessageId = discardedMessageId }
+    }
+
+    public struct Reacted: Codable, Equatable, Sendable {
+        public let messageId: String
+        /// Empty when that reactor took theirs back.
+        public let emoji: String
+        public let reactorKind: String
+        public let reactorUserId: String?
+        public init(messageId: String, emoji: String, reactorKind: String, reactorUserId: String? = nil) {
+            self.messageId = messageId
+            self.emoji = emoji
+            self.reactorKind = reactorKind
+            self.reactorUserId = reactorUserId
+        }
+    }
+
+    public struct ModelSwitch: Codable, Equatable, Sendable {
+        /// `tool` when the quick model asked for it, `judgment` when the effort judgment did.
+        public let switchCause: String?
+        public let switchReason: String?
+        public init(switchCause: String? = nil, switchReason: String? = nil) {
+            self.switchCause = switchCause
+            self.switchReason = switchReason
+        }
     }
 
     /// The event types Portal emits (backend/agents/agents.go).
@@ -84,6 +129,9 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
         case pendingApproval = "pending_approval"
         case runComplete = "run_complete"
         case runError = "run_error"
+        case roundRetry = "round_retry"
+        case reacted
+        case modelSwitch = "model_switch"
     }
 
     public let type: String
@@ -95,11 +143,18 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
     public let pendingApproval: PendingApproval?
     public let runComplete: RunComplete?
     public let runError: RunError?
+    public let roundRetry: RoundRetry?
+    public let reacted: Reacted?
+    public let modelSwitch: ModelSwitch?
 
     public init(
         type: String, runId: String? = nil, textDelta: TextDelta? = nil, toolCall: ToolCall? = nil, toolResult: ToolResult? = nil,
-        pendingQuestion: PendingQuestion? = nil, pendingApproval: PendingApproval? = nil, runComplete: RunComplete? = nil, runError: RunError? = nil
+        pendingQuestion: PendingQuestion? = nil, pendingApproval: PendingApproval? = nil, runComplete: RunComplete? = nil, runError: RunError? = nil,
+        roundRetry: RoundRetry? = nil, reacted: Reacted? = nil, modelSwitch: ModelSwitch? = nil
     ) {
+        self.roundRetry = roundRetry
+        self.reacted = reacted
+        self.modelSwitch = modelSwitch
         self.type = type
         self.runId = runId
         self.textDelta = textDelta

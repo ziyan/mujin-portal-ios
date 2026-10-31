@@ -34,11 +34,13 @@ public struct ConversationSummary: Codable, Equatable, Identifiable, Sendable {
     public let archivedAt: String?
     public let createdAt: String?
     public let modifiedAt: String?
+    public let isTitleCustom: Bool?
 
     public init(
         id: String, agentId: String? = nil, title: String? = nil, summary: String? = nil, lastMessageAt: String? = nil,
-        activeRunId: String? = nil, archivedAt: String? = nil, createdAt: String? = nil, modifiedAt: String? = nil
+        activeRunId: String? = nil, archivedAt: String? = nil, createdAt: String? = nil, modifiedAt: String? = nil, isTitleCustom: Bool? = nil
     ) {
+        self.isTitleCustom = isTitleCustom
         self.id = id
         self.agentId = agentId
         self.title = title
@@ -68,10 +70,17 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
     public let toolName: String?
     public let stopReason: String?
     public let createdAt: String?
+    /// An object, or a string holding one: read it with `objectValue`.
+    public let metadata: JSONValue?
+    public let reactions: [Reaction]?
+    public let viewingKind: String?
+    public let viewingId: String?
+    public let viewingLabel: String?
 
     public init(
         id: String, role: String, content: JSONValue? = nil, toolCalls: JSONValue? = nil, toolCallId: String? = nil,
-        toolName: String? = nil, stopReason: String? = nil, createdAt: String? = nil
+        toolName: String? = nil, stopReason: String? = nil, createdAt: String? = nil, metadata: JSONValue? = nil,
+        reactions: [Reaction]? = nil, viewingKind: String? = nil, viewingId: String? = nil, viewingLabel: String? = nil
     ) {
         self.id = id
         self.role = role
@@ -81,6 +90,11 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
         self.toolName = toolName
         self.stopReason = stopReason
         self.createdAt = createdAt
+        self.metadata = metadata
+        self.reactions = reactions
+        self.viewingKind = viewingKind
+        self.viewingId = viewingId
+        self.viewingLabel = viewingLabel
     }
 }
 
@@ -90,12 +104,15 @@ public struct QuestionCard: Codable, Equatable, Identifiable, Sendable {
     public let question: String
     public let choices: [String]
     public let allowOther: Bool
+    /// When the assistant asked. Missing for a card that arrived live.
+    public let askedAt: String?
 
-    public init(id: String, question: String, choices: [String] = [], allowOther: Bool = true) {
+    public init(id: String, question: String, choices: [String] = [], allowOther: Bool = true, askedAt: String? = nil) {
         self.id = id
         self.question = question
         self.choices = choices
         self.allowOther = allowOther
+        self.askedAt = askedAt
     }
 }
 

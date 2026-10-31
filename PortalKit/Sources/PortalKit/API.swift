@@ -58,6 +58,7 @@ extension Connection {
                 let question: String?
                 let choices: [String]?
                 let allowOther: Bool?
+                let askedAt: String?
                 let answeredAt: String?
                 let cancelledAt: String?
             }
@@ -83,7 +84,8 @@ extension Connection {
         let approvals = try await approvalRows.ListConversationApprovals ?? []
         return (
             questions.filter { ($0.answeredAt ?? "").isEmpty && ($0.cancelledAt ?? "").isEmpty }.map {
-                QuestionCard(id: $0.id, question: $0.question ?? "", choices: $0.choices ?? [], allowOther: $0.allowOther ?? true)
+                QuestionCard(
+                    id: $0.id, question: $0.question ?? "", choices: $0.choices ?? [], allowOther: $0.allowOther ?? true, askedAt: $0.askedAt)
             },
             approvals.filter { ($0.decidedAt ?? "").isEmpty && ($0.cancelledAt ?? "").isEmpty }.map {
                 ApprovalCard(
@@ -102,15 +104,21 @@ extension Connection {
             .CreateConversation.conversation
     }
 
-    /// Starts a turn and returns its run id.
+    /// Starts a turn and returns its run id. Every send says it comes from
+    /// the iOS app, so the assistant writes for a phone. `viewing` names the
+    /// screen the person asks about; the server drops it silently when they
+    /// may not see that resource.
     @discardableResult
-    public func sendMessage(conversationId: String, text: String) async throws -> String {
+    public func sendMessage(conversationId: String, text: String, viewing: Viewing? = nil) async throws -> String {
         struct Answer: Decodable, Sendable {
             struct Sent: Decodable, Sendable { let runId: String? }
             let SendMessage: Sent
         }
-        let answer = try await execute(
-            Documents.sendMessage, variables: ["conversationId": .string(conversationId), "message": .string(text)], as: Answer.self)
+        var variables: [String: JSONValue] = [
+            "conversationId": .string(conversationId), "message": .string(text), "surface": .string("ios"),
+        ]
+        if let viewing { variables["viewing"] = .object(["kind": .string(viewing.kind), "id": .string(viewing.id)]) }
+        let answer = try await execute(Documents.sendMessage, variables: variables, as: Answer.self)
         return answer.SendMessage.runId ?? ""
     }
 

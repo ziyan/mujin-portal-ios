@@ -5,7 +5,7 @@ import Foundation
 /// removes fails a test here before it fails on a phone.
 public enum Documents {
     static let conversationFields = """
-        id agentId title summary lastMessageAt activeRunId archivedAt createdAt modifiedAt
+        id agentId title summary lastMessageAt activeRunId archivedAt createdAt modifiedAt isTitleCustom
         """
 
     public static let me = """
@@ -21,8 +21,8 @@ public enum Documents {
         """
 
     public static let listConversations = """
-        query ListConversations($userId: String) {
-          ListConversations(userId: $userId) {
+        query ListConversations($userId: String, $search: String) {
+          ListConversations(userId: $userId, search: $search) {
             conversations { \(conversationFields) }
             meta { totalCount }
           }
@@ -36,9 +36,12 @@ public enum Documents {
         """
 
     public static let listMessages = """
-        query ListConversationMessages($conversationId: String!) {
-          ListConversationMessages(conversationId: $conversationId) {
-            id role content toolCalls toolCallId toolName stopReason createdAt
+        query ListConversationMessages($conversationId: String!, $latestMessageCount: Int, $beforeMessageId: String) {
+          ListConversationMessages(
+            conversationId: $conversationId, latestMessageCount: $latestMessageCount, beforeMessageId: $beforeMessageId
+          ) {
+            id role content toolCalls toolCallId toolName stopReason createdAt metadata viewingKind viewingId viewingLabel
+            reactions { id messageId reactorKind reactorUserId emoji isAcknowledgment createdAt }
           }
         }
         """
@@ -66,8 +69,10 @@ public enum Documents {
         """
 
     public static let sendMessage = """
-        mutation SendMessage($conversationId: String!, $message: String!) {
-          SendMessage(conversationId: $conversationId, message: $message) { runId }
+        mutation SendMessage(
+          $conversationId: String!, $message: String!, $surface: ConversationSurface, $viewing: ConversationViewingInput
+        ) {
+          SendMessage(conversationId: $conversationId, message: $message, surface: $surface, viewing: $viewing) { runId }
         }
         """
 
@@ -115,11 +120,14 @@ public enum Documents {
             runId
             textDelta { messageId text }
             toolCall { toolCallId toolName arguments }
-            toolResult { toolCallId toolName result }
+            toolResult { toolCallId toolName result toolNote durationMS }
             pendingQuestion { questionId question choices allowOther }
             pendingApproval { approvalId toolCallId toolName policyReason risk arguments }
-            runComplete { stopReason promptTokens completionTokens }
-            runError { error }
+            runComplete { stopReason promptTokens completionTokens turnEndReason }
+            runError { error turnEndReason }
+            roundRetry { discardedMessageId }
+            reacted { messageId emoji reactorKind reactorUserId }
+            modelSwitch { switchCause switchReason }
           }
         }
         """
@@ -135,9 +143,11 @@ public enum Documents {
         """
 
     /// Every document, for the schema check.
-    public static let all: [String] = [
-        me, organization, mainAgent, listConversations, getConversation, listMessages, listQuestions, listApprovals,
-        createConversation, sendMessage, cancelRun, answerQuestion, resolveToolApproval, archiveConversation,
-        listSites, createTicket, onConversationEvent,
-    ]
+    public static var all: [String] {
+        [
+            me, organization, mainAgent, listConversations, getConversation, listMessages, listQuestions, listApprovals,
+            createConversation, sendMessage, cancelRun, answerQuestion, resolveToolApproval, archiveConversation,
+            listSites, createTicket, onConversationEvent,
+        ] + assistantDocuments + automationDocuments
+    }
 }

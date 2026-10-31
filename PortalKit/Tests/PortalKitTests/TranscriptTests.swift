@@ -23,9 +23,9 @@ import Testing
         var transcript = Transcript()
         transcript.apply(delta("message01", "Let me look."))
         transcript.apply(ConversationEvent(type: "tool_call", toolCall: .init(toolCallId: "call01", toolName: "sites", arguments: #"{"a":1}"#)))
-        #expect(transcript.entries.last == .tool(id: "call01", name: "sites", arguments: #"{"a":1}"#, result: nil))
+        #expect(transcript.entries.last == .tool(ToolActivity(id: "call01", name: "sites", arguments: #"{"a":1}"#)))
         transcript.apply(ConversationEvent(type: "tool_result", toolResult: .init(toolCallId: "call01", result: "site01")))
-        #expect(transcript.entries.last == .tool(id: "call01", name: "sites", arguments: #"{"a":1}"#, result: "site01"))
+        #expect(transcript.entries.last == .tool(ToolActivity(id: "call01", name: "sites", arguments: #"{"a":1}"#, result: "site01")))
         #expect(transcript.entries.first == .assistant(id: "message01", text: "Let me look.", isStreaming: false))
         transcript.apply(delta("message02", "Found it."))
         #expect(transcript.entries.count == 3)
@@ -51,14 +51,23 @@ import Testing
         #expect(transcript.entries.isEmpty)
     }
 
-    @Test func aRunErrorShowsANotice() {
+    @Test func aRunErrorShowsTheBoundedSentenceNotTheOperatorText() {
         var transcript = Transcript()
-        transcript.apply(ConversationEvent(type: "run_error", runId: "run01", runError: .init(error: "provider unavailable")))
+        transcript.apply(
+            ConversationEvent(
+                type: "run_error", runId: "run01", runError: .init(error: "provider unavailable at 10.0.0.1", turnEndReason: "The model did not answer.")))
         #expect(transcript.entries.count == 1)
-        guard case .notice(_, let text, let isError) = transcript.entries[0] else { Issue.record("not a notice"); return }
-        #expect(text == "provider unavailable")
-        #expect(isError)
+        guard case .turnEnd(_, let kind, let text) = transcript.entries[0] else { Issue.record("not a turn end"); return }
+        #expect(kind == .failed)
+        #expect(text == "The model did not answer.")
         #expect(!transcript.isRunning)
+    }
+
+    @Test func aRunErrorWithoutASentenceStillShowsAFailure() {
+        var transcript = Transcript()
+        transcript.apply(ConversationEvent(type: "run_error", runId: "run01", runError: .init(error: "internal detail")))
+        guard case .turnEnd(_, .failed, let text) = transcript.entries[0] else { Issue.record("not a failed turn end"); return }
+        #expect(text.isEmpty)
     }
 
     @Test func unknownEventsAreIgnored() {
@@ -82,9 +91,9 @@ import Testing
         transcript.load(messages: messages, questions: [], approvals: [], isRunning: false)
         #expect(
             transcript.entries == [
-                .user(id: "m1", text: "How many sites?"),
+                .user(id: "m1", text: "How many sites?", viewing: nil),
                 .assistant(id: "m2", text: "Checking.", isStreaming: false),
-                .tool(id: "call01", name: "sites", arguments: "{}", result: "3 sites"),
+                .tool(ToolActivity(id: "call01", name: "sites", arguments: "{}", result: "3 sites")),
                 .assistant(id: "m4", text: "Three.", isStreaming: false),
             ])
     }
@@ -97,7 +106,7 @@ import Testing
                 toolCalls: .string(#"[{"id":"call01","function":{"name":"sites","arguments":"{}"}}]"#))
         ]
         transcript.load(messages: messages, questions: [], approvals: [], isRunning: true)
-        #expect(transcript.entries == [.tool(id: "call01", name: "sites", arguments: "{}", result: nil)])
+        #expect(transcript.entries == [.tool(ToolActivity(id: "call01", name: "sites", arguments: "{}"))])
         #expect(transcript.isRunning)
     }
 
@@ -120,7 +129,7 @@ import Testing
         transcript.apply(delta("message01", "Hel"))
         transcript.apply(ConversationEvent(type: "tool_call", toolCall: .init(toolCallId: "call01", toolName: "sites")))
         transcript.dropLiveEntries()
-        #expect(transcript.entries == [.user(id: "m1", text: "Hi")])
+        #expect(transcript.entries == [.user(id: "m1", text: "Hi", viewing: nil)])
         // The server replays the running turn from its start.
         transcript.apply(delta("message01", "Hel"))
         transcript.apply(delta("message01", "lo"))
@@ -132,10 +141,10 @@ import Testing
     @Test func aSentMessageShowsAtOnceAndIsReplacedByTheRealRow() {
         var transcript = Transcript()
         transcript.appendPendingUser("Hello")
-        #expect(transcript.entries == [.user(id: "pending:Hello", text: "Hello")])
+        #expect(transcript.entries == [.user(id: "pending:Hello", text: "Hello", viewing: nil)])
         #expect(transcript.isRunning)
         transcript.load(messages: [ConversationMessage(id: "m1", role: "user", content: .string("Hello"))], questions: [], approvals: [], isRunning: true)
-        #expect(transcript.entries == [.user(id: "m1", text: "Hello")])
+        #expect(transcript.entries == [.user(id: "m1", text: "Hello", viewing: nil)])
     }
 
     @Test func aMessageThatFailedToSendIsTakenBack() {
