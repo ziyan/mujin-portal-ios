@@ -1,0 +1,107 @@
+# Mujin Portal for iPhone
+
+A native iPhone client for Mujin Portal. Phase 1 covers sign-in, several
+accounts on several Portal instances, the conversation list, and a
+conversation with the assistant: streamed answers, Markdown, sending messages,
+and question and approval cards.
+
+The first account defaults to `https://portal.mujin.cloud`. "Use another
+server" takes any https address, so the same build works against another Portal
+instance.
+
+## Layout
+
+| Path | What it is |
+| --- | --- |
+| `PortalKit/` | SwiftPM package with everything that is not a screen: server address, OpenID Connect sign-in with PKCE, the `Connection` actor, the keychain account ring, the `graphql-transport-ws` feed and the transcript. It builds and tests on Linux. |
+| `PortalApp/` | The SwiftUI app (iOS 26, Swift 6), the String Catalog (English, Japanese, Simplified and Traditional Chinese, German, French, Dutch) and the privacy manifest. |
+| `PortalNotification/` | Notification service extension. A stub until push arrives in phase 2. |
+| `Schema/schema.json` | Names, types and arguments of Portal's GraphQL schema, used by a test that validates every document the app sends. |
+| `project.yml` | The Xcode project as XcodeGen text. `MujinPortal.xcodeproj` is generated and not committed. |
+| `Configuration/` | Build settings, the export options for TestFlight, and an example of the uncommitted `Identity.xcconfig`. |
+
+## Build
+
+You need a Mac with Xcode 26 and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+
+```sh
+brew install xcodegen
+xcodegen generate
+open MujinPortal.xcodeproj
+```
+
+A simulator build needs no signing. To run on a device, copy
+`Configuration/Identity.example.xcconfig` to `Configuration/Identity.xcconfig`
+(it is not committed) and set your team, and a bundle identifier you have
+registered if you are not the publisher.
+
+### Demo mode
+
+Launch with the argument `-demo` and the app talks to a fake server with
+invented data and a scripted streaming answer. CI uses it for screenshots.
+
+### Tests
+
+The kit needs no Mac:
+
+```sh
+docker run --rm -v "$PWD":/work -w /work/PortalKit swift:6.1 swift test
+```
+
+It covers the server address rules, PKCE, the sign-in exchange, token renewal
+(one renewal for any number of callers, one retry after a 401), the feed
+(ping, 15 second silence watchdog, reconnect backoff from 1 to 10 seconds,
+renewal on close code 4401), transcript folding and replay deduplication, and
+the schema check.
+
+### Schema check
+
+Every GraphQL document in `PortalKit/Sources/PortalKit/Documents.swift` is
+validated against `Schema/schema.json` by `SchemaCheckTests`. To refresh the
+copy from a Portal checkout:
+
+```sh
+scripts/refresh-schema.sh /path/to/portal/frontend/schema.json
+```
+
+The script drops every description and refuses to write a file that mentions a
+host name.
+
+## Sign-in
+
+The app is a public OAuth client (authorization code with PKCE S256, no secret)
+using `ASWebAuthenticationSession`.
+
+- Client id `mujin-portal-ios`, a built-in client the Portal backend registers.
+- Redirect `com.ziyan.mujinportal:/oauth`.
+- Scopes `openid profile email offline_access api:read api:write`.
+- Endpoints come from `/.well-known/openid-configuration`.
+
+If a server does not know the built-in client yet, the app tries dynamic
+registration and otherwise shows the server's own error.
+
+## TestFlight
+
+TestFlight builds come from the `TestFlight` job of `.github/workflows/ios.yml`,
+which runs only when started by hand: Actions, iOS, Run workflow, with
+"Upload the build to TestFlight" on. The build number is the workflow run
+number and the version is `MARKETING_VERSION` in `Configuration/Base.xcconfig`.
+
+The job needs these repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `APP_STORE_CONNECT_KEY_ID` | Key id of an App Store Connect API key with the Admin role |
+| `APP_STORE_CONNECT_ISSUER_ID` | Issuer id shown beside the keys |
+| `APP_STORE_CONNECT_API_KEY` | Contents of the `AuthKey_<id>.p8` file |
+| `APPLE_DEVELOPMENT_TEAM` | The ten character team id |
+| `APPLE_DEVELOPMENT_CERTIFICATE` | Base64 of a development certificate exported as `.p12` |
+| `APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD` | The password of that `.p12` |
+
+The App Store Connect app record (name, bundle id `com.ziyan.mujinportal`,
+SKU) must exist before the first upload; Apple offers no API to create it. The
+extension's bundle id is `com.ziyan.mujinportal.notification`.
+
+## License
+
+MIT, see `LICENSE`.
