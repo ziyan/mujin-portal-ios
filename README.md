@@ -34,7 +34,7 @@ offers the operation (`ServerCapabilities` reads the schema once per sign-in).
 | --- | --- |
 | `PortalKit/` | SwiftPM package with everything that is not a screen: server address, OpenID Connect sign-in with PKCE, the `Connection` actor, the keychain account ring, the `graphql-transport-ws` feed and the transcript. It builds and tests on Linux. |
 | `PortalApp/` | The SwiftUI app (iOS 26, Swift 6), the String Catalog (English, Japanese, Simplified and Traditional Chinese, German, French, Dutch) and the privacy manifest. |
-| `PortalNotification/` | Notification service extension. A stub until push arrives in phase 2. |
+| `PortalNotification/` | Notification service extension: turns a question's choices into buttons, gives an approval Approve and Deny, stacks by conversation and clears a card answered elsewhere. |
 | `Schema/schema.json` | Names, types and arguments of Portal's GraphQL schema, used by a test that validates every document the app sends. |
 | `project.yml` | The Xcode project as XcodeGen text. `MujinPortal.xcodeproj` is generated and not committed. |
 | `Configuration/` | Build settings, the export options for TestFlight, and an example of the uncommitted `Identity.xcconfig`. |
@@ -96,8 +96,28 @@ using `ASWebAuthenticationSession`.
 - Scopes `openid profile email offline_access api:read api:write`.
 - Endpoints come from `/.well-known/openid-configuration`.
 
-If a server does not know the built-in client yet, the app tries dynamic
-registration and otherwise shows the server's own error.
+If a server does not know the built-in client, the app shows the server's own
+error. Signing out unregisters the phone for push, then posts the refresh token
+to the discovery document's `revocation_endpoint`, which ends the whole grant.
+
+## Web pages, push, presence and voice
+
+- **Built-in browser.** A Portal or controller page opens through a one-time
+  `CreateWebSessionHandoff` address in a web view whose cookies belong to that
+  account alone. A page that lands on Portal's login asks for a new address once.
+- **Push.** `RegisterPushDevice` runs at every launch for every signed-in account.
+  The environment (`sandbox` for a Debug build, `production` for Release) is set
+  in `Configuration/Base.xcconfig`. The entitlement is `development`; the App
+  Store export re-signs it for production. Approve and Deny need device
+  authentication. Notification texts come from `push.<kind>.title|body` keys in
+  the String Catalog.
+- **Inbox.** `OnNotification` replaces polling and reconnects on close code 4401.
+- **Presence.** While the app is in front it reports every minute, so the server
+  does not push what the person is looking at.
+- **Voice.** The mic button opens the streaming voice socket (24 kHz mono PCM,
+  system voice processing, talking over the answer). A server without streaming
+  transcription (`not_configured`) uses recorded utterances and the older
+  transcribe and synthesize endpoints.
 
 ## TestFlight
 
