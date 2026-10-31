@@ -172,6 +172,10 @@ jobs:
           shoot controller-screen controller-screen
           shoot site-orchestrators site-orchestrators
           shoot site-members site-members
+          shoot site-controllers site-controllers
+          shoot site-staff site-staff staff
+          shoot site-staff-controllers site-staff-controllers staff
+          shoot site-loading site-loading
           shoot notifications notifications
           shoot about about
           shoot monitoring-staff section:monitoring staff
@@ -196,6 +200,8 @@ jobs:
           shoot ticket-dark ticket
           shoot tickets-dark tickets
           shoot site-dark site
+          shoot site-staff-dark site-staff staff
+          shoot site-loading-dark site-loading
           shoot chat-dark chat:chatconv01
           shoot chats-dark chats
           shoot speaks-first-dark conversation:conversation06

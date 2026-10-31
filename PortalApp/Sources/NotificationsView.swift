@@ -42,15 +42,27 @@ final class NotificationsModel {
     let onError: @MainActor (Error) -> Void
     private(set) var phase = Phase.loading
     private(set) var items: [PortalNotification] = []
+    let cache: ResponseCache?
+    let accountKey: String
 
-    init(connection: Connection, onError: @escaping @MainActor (Error) -> Void) {
+    init(connection: Connection, cache: ResponseCache? = nil, accountKey: String = "", onError: @escaping @MainActor (Error) -> Void) {
         self.connection = connection
+        self.cache = cache
+        self.accountKey = accountKey
         self.onError = onError
     }
 
-    func load() async {
+    private var cacheKey: CacheKey { CacheKey(accountKey: accountKey, name: "notifications") }
+
+    func load(force: Bool = false) async {
+        if let cache, let held = cache.hit(cacheKey, as: [PortalNotification].self) {
+            items = held.value
+            phase = .loaded
+            if held.isFresh && !force { return }
+        }
         do {
             items = try await connection.notifications()
+            cache?.store(items, for: cacheKey)
             phase = .loaded
         } catch {
             onError(error)
@@ -62,7 +74,13 @@ final class NotificationsModel {
         guard item.isUnread else { return }
         do {
             try await connection.markNotificationRead(id: item.id)
-            await load()
+            // The row changes in place from the result, in the list and in the cache.
+            let readAt = ISO8601DateFormatter().string(from: Date())
+            func marked(_ rows: inout [PortalNotification]) {
+                rows = rows.map { $0.id == item.id ? $0.markedRead(at: readAt) : $0 }
+            }
+            marked(&items)
+            cache?.update(cacheKey, as: [PortalNotification].self) { marked(&$0) }
         } catch {
             onError(error)
         }
@@ -71,7 +89,10 @@ final class NotificationsModel {
     func markAllRead() async {
         do {
             try await connection.markAllNotificationsRead()
-            await load()
+            let readAt = ISO8601DateFormatter().string(from: Date())
+            items = items.map { $0.markedRead(at: readAt) }
+            let updated = items
+            cache?.store(updated, for: cacheKey)
         } catch {
             onError(error)
         }
@@ -123,14 +144,14 @@ struct NotificationsView: View {
         }
         .task {
             let inbox = NotificationsModel(
-                connection: appModel.connection(for: session.account),
+                connection: appModel.connection(for: session.account), cache: session.cache, accountKey: session.account.accountKey,
                 onError: { [appModel, session] error in appModel.handle(error, account: session.account) })
             model = inbox
             await inbox.load()
         }
         // A notification created while the inbox is open appears without pulling.
         .onChange(of: session.notificationRevision) { _, _ in
-            Task { await model?.load() }
+            Task { await model?.load(force: true) }
         }
     }
 
@@ -165,7 +186,7 @@ struct NotificationsView: View {
 .listRowBackground(Color.portalCard)
 }
 .portalList()
-                .refreshable { await model.load() }
+                .refreshable { await model.load(force: true) }
             }
         }
     }

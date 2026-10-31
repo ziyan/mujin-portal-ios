@@ -244,3 +244,33 @@ enum DayLabel {
         return date.formatted(.dateTime.weekday(.wide).month().day())
     }
 }
+
+extension SiteTelemetry {
+    /// Numbers of the right shape for the redacted tiles shown while the real ones load.
+    static var placeholder: SiteTelemetry {
+        SiteTelemetry(
+            summaries: [TelemetrySummary(controllerId: "placeholder", totals: .init(pickOperationCount: 1_480, pickedPartCount: 1_392, humanInterventionCount: 21, directRobotThroughputPartsPerHour: 58))],
+            machinesTotal: 2)
+    }
+}
+
+/// PlaceholderShimmer shows its content as a redacted placeholder with a gentle pulse while it loads,
+/// in the layout the real content will have, so nothing jumps in later.
+private struct PlaceholderShimmer: ViewModifier {
+    let isActive: Bool
+    @State private var isDimmed = false
+    @Environment(\.accessibilityReduceMotion) private var isReducingMotion
+
+    func body(content: Content) -> some View {
+        content
+            .redacted(reason: isActive ? .placeholder : [])
+            .opacity(isActive && isDimmed && !isReducingMotion ? 0.55 : 1)
+            .animation(isActive && !isReducingMotion ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true) : .default, value: isDimmed)
+            .onAppear { isDimmed = true }
+            .allowsHitTesting(!isActive)
+    }
+}
+
+extension View {
+    func placeholderWhileLoading(_ isLoading: Bool) -> some View { modifier(PlaceholderShimmer(isActive: isLoading)) }
+}

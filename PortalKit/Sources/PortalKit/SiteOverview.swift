@@ -58,9 +58,27 @@ public struct SiteTelemetry: Equatable, Sendable {
 
     public var errorRate: Double { pickedParts > 0 ? Double(interventions) / Double(pickedParts) : 0 }
 
-    /// "1.4%": a tenth of a percent, as the web page rounds it.
-    public var errorRateText: String { "\(Self.trimmed((errorRate * 1000).rounded() / 10))%" }
-    public var throughputText: String { Self.trimmed((robotThroughputPartsPerHour * 10).rounded() / 10) }
+    /// "1.4%": a tenth of a percent, in the locale's own marks.
+    public func errorRateText(locale: Locale = .current) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = locale
+        formatter.numberStyle = .percent
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 1
+        return formatter.string(from: NSNumber(value: errorRate)) ?? "0%"
+    }
+
+    /// Parts an hour, grouped as the locale groups: a whole number from 100 up ("1,396"), one decimal below it ("58.3").
+    public func throughputText(locale: Locale = .current) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = locale
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = robotThroughputPartsPerHour >= 100 ? 0 : 1
+        formatter.roundingMode = .halfUp
+        return formatter.string(from: NSNumber(value: robotThroughputPartsPerHour)) ?? "0"
+    }
 
     static func trimmed(_ value: Double) -> String {
         value == value.rounded() ? String(Int(value)) : String(value)

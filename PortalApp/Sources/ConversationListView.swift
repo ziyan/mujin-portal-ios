@@ -54,10 +54,12 @@ struct ConversationListView: View {
             }
         }
         .task(id: account.accountKey) {
-            let listModel = ConversationListModel(
+            // Kept across visits: the list is not rebuilt, and does not flash, when the tab comes back.
+            let listModel = model ?? ConversationListModel(
                 account: account, connection: appModel.connection(for: account),
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             listModel.offersChats = session.capabilities.offersChats
+            listModel.cache = session.cache
             model = listModel
             await listModel.load()
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("conversation:") {
@@ -143,7 +145,7 @@ struct ConversationListView: View {
 }
 .portalRootList()
                 .refreshable {
-                    await model.load()
+                    await model.load(force: true)
                     await session.refreshWaiting()
                 }
             }

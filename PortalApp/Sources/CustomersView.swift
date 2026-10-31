@@ -10,9 +10,10 @@ struct CustomersView: View {
     @State private var organizations: [OrganizationSummary] = []
     @State private var phase = AutomationsModel.Phase.loading
     @State private var searchText = ""
+    @State private var path: [PortalRoute] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 switch phase {
                 case .loading:
@@ -27,7 +28,7 @@ struct CustomersView: View {
                     }
                 case .loaded:
                     List(shown) { organization in
-                        NavigationLink(value: organization) {
+                        NavigationLink(value: PortalRoute.organization(organization)) {
                             Label {
                                 Text(organization.name ?? organization.id)
                             } icon: {
@@ -46,12 +47,20 @@ struct CustomersView: View {
                 }
             }
             .navigationTitle("Customers")
+            .portalDestinations()
             .notificationsBell()
             .searchable(text: $searchText, prompt: "Search customers")
-            .navigationDestination(for: OrganizationSummary.self) { organization in
-                OrganizationDetailView(organization: organization)
+            .task {
+                await load()
+                // The demo walks Customers > an organization > the Controllers tile, as a person would.
+                if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("site-staff"), path.isEmpty, let first = organizations.first {
+                    path.append(.organization(first))
+                    if screen == "site-staff-controllers" {
+                        try? await Task.sleep(nanoseconds: 2_500_000_000)
+                        path.append(.siteList(.controllers, organizationKey: first.id))
+                    }
+                }
             }
-            .task { await load() }
         }
     }
 
@@ -72,23 +81,13 @@ struct CustomersView: View {
     }
 }
 
-/// OrganizationDetailView is one customer: its sites, with its tickets a row away in the toolbar.
+/// OrganizationDetailView is one customer: its sites. Its tickets are a tile of each site.
 struct OrganizationDetailView: View {
     let organization: OrganizationSummary
-    @State private var isShowingTickets = false
 
     var body: some View {
         SiteView(organizationId: organization.id, embedsNavigation: false)
             .navigationTitle(organization.name ?? organization.id)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                        TicketsView(organizationId: organization.id, embedsNavigation: false)
-                    } label: {
-                        Label("Tickets", systemImage: "tray.full")
-                    }
-                }
-            }
     }
 }

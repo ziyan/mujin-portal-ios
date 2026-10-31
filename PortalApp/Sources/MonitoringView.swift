@@ -21,13 +21,16 @@ final class MonitoringModel {
     private(set) var attention: [Ticket] = []
     private(set) var openCount = 0
     private(set) var incidents: [IncidentSummary] = []
+    private var lastLoadedAt: Date?
 
     init(connection: Connection, onError: @escaping @MainActor (Error) -> Void) {
         self.connection = connection
         self.onError = onError
     }
 
-    func load() async {
+    /// Reads again only when what is shown is older than half a minute, or when asked to (pull to refresh).
+    func load(force: Bool = false) async {
+        if !force, let lastLoadedAt, Date().timeIntervalSince(lastLoadedAt) < 30 { return }
         do {
             async let tickets = connection.tickets()
             async let recent = connection.incidents(first: 30)
@@ -36,6 +39,7 @@ final class MonitoringModel {
             openCount = loadedTickets.filter(\.isOpenForWork).count
             incidents = Array(SiteData.incidents(loadedIncidents, siteId: nil).prefix(10))
             phase = .loaded
+            lastLoadedAt = Date()
         } catch {
             onError(error)
             if phase == .loading { phase = .failed(error.userMessage) }
@@ -48,9 +52,10 @@ struct MonitoringView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
     @State private var model: MonitoringModel?
+    @State private var path: [PortalRoute] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if let model {
                     content(model)
@@ -59,12 +64,11 @@ struct MonitoringView: View {
                 }
             }
             .navigationTitle("Monitoring")
+            .portalDestinations()
             .notificationsBell()
-            .navigationDestination(for: IncidentSummary.self) { incident in
-                IncidentDetailView(incident: incident)
-            }
             .task {
-                let monitoring = MonitoringModel(
+                // The model stays between visits; it reads again only when it is old.
+                let monitoring = model ?? MonitoringModel(
                     connection: appModel.connection(for: session.account),
                     onError: { [appModel, session] error in appModel.handle(error, account: session.account) })
                 model = monitoring
@@ -119,7 +123,7 @@ struct MonitoringView: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(model.incidents) { incident in
-                        NavigationLink(value: incident) {
+                        NavigationLink(value: PortalRoute.incident(incident)) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(incident.title ?? incident.kind ?? "")
                                     .foregroundStyle(.primary)
@@ -145,7 +149,7 @@ struct MonitoringView: View {
                 }
             } }
 .portalRootList()
-            .refreshable { await model.load() }
+            .refreshable { await model.load(force: true) }
         }
     }
 }

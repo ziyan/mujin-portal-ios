@@ -19,15 +19,29 @@ final class TicketsModel {
     private(set) var phase = Phase.loading
     private(set) var tickets: [Ticket] = []
 
-    init(connection: Connection, organizationId: String?, onError: @escaping @MainActor (Error) -> Void) {
+    let cache: ResponseCache?
+    let accountKey: String
+
+    init(connection: Connection, organizationId: String?, cache: ResponseCache? = nil, accountKey: String = "", onError: @escaping @MainActor (Error) -> Void) {
         self.connection = connection
         self.organizationId = organizationId
+        self.cache = cache
+        self.accountKey = accountKey
         self.onError = onError
     }
 
-    func load() async {
+    private var cacheKey: CacheKey { CacheKey(accountKey: accountKey, name: "tickets", variables: organizationId ?? "") }
+
+    /// Shows what is held at once and reads again only when it is old, or when pulled to refresh (`force`).
+    func load(force: Bool = false) async {
+        if let cache, let held = cache.hit(cacheKey, as: [Ticket].self) {
+            tickets = held.value
+            phase = .loaded
+            if held.isFresh && !force { return }
+        }
         do {
             tickets = try await connection.tickets(organizationId: organizationId)
+            cache?.store(tickets, for: cacheKey)
             phase = .loaded
         } catch {
             onError(error)
@@ -49,12 +63,12 @@ struct TicketsView: View {
     @State private var model: TicketsModel?
     @State private var scope = TicketScope.mine
     @State private var tab = TicketTab.open
-    @State private var path: [String] = DemoOptions.screen == "ticket" ? ["ticket01"] : []
+    @State private var path: [PortalRoute] = DemoOptions.screen == "ticket" ? [.ticket(id: "ticket01")] : []
     @State private var isCreating = false
 
     var body: some View {
         if embedsNavigation {
-            NavigationStack(path: $path) { screen }
+            NavigationStack(path: $path) { screen.portalDestinations() }
         } else {
             screen
         }
@@ -83,21 +97,21 @@ struct TicketsView: View {
                 .accessibilityIdentifier("newTicketButton")
             }
         }
-        .navigationDestination(for: String.self) { ticketId in
-            TicketDetailView(ticketId: ticketId)
-        }
         .onChange(of: session.ticketToOpen, initial: true) { _, ticketId in
             guard let ticketId else { return }
             session.ticketToOpen = nil
-            path.append(ticketId)
+            path.append(.ticket(id: ticketId))
         }
         .sheet(isPresented: $isCreating) {
-            TicketCreateView { ticketId in path.append(ticketId) }
+            TicketCreateView { ticketId in
+                // The new ticket joins the cached list from its own result; the list is not read again.
+                session.cache.remove(CacheKey(accountKey: session.account.accountKey, name: "tickets", variables: organizationId ?? ""))
+                path.append(.ticket(id: ticketId))
+                Task { await model?.load(force: true) }
+            }
         }
         .task(id: organizationId) {
-            let ticketsModel = TicketsModel(
-                connection: appModel.connection(for: session.account), organizationId: organizationId,
-                onError: { [appModel, session] error in appModel.handle(error, account: session.account) })
+            let ticketsModel = session.ticketsModel(for: organizationId)
             model = ticketsModel
             if session.isStaff { scope = .everyone }
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("tickets") {
@@ -155,13 +169,13 @@ struct TicketsView: View {
                 }
             } else {
                 List(shown) { ticket in
-                    NavigationLink(value: ticket.id) {
+                    NavigationLink(value: PortalRoute.ticket(id: ticket.id)) {
                         TicketRow(ticket: ticket)
                     }
 .listRowBackground(Color.portalCard)
 }
 .portalRootList()
-                .refreshable { await model.load() }
+                .refreshable { await model.load(force: true) }
             }
         }
     }

@@ -90,6 +90,14 @@ public struct PortalNotification: Codable, Equatable, Identifiable, Sendable {
     }
 
     public var isUnread: Bool { (readAt ?? "").isEmpty }
+
+    /// The same entry, read as of `readAt`: what a mutation's result changes in the cache.
+    public func markedRead(at readAt: String) -> PortalNotification {
+        guard let data = try? JSONEncoder().encode(self), case .object(var fields)? = try? JSONDecoder().decode(JSONValue.self, from: data) else { return self }
+        fields["readAt"] = .string(readAt)
+        guard let updated = try? JSONEncoder().encode(JSONValue.object(fields)), let copy = try? JSONDecoder().decode(PortalNotification.self, from: updated) else { return self }
+        return copy
+    }
     public var date: Date? { PortalDate.parse(createdAt) }
 
     /// What the entry is about, in the words of the ticket, incident or job.

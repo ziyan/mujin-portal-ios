@@ -44,11 +44,37 @@ final class SessionModel {
     /// A goal to show in More, from a notification.
     var goalToOpen: String?
     let onError: @MainActor (Error) -> Void
+    /// What this account's screens loaded, so going back to one shows it at once. It goes with the session at sign-out or when another account takes over.
+    let cache = ResponseCache()
+    private var siteModels: [String: SiteModel] = [:]
+    private var ticketModels: [String: TicketsModel] = [:]
 
     init(account: Account, connection: Connection, onError: @escaping @MainActor (Error) -> Void) {
         self.account = account
         self.connection = connection
         self.onError = onError
+    }
+
+    /// A site screen's model lives as long as the session, so a push and a pop, or a switch of tabs, keeps its data.
+    func siteModel(for organizationId: String?) -> SiteModel {
+        let key = organizationId ?? ""
+        if let existing = siteModels[key] { return existing }
+        let model = SiteModel(connection: connection, organizationId: organizationId, cache: cache, accountKey: account.accountKey, onError: onError)
+        model.viewerIsMujinUser = isStaff
+        model.viewerPermissions = profile?.me.permissions ?? []
+        model.viewerOrganizationId = self.organizationId
+        siteModels[key] = model
+        return model
+    }
+
+    func existingSiteModel(key: String) -> SiteModel? { siteModels[key] }
+
+    func ticketsModel(for organizationId: String?) -> TicketsModel {
+        let key = organizationId ?? ""
+        if let existing = ticketModels[key] { return existing }
+        let model = TicketsModel(connection: connection, organizationId: organizationId, cache: cache, accountKey: account.accountKey, onError: onError)
+        ticketModels[key] = model
+        return model
     }
 
     var persona: Persona { profile?.persona ?? .customer }
@@ -268,6 +294,7 @@ enum DemoOptions {
         if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
+        if screen.hasPrefix("site-staff") { return .customers }
         if screen.hasPrefix("site") || screen.hasPrefix("incident") || screen.hasPrefix("controller") { return .site }
         return nil
     }

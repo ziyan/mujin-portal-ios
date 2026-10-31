@@ -95,9 +95,23 @@ import Testing
         #expect(telemetry.pickOperations == 180)
         #expect(telemetry.interventions == 3)
         #expect(telemetry.machinesReporting == 2 && telemetry.machinesTotal == 3)
-        #expect(telemetry.errorRateText == "2%")
-        #expect(telemetry.throughputText == "60.3")
+        let english = Locale(identifier: "en_US")
+        #expect(telemetry.errorRateText(locale: english) == "2%")
+        #expect(telemetry.throughputText(locale: english) == "60.3")
         #expect(SiteTelemetry().errorRate == 0)
+    }
+
+    @Test func numbersAreGroupedAndThroughputKeepsADecimalOnlyBelowAHundred() {
+        let english = Locale(identifier: "en_US")
+        var telemetry = SiteTelemetry()
+        telemetry.robotThroughputPartsPerHour = 1_395.8
+        #expect(telemetry.throughputText(locale: english) == "1,396")
+        telemetry.robotThroughputPartsPerHour = 58.25
+        #expect(telemetry.throughputText(locale: english) == "58.3")
+        telemetry.robotThroughputPartsPerHour = 12_345.4
+        #expect(telemetry.throughputText(locale: english) == "12,345")
+        #expect(telemetry.throughputText(locale: Locale(identifier: "de_DE")) == "12.345")
+        #expect(telemetry.errorRateText(locale: english) == "0%")
     }
 
     @Test func aSectionShowsAtMostThreeRowsAndSaysWhenThereAreMore() {

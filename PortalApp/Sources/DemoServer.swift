@@ -300,6 +300,12 @@ struct DemoTransport: HTTPTransport {
         let query = body["query"] as? String ?? ""
         let variables = body["variables"] as? [String: Any] ?? [:]
         let operation = query.split(whereSeparator: { " \n(".contains($0) }).dropFirst().first.map(String.init) ?? ""
+        // The loading screenshot holds the stats back so the placeholders are what is photographed.
+        if ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "site-loading",
+            ["ListControllerTelemetrySummaries", "ListCells", "ListSiteVirtualControllers", "ListSiteOrchestrators"].contains(operation)
+        {
+            try await Task.sleep(nanoseconds: 3_600_000_000_000)
+        }
         let answer = respond(operation: operation, variables: variables)
         let payload = try JSONSerialization.data(withJSONObject: ["data": answer])
         return (payload, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
