@@ -196,6 +196,14 @@ struct GoalDetailView: View {
             }
         }
         .background(Color.portalPage)
+        .navigationTitle(goal?.title ?? "")
+        .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Stop this goal?", isPresented: $isConfirmingStop, titleVisibility: .visible) {
+            Button("Stop this goal", role: .destructive) { Task { await change { try await $0.stopGoal(id: goalId) } } }
+        } message: {
+            Text("The assistant stops working toward it. You can reopen it later.")
+        }
+        .task { await load() }
     }
 
     private var listView: some View {
@@ -267,16 +275,7 @@ struct GoalDetailView: View {
             }
         }
         .portalList()
-        .navigationTitle(goal?.title ?? "")
-        .navigationBarTitleDisplayMode(.inline)
-        }
-        .confirmationDialog("Stop this goal?", isPresented: $isConfirmingStop, titleVisibility: .visible) {
-            Button("Stop this goal", role: .destructive) { Task { await change { try await $0.stopGoal(id: goalId) } } }
-        } message: {
-            Text("The assistant stops working toward it. You can reopen it later.")
-        }
         .refreshable { await load() }
-        .task { await load() }
     }
 
     private func load() async {
