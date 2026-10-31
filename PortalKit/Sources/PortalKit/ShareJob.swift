@@ -237,8 +237,7 @@ public struct ShareSender: Sendable {
         do {
             switch job.destination {
             case .assistant(let text):
-                let agent = try await connection.mainAgent()
-                let conversation = try await connection.createConversation(agentId: agent.id)
+                let conversation = try await connection.ensureMainConversation()
                 try await connection.sendMessage(conversationId: conversation.id, text: SharePayload.assistantMessage(text: text, files: files))
                 return .done(conversation.id)
             case .ticket(let title, let description, let siteId, let priority):

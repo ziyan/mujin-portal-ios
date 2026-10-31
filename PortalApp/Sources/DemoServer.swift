@@ -46,8 +46,9 @@ final class DemoState: @unchecked Sendable {
     init() {
         let now = Date()
         func stamp(_ secondsAgo: TimeInterval) -> String { ISO8601DateFormatter().string(from: now.addingTimeInterval(-secondsAgo)) }
-        func conversation(_ id: String, _ title: String, _ summary: String, _ secondsAgo: TimeInterval, running: Bool = false) -> [String: Any] {
+        func conversation(_ id: String, _ title: String, _ summary: String, _ secondsAgo: TimeInterval, running: Bool = false, isMain: Bool = false) -> [String: Any] {
             [
+                "isMain": isMain,
                 "id": id, "agentId": "agent01", "title": title, "summary": summary, "lastMessageAt": stamp(secondsAgo),
                 "activeRunId": running ? "run01" : NSNull(), "archivedAt": NSNull(), "createdAt": stamp(secondsAgo + 600), "modifiedAt": stamp(secondsAgo),
             ]
@@ -59,6 +60,12 @@ final class DemoState: @unchecked Sendable {
             conversation("conversation04", "Throughput by site", "Site01 leads this week.", 1_800),
             conversation("conversation05", "Overnight checks", "No alarms overnight.", 7_200),
             conversation("conversation06", "A thought about dock doors", "The assistant started this conversation.", 600),
+            conversation("conversation-main", "Stored title that is never shown", "Dock door 4 is slow again; I filed a ticket.", 300, isMain: true),
+        ]
+        data.messages["conversation-main"] = [
+            ["id": "mm01", "role": "user", "content": "What changed overnight?", "createdAt": stamp(7_300)],
+            ["id": "mm02", "role": "assistant", "content": "Nothing urgent. One idea for you: dock door 4 has been slow three days in a row.", "createdAt": stamp(7_250)],
+            ["id": "mm03", "role": "assistant", "content": "Dock door 4 is slow again; I filed a ticket.", "createdAt": stamp(300)],
         ]
         data.messages["conversation01"] = [
             ["id": "m01", "role": "user", "content": "Give me a status summary for this week.", "createdAt": stamp(3_700)],
@@ -344,7 +351,7 @@ struct DemoTransport: HTTPTransport {
             if variables["conversationKind"] as? String == "chat" {
                 return ["ListConversations": ["conversations": state.withData { $0.chats }, "meta": ["totalCount": 2]]]
             }
-            return ["ListConversations": ["conversations": state.withData { $0.conversations }, "meta": ["totalCount": 3]]]
+            return ["ListConversations": ["conversations": state.withData { $0.conversations }, "meta": ["totalCount": 7]]]
         case "GetConversation":
             return ["GetConversation": state.withData { data in (data.conversations + data.chats).first { ($0["id"] as? String) == conversationId } ?? [:] }]
         case "GetChat":
@@ -663,6 +670,9 @@ struct DemoTransport: HTTPTransport {
             return ["ListConversationQuestions": state.withData { $0.questions[conversationId] ?? [] }]
         case "ListConversationApprovals":
             return ["ListConversationApprovals": state.withData { $0.approvals[conversationId] ?? [] }]
+        case "EnsureMainConversation":
+            let main = state.withData { data in data.conversations.first { ($0["isMain"] as? Bool) == true } ?? [:] }
+            return ["EnsureMainConversation": ["conversation": main]]
         case "CreateConversation":
             let created: [String: Any] = state.withData { data in
                 data.nextNumber += 1

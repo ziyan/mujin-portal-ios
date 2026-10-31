@@ -23,6 +23,7 @@ final class ConversationModel {
     private(set) var window = MessageWindow()
     private(set) var phase = Phase.loading
     private(set) var title: String?
+    private(set) var isMain = false
     /// Whether the live feed is up. False while it reconnects.
     private(set) var isFeedLive = false
     private(set) var isLoadingEarlier = false
@@ -189,6 +190,7 @@ final class ConversationModel {
             window.replace(with: loadedMessages, totalCount: await total)
             cards = loadedCards
             title = loadedSummary.title
+            isMain = loadedSummary.isMain == true
             ownerUserId = loadedSummary.userId
             transcript.load(
                 messages: window.messages, questions: cards.questions, approvals: cards.approvals,

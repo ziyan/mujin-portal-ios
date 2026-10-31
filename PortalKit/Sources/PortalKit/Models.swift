@@ -57,13 +57,16 @@ public struct ConversationSummary: Codable, Equatable, Identifiable, Sendable {
     public let hasRunningBackgroundWork: Bool?
     /// The one line under a row of the list.
     public let lastMessageExcerpt: String?
+    /// The person's main chat with the assistant: always listed first, never archived, renamed or deleted.
+    public let isMain: Bool?
 
     public init(
         id: String, agentId: String? = nil, title: String? = nil, summary: String? = nil, lastMessageAt: String? = nil,
         activeRunId: String? = nil, archivedAt: String? = nil, createdAt: String? = nil, modifiedAt: String? = nil, isTitleCustom: Bool? = nil,
         conversationKind: String? = nil, chatId: String? = nil, chat: ChatRoom? = nil, userId: String? = nil,
-        hasRunningBackgroundWork: Bool? = nil, lastMessageExcerpt: String? = nil
+        hasRunningBackgroundWork: Bool? = nil, lastMessageExcerpt: String? = nil, isMain: Bool? = nil
     ) {
+        self.isMain = isMain
         self.lastMessageExcerpt = lastMessageExcerpt
         self.userId = userId
         self.hasRunningBackgroundWork = hasRunningBackgroundWork
@@ -92,7 +95,7 @@ public struct ConversationSummary: Codable, Equatable, Identifiable, Sendable {
     /// A conversation with the assistant that nothing was ever said in: no message, no title, no run.
     /// The list leaves it out, unless it is the one open now.
     public var isEmptyAssistantConversation: Bool {
-        conversationKind != "chat" && (lastMessageAt ?? "").isEmpty && (title ?? "").isEmpty && !isRunning
+        isMain != true && conversationKind != "chat" && (lastMessageAt ?? "").isEmpty && (title ?? "").isEmpty && !isRunning
     }
 }
 

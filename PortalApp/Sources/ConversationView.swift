@@ -43,11 +43,13 @@ struct ConversationView: View {
                     } label: {
                         Label("Add people", systemImage: "person.badge.plus")
                     }
-                    Button {
-                        renameDraft = shownTitle
-                        isRenaming = true
-                    } label: {
-                        Label("Rename", systemImage: "pencil")
+                    if !isMainChat {
+                        Button {
+                            renameDraft = shownTitle
+                            isRenaming = true
+                        } label: {
+                            Label("Rename", systemImage: "pencil")
+                        }
                     }
                     Button {
                         isShowingArtifacts = true
@@ -93,6 +95,12 @@ struct ConversationView: View {
         .fullScreenCover(item: $fullArtifact) { artifact in
             ArtifactFullView(artifact: artifact, connection: appModel.connection(for: account))
         }
+        .onChange(of: session.pendingReference?.conversationId) { _, id in
+            // The main chat may already be open when an Ask button is tapped.
+            guard id == conversationId, let pending = session.pendingReference, let model else { return }
+            model.viewingReference = (pending.viewing, pending.subject)
+            session.pendingReference = nil
+        }
         .task(id: conversationId) {
             let conversationModel = ConversationModel(
                 conversationId: conversationId, currentUserId: account.userId, connection: appModel.connection(for: account),
@@ -122,10 +130,14 @@ struct ConversationView: View {
     }
 
     private var shownTitle: String {
+        if isMainChat { return String(localized: "Main chat") }
         if let modelTitle = model?.title, !modelTitle.isEmpty { return modelTitle }
         if let title, !title.isEmpty { return title }
         return String(localized: "New conversation")
     }
+
+    /// The main chat is named by the app, in the person's language, and cannot be renamed.
+    private var isMainChat: Bool { model?.isMain == true || session.knownMainConversationId == conversationId }
 
     private var showsToolDetails: Bool {
         AssistantDisplay.showsToolDetails(setting: toolDetailsSetting, persona: session.persona)

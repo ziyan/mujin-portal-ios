@@ -84,3 +84,15 @@ private final class CountingPictureTransport: HTTPTransport, @unchecked Sendable
         return (found ? Data([1, 2, 3]) : Data(), response)
     }
 }
+
+@Suite struct MainChatTests {
+    @Test func theMainChatIsPinnedFirstAndTheRestKeepTheirOrder() {
+        let rows = [ConversationSummary(id: "c1"), ConversationSummary(id: "c2", isMain: true), ConversationSummary(id: "c3")]
+        #expect(ConversationOrdering.pinningMain(rows).map(\.id) == ["c2", "c1", "c3"])
+    }
+
+    @Test func anEmptyMainChatIsStillListed() {
+        #expect(ConversationSummary(id: "c1", isMain: true).isEmptyAssistantConversation == false)
+        #expect(ConversationSummary(id: "c2").isEmptyAssistantConversation == true)
+    }
+}

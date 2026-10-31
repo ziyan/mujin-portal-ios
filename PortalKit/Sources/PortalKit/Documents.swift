@@ -5,7 +5,7 @@ import Foundation
 /// removes fails a test here before it fails on a phone.
 public enum Documents {
     static let conversationFields = """
-        id agentId title summary lastMessageAt activeRunId archivedAt createdAt modifiedAt isTitleCustom conversationKind chatId hasRunningBackgroundWork userId lastMessageExcerpt
+        id agentId title summary lastMessageAt activeRunId archivedAt createdAt modifiedAt isTitleCustom conversationKind chatId hasRunningBackgroundWork userId lastMessageExcerpt isMain
         """
 
     static let chatMessageFields = """
@@ -65,6 +65,12 @@ public enum Documents {
           ListConversationApprovals(conversationId: $conversationId) {
             id toolCallId toolName policyReason risk arguments requestedAt decidedAt cancelledAt
           }
+        }
+        """
+
+    public static let ensureMainConversation = """
+        mutation EnsureMainConversation {
+          EnsureMainConversation { conversation { \(conversationFields) } }
         }
         """
 

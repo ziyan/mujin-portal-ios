@@ -87,9 +87,9 @@ import Testing
             let body = request.httpBody.flatMap { try? JSONDecoder().decode(JSONValue.self, from: $0) }
             let query = body?["query"]?.stringValue ?? ""
             if query.contains("GetMainAgent") { return (200, ScriptedTransport.json(["data": ["GetMainAgent": ["id": "agent01"]]])) }
-            if query.contains("CreateConversation") {
-                calls.withValue { $0.append("CreateConversation") }
-                return (200, ScriptedTransport.json(["data": ["CreateConversation": ["conversation": ["id": "conversation01"]]]]))
+            if query.contains("EnsureMainConversation") {
+                calls.withValue { $0.append("EnsureMainConversation") }
+                return (200, ScriptedTransport.json(["data": ["EnsureMainConversation": ["conversation": ["id": "conversation01"]]]]))
             }
             if query.contains("SendMessage") {
                 let message = body?["variables"]?["message"]?.stringValue ?? ""
@@ -130,7 +130,7 @@ import Testing
         try store.save(job)
         let status = await sender(store: store, calls: calls).finishIfReady(jobId: job.id)
         #expect(status == .done("conversation01"))
-        #expect(calls.withValue { $0 } == ["CreateConversation", "SendMessage:Hello"])
+        #expect(calls.withValue { $0 } == ["EnsureMainConversation", "SendMessage:Hello"])
         #expect(store.job(id: job.id)?.status == .done("conversation01"))
     }
 
@@ -159,7 +159,7 @@ import Testing
         async let first = sender.finishIfReady(jobId: job.id)
         async let second = sender.finishIfReady(jobId: job.id)
         _ = await (first, second)
-        #expect(calls.withValue { $0 }.filter { $0 == "CreateConversation" }.count == 1)
+        #expect(calls.withValue { $0 }.filter { $0 == "EnsureMainConversation" }.count == 1)
     }
 
     @Test func aRefusedUploadFailsTheJobInClearWords() async throws {

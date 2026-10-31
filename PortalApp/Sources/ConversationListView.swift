@@ -131,14 +131,16 @@ struct ConversationListView: View {
                 List(selection: $selectedConversationId) {
                     PortalRows {
                     Section {
-                        ForEach(model.conversations.sorted { (session.waitingCounts[$0.id] ?? 0) > 0 && (session.waitingCounts[$1.id] ?? 0) == 0 }) { conversation in
+                        ForEach(ConversationOrdering.pinningMain(model.conversations.sorted { (session.waitingCounts[$0.id] ?? 0) > 0 && (session.waitingCounts[$1.id] ?? 0) == 0 })) { conversation in
                             NavigationLink(value: conversation.id) {
                                 ConversationRow(conversation: conversation, waitingCount: session.waitingCounts[conversation.id] ?? 0)
                             }
                             // The row is plainly tappable: no chevron takes width from the title.
                             .navigationLinkIndicatorVisibility(.hidden)
                             .swipeActions {
-                                Button("Archive", role: .destructive) { Task { await model.archive(conversation) } }
+                                if conversation.isMain != true {
+                                    Button("Archive", role: .destructive) { Task { await model.archive(conversation) } }
+                                }
                             }
                         }
                     }
@@ -300,6 +302,7 @@ private struct ConversationRow: View {
     }
 
     private var rowTitle: String {
+        if conversation.isMain == true { return String(localized: "Main chat") }
         if conversation.conversationKind == "chat" { return conversation.chat?.title ?? String(localized: "Chat") }
         return conversation.title?.isEmpty == false ? conversation.title! : String(localized: "New conversation")
     }

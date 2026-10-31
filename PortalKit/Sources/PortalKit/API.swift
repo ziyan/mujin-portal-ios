@@ -96,6 +96,15 @@ extension Connection {
         )
     }
 
+    /// The person's main chat, made on first use. Nothing changes when it already exists. Throws when the organization has no main agent.
+    public func ensureMainConversation() async throws -> ConversationSummary {
+        struct Answer: Decodable, Sendable {
+            struct Ensured: Decodable, Sendable { let conversation: ConversationSummary }
+            let EnsureMainConversation: Ensured
+        }
+        return try await execute(Documents.ensureMainConversation, as: Answer.self).EnsureMainConversation.conversation
+    }
+
     public func createConversation(agentId: String) async throws -> ConversationSummary {
         struct Answer: Decodable, Sendable {
             struct Created: Decodable, Sendable { let conversation: ConversationSummary }

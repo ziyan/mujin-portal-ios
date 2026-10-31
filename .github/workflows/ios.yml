@@ -162,6 +162,7 @@ jobs:
           shoot chat-mention chat-mention
           shoot conversation-reply conversation-reply
           shoot ask ask
+          shoot main-chat main-chat
           shoot chat-info chat-info
           shoot chats-new chats-new
           shoot chats-new-staff chats-new-group staff

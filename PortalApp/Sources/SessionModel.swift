@@ -249,6 +249,8 @@ final class SessionModel {
     }
 
     var pendingReference: PendingReference?
+    /// The id of the main chat once the list or an Ask button has seen it.
+    private(set) var knownMainConversationId: String?
 
     /// A new message the person asked for from a screen: its reference or its words are held here, and
     /// nothing exists on the server until the first send.
@@ -264,8 +266,25 @@ final class SessionModel {
     /// Opens a new message about the screen the person is looking at. The resource is a reference above the
     /// composer, not text in it; the conversation is made when the question is sent.
     func beginAsk(about viewing: Viewing, subject: String) async {
+        if await openMainChat(about: viewing, subject: subject) { return }
         composeRequest = ComposeRequest(viewing: viewing, subject: subject)
         selectedSection = .assistant
+    }
+
+    /// Opens the person's main chat, made on first use, with the reference waiting above its prompt box.
+    /// False when the organization has no main agent or the server did not answer: the caller falls back to a new message.
+    @discardableResult
+    func openMainChat(about viewing: Viewing? = nil, subject: String? = nil) async -> Bool {
+        do {
+            let main = try await connection.ensureMainConversation()
+            knownMainConversationId = main.id
+            if let viewing { pendingReference = PendingReference(conversationId: main.id, viewing: viewing, subject: subject ?? viewing.label ?? viewing.id) }
+            conversationToOpen = main.id
+            selectedSection = .assistant
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// Opens a new message with `text` waiting in the composer. Nothing is sent.
