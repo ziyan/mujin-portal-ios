@@ -350,8 +350,8 @@ struct SiteView: View {
             }
         } else if model.isLoadingStats, !model.hasLoadedStats {
             Section("Cells") {
-                cellRow(SiteCell(id: "placeholder1", name: "Placeholder cell", controllerIds: ["a", "b"]))
-                cellRow(SiteCell(id: "placeholder2", name: "Placeholder cell", controllerIds: ["a"]))
+                SiteRows.cell(SiteCell(id: "placeholder1", name: "Placeholder cell", controllerIds: ["a", "b"]))
+                SiteRows.cell(SiteCell(id: "placeholder2", name: "Placeholder cell", controllerIds: ["a"]))
             }
             .placeholderWhileLoading(true)
         }
