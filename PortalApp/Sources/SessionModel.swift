@@ -25,6 +25,13 @@ final class SessionModel {
     var selectedSection = AppSection.assistant
     /// A conversation the Assistant tab should open as soon as it can.
     var conversationToOpen: String?
+    /// A ticket the Tickets tab should open, from a notification.
+    var ticketToOpen: String?
+    /// Set when a notification asks More to show the Automations screen.
+    var automationsRequested = false
+    var isShowingNotifications = DemoOptions.screen == "notifications"
+    /// Entries in the inbox not read yet.
+    private(set) var unreadCount = 0
     let onError: @MainActor (Error) -> Void
 
     init(account: Account, connection: Connection, onError: @escaping @MainActor (Error) -> Void) {
@@ -82,7 +89,12 @@ final class SessionModel {
     }
 
     /// Reads what waits for the person. The web app asks every 30 seconds too.
+    func refreshUnreadCount() async {
+        if let count = try? await connection.unreadNotificationCount() { unreadCount = count }
+    }
+
     func refreshWaiting() async {
+        await refreshUnreadCount()
         do {
             waiting = try await connection.waiting()
         } catch {

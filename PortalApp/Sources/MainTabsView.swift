@@ -78,6 +78,10 @@ struct MainTabsView: View {
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
         .environment(session)
+        .sheet(isPresented: Binding(get: { session.isShowingNotifications }, set: { session.isShowingNotifications = $0 })) {
+            NotificationsView()
+                .environment(session)
+        }
         .task {
             // The web app polls what waits for the person every 30 seconds; so does this.
             while !Task.isCancelled {

@@ -22,6 +22,7 @@ struct ConversationListView: View {
                 }
             }
             .navigationTitle("Assistant")
+            .notificationsBell()
             .searchable(text: $searchText, prompt: "Search conversations")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

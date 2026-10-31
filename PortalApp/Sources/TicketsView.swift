@@ -72,6 +72,7 @@ struct TicketsView: View {
             }
         }
         .navigationTitle("Tickets")
+        .notificationsBell()
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -84,6 +85,11 @@ struct TicketsView: View {
         }
         .navigationDestination(for: String.self) { ticketId in
             TicketDetailView(ticketId: ticketId)
+        }
+        .onChange(of: session.ticketToOpen, initial: true) { _, ticketId in
+            guard let ticketId else { return }
+            session.ticketToOpen = nil
+            path.append(ticketId)
         }
         .sheet(isPresented: $isCreating) {
             TicketCreateView { ticketId in path.append(ticketId) }

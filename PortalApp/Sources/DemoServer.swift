@@ -315,6 +315,26 @@ struct DemoTransport: HTTPTransport {
             return ["ListIncidentEvidence": ["incidentEvidence": [["attachmentId": "attachment10", "contentType": "image/jpeg", "filename": "frame-001.jpg", "role": "frame"]]]]
         case "TransitionIncident":
             return ["TransitionIncident": ["incident": ["id": variables["incidentId"] as? String ?? "", "reviewStatus": variables["reviewStatus"] as? String ?? ""]]]
+        case "ListNotifications":
+            let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
+            return [
+                "ListNotifications": [
+                    "notifications": [
+                        ["id": "notification01", "kind": "ticket_comment", "createdAt": stamp(900), "ticketId": "ticket01", "ticket": ["id": "ticket01", "sequence": 1, "title": "Gripper drops boxes at pick station 3"]],
+                        ["id": "notification02", "kind": "incident", "createdAt": stamp(2_400), "incidentId": "incident01", "incident": ["id": "incident01", "title": "Person near the conveyor"]],
+                        ["id": "notification03", "kind": "alarm", "createdAt": stamp(5_000), "readAt": stamp(4_000), "alarmMessage": "Gripper suction pressure is low", "siteName": "site01"],
+                        ["id": "notification04", "kind": "agent_job_failed", "createdAt": stamp(20_000), "readAt": stamp(19_000), "agentJobName": "Watch controller01 planner", "agentJobFailureMessage": "The controller did not answer."],
+                    ], "meta": ["totalCount": 4],
+                ]
+            ]
+        case "CountUnreadNotifications":
+            return ["CountUnreadNotifications": 2]
+        case "MarkNotificationRead", "MarkAllNotificationsRead":
+            return [operation: NSNull()]
+        case "NotificationPreferences":
+            return ["NotificationPreferences": [["kind": "incident", "channel": "push", "isEnabled": false], ["kind": "agent_job_failed", "channel": "email", "isEnabled": true]]]
+        case "SetNotificationPreference":
+            return ["SetNotificationPreference": ["kind": variables["kind"] as? String ?? "", "channel": variables["channel"] as? String ?? "", "isEnabled": variables["isEnabled"] as? Bool ?? true]]
         case "ListTickets":
             return ["ListTickets": ["tickets": state.withData { $0.tickets }, "meta": ["totalCount": 5]]]
         case "GetTicket":

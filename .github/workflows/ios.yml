@@ -156,6 +156,8 @@ jobs:
           shoot site site
           shoot incident incident
           shoot controller controller
+          shoot notifications notifications
+          shoot about about
           shoot automations automations
           shoot automations-activity automations-activity
           shoot automations-work automations-work
@@ -168,6 +170,7 @@ jobs:
           shoot ticket-dark ticket
           shoot tickets-dark tickets
           shoot site-dark site
+          shoot notifications-dark notifications
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text conversation:conversation02

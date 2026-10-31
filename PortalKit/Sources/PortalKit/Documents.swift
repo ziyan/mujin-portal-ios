@@ -148,6 +148,6 @@ public enum Documents {
             me, organization, mainAgent, listConversations, getConversation, listMessages, listQuestions, listApprovals,
             createConversation, sendMessage, cancelRun, answerQuestion, resolveToolApproval, archiveConversation,
             listSites, createTicket, onConversationEvent,
-        ] + assistantDocuments + automationDocuments + ticketDocuments + siteDocuments
+        ] + assistantDocuments + automationDocuments + ticketDocuments + siteDocuments + notificationDocuments
     }
 }

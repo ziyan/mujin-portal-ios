@@ -91,6 +91,7 @@ struct SiteView: View {
             }
         }
         .navigationTitle(model?.selectedSite?.name ?? String(localized: "Site"))
+        .notificationsBell()
         .navigationBarTitleDisplayMode(.inline)
         .toolbarTitleMenu {
             if let model, model.sites.count > 1 {
