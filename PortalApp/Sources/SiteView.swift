@@ -47,10 +47,12 @@ final class SiteModel {
     /// cannot answer leaves that part empty rather than failing the screen.
     func loadDetails() async {
         guard let siteId = selectedSiteId else { return }
+        let scopeId = organizationId ?? selectedSite?.organizationId
+        let connection = connection
         async let alarmResult = try? connection.siteAlarms(siteId: siteId)
         async let robotResult = try? connection.siteRobots(siteId: siteId)
-        async let controllerRows = try? connection.controllers(organizationId: organizationId ?? selectedSite?.organizationId)
-        async let incidentRows = try? connection.incidents(organizationId: organizationId ?? selectedSite?.organizationId)
+        async let controllerRows = try? connection.controllers(organizationId: scopeId)
+        async let incidentRows = try? connection.incidents(organizationId: scopeId)
         let (alarmAnswer, robotAnswer, controllerAnswer, incidentAnswer) = await (alarmResult, robotResult, controllerRows, incidentRows)
         alarms = alarmAnswer?.alarms ?? []
         unavailableControllerCount = alarmAnswer?.unavailableControllerCount ?? 0
