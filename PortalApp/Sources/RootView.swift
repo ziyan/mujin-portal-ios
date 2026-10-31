@@ -1,8 +1,10 @@
 import PortalKit
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         @Bindable var model = model
@@ -20,11 +22,14 @@ struct RootView: View {
             if model.isDemo, ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "browser", let account = model.activeAccount {
                 DemoBrowser.show(in: model, account: account)
             }
-            guard !model.isDemo, let account = model.activeAccount else { return }
+            guard !model.isDemo, model.activeAccount != nil else { return }
             await AppDelegate.registerForPush()
-            // The server must offer a place to register the token before the app sends it.
-            model.isPushRegistrationOffered = await model.connection(for: account).offersMutation("registerPushDevice")
+            // At every launch, since the token can change and registering is idempotent.
+            await model.registerPushDevices()
         }
+        .onChange(of: scenePhase, initial: true) { _, phase in model.scenePhaseChanged(isActive: phase == .active) }
+        .onChange(of: model.activeAccount?.accountKey) { _, _ in model.scenePhaseChanged(isActive: scenePhase == .active) }
+        .background(TouchActivityProbe { model.touched() })
         .environment(\.openURL, OpenURLAction { url in model.handleLink(url) })
         .fullScreenCover(item: $model.presentedWeb) { session in
             WebBrowserView(session: session) { model.presentedWeb = nil }
@@ -36,5 +41,52 @@ struct RootView: View {
             "Signed out", isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } }),
             actions: { Button("OK", role: .cancel) {} },
             message: { Text(model.notice ?? "") })
+    }
+}
+
+/// TouchActivityProbe tells the app when the person last touched the screen,
+/// for the idle time in the presence report. It watches touches without
+/// taking them from anything.
+struct TouchActivityProbe: UIViewRepresentable {
+    let onTouch: () -> Void
+
+    func makeUIView(context: Context) -> ProbeView {
+        let view = ProbeView()
+        view.onTouch = onTouch
+        return view
+    }
+
+    func updateUIView(_ view: ProbeView, context: Context) { view.onTouch = onTouch }
+
+    final class ProbeView: UIView {
+        var onTouch: (() -> Void)?
+        private var recognizer: TouchObserver?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if let recognizer { recognizer.view?.removeGestureRecognizer(recognizer) }
+            recognizer = nil
+            guard let window else { return }
+            let observer = TouchObserver { [weak self] in self?.onTouch?() }
+            window.addGestureRecognizer(observer)
+            recognizer = observer
+        }
+    }
+
+    final class TouchObserver: UIGestureRecognizer {
+        private let onTouch: () -> Void
+
+        init(onTouch: @escaping () -> Void) {
+            self.onTouch = onTouch
+            super.init(target: nil, action: nil)
+            cancelsTouchesInView = false
+            delaysTouchesBegan = false
+            delaysTouchesEnded = false
+        }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            onTouch()
+            state = .failed
+        }
     }
 }

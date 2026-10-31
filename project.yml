@@ -36,6 +36,9 @@ targets:
       properties:
         PortalAppGroup: $(MUJINPORTAL_APP_GROUP)
         PortalKeychainGroup: $(AppIdentifierPrefix)$(MUJINPORTAL_KEYCHAIN_GROUP)
+        # Which of Apple's push services issues this build's token: sandbox for
+        # a build run from Xcode, production for TestFlight and the App Store.
+        PortalPushEnvironment: $(MUJINPORTAL_PUSH_ENVIRONMENT)
         UIBackgroundModes: [remote-notification]
         CFBundleURLTypes:
           - CFBundleURLName: $(MUJINPORTAL_BUNDLE_IDENTIFIER)
@@ -70,6 +73,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.business
         INFOPLIST_KEY_NSCameraUsageDescription: Take a photo to attach to a ticket.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Talk to the assistant by voice.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         LOCALIZATION_PREFERS_STRING_CATALOGS: YES
@@ -78,13 +82,14 @@ targets:
         # exempt; saying so here spares every upload the question.
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: "NO"
 
-  # Phase 2 delivers push notifications. The extension is here now so the
-  # bundle layout, signing and keychain group are settled before then.
+  # Shapes each push before it shows: a question's choices become buttons,
+  # an approval gets Approve and Deny, and an answered card is cleared.
   MujinPortalNotification:
     type: app-extension
     platform: iOS
     sources:
       - PortalNotification
+      - path: PortalApp/Resources/Localizable.xcstrings
     dependencies:
       - package: PortalKit
     entitlements:

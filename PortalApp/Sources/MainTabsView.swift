@@ -62,6 +62,10 @@ struct MainTabsView: View {
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             session = newSession
             await newSession.load()
+            if !appModel.isDemo {
+                newSession.startNotificationFeed(socketFactory: appModel.socketFactory)
+                if let route = appModel.takeRoute(for: account) { newSession.open(route) }
+            }
             var start = DemoOptions.section ?? Navigation.home(for: newSession.persona)
             // Mujin users have no Chats tab: chats are the other half of Assistant.
             if start == .chats && newSession.isStaff {
@@ -103,11 +107,16 @@ struct MainTabsView: View {
             NotificationsView()
                 .environment(session)
         }
+        .onChange(of: appModel.pendingRoute) { _, _ in
+            if let route = appModel.takeRoute(for: account) { session.open(route) }
+        }
+        .onDisappear { session.stopNotificationFeed() }
         .task {
-            // The web app polls what waits for the person every 30 seconds; so does this.
+            // The notification feed tells the app when something changes. Without it
+            // (an older server, or while it reconnects) the web app's 30 second poll is kept.
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
-                await session.refreshWaiting()
+                if !session.isNotificationFeedLive { await session.refreshWaiting() }
             }
         }
     }

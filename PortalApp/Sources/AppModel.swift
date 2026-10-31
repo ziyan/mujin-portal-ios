@@ -2,6 +2,8 @@ import Foundation
 import Observation
 import SwiftUI
 import PortalKit
+import UIKit
+import UserNotifications
 import WebKit
 
 /// AppModel is the app's state: which accounts are signed in, which one is in
@@ -18,9 +20,8 @@ final class AppModel {
     /// Why the last sign-in did not happen, in words for the person.
     var signInError: String?
     var isSigningIn = false
-    /// Whether the active account's server can register this phone for push
-    /// notifications. Until it can, the token is only kept on the phone.
-    var isPushRegistrationOffered = false
+    /// Where a tapped notification or the assistant speaking first asks the app to go.
+    var pendingRoute: PendingRoute?
     /// Said once at the top of the screen, such as a sign-in the server ended.
     var notice: String?
 
@@ -30,8 +31,18 @@ final class AppModel {
     /// One browser per account, kept after its screen closes.
     private var webSessions: [String: WebSession] = [:]
 
+    /// A place in the app for one account, from a notification or the assistant speaking first.
+    struct PendingRoute: Equatable {
+        let userId: String
+        let route: PushRoute
+    }
+
     private var connections: [String: Connection] = [:]
     private let webSignIn = WebSignIn()
+    private let presence = PresenceReporting()
+
+    /// The one model of the process. Notification taps reach it before any view exists.
+    static let shared = AppModel.make()
 
     init(store: any AccountStore, transport: any HTTPTransport, socketFactory: @escaping FeedSocketFactory, isDemo: Bool = false) {
         self.store = store
@@ -86,13 +97,21 @@ final class AppModel {
         let session = webSession(for: account)
         presentedWeb = session
         if isDemo { return }
-        let target = await connection(for: account).webSessionHandoff(to: url) ?? url
-        session.load(target)
+        // A new one-time address for every page, since it works once and within a minute.
+        let handoff = await connection(for: account).webSessionHandoff(to: url)
+        session.open(target: url, handoff: handoff)
     }
 
     func webSession(for account: Account) -> WebSession {
         if let existing = webSessions[account.accountKey] { return existing }
         let session = WebSession(accountKey: account.accountKey, dataStoreId: isDemo ? nil : account.webDataStoreId)
+        session.portalHost = account.server.url.host?.lowercased()
+        // The web session lasts 12 hours at most and ends with the grant: when
+        // a page lands on Portal's login, ask for a new address once.
+        session.renewHandoff = { [weak self] target in
+            guard let self, let current = self.ring.accounts.first(where: { $0.accountKey == account.accountKey }) else { return nil }
+            return await self.connection(for: current).webSessionHandoff(to: target)
+        }
         webSessions[account.accountKey] = session
         return session
     }
@@ -115,6 +134,11 @@ final class AppModel {
 
     /// Signs out of one account on this phone.
     func remove(_ account: Account) async {
+        // This account stops receiving pushes on this phone first, while the
+        // other accounts on it keep theirs; revoking the grant ends them anyway.
+        if !isDemo, let token = PushDeviceToken.stored() {
+            try? await connection(for: account).unregisterPushDevice(deviceToken: token)
+        }
         await OIDCClient(server: account.server, transport: transport).revoke(account)
         try? store.remove(account.accountKey)
         connections[account.accountKey] = nil
@@ -143,31 +167,159 @@ final class AppModel {
         do {
             let client = OIDCClient(server: server, transport: transport)
             let configuration = try await client.discover()
-            var request = client.authorizationRequest(clientId: PortalClient.builtInClientId, configuration: configuration)
+            let request = client.authorizationRequest(clientId: PortalClient.builtInClientId, configuration: configuration)
             if let refusal = await client.clientRefusal(for: request) {
-                // The server does not know the app's built-in client. Try
-                // registering the app; the server accepts that only when it
-                // allows the app's redirect address.
-                do {
-                    let clientId = try await client.register(configuration: configuration)
-                    request = client.authorizationRequest(clientId: clientId, configuration: configuration)
-                } catch {
-                    throw PortalError.clientNotRegistered(
-                        String(
-                            localized:
-                                "\(server.displayHost) does not support signing in from this app yet (\(refusal)). Ask its administrator to update Portal."
-                        ))
-                }
+                throw PortalError.clientNotRegistered(
+                    String(
+                        localized:
+                            "\(server.displayHost) does not support signing in from this app yet (\(refusal)). Ask its administrator to update Portal."
+                    ))
             }
             let returned = try await webSignIn.authenticate(url: request.url)
             let account = try await client.complete(request, returnedURL: returned)
             try store.add(account)
             connections[account.accountKey] = nil
             reloadRing()
+            await registerPushDevices()
         } catch WebSignIn.Cancelled.cancelled {
             // The person closed the sign-in page.
         } catch {
             signInError = error.userMessage
+        }
+    }
+
+    // MARK: push
+
+    /// Tells every signed-in account's server this phone's token. The same
+    /// phone with two accounts registers once per account, at every launch
+    /// and whenever the token changes.
+    func registerPushDevices() async {
+        guard !isDemo, let token = PushDeviceToken.stored() else { return }
+        let environment = PushEnvironment.current
+        let version = AboutView.versionText
+        let name = UIDevice.current.name
+        for account in ring.accounts {
+            let connection = connection(for: account)
+            do {
+                try await connection.registerPushDevice(deviceToken: token, environment: environment, deviceName: name, appVersion: version)
+            } catch {
+                handle(error, account: account)
+            }
+        }
+    }
+
+    /// The account a notification is for: several can share a phone.
+    func account(forUserId userId: String) -> Account? {
+        ring.accounts.first { $0.userId == userId }
+    }
+
+    /// A notification was tapped: switch to its account and go where it says.
+    func open(_ payload: PushPayload) {
+        guard let account = account(forUserId: payload.userId) else { return }
+        if account.accountKey != activeAccount?.accountKey { switchTo(account) }
+        pendingRoute = PendingRoute(userId: payload.userId, route: payload.route)
+    }
+
+    /// Does what a notification's button asked, as the account it is for.
+    func perform(_ action: PushAction, for payload: PushPayload) async {
+        guard let account = account(forUserId: payload.userId) else { return }
+        do {
+            try await connection(for: account).perform(action)
+        } catch PortalError.cardNoLongerWaiting {
+            // Answered somewhere else already; the replacement push clears it.
+        } catch {
+            handle(error, account: account)
+            // The button did nothing: bring the person to the place instead.
+            open(payload)
+        }
+    }
+
+    /// How a notification that arrives while the app is open shows. The
+    /// passive replacement for an answered card only clears the original.
+    func presentation(for payload: PushPayload) async -> UNNotificationPresentationOptions {
+        if payload.isAnswered {
+            await Self.removeDelivered(interactionId: payload.interactionId)
+            return []
+        }
+        return [.banner, .list, .sound]
+    }
+
+    static func removeDelivered(interactionId: String?) async {
+        guard let interactionId else { return }
+        let center = UNUserNotificationCenter.current()
+        let identifiers = await center.deliveredNotifications().compactMap { notification -> String? in
+            PushPayload(userInfo: notification.request.content.userInfo)?.interactionId == interactionId ? notification.request.identifier : nil
+        }
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    /// The route for an account, once its screens exist. Taken so it runs once.
+    func takeRoute(for account: Account) -> PushRoute? {
+        guard let pending = pendingRoute, pending.userId == account.userId else { return nil }
+        pendingRoute = nil
+        return pending.route
+    }
+
+    // MARK: presence
+
+    /// Tells the active account's server whether the app is in front, and
+    /// opens the conversation the assistant just started.
+    func scenePhaseChanged(isActive: Bool) {
+        guard !isDemo else { return }
+        presence.setActive(isActive, account: activeAccount, connection: activeAccount.map { connection(for: $0) }) { [weak self] pending in
+            self?.assistantSpoke(pending)
+        }
+    }
+
+    func touched() { presence.touched() }
+
+    private func assistantSpoke(_ pending: PendingSpeakFirst) {
+        guard let account = activeAccount else { return }
+        let memory = SpeakFirstMemory()
+        guard memory.isNew(pending) else { return }
+        memory.markHandled(pending)
+        pendingRoute = PendingRoute(userId: account.userId, route: .conversation(id: pending.conversationId))
+    }
+}
+
+/// PresenceReporting keeps the server told that the app is in front: at once
+/// on foreground, every minute while visible, and once when it leaves.
+@MainActor
+final class PresenceReporting {
+    private var task: Task<Void, Never>?
+    private var lastTouch = Date()
+    private var reportedConnection: Connection?
+    private let reporterId = ReporterIdentity.current()
+
+    func touched() { lastTouch = Date() }
+
+    func setActive(
+        _ isActive: Bool, account: Account?, connection: Connection?, onSpeakFirst: @escaping @MainActor (PendingSpeakFirst) -> Void
+    ) {
+        task?.cancel()
+        task = nil
+        if isActive, let connection {
+            lastTouch = Date()
+            reportedConnection = connection
+            let reporterId = reporterId
+            task = Task { [weak self] in
+                while !Task.isCancelled {
+                    let idle = PresenceRules.idleSeconds(since: self?.lastTouch ?? Date(), now: Date())
+                    if let pending = try? await connection.reportPresence(isVisible: true, idleSeconds: idle, reporterId: reporterId) {
+                        onSpeakFirst(pending)
+                    }
+                    try? await Task.sleep(nanoseconds: UInt64(PresenceRules.reportInterval * 1_000_000_000))
+                }
+            }
+        } else if let connection = reportedConnection {
+            reportedConnection = nil
+            let reporterId = reporterId
+            // Said once as the app leaves the front; the system may suspend the app right after.
+            let background = UIApplication.shared.beginBackgroundTask(withName: "presence")
+            Task {
+                _ = try? await connection.reportPresence(isVisible: false, idleSeconds: 0, reporterId: reporterId)
+                UIApplication.shared.endBackgroundTask(background)
+            }
         }
     }
 }

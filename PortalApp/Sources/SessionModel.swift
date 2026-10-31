@@ -38,6 +38,13 @@ final class SessionModel {
     var isShowingNotifications = DemoOptions.screen == "notifications"
     /// Entries in the inbox not read yet.
     private(set) var unreadCount = 0
+    /// Counts up whenever the server says a notification was created, so an open inbox reads again.
+    private(set) var notificationRevision = 0
+    /// Whether the notification feed is up. While it is not, the lists are polled.
+    private(set) var isNotificationFeedLive = false
+    private var notificationFeedTask: Task<Void, Never>?
+    /// A goal to show in More, from a notification.
+    var goalToOpen: String?
     let onError: @MainActor (Error) -> Void
 
     init(account: Account, connection: Connection, onError: @escaping @MainActor (Error) -> Void) {
@@ -104,14 +111,75 @@ final class SessionModel {
         if let count = try? await connection.unreadNotificationCount() { unreadCount = count }
     }
 
-    func refreshWaiting() async {
-        await refreshUnreadCount()
-        await refreshChatUnread()
+    /// Keeps the inbox current through the server's OnNotification feed
+    /// instead of polling it. The feed reconnects by itself, renews the token
+    /// when the server closes it with 4401, and says nothing about what it
+    /// missed, so every reconnect reads the lists again.
+    func startNotificationFeed(socketFactory: @escaping FeedSocketFactory) {
+        guard notificationFeedTask == nil, capabilities.offersNotificationFeed else { return }
+        notificationFeedTask = Task { [weak self] in
+            guard let self else { return }
+            for await update in NotificationFeed.updates(connection: connection, socketFactory: socketFactory) {
+                switch update {
+                case .connected:
+                    isNotificationFeedLive = true
+                    notificationRevision += 1
+                    await refreshWaiting()
+                case .created(_, let kind):
+                    notificationRevision += 1
+                    await refreshUnreadCount()
+                    if kind == "agent_waiting" || kind == "agent_message" { await refreshWaitingList() }
+                    if kind == "chat_message" { await refreshChatUnread() }
+                case .reconnecting:
+                    isNotificationFeedLive = false
+                case .signedOut:
+                    isNotificationFeedLive = false
+                    onError(PortalError.signedOut)
+                }
+            }
+        }
+    }
+
+    func stopNotificationFeed() {
+        notificationFeedTask?.cancel()
+        notificationFeedTask = nil
+        isNotificationFeedLive = false
+    }
+
+    /// Goes where a notification or the assistant speaking first points.
+    func open(_ route: PushRoute) {
+        switch route {
+        case .conversation(let id):
+            conversationToOpen = id
+            assistantPart = .conversations
+            selectedSection = .assistant
+        case .chat(let conversationId):
+            chatToOpen = conversationId
+            assistantPart = .chats
+            selectedSection = isStaff ? .assistant : .chats
+        case .goal(let id):
+            goalToOpen = id
+            selectedSection = .more
+        case .automations:
+            automationsRequested = true
+            selectedSection = .more
+        case .notifications:
+            isShowingNotifications = true
+        }
+    }
+
+    func refreshWaitingList() async {
         do {
             waiting = try await connection.waiting()
         } catch {
             onError(error)
         }
+    }
+
+    func refreshWaiting() async {
+        await refreshUnreadCount()
+        await refreshChatUnread()
+        await refreshWaitingList()
     }
 
     /// Answers a question that waits, from the list, without opening the conversation.
@@ -121,6 +189,7 @@ final class SessionModel {
             waiting.removeAll { $0.id == item.id }
             return nil
         } catch {
+            if case PortalError.cardNoLongerWaiting = error { waiting.removeAll { $0.id == item.id } }
             onError(error)
             return error.userMessage
         }
@@ -132,6 +201,7 @@ final class SessionModel {
             waiting.removeAll { $0.id == item.id }
             return nil
         } catch {
+            if case PortalError.cardNoLongerWaiting = error { waiting.removeAll { $0.id == item.id } }
             onError(error)
             return error.userMessage
         }

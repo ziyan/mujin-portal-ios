@@ -4,7 +4,7 @@ import SwiftUI
 @main
 struct PortalApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var model = AppModel.make()
+    @State private var model = AppModel.shared
 
     var body: some Scene {
         WindowGroup {

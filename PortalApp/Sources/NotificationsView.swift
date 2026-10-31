@@ -128,6 +128,10 @@ struct NotificationsView: View {
             model = inbox
             await inbox.load()
         }
+        // A notification created while the inbox is open appears without pulling.
+        .onChange(of: session.notificationRevision) { _, _ in
+            Task { await model?.load() }
+        }
     }
 
     @ViewBuilder
@@ -181,6 +185,10 @@ struct NotificationsView: View {
             session.chatToOpen = conversationId
             session.assistantPart = .chats
             session.selectedSection = session.isStaff ? .assistant : .chats
+        case .conversation(let id):
+            session.open(.conversation(id: id))
+        case .goal(let id):
+            session.open(.goal(id: id))
         case .automations:
             session.automationsRequested = true
             session.selectedSection = .more
@@ -228,6 +236,14 @@ private struct NotificationRow: View {
         case "incident": Text("Incident: \(item.subject)")
         case "alarm": Text("Alarm: \(item.subject)")
         case "chat_message": Text(item.subject)
+        case "agent_message": Text("The assistant wrote to you: \(item.subject)")
+        case "agent_waiting":
+            if item.agentWaitingKind == "approval" {
+                Text("The assistant is waiting for your approval to use \(item.agentWaitingToolName ?? "").")
+            } else {
+                Text("The assistant has a question for you.")
+            }
+        case "agent_goal_needs_you": Text("A goal needs you: \(item.subject)")
         case "budget_alert": Text("Your budget needs attention")
         case "agent_job_failed":
             if item.isAgentJobPaused == true {
@@ -259,9 +275,9 @@ struct NotificationPreferencesView: View {
             ForEach(NotificationPreferences.kinds, id: \.self) { kind in
                 Section(Self.title(kind)) {
                     Toggle("Push", isOn: binding(kind: kind, channel: "push"))
-                    Toggle("Email", isOn: binding(kind: kind, channel: "email"))
-                    if kind == "agent_job_failed" {
-                        Text("Push is not delivered for this one yet.").font(.footnote).foregroundStyle(.secondary)
+                    // The assistant's notifications and chat messages have no email.
+                    if !kind.hasPrefix("agent_") && kind != "chat_message" {
+                        Toggle("Email", isOn: binding(kind: kind, channel: "email"))
                     }
                 }
             }
@@ -313,6 +329,9 @@ struct NotificationPreferencesView: View {
         case "budget_alert": "Budget alerts"
         case "agent_job_failed": "Failed assistant jobs"
         case "chat_message": "Chat messages"
+        case "agent_message": "Messages from the assistant"
+        case "agent_waiting": "Questions and approvals waiting for me"
+        case "agent_goal_needs_you": "Goals that need me"
         default: LocalizedStringKey(kind)
         }
     }

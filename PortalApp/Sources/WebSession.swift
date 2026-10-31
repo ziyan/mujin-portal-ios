@@ -22,6 +22,13 @@ final class WebSession: NSObject, Identifiable, WKNavigationDelegate, WKUIDelega
     var downloadedFile: ExportedFile?
 
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
+    /// The Portal host, whose login page means the web session has ended.
+    @ObservationIgnored var portalHost: String?
+    /// Asks for a new one-time address for a page, or nil when the server will not give one.
+    @ObservationIgnored var renewHandoff: (@MainActor (URL) async -> URL?)?
+    /// The page the person asked for, and whether its address was already renewed once.
+    @ObservationIgnored private var intendedTarget: URL?
+    @ObservationIgnored private var hasRenewed = false
 
     struct ExportedFile: Identifiable {
         let id = UUID()
@@ -67,6 +74,14 @@ final class WebSession: NSObject, Identifiable, WKNavigationDelegate, WKUIDelega
         webView.load(URLRequest(url: url))
     }
 
+    /// Opens a page through a one-time address that signs the web view in
+    /// first, or as it is when the server gave none.
+    func open(target: URL, handoff: URL?) {
+        intendedTarget = target
+        hasRenewed = false
+        load(handoff ?? target)
+    }
+
     func loadHTML(_ html: String) {
         webView.loadHTMLString(html, baseURL: nil)
     }
@@ -81,6 +96,17 @@ final class WebSession: NSObject, Identifiable, WKNavigationDelegate, WKUIDelega
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
         guard let url = navigationAction.request.url else { return .allow }
         let scheme = url.scheme?.lowercased() ?? ""
+        // The session ended (12 hours at most, or the grant was revoked): the
+        // page lands on Portal's login. Ask for a new address once and go on.
+        if navigationAction.targetFrame?.isMainFrame ?? true, let portalHost, url.host?.lowercased() == portalHost, url.path.hasPrefix("/login"),
+            let intendedTarget, !hasRenewed, let renewHandoff
+        {
+            hasRenewed = true
+            if let fresh = await renewHandoff(intendedTarget) {
+                load(fresh)
+                return .cancel
+            }
+        }
         if scheme == "http" || scheme == "https" || scheme == "about" || scheme == "blob" || scheme == "data" { return .allow }
         // Mail, phone and other app links go to the system.
         await UIApplication.shared.open(url)

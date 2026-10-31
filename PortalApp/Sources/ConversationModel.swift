@@ -36,6 +36,12 @@ final class ConversationModel {
     var viewingReference: (viewing: Viewing, subject: String)?
     /// Why the last send or answer failed, shown beside the composer.
     var actionError: String?
+    /// Whose conversation this is, when the server said. The speak-first buttons are for its owner.
+    private(set) var ownerUserId: String?
+    /// What happened after "Not now" or "Stop these", in a line that replaces the buttons.
+    private(set) var speakFirstOutcome: String?
+
+    var isOwnConversation: Bool { ownerUserId == nil || ownerUserId == currentUserId }
 
     private var feedTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
@@ -121,6 +127,7 @@ final class ConversationModel {
             window.replace(with: loadedMessages, totalCount: await total)
             cards = loadedCards
             title = loadedSummary.title
+            ownerUserId = loadedSummary.userId
             transcript.load(
                 messages: window.messages, questions: cards.questions, approvals: cards.approvals,
                 isRunning: !isRunFinished && (loadedSummary.isRunning || transcript.hasPendingUser))
@@ -204,6 +211,8 @@ final class ConversationModel {
             try await connection.answerQuestion(id: card.id, answer: text)
             transcript.removeQuestion(id: card.id)
         } catch {
+            // Answered somewhere else, cancelled or timed out: the card is not open any more.
+            if case PortalError.cardNoLongerWaiting = error { transcript.removeQuestion(id: card.id) }
             actionError = error.userMessage
             onError(error)
         }
@@ -220,6 +229,7 @@ final class ConversationModel {
             try await connection.resolveToolApproval(id: card.id, isApproved: isApproved)
             transcript.removeApproval(id: card.id)
         } catch {
+            if case PortalError.cardNoLongerWaiting = error { transcript.removeApproval(id: card.id) }
             actionError = error.userMessage
             onError(error)
         }
@@ -244,6 +254,28 @@ final class ConversationModel {
         do {
             let renamed = try await connection.renameConversation(id: conversationId, title: trimmed)
             title = renamed?.title ?? trimmed
+        } catch {
+            actionError = error.userMessage
+            onError(error)
+        }
+    }
+
+    /// "Not now" under the first message of a conversation the assistant started.
+    func snoozeSpeakFirst() async {
+        do {
+            try await connection.snoozeSpeakFirst(isSnoozed: true)
+            speakFirstOutcome = String(localized: "The assistant will not start conversations for 24 hours.")
+        } catch {
+            actionError = error.userMessage
+            onError(error)
+        }
+    }
+
+    /// "Stop these": the reason's own switch, or the whole feature for onboarding.
+    func stopSpeakingFirst(reason: String) async {
+        do {
+            try await connection.stopSpeakingFirst(reason: reason)
+            speakFirstOutcome = String(localized: "The assistant will not start conversations like this again. You can change it in More.")
         } catch {
             actionError = error.userMessage
             onError(error)

@@ -279,10 +279,14 @@ private struct TranscriptRow: View {
                 systemImage: isError ? "exclamationmark.triangle.fill" : "stop.circle")
                 .font(.footnote)
                 .foregroundStyle(isError ? AnyShapeStyle(Color.statusError) : AnyShapeStyle(.secondary))
-        case .turnEnd(_, let kind, let text):
-            TurnEndLine(kind: kind, text: text)
+        case .turnEnd(_, let kind, let text, let reason):
+            TurnEndLine(kind: kind, text: text, reason: reason)
         case .note(_, let note):
             NoteLine(note: note)
+        case .goalNeedsYou(_, let goalId, let title, let question):
+            GoalNeedsYouCard(goalId: goalId, title: title, question: question)
+        case .speakFirstChoices(_, let reason):
+            if model.isOwnConversation { SpeakFirstChoicesView(model: model, reason: reason) }
         }
     }
 }
@@ -478,10 +482,13 @@ private struct ThinkingHarderLine: View {
 private struct TurnEndLine: View {
     let kind: TurnEndKind
     let text: String
+    let reason: TurnEndReason?
 
     var body: some View {
         Label {
-            if kind == .failed {
+            if let reason, reason.kind != "failed", let sentence = TurnEndText.sentence(for: reason) {
+                Text(sentence)
+            } else if kind == .failed {
                 if text.isEmpty {
                     Text("This answer failed.")
                 } else {
@@ -519,6 +526,25 @@ private struct NoteLine: View {
                 .foregroundStyle(.secondary)
         case .compaction(let summary):
             openable(Label("Earlier messages were summarized", systemImage: "arrow.down.right.and.arrow.up.left"), body: summary)
+        case .speakFirst(let reason):
+            Label("The assistant started this conversation (\(TurnEndText.speakFirstReason(reason)))", systemImage: "sparkles")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        case .goalCheckIn(let title, let message):
+            openable(Label("Goal check-in: \(title)", systemImage: "scope"), body: message)
+        case .depth(let kind, let reason, let sentence):
+            HStack(spacing: 6) {
+                Image(systemName: kind == .thinkingHarder ? "brain" : "magnifyingglass")
+                    .accessibilityHidden(true)
+                Text(kind == .thinkingHarder ? "Thinking harder" : "Looking more closely")
+                if !reason.isEmpty {
+                    Text(reason).foregroundStyle(.tertiary)
+                } else if !sentence.isEmpty {
+                    Text(sentence).foregroundStyle(.tertiary)
+                }
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
         }
     }
 
@@ -772,6 +798,63 @@ private struct ComposerBar: View {
         draft = ""
         Task {
             if await !model.send(text) { draft = text }
+        }
+    }
+}
+
+/// GoalNeedsYouCard is a goal that is blocked on the person: its question,
+/// and a way into the goal. The person may also answer in the conversation
+/// and the assistant passes it on.
+private struct GoalNeedsYouCard: View {
+    @Environment(SessionModel.self) private var session
+    let goalId: String
+    let title: String
+    let question: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("A goal needs you", systemImage: "scope")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.statusWarning)
+            Text(title).font(.subheadline.weight(.semibold))
+            Text(question).font(.body)
+            Text("Answer here and the assistant passes it on.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            if !goalId.isEmpty {
+                Button {
+                    session.open(.goal(id: goalId))
+                } label: {
+                    Label("Open the goal", systemImage: "chevron.right")
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// SpeakFirstChoicesView offers "Not now" and "Stop these" under the first
+/// answer after the assistant started a conversation, and says what happened.
+private struct SpeakFirstChoicesView: View {
+    let model: ConversationModel
+    let reason: String
+
+    var body: some View {
+        if let outcome = model.speakFirstOutcome {
+            Label(outcome, systemImage: "checkmark.circle")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        } else {
+            HStack(spacing: 10) {
+                Button("Not now") { Task { await model.snoozeSpeakFirst() } }
+                Button("Stop these") { Task { await model.stopSpeakingFirst(reason: reason) } }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
     }
 }

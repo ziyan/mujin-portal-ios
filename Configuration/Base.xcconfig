@@ -14,6 +14,13 @@ MUJINPORTAL_KEYCHAIN_GROUP = $(MUJINPORTAL_BUNDLE_IDENTIFIER).shared
 // The App Group the app and its extensions share files and settings in.
 MUJINPORTAL_APP_GROUP = group.$(MUJINPORTAL_BUNDLE_IDENTIFIER)
 
+// Which of Apple's push services issues the token: a build run from Xcode
+// (Debug) gets a sandbox token, an archive for TestFlight or the App Store
+// (Release) a production one. A token sent to the other service is rejected
+// by Apple and the server then deletes it.
+MUJINPORTAL_PUSH_ENVIRONMENT[config=Debug] = sandbox
+MUJINPORTAL_PUSH_ENVIRONMENT[config=Release] = production
+
 // The app and its extensions carry the same version; CI sets the build
 // number of each upload to the workflow run number.
 MARKETING_VERSION = 0.1.0
