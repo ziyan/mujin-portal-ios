@@ -64,8 +64,17 @@ struct ConversationView: View {
                 conversationId: conversationId, currentUserId: account.userId, connection: appModel.connection(for: account),
                 socketFactory: appModel.socketFactory,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
+            if let pending = session.pendingReference, pending.conversationId == conversationId {
+                conversationModel.viewingReference = (pending.viewing, pending.subject)
+                session.pendingReference = nil
+            }
             model = conversationModel
             conversationModel.start()
+            if appModel.isDemo, DemoOptions.screen == "conversation-reply" {
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                conversationModel.replyTarget = ReplyReference(
+                    messageId: "m02", authorName: "Assistant", excerpt: "Here is the summary for this week. Three sites are healthy, one needs attention.")
+            }
         }
         .onAppear { model?.start() }
         .onDisappear { model?.stop() }
@@ -190,6 +199,10 @@ private struct TranscriptRow: View {
         switch entry {
         case .user(let id, let text, let viewing):
             VStack(alignment: .trailing, spacing: 4) {
+                if let quote = model.transcript.replyQuote(for: id) {
+                    SentQuote(authorName: quote.authorName, excerpt: quote.excerpt)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
                 HStack {
                     Spacer(minLength: 48)
                     Text(text)
@@ -198,6 +211,15 @@ private struct TranscriptRow: View {
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .foregroundStyle(Color.onAccent)
                         .textSelection(.enabled)
+                        .contextMenu {
+                            if !id.hasPrefix("pending:") {
+                                Button {
+                                    model.replyTarget = ReplyReference(messageId: id, authorName: "", excerpt: text, isOwn: true)
+                                } label: {
+                                    Label("Reply", systemImage: "arrowshape.turn.up.left")
+                                }
+                            }
+                        }
                 }
                 if let viewing {
                     ViewingChip(viewing: viewing)
@@ -218,6 +240,11 @@ private struct TranscriptRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contextMenu {
                 if !isStreaming {
+                    Button {
+                        model.replyTarget = ReplyReference(messageId: id, authorName: String(localized: "Assistant"), excerpt: text)
+                    } label: {
+                        Label("Reply", systemImage: "arrowshape.turn.up.left")
+                    }
                     ForEach(Reactions.palette, id: \.self) { emoji in
                         Button(emoji) { Task { await model.react(messageId: id, emoji: emoji) } }
                     }
@@ -668,6 +695,14 @@ private struct ComposerBar: View {
                 }
                 .padding(.horizontal, 20)
             }
+            if model.replyTarget != nil || model.viewingReference != nil {
+                ReferencesBar(reply: model.replyTarget, onCancelReply: { model.replyTarget = nil }) {
+                    if let reference = model.viewingReference {
+                        ReferenceChip(systemImage: "scope", text: reference.subject) { model.viewingReference = nil }
+                    }
+                }
+                .padding(.horizontal, 12)
+            }
             if model.activeQuestion != nil {
                 Label("Your message answers the question above.", systemImage: "questionmark.bubble")
                     .font(.footnote)
@@ -684,6 +719,12 @@ private struct ComposerBar: View {
                         .padding(.vertical, 10)
                         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .accessibilityIdentifier("messageField")
+                        // With a hardware keyboard, Escape in an empty field takes the reply away.
+                        .onKeyPress(.escape, phases: .down) { _ in
+                            guard draft.isEmpty, model.replyTarget != nil else { return .ignored }
+                            model.replyTarget = nil
+                            return .handled
+                        }
                         // With a hardware keyboard, Return sends and Shift+Return
                         // adds a line. The on-screen keyboard is not affected.
                         .onKeyPress(.return, phases: .down) { press in

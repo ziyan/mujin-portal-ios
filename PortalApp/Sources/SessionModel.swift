@@ -137,20 +137,28 @@ final class SessionModel {
         }
     }
 
-    /// Starts a conversation about the screen the person is looking at: the
-    /// question goes out with the resource it is about, and the Assistant tab
-    /// opens on the new conversation. Returns the reason it failed, if it did.
-    func ask(about viewing: Viewing, question: String) async -> String? {
+    /// A resource the next message in a conversation asks about, kept until the conversation opens.
+    struct PendingReference {
+        let conversationId: String
+        let viewing: Viewing
+        let subject: String
+    }
+
+    var pendingReference: PendingReference?
+
+    /// Starts a conversation about the screen the person is looking at and
+    /// opens it. The resource is a reference above the composer, not text in
+    /// it: the person types the question and sends it with the reference.
+    func beginAsk(about viewing: Viewing, subject: String) async {
         do {
             let agent = try await connection.mainAgent()
             let conversation = try await connection.createConversation(agentId: agent.id)
-            try await connection.sendMessage(conversationId: conversation.id, text: question, viewing: viewing)
+            pendingReference = PendingReference(conversationId: conversation.id, viewing: viewing, subject: subject)
             conversationToOpen = conversation.id
+            assistantPart = .conversations
             selectedSection = .assistant
-            return nil
         } catch {
             onError(error)
-            return error.userMessage
         }
     }
 

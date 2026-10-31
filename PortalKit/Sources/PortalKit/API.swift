@@ -110,7 +110,7 @@ extension Connection {
     /// screen the person asks about; the server drops it silently when they
     /// may not see that resource.
     @discardableResult
-    public func sendMessage(conversationId: String, text: String, viewing: Viewing? = nil) async throws -> String {
+    public func sendMessage(conversationId: String, text: String, viewing: Viewing? = nil, replyToMessageId: String? = nil) async throws -> String {
         struct Answer: Decodable, Sendable {
             struct Sent: Decodable, Sendable { let runId: String? }
             let SendMessage: Sent
@@ -118,6 +118,7 @@ extension Connection {
         var variables: [String: JSONValue] = [
             "conversationId": .string(conversationId), "message": .string(text), "surface": .string("ios"),
         ]
+        if let replyToMessageId, !replyToMessageId.isEmpty { variables["replyToMessageId"] = .string(replyToMessageId) }
         if let viewing { variables["viewing"] = .object(["kind": .string(viewing.kind), "id": .string(viewing.id)]) }
         let answer = try await execute(Documents.sendMessage, variables: variables, as: Answer.self)
         return answer.SendMessage.runId ?? ""

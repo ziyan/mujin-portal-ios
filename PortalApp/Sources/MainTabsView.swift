@@ -69,6 +69,13 @@ struct MainTabsView: View {
                 newSession.assistantPart = .chats
             }
             newSession.selectedSection = start
+            if appModel.isDemo, DemoOptions.screen == "ask" || DemoOptions.screen == "conversation-reply" {
+                if DemoOptions.screen == "ask" {
+                    newSession.pendingReference = SessionModel.PendingReference(
+                        conversationId: "conversation01", viewing: Viewing(kind: "ticket", id: "ticket01"), subject: "#1 Gripper drops boxes at pick station 3")
+                }
+                newSession.conversationToOpen = "conversation01"
+            }
         }
     }
 

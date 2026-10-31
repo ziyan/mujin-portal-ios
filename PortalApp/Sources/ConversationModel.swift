@@ -30,6 +30,10 @@ final class ConversationModel {
     private(set) var backgroundWork: [BackgroundWork] = []
     /// Questions the person set aside, so what they type goes out as a message.
     private(set) var dismissedQuestionIds: Set<String> = []
+    /// The message the next send replies to, shown above the composer.
+    var replyTarget: ReplyReference?
+    /// The screen the next send asks about ("Ask about this"), shown above the composer.
+    var viewingReference: (viewing: Viewing, subject: String)?
     /// Why the last send or answer failed, shown beside the composer.
     var actionError: String?
 
@@ -169,9 +173,13 @@ final class ConversationModel {
             return actionError == nil
         }
         actionError = nil
-        transcript.appendPendingUser(trimmed)
+        let reply = replyTarget
+        let viewing = viewingReference?.viewing
+        transcript.appendPendingUser(trimmed, viewing: viewing)
         do {
-            try await connection.sendMessage(conversationId: conversationId, text: trimmed)
+            try await connection.sendMessage(conversationId: conversationId, text: trimmed, viewing: viewing, replyToMessageId: reply?.messageId)
+            replyTarget = nil
+            viewingReference = nil
             return true
         } catch {
             transcript.removePendingUser(trimmed)

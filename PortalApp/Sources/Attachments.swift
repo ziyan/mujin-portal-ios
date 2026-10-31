@@ -145,43 +145,19 @@ struct AttachMenu: View {
     }
 }
 
-/// AttachmentStrip shows the files picked so far, each with a way to take it back.
+/// AttachmentStrip shows the files picked so far as reference chips, each
+/// with the file's size and a button that takes it back.
 struct AttachmentStrip: View {
     let drafts: AttachmentDrafts
 
     var body: some View {
         if !drafts.items.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     ForEach(drafts.items) { item in
-                        HStack(spacing: 6) {
-                            if item.isImage, let image = UIImage(data: item.data) {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 32, height: 32)
-                                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                    .accessibilityHidden(true)
-                            } else {
-                                Image(systemName: "doc")
-                                    .foregroundStyle(.secondary)
-                                    .accessibilityHidden(true)
-                            }
-                            Text(item.filename)
-                                .font(.footnote)
-                                .lineLimit(1)
-                            Button {
-                                drafts.remove(item)
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(Text("Remove \(item.filename)"))
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.portalCard, in: Capsule())
+                        ReferenceChip(
+                            systemImage: "paperclip", text: item.filename, detail: ByteCountFormatter.string(fromByteCount: Int64(item.data.count), countStyle: .file)
+                        ) { drafts.remove(item) }
                     }
                 }
             }

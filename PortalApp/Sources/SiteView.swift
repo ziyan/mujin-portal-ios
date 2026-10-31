@@ -73,7 +73,6 @@ struct SiteView: View {
     var embedsNavigation = true
 
     @State private var model: SiteModel?
-    @State private var askRequest: AskAboutRequest?
     @State private var path = NavigationPath()
 
     var body: some View {
@@ -108,12 +107,11 @@ struct SiteView: View {
         .toolbar {
             if let site = model?.selectedSite {
                 ToolbarItem(placement: .topBarTrailing) {
-                    AskAboutButton(request: $askRequest, viewing: Viewing(kind: "site", id: site.id), subject: site.name ?? site.id)
+                    AskAboutButton(viewing: Viewing(kind: "site", id: site.id), subject: site.name ?? site.id)
                         .labelStyle(.iconOnly)
                 }
             }
         }
-        .askAboutSheet(item: $askRequest)
         .navigationDestination(for: IncidentSummary.self) { incident in
             IncidentDetailView(incident: incident)
         }
@@ -299,7 +297,6 @@ struct ControllerDetailView: View {
     @Environment(SessionModel.self) private var session
     @Environment(\.openURL) private var openURL
     let controller: ControllerSummary
-    @State private var askRequest: AskAboutRequest?
 
     var body: some View {
         List { PortalRows {
@@ -331,11 +328,10 @@ struct ControllerDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                AskAboutButton(request: $askRequest, viewing: Viewing(kind: "controller", id: controller.id), subject: controller.comment ?? controller.id)
+                AskAboutButton(viewing: Viewing(kind: "controller", id: controller.id), subject: controller.comment ?? controller.id)
                     .labelStyle(.iconOnly)
             }
         }
-        .askAboutSheet(item: $askRequest)
     }
 }
 
@@ -349,7 +345,6 @@ struct IncidentDetailView: View {
     @State private var evidence: [IncidentEvidence] = []
     @State private var reviewStatus: String?
     @State private var errorText: String?
-    @State private var askRequest: AskAboutRequest?
 
     var body: some View {
         let connection = appModel.connection(for: session.account)
@@ -401,11 +396,10 @@ struct IncidentDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                AskAboutButton(request: $askRequest, viewing: Viewing(kind: "incident", id: incident.id), subject: incident.title ?? incident.id)
+                AskAboutButton(viewing: Viewing(kind: "incident", id: incident.id), subject: incident.title ?? incident.id)
                     .labelStyle(.iconOnly)
             }
         }
-        .askAboutSheet(item: $askRequest)
         .task {
             evidence = (try? await connection.incidentEvidence(incidentId: incident.id)) ?? []
         }

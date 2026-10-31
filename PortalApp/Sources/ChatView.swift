@@ -57,6 +57,10 @@ struct ChatView: View {
                 socketFactory: appModel.socketFactory, onError: { [appModel, account] error in appModel.handle(error, account: account) })
             model = chatModel
             chatModel.start()
+            if appModel.isDemo, DemoOptions.screen == "chat-reply" {
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                chatModel.replyTarget = chatModel.timeline.messages.first { $0.authorUserId == "user02" }
+            }
         }
         .onAppear { model?.start() }
         .onDisappear { model?.stop() }
@@ -178,7 +182,13 @@ struct ChatView: View {
                     .padding(.vertical, 12)
             } else {
                 if let reply = model.replyTarget {
-                    banner(icon: "arrowshape.turn.up.left", title: String(localized: "Replying to \(reply.authorName ?? "")"), detail: reply.text) { model.replyTarget = nil }
+                    ReferencesBar(
+                        reply: ReplyReference(
+                            messageId: reply.id, authorName: reply.authorName ?? String(localized: "Assistant"), excerpt: reply.text,
+                            isOwn: reply.authorUserId == model.currentUserId && !reply.isAssistant),
+                        onCancelReply: { model.replyTarget = nil }
+                    ) {}
+                    .padding(.horizontal, 12)
                 }
                 if let editing = model.editTarget {
                     banner(icon: "pencil", title: String(localized: "Editing your message"), detail: editing.text) {
@@ -212,6 +222,12 @@ struct ChatView: View {
                             .padding(.vertical, 10)
                             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                             .accessibilityIdentifier("chatMessageField")
+                            // With a hardware keyboard, Escape in an empty field takes the reply away.
+                            .onKeyPress(.escape, phases: .down) { _ in
+                                guard draft.isEmpty, model.replyTarget != nil else { return .ignored }
+                                model.replyTarget = nil
+                                return .handled
+                            }
                             .onChange(of: draft) { _, text in
                                 if !text.isEmpty && model.editTarget == nil { model.noteTyping() }
                             }
@@ -315,17 +331,13 @@ private struct MessageRow: View {
     }
 
     private var quote: some View {
-        VStack(alignment: .leading, spacing: 1) {
+        Group {
             if message.hasQuotedText {
-                Text(message.replyToAuthorName ?? "").font(.caption.weight(.semibold))
-                Text(message.replyToExcerpt ?? "").font(.caption).lineLimit(2)
+                SentQuote(authorName: message.replyToAuthorName ?? "", excerpt: message.replyToExcerpt ?? "")
             } else {
-                Text("A message from before you joined").font(.caption).italic()
+                Text("A message from before you joined").font(.caption).italic().foregroundStyle(.secondary)
             }
         }
-        .foregroundStyle(.secondary)
-        .padding(.leading, 8)
-        .overlay(alignment: .leading) { Rectangle().fill(Color(.separator)).frame(width: 2) }
     }
 
     @ViewBuilder

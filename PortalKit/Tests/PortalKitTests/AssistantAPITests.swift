@@ -22,6 +22,31 @@ import Testing
         #expect(viewing?["label"] == nil)
     }
 
+    @Test func aReplyGoesOutAsAnIdNeverAsQuotedText() async throws {
+        let (connection, transport) = scriptedConnection { _, _ in ["SendMessage": ["runId": "run01"]] }
+        try await connection.sendMessage(conversationId: "c1", text: "Yes, do that", replyToMessageId: "m7")
+        let variables = sentVariables(transport.requests[0])
+        #expect(variables["replyToMessageId"] as? String == "m7")
+        #expect(variables["message"] as? String == "Yes, do that")
+    }
+
+    @Test func aSentReplyKeepsItsQuoteForTheBubble() {
+        var transcript = Transcript()
+        transcript.load(
+            messages: [
+                ConversationMessage(
+                    id: "m8", role: "user", content: .string("Yes, do that"), replyToMessageId: "m7", replyToExcerpt: "Shall I restart the planner?  \n Tell me.",
+                    replyToAuthorName: "Assistant")
+            ], questions: [], approvals: [], isRunning: false)
+        #expect(transcript.replyQuote(for: "m8")?.messageId == "m7")
+        #expect(transcript.replyQuote(for: "m8")?.excerpt == "Shall I restart the planner? Tell me.")
+        #expect(transcript.replyQuote(for: "m9") == nil)
+    }
+
+    @Test func aQuotedExcerptIsBounded() {
+        #expect(ReplyReference(messageId: "m", authorName: "A", excerpt: String(repeating: "word ", count: 100)).excerpt.count <= 200)
+    }
+
     @Test func pagingAsksForTheLatestCountOrThePageBeforeAMessage() async throws {
         let (connection, transport) = scriptedConnection { _, _ in ["ListConversationMessages": []] }
         _ = try await connection.messages(conversationId: "conversation01", latestCount: 30)

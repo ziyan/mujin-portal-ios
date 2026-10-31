@@ -76,9 +76,12 @@ public enum Documents {
 
     public static let sendMessage = """
         mutation SendMessage(
-          $conversationId: String!, $message: String!, $surface: ConversationSurface, $viewing: ConversationViewingInput
+          $conversationId: String!, $message: String!, $surface: ConversationSurface, $viewing: ConversationViewingInput,
+          $replyToMessageId: String
         ) {
-          SendMessage(conversationId: $conversationId, message: $message, surface: $surface, viewing: $viewing) { runId }
+          SendMessage(
+            conversationId: $conversationId, message: $message, surface: $surface, viewing: $viewing, replyToMessageId: $replyToMessageId
+          ) { runId }
         }
         """
 

@@ -84,7 +84,6 @@ struct TicketDetailView: View {
     @State private var draft = ""
     @State private var drafts = AttachmentDrafts()
     @State private var isInternal = false
-    @State private var askRequest: AskAboutRequest?
     @State private var isConfirmingClose = false
 
     var body: some View {
@@ -101,7 +100,7 @@ struct TicketDetailView: View {
             if let ticket = model?.ticket {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        AskAboutButton(request: $askRequest, viewing: Viewing(kind: "ticket", id: ticket.id), subject: ticket.displayName)
+                        AskAboutButton(viewing: Viewing(kind: "ticket", id: ticket.id), subject: ticket.displayName)
                         if ticket.isOpenForWork || ticket.status == "solved" {
                             Button(role: .destructive) {
                                 isConfirmingClose = true
@@ -122,7 +121,6 @@ struct TicketDetailView: View {
                 }
             }
         }
-        .askAboutSheet(item: $askRequest)
         .attachmentPickers(drafts)
         .task(id: ticketId) {
             let detailModel = TicketDetailModel(

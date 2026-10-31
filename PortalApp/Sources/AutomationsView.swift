@@ -76,7 +76,6 @@ struct AutomationsView: View {
     @Environment(SessionModel.self) private var session
     @State private var model: AutomationsModel?
     @State private var part = Part.schedule
-    @State private var askRequest: AskAboutRequest?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -110,7 +109,6 @@ struct AutomationsView: View {
                 }
             }
         }
-        .askAboutSheet(item: $askRequest)
         .task {
             if model == nil {
                 model = AutomationsModel(
@@ -154,7 +152,7 @@ struct AutomationsView: View {
         case .loaded:
             switch part {
             case .schedule: ScheduleList(model: model, open: openConversation)
-            case .activity: ActivityList(model: model, open: openConversation, ask: { askRequest = $0 })
+            case .activity: ActivityList(model: model, open: openConversation, ask: { activity in Task { await session.beginAsk(about: Viewing(kind: "agent_run", id: activity.id, label: activity.title), subject: activity.title ?? "") } })
             case .work: WorkList(model: model, open: openConversation)
             }
         }
@@ -257,7 +255,7 @@ private struct StatusLabel: View {
 private struct ActivityList: View {
     let model: AutomationsModel
     let open: (String) -> Void
-    let ask: (AskAboutRequest) -> Void
+    let ask: (AgentActivity) -> Void
 
     var body: some View {
         if model.activities.isEmpty {
@@ -296,7 +294,7 @@ private struct ActivityList: View {
                         Button { open(conversationId) } label: { Label("Open the conversation", systemImage: "bubble.left") }
                     }
                     Button {
-                        ask(AskAboutRequest(viewing: Viewing(kind: "agent_run", id: activity.id, label: activity.title), subject: activity.title ?? ""))
+                        ask(activity)
                     } label: {
                         Label("Ask about this", systemImage: "sparkles")
                     }

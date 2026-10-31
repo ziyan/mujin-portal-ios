@@ -15,6 +15,30 @@ public struct Viewing: Equatable, Sendable {
     }
 }
 
+/// ReplyReference is a message a reply is about, shown above the composer
+/// and, once sent, as a compact quote above the reply. The words of the
+/// quote are never put in the message itself.
+public struct ReplyReference: Equatable, Sendable {
+    public let messageId: String
+    public let authorName: String
+    public let excerpt: String
+    /// Whether the person wrote the message they reply to.
+    public let isOwn: Bool
+
+    public init(messageId: String, authorName: String, excerpt: String, isOwn: Bool = false) {
+        self.messageId = messageId
+        self.authorName = authorName
+        self.isOwn = isOwn
+        self.excerpt = Self.shortened(excerpt)
+    }
+
+    /// A bounded excerpt: whitespace collapsed, at most 200 characters.
+    static func shortened(_ text: String) -> String {
+        let collapsed = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return collapsed.count > 200 ? String(collapsed.prefix(199)) + "\u{2026}" : collapsed
+    }
+}
+
 /// ToolActivity is one tool call of the assistant and what came of it.
 public struct ToolActivity: Equatable, Identifiable, Sendable {
     /// The tool the quick model calls to hand the rest of the turn to the main model.
@@ -150,6 +174,7 @@ public struct Transcript: Equatable, Sendable {
     private var liveEntryIds: Set<String> = []
     private var pendingUserTexts: [String] = []
     private var noticeCount = 0
+    private var replyQuotes: [String: ReplyReference] = [:]
     private var persistedReactions: [String: [Reaction]] = [:]
     /// Reactions changed on this phone or by an event. They win over what a
     /// reload brings, because the transcript is read from a replica that can
@@ -173,6 +198,12 @@ public struct Transcript: Equatable, Sendable {
         persistedMessageIds = Set(messages.map(\.id))
         persistedToolCallIds = Set(messages.compactMap { $0.role == "tool" ? $0.toolCallId : nil })
         persistedReactions = [:]
+        replyQuotes = [:]
+        for message in messages {
+            if let replyId = message.replyToMessageId, !replyId.isEmpty, let excerpt = message.replyToExcerpt, !excerpt.isEmpty {
+                replyQuotes[message.id] = ReplyReference(messageId: replyId, authorName: message.replyToAuthorName ?? "", excerpt: excerpt)
+            }
+        }
         for message in messages where !(message.reactions ?? []).isEmpty { persistedReactions[message.id] = message.reactions }
 
         var rebuilt: [TranscriptEntry] = []
@@ -299,6 +330,9 @@ public struct Transcript: Equatable, Sendable {
     }
 
     // MARK: reactions
+
+    /// The message a sent message replied to, for the quote above its text.
+    public func replyQuote(for messageId: String) -> ReplyReference? { replyQuotes[messageId] }
 
     /// The reactions on a message: what the phone or an event changed, else what the history holds.
     public func reactions(for messageId: String) -> [Reaction] {
