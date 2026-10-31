@@ -141,10 +141,119 @@ public enum ChatRules {
         return sorted.map { ($0, groups[$0] ?? []) }
     }
 
-    /// Whether a message addresses the assistant: `@assistant`, any case, at a word boundary.
-    public static func isAddressingAssistant(_ text: String) -> Bool {
-        guard let expression = try? NSRegularExpression(pattern: #"(^|[^A-Za-z0-9_])@assistant(?![A-Za-z0-9_])"#, options: [.caseInsensitive]) else { return false }
-        return expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+    /// The agent a message addresses: its own name after an `@`, any case,
+    /// ending at a word boundary. The server decides from structured
+    /// mentions when it has them, and matches the name text otherwise.
+    public static func addressedAgent(in text: String, agents: [Agent]) -> Agent? {
+        for agent in agents.sorted(by: { ($0.name ?? "").count > ($1.name ?? "").count }) {
+            guard let name = agent.name, !name.isEmpty else { continue }
+            let pattern = "(^|[^A-Za-z0-9_])@" + NSRegularExpression.escapedPattern(for: name) + "(?![A-Za-z0-9_])"
+            guard let expression = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+            if expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil { return agent }
+        }
+        return nil
+    }
+}
+
+/// MentionCandidate is someone the `@` list offers: an agent of the chat's
+/// organization, or a person in the chat.
+public struct MentionCandidate: Equatable, Identifiable, Sendable {
+    public enum Kind: String, Sendable {
+        case agent
+        case user
+    }
+
+    public let kind: Kind
+    public let id: String
+    public let name: String
+    public let detail: String?
+    public init(kind: Kind, id: String, name: String, detail: String? = nil) {
+        self.kind = kind
+        self.id = id
+        self.name = name
+        self.detail = detail
+    }
+}
+
+/// ChatMention is a mention a message carries: an agent or a person, with
+/// where it sits in the text, counted in characters.
+public struct ChatMention: Equatable, Sendable {
+    public let kind: MentionCandidate.Kind
+    public let id: String
+    public let start: Int
+    public let length: Int
+}
+
+public enum Mentions {
+    /// What the person has typed after an `@` at the end of the draft, when
+    /// the list should open: the `@` starts the draft or follows a space.
+    public static func query(in draft: String) -> String? {
+        guard let at = draft.lastIndex(of: "@") else { return nil }
+        if at != draft.startIndex {
+            let before = draft[draft.index(before: at)]
+            guard before.isWhitespace else { return nil }
+        }
+        let typed = String(draft[draft.index(after: at)...])
+        guard typed.count <= 30, !typed.contains("\n") else { return nil }
+        return typed
+    }
+
+    /// Agents first (the main one first among them), then the people in the
+    /// chat other than the person, each filtered by what was typed.
+    public static func candidates(agents: [Agent], members: [ChatMember], query: String, excludingUserId: String, limit: Int = 6) -> [MentionCandidate] {
+        let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
+        func matches(_ name: String) -> Bool { needle.isEmpty || name.lowercased().contains(needle) }
+        let agentRows = agents.filter { $0.isEnabled != false }.sorted { ($0.isMain == true ? 0 : 1) < ($1.isMain == true ? 0 : 1) }
+            .compactMap { agent -> MentionCandidate? in
+                guard let name = agent.name, !name.isEmpty, matches(name) else { return nil }
+                return MentionCandidate(kind: .agent, id: agent.id, name: name)
+            }
+        let people = members.filter { $0.userId != excludingUserId && $0.isPresent && matches($0.shownName) }
+            .map { MentionCandidate(kind: .user, id: $0.userId, name: $0.shownName, detail: $0.organizationName) }
+        return Array((agentRows + people).prefix(limit))
+    }
+
+    /// The draft with the `@query` at its end replaced by the picked name.
+    public static func inserting(_ candidate: MentionCandidate, into draft: String) -> String {
+        guard let at = draft.lastIndex(of: "@") else { return draft }
+        return String(draft[..<at]) + "@" + candidate.name + " "
+    }
+
+    /// Where each picked mention sits in the final text. A mention whose
+    /// name is no longer in the text (it was edited away) is dropped.
+    public static func ranges(of picked: [MentionCandidate], in text: String) -> [ChatMention] {
+        var found: [ChatMention] = []
+        for candidate in picked {
+            let token = "@" + candidate.name
+            var searchStart = text.startIndex
+            while let range = text.range(of: token, options: .caseInsensitive, range: searchStart..<text.endIndex) {
+                let end = range.upperBound
+                let isBoundary = end == text.endIndex || !(text[end].isLetter || text[end].isNumber || text[end] == "_")
+                let isStart = range.lowerBound == text.startIndex || text[text.index(before: range.lowerBound)].isWhitespace
+                if isBoundary && isStart {
+                    found.append(ChatMention(kind: candidate.kind, id: candidate.id, start: text.distance(from: text.startIndex, to: range.lowerBound), length: token.count))
+                    break
+                }
+                searchStart = end
+            }
+        }
+        return found.sorted { $0.start < $1.start }
+    }
+
+    /// The pieces of a sent message that name someone, for drawing as chips.
+    public static func spans(in text: String, names: [String]) -> [Range<String.Index>] {
+        var result: [Range<String.Index>] = []
+        for name in names.filter({ !$0.isEmpty }).sorted(by: { $0.count > $1.count }) {
+            var searchStart = text.startIndex
+            while let range = text.range(of: "@" + name, options: .caseInsensitive, range: searchStart..<text.endIndex) {
+                let end = range.upperBound
+                let isBoundary = end == text.endIndex || !(text[end].isLetter || text[end].isNumber || text[end] == "_")
+                let isStart = range.lowerBound == text.startIndex || text[text.index(before: range.lowerBound)].isWhitespace
+                if isBoundary && isStart && !result.contains(where: { $0.overlaps(range) }) { result.append(range) }
+                searchStart = end
+            }
+        }
+        return result.sorted { $0.lowerBound < $1.lowerBound }
     }
 }
 
@@ -444,6 +553,26 @@ extension Documents {
         }
         """
 
+    /// SendMessage with structured mentions, for a server that takes them. The
+    /// input type's name is the one the backend plan gives; the app uses this
+    /// document only when the schema shows a `mentions` argument.
+    public static let sendChatMessageWithMentions = """
+        mutation SendMessage(
+          $conversationId: String!, $message: String!, $replyToMessageId: String, $surface: ConversationSurface, $mentions: [ConversationMentionInput]
+        ) {
+          SendMessage(conversationId: $conversationId, message: $message, replyToMessageId: $replyToMessageId, surface: $surface, mentions: $mentions) {
+            runId
+            message { id role content createdAt \(chatMessageFields) }
+          }
+        }
+        """
+
+    public static let listAuthorizedAgents = """
+        query ListAuthorizedAgents($organizationId: String) {
+          ListAuthorizedAgents(organizationId: $organizationId) { id name isMain isEnabled }
+        }
+        """
+
     public static let editChatMessage = """
         mutation EditChatMessage($chatId: String, $messageId: String, $text: String) {
           EditChatMessage(chatId: $chatId, messageId: $messageId, text: $text) { message { id role content createdAt \(chatMessageFields) } }
@@ -473,7 +602,7 @@ extension Documents {
         [
             listChats, getChat, listChatCandidates, startDirectChat, createGroupChat, addChatMembers, removeChatMember, renameChat, setChatMemberAdmin,
             setChatNotificationLevel, setChatMemoryFiling, sendChatMessage, editChatMessage, deleteChatMessage, markChatRead, setChatTyping,
-            listMessageLinkPreviews, removeMessageLinkPreviews,
+            listMessageLinkPreviews, removeMessageLinkPreviews, listAuthorizedAgents,
         ]
     }
 }
@@ -578,7 +707,9 @@ extension Connection {
 
     /// Says something to the room. The run id is empty unless the message
     /// addressed the assistant. No `viewing` or `voice` goes out in a chat.
-    public func sendChatMessage(conversationId: String, text: String, replyToMessageId: String? = nil) async throws -> (runId: String, message: ConversationMessage?) {
+    public func sendChatMessage(
+        conversationId: String, text: String, replyToMessageId: String? = nil, mentions: [ChatMention] = []
+    ) async throws -> (runId: String, message: ConversationMessage?) {
         struct Answer: Decodable, Sendable {
             struct Sent: Decodable, Sendable {
                 let runId: String?
@@ -588,8 +719,29 @@ extension Connection {
         }
         var variables: [String: JSONValue] = ["conversationId": .string(conversationId), "message": .string(text), "surface": .string("ios")]
         if let replyToMessageId, !replyToMessageId.isEmpty { variables["replyToMessageId"] = .string(replyToMessageId) }
-        let sent = try await execute(Documents.sendChatMessage, variables: variables, as: Answer.self).SendMessage
+        var document = Documents.sendChatMessage
+        if !mentions.isEmpty {
+            // Only called with mentions when the server takes them.
+            document = Documents.sendChatMessageWithMentions
+            variables["mentions"] = .array(
+                mentions.map { mention in
+                    .object([
+                        mention.kind == .agent ? "agentId" : "userId": .string(mention.id), "start": .number(Double(mention.start)),
+                        "length": .number(Double(mention.length)),
+                    ])
+                })
+        }
+        let sent = try await execute(document, variables: variables, as: Answer.self).SendMessage
         return (sent.runId ?? "", sent.message)
+    }
+
+    /// The agents a chat's organization may use, the main one first.
+    public func authorizedAgents(organizationId: String?) async throws -> [Agent] {
+        struct Answer: Decodable, Sendable { let ListAuthorizedAgents: [Agent]? }
+        var variables: [String: JSONValue] = [:]
+        if let organizationId { variables["organizationId"] = .string(organizationId) }
+        let rows = try await execute(Documents.listAuthorizedAgents, variables: variables, as: Answer.self).ListAuthorizedAgents ?? []
+        return rows.filter { $0.isEnabled != false }.sorted { ($0.isMain == true ? 0 : 1) < ($1.isMain == true ? 0 : 1) }
     }
 
     public func editChatMessage(chatId: String, messageId: String, text: String) async throws {

@@ -159,8 +159,8 @@ final class DemoState: @unchecked Sendable {
                 "replyToMessageId": "c2", "replyToExcerpt": "Sure. It is on the ticket now", "replyToAuthorName": "Alex Example",
                 "reactions": [["id": "rc3", "messageId": "c3", "reactorKind": "user", "reactorUserId": "user01", "emoji": "\u{1F44D}", "isAcknowledgment": false]],
             ]),
-            said("c4", "user01", "Alex Example", "@assistant summarize the pressure readings from the ticket", 1_000, extra: ["isAddressingAssistant": true]),
-            said("c5", "assistant", "Assistant", "Suction pressure dipped below 40 kPa four times in two hours, each time just before a drop.", 950, role: "assistant", extra: ["authorUserId": NSNull(), "onBehalfOfUserId": "user01", "onBehalfOfUserName": "Alex Example", "replyToMessageId": "c4", "replyToExcerpt": "@assistant summarize the pressure readings", "replyToAuthorName": "Alex Example"]),
+            said("c4", "user01", "Alex Example", "@Mujin AI summarize the pressure readings from the ticket", 1_000, extra: ["isAddressingAssistant": true]),
+            said("c5", "assistant", "Mujin AI", "Suction pressure dipped below 40 kPa four times in two hours, each time just before a drop.", 950, role: "assistant", extra: ["authorUserId": NSNull(), "onBehalfOfUserId": "user01", "onBehalfOfUserName": "Alex Example", "replyToMessageId": "c4", "replyToExcerpt": "@Mujin AI summarize the pressure readings", "replyToAuthorName": "Alex Example"]),
             said("c6", "user02", "Sam Sample", "", 900, extra: ["deletedAt": stamp(880)]),
             said("c7", "user02", "Sam Sample", "That matches what I saw. I will schedule a hose replacement.", 700, extra: ["editedAt": stamp(650)]),
             said("c8", "user01", "Alex Example", "Thanks, please do.", 620),
@@ -330,6 +330,8 @@ struct DemoTransport: HTTPTransport {
                     ["userId": "user02", "userName": "Sam Sample", "email": "sam@example.test", "organizationId": "organization00", "organizationName": "Support", "isMujinUser": true],
                 ]
             return ["ListChatCandidates": rows]
+        case "ListAuthorizedAgents":
+            return ["ListAuthorizedAgents": [["id": "agent01", "name": "Mujin AI", "isMain": true, "isEnabled": true], ["id": "agent02", "name": "Site Helper", "isMain": false, "isEnabled": true]]]
         case "StartDirectChat":
             return ["StartDirectChat": ["chat": ["id": "chat01"], "conversation": ["id": "chatconv01"]]]
         case "CreateGroupChat":

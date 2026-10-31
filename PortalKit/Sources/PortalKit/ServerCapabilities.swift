@@ -7,8 +7,13 @@ public struct ServerCapabilities: Equatable, Sendable {
     public let queryNames: Set<String>
     public let mutationNames: Set<String>
     public let subscriptionNames: Set<String>
+    /// The arguments the SendMessage mutation takes.
+    public let sendMessageArgumentNames: Set<String>
 
-    public init(queryNames: Set<String> = [], mutationNames: Set<String> = [], subscriptionNames: Set<String> = []) {
+    public init(
+        queryNames: Set<String> = [], mutationNames: Set<String> = [], subscriptionNames: Set<String> = [], sendMessageArgumentNames: Set<String> = []
+    ) {
+        self.sendMessageArgumentNames = sendMessageArgumentNames
         self.queryNames = Set(queryNames.map(Self.normalized))
         self.mutationNames = Set(mutationNames.map(Self.normalized))
         self.subscriptionNames = Set(subscriptionNames.map(Self.normalized))
@@ -27,6 +32,10 @@ public struct ServerCapabilities: Equatable, Sendable {
     /// Chats between people.
     public var offersChats: Bool { offersQuery("ListChatCandidates") && offersMutation("StartDirectChat") }
 
+    /// Whether SendMessage takes structured mentions. Until it does, a
+    /// message names an agent by its text and the server matches the name.
+    public var offersStructuredMentions: Bool { sendMessageArgumentNames.contains("mentions") }
+
     public var offersPushRegistration: Bool { offersMutation("RegisterPushDevice") }
     public var offersWebSessionHandoff: Bool { offersMutation("CreateWebSessionHandoff") }
     /// Staff overview of every tenant's running work and ended turns.
@@ -39,7 +48,11 @@ public struct ServerCapabilities: Equatable, Sendable {
     /// What a schema introspection answer holds.
     struct Introspection: Decodable, Sendable {
         struct RootType: Decodable, Sendable {
-            struct Field: Decodable, Sendable { let name: String }
+            struct Field: Decodable, Sendable {
+                struct Argument: Decodable, Sendable { let name: String }
+                let name: String
+                let args: [Argument]?
+            }
             let fields: [Field]?
         }
         struct Schema: Decodable, Sendable {
@@ -52,9 +65,10 @@ public struct ServerCapabilities: Equatable, Sendable {
 
     init(_ introspection: Introspection) {
         func names(_ type: Introspection.RootType?) -> Set<String> { Set((type?.fields ?? []).map(\.name)) }
+        let sendArguments = (introspection.__schema.mutationType?.fields ?? []).first { Self.normalized($0.name) == "sendMessage" }?.args ?? []
         self.init(
             queryNames: names(introspection.__schema.queryType), mutationNames: names(introspection.__schema.mutationType),
-            subscriptionNames: names(introspection.__schema.subscriptionType))
+            subscriptionNames: names(introspection.__schema.subscriptionType), sendMessageArgumentNames: Set(sendArguments.map(\.name)))
     }
 }
 
@@ -64,7 +78,7 @@ extension Documents {
         query ServerCapabilities {
           __schema {
             queryType { fields { name } }
-            mutationType { fields { name } }
+            mutationType { fields { name args { name } } }
             subscriptionType { fields { name } }
           }
         }

@@ -68,6 +68,12 @@ final class ChatModel {
     private(set) var previews: [String: [LinkPreviewCard]] = [:]
     private(set) var isFeedLive = false
     private(set) var isLoadingEarlier = false
+    /// The agents the chat's organization may use, the main one first.
+    private(set) var agents: [Agent] = []
+    /// The people and agents the person picked from the @ list for the draft.
+    private(set) var pickedMentions: [MentionCandidate] = []
+    /// Whether the server takes structured mentions; otherwise the name text carries them.
+    var offersStructuredMentions = false
     /// Whether a turn of the assistant the person started is running.
     private(set) var isOwnTurnRunning = false
     private(set) var questions: [QuestionCard] = []
@@ -100,6 +106,28 @@ final class ChatModel {
     var title: String { room?.title ?? String(localized: "Chat") }
     var canWrite: Bool { room?.canWrite ?? true }
     var isAdmin: Bool { room?.isReaderAdmin == true }
+
+    /// The people and agents the @ list offers for what the draft ends with, or none when it is closed.
+    func mentionSuggestions(for draft: String) -> [MentionCandidate] {
+        guard canWrite, let query = Mentions.query(in: draft) else { return [] }
+        return Mentions.candidates(agents: agents, members: room?.members ?? [], query: query, excludingUserId: currentUserId)
+    }
+
+    func pick(_ candidate: MentionCandidate) {
+        if !pickedMentions.contains(where: { $0.id == candidate.id }) { pickedMentions.append(candidate) }
+    }
+
+    /// The agent the draft or the reply addresses, when there is one.
+    func addressedAgent(in draft: String) -> Agent? {
+        if let agent = ChatRules.addressedAgent(in: draft, agents: agents) { return agent }
+        if let reply = replyTarget, reply.isAssistant {
+            return agents.first { $0.name == reply.authorName } ?? agents.first { $0.isMain == true } ?? agents.first
+        }
+        return nil
+    }
+
+    /// The names that read as chips in a sent message.
+    var mentionNames: [String] { agents.compactMap(\.name) + (room?.members ?? []).map(\.shownName) }
 
     func member(_ userId: String?) -> ChatMember? { room?.members?.first { $0.userId == userId } }
 
@@ -199,6 +227,7 @@ final class ChatModel {
             phase = .loaded
             await reloadCards()
             await markRead()
+            if agents.isEmpty, let loaded = try? await connection.authorizedAgents(organizationId: newRoom.organizationId) { agents = loaded }
             await loadPreviews(timeline.messages.suffix(30).map(\.id))
         } catch {
             onError(error)
@@ -255,8 +284,11 @@ final class ChatModel {
                 await reload()
                 return true
             }
-            let sent = try await connection.sendChatMessage(conversationId: conversationId, text: trimmed, replyToMessageId: replyTarget?.id)
+            let mentions = offersStructuredMentions ? Mentions.ranges(of: pickedMentions, in: trimmed) : []
+            let sent = try await connection.sendChatMessage(
+                conversationId: conversationId, text: trimmed, replyToMessageId: replyTarget?.id, mentions: mentions)
             replyTarget = nil
+            pickedMentions = []
             if let message = sent.message { timeline.upsert(message) }
             if !sent.runId.isEmpty { isOwnTurnRunning = true }
             await markRead()

@@ -21,6 +21,14 @@ public struct Agent: Codable, Equatable, Sendable {
     public let id: String
     public let name: String?
     public let isMain: Bool?
+    public let isEnabled: Bool?
+
+    public init(id: String, name: String? = nil, isMain: Bool? = nil, isEnabled: Bool? = nil) {
+        self.id = id
+        self.name = name
+        self.isMain = isMain
+        self.isEnabled = isEnabled
+    }
 }
 
 /// ConversationSummary is one row of the conversation list.

@@ -105,13 +105,82 @@ import Testing
         #expect(reply.isReply && !reply.hasQuotedText)
     }
 
-    @Test func theAssistantIsAddressedByAWordBoundedMention() {
-        #expect(ChatRules.isAddressingAssistant("@assistant what is the status?"))
-        #expect(ChatRules.isAddressingAssistant("Hey @Assistant, look"))
-        #expect(ChatRules.isAddressingAssistant("(@ASSISTANT)"))
-        #expect(!ChatRules.isAddressingAssistant("mail me@assistant.example"))
-        #expect(!ChatRules.isAddressingAssistant("@assistants"))
-        #expect(!ChatRules.isAddressingAssistant("no mention"))
+    static let agents = [Agent(id: "agent02", name: "Site Helper", isMain: false), Agent(id: "agent01", name: "Mujin AI", isMain: true)]
+
+    @Test func anAgentIsAddressedByItsOwnNameAtAWordBoundary() {
+        #expect(ChatRules.addressedAgent(in: "@Mujin AI what is the status?", agents: Self.agents)?.id == "agent01")
+        #expect(ChatRules.addressedAgent(in: "hey @mujin ai, look", agents: Self.agents)?.id == "agent01")
+        #expect(ChatRules.addressedAgent(in: "(@SITE HELPER)", agents: Self.agents)?.id == "agent02")
+        #expect(ChatRules.addressedAgent(in: "mail me@Mujin AI.example", agents: Self.agents) == nil)
+        #expect(ChatRules.addressedAgent(in: "@Mujin AIs", agents: Self.agents) == nil)
+        #expect(ChatRules.addressedAgent(in: "@Unknown hello", agents: Self.agents) == nil)
+        #expect(ChatRules.addressedAgent(in: "no mention", agents: Self.agents) == nil)
+    }
+
+    @Test func theAtListOpensAfterAnAtThatStartsAWord() {
+        #expect(Mentions.query(in: "@") == "")
+        #expect(Mentions.query(in: "Hi @Mu") == "Mu")
+        #expect(Mentions.query(in: "mail me@example") == nil)
+        #expect(Mentions.query(in: "no at sign") == nil)
+        #expect(Mentions.query(in: "@Mujin AI and then a very long continuation of the sentence") == nil)
+    }
+
+    @Test func agentsComeFirstWithTheMainOneFirstThenMembersFilteredByWhatWasTyped() {
+        let members = [
+            ChatMember(id: "a", userId: "user01", userName: "Alex Example"), ChatMember(id: "b", userId: "user02", userName: "Sam Sample", organizationName: "Support"),
+            ChatMember(id: "c", userId: "user03", userName: "Robin Demo", leftAt: "2026-03-01T10:00:00Z"),
+        ]
+        let all = Mentions.candidates(agents: Self.agents, members: members, query: "", excludingUserId: "user01")
+        #expect(all.map(\.name) == ["Mujin AI", "Site Helper", "Sam Sample"])
+        #expect(all.map(\.kind) == [.agent, .agent, .user])
+        #expect(Mentions.candidates(agents: Self.agents, members: members, query: "sa", excludingUserId: "user01").map(\.name) == ["Sam Sample"])
+        #expect(Mentions.candidates(agents: Self.agents, members: members, query: "muj", excludingUserId: "user01").map(\.name) == ["Mujin AI"])
+    }
+
+    @Test func pickingReplacesTheTypedTokenWithTheName() {
+        let candidate = MentionCandidate(kind: .agent, id: "agent01", name: "Mujin AI")
+        #expect(Mentions.inserting(candidate, into: "Hello @Mu") == "Hello @Mujin AI ")
+        #expect(Mentions.inserting(candidate, into: "@") == "@Mujin AI ")
+    }
+
+    @Test func aPickedMentionKeepsItsPlaceInTheText() {
+        let agent = MentionCandidate(kind: .agent, id: "agent01", name: "Mujin AI")
+        let person = MentionCandidate(kind: .user, id: "user02", name: "Sam Sample")
+        let text = "Hi @Sam Sample, can @Mujin AI check this?"
+        let mentions = Mentions.ranges(of: [agent, person], in: text)
+        #expect(mentions.map(\.id) == ["user02", "agent01"])
+        #expect(mentions[0].start == 3 && mentions[0].length == 11)
+        #expect(Mentions.ranges(of: [agent], in: "I edited the name away").isEmpty)
+    }
+
+    @Test func sentMessagesDrawTheirMentionsAsChips() {
+        let text = "Hi @Sam Sample, can @Mujin AI check this? me@Mujin AI no"
+        let spans = Mentions.spans(in: text, names: ["Mujin AI", "Sam Sample"])
+        #expect(spans.map { String(text[$0]) } == ["@Sam Sample", "@Mujin AI"])
+    }
+
+    @Test func mentionsAreOnlySentWhenTheServerTakesThem() async throws {
+        let (connection, transport) = scriptedConnection { _, _ in ["SendMessage": ["runId": "run01", "message": ["id": "m1", "role": "user", "content": "x", "isChatMessage": true]]] }
+        _ = try await connection.sendChatMessage(conversationId: "c1", text: "@Mujin AI hi")
+        #expect(sentVariables(transport.requests[0])["mentions"] == nil)
+        _ = try await connection.sendChatMessage(conversationId: "c1", text: "@Mujin AI hi", mentions: [ChatMention(kind: .agent, id: "agent01", start: 0, length: 9)])
+        let mentions = sentVariables(transport.requests[1])["mentions"] as? [[String: Any]]
+        #expect(mentions?.first?["agentId"] as? String == "agent01")
+    }
+
+    @Test func structuredMentionsAreOfferedWhenSendMessageHasTheArgument() async {
+        let (connection, _) = scriptedConnection { _, _ in
+            ["__schema": ["queryType": ["fields": []], "mutationType": ["fields": [["name": "sendMessage", "args": [["name": "message"], ["name": "mentions"]]]]], "subscriptionType": NSNull()]]
+        }
+        #expect(await connection.capabilities().offersStructuredMentions)
+        #expect(!ServerCapabilities().offersStructuredMentions)
+    }
+
+    @Test func theAgentsAMayUseComeMainFirst() async throws {
+        let (connection, _) = scriptedConnection { _, _ in
+            ["ListAuthorizedAgents": [["id": "a2", "name": "Site Helper", "isMain": false, "isEnabled": true], ["id": "a1", "name": "Mujin AI", "isMain": true, "isEnabled": true], ["id": "a3", "name": "Off", "isEnabled": false]]]
+        }
+        #expect(try await connection.authorizedAgents(organizationId: "o1").map(\.id) == ["a1", "a2"])
     }
 
     @Test func aGroupNeedsThreePeopleAndAName() {

@@ -5,7 +5,7 @@ import UIKit
 /// ChatView is one chat with people: their messages on the left, the
 /// person's own on the right, replies, edits, reactions, who is typing, who
 /// has read, and cards under messages that hold links. The assistant joins
-/// when a message mentions `@assistant` or replies to one of its answers.
+/// when a message mentions the agent by its name or replies to one of its answers.
 struct ChatView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
@@ -14,7 +14,7 @@ struct ChatView: View {
     let chatId: String?
 
     @State private var model: ChatModel?
-    @State private var draft = ""
+    @State private var draft = DemoOptions.screen == "chat-mention" ? "Can @" : ""
     @State private var emojiTarget: ConversationView.EmojiTarget?
     @State private var messageToDelete: ChatMessage?
     @State private var isShowingInfo = DemoOptions.screen == "chat-info"
@@ -55,6 +55,7 @@ struct ChatView: View {
             let chatModel = ChatModel(
                 conversationId: conversationId, chatId: chatId, currentUserId: account.userId, connection: appModel.connection(for: account),
                 socketFactory: appModel.socketFactory, onError: { [appModel, account] error in appModel.handle(error, account: account) })
+            chatModel.offersStructuredMentions = session.capabilities.offersStructuredMentions
             model = chatModel
             chatModel.start()
             if appModel.isDemo, DemoOptions.screen == "chat-reply" {
@@ -100,7 +101,11 @@ struct ChatView: View {
                         ContentUnavailableView {
                             Label("No messages yet", systemImage: "bubble.left.and.bubble.right")
                         } description: {
-                            Text("Say hello. Mention @assistant to bring in the assistant.")
+                            if let agent = model.agents.first?.name {
+                                Text("Say hello. Type @ to bring in \(agent).")
+                            } else {
+                                Text("Say hello. Type @ to mention someone.")
+                            }
                         }
                         .padding(.top, 48)
                     }
@@ -190,14 +195,15 @@ struct ChatView: View {
                     ) {}
                     .padding(.horizontal, 12)
                 }
+                mentionList(model)
                 if let editing = model.editTarget {
                     banner(icon: "pencil", title: String(localized: "Editing your message"), detail: editing.text) {
                         model.editTarget = nil
                         draft = ""
                     }
                 }
-                if addressesAssistant(model) {
-                    Label("The assistant will answer", systemImage: "sparkles")
+                if let agent = model.addressedAgent(in: draft) {
+                    Label("\(agent.name ?? String(localized: "The assistant")) will answer", systemImage: "sparkles")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -205,18 +211,7 @@ struct ChatView: View {
                 }
                 GlassEffectContainer {
                     HStack(alignment: .bottom, spacing: 8) {
-                        // At the accessibility sizes the field needs the room; the mention can be typed.
-                        if !dynamicTypeSize.isAccessibilitySize {
-                        Button {
-                            draft += (draft.isEmpty || draft.hasSuffix(" ") ? "" : " ") + "@assistant "
-                        } label: {
-                            Image(systemName: "at").frame(width: 24, height: 24)
-                        }
-                        .buttonStyle(.glass)
-                        .buttonBorderShape(.circle)
-                        .accessibilityLabel("Mention the assistant")
-                        }
-                        TextField("Message", text: $draft, axis: .vertical)
+                        TextField(fieldPrompt(model), text: $draft, axis: .vertical)
                             .lineLimit(1...6)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
@@ -257,8 +252,47 @@ struct ChatView: View {
         }
     }
 
-    private func addressesAssistant(_ model: ChatModel) -> Bool {
-        ChatRules.isAddressingAssistant(draft) || model.replyTarget?.isAssistant == true
+    private func fieldPrompt(_ model: ChatModel) -> LocalizedStringKey {
+        if let agent = model.agents.first?.name { return LocalizedStringKey("Message, or @\(agent) to ask") }
+        return LocalizedStringKey("Message")
+    }
+
+    /// The list that opens above the composer when the draft ends with an @:
+    /// agents first, then the people in the chat.
+    @ViewBuilder
+    private func mentionList(_ model: ChatModel) -> some View {
+        let suggestions = model.mentionSuggestions(for: draft)
+        if !suggestions.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(suggestions) { candidate in
+                    Button {
+                        draft = Mentions.inserting(candidate, into: draft)
+                        model.pick(candidate)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: candidate.kind == .agent ? "sparkles" : "person")
+                                .foregroundStyle(Color.portalSecondary)
+                                .frame(width: 22)
+                                .accessibilityHidden(true)
+                            Text(candidate.name).foregroundStyle(.primary)
+                            if let detail = candidate.detail, !detail.isEmpty {
+                                Text(detail).font(.footnote).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if candidate.id != suggestions.last?.id { Divider() }
+                }
+            }
+            .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
+            .padding(.horizontal, 12)
+            .frame(maxWidth: ConversationView.readableWidth + 32)
+        }
     }
 
     private func banner(icon: String, title: String, detail: String, onClose: @escaping () -> Void) -> some View {
@@ -309,7 +343,7 @@ private struct MessageRow: View {
     private var authorLine: some View {
         let member = model.member(message.authorUserId)
         return HStack(spacing: 6) {
-            Text(message.isAssistant ? String(localized: "Assistant") : (message.authorName ?? member?.shownName ?? String(localized: "Someone")))
+            Text(message.isAssistant ? ((message.authorName ?? "").isEmpty ? String(localized: "Assistant") : message.authorName!) : (message.authorName ?? member?.shownName ?? String(localized: "Someone")))
                 .font(.caption.weight(.semibold))
             if message.isAssistant, let name = message.onBehalfOfUserName, !name.isEmpty {
                 Text("for \(name)").font(.caption).foregroundStyle(.secondary)
@@ -355,7 +389,7 @@ private struct MessageRow: View {
                 if message.isAssistant {
                     MarkdownView(markdown: message.text)
                 } else {
-                    Text(Self.attributed(message.text))
+                    Text(Self.attributed(message.text, mentionNames: model.mentionNames, onAccent: isMine))
                         .textSelection(.enabled)
                 }
                 if message.isEdited {
@@ -375,8 +409,15 @@ private struct MessageRow: View {
     }
 
     /// Links in a message are live; the text is otherwise shown as written.
-    static func attributed(_ text: String) -> AttributedString {
-        (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
+    static func attributed(_ text: String, mentionNames: [String], onAccent: Bool) -> AttributedString {
+        // The names of agents and people in the message read as chips.
+        var result = AttributedString(text)
+        for span in Mentions.spans(in: text, names: mentionNames) {
+            guard let start = AttributedString.Index(span.lowerBound, within: result), let end = AttributedString.Index(span.upperBound, within: result) else { continue }
+            result[start..<end].font = .body.weight(.semibold)
+            result[start..<end].backgroundColor = onAccent ? Color.onAccent.opacity(0.25) : Color.accentColor.opacity(0.18)
+        }
+        return result
     }
 
     @ViewBuilder

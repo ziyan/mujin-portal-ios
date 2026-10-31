@@ -157,6 +157,7 @@ jobs:
           shoot chat chat:chatconv01
           shoot chat-group chat:chatconv02
           shoot chat-reply chat-reply
+          shoot chat-mention chat-mention
           shoot conversation-reply conversation-reply
           shoot ask ask
           shoot chat-info chat-info
