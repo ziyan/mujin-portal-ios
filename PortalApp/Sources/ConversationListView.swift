@@ -113,13 +113,17 @@ struct ConversationListView: View {
 
 private struct ConversationRow: View {
     let conversation: ConversationSummary
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        // At the accessibility sizes the date goes under the title instead of
+        // beside it, which would leave the title no room in a narrow sidebar.
+        let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
+        layout {
             VStack(alignment: .leading, spacing: 4) {
                 Text(conversation.title?.isEmpty == false ? conversation.title! : String(localized: "New conversation"))
                     .font(.headline)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                 if let summary = conversation.summary, !summary.isEmpty {
                     Text(summary)
                         .font(.subheadline)
@@ -128,7 +132,7 @@ private struct ConversationRow: View {
                 }
             }
             Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 4) {
                 if let date = conversation.lastActivity {
                     Text(date, format: .relative(presentation: .named))
                         .font(.caption)
