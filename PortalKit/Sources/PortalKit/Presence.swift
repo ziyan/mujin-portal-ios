@@ -180,13 +180,13 @@ public enum ReporterIdentity {
     public static func current() -> String {
         #if canImport(Security)
             if let data = try? Keychain.read(name), let stored = String(data: data, encoding: .utf8), !stored.isEmpty { return stored }
-            let created = UUID().uuidString.lowercased()
-            if (try? Keychain.write(Data(created.utf8), as: name)) != nil { return created }
+            let keychainId = UUID().uuidString.lowercased()
+            if (try? Keychain.write(Data(keychainId.utf8), as: name)) != nil { return keychainId }
         #endif
         let defaults = AppGroup.defaults
         if let stored = defaults.string(forKey: name), !stored.isEmpty { return stored }
-        let created = UUID().uuidString.lowercased()
-        defaults.set(created, forKey: name)
-        return created
+        let defaultsId = UUID().uuidString.lowercased()
+        defaults.set(defaultsId, forKey: name)
+        return defaultsId
     }
 }
