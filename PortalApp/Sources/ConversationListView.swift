@@ -242,7 +242,11 @@ private struct ConversationRow: View {
         // (Needs you, an unread dot or a spinner) sits at the right of the preview line.
         let isLarge = dynamicTypeSize.isAccessibilitySize
         HStack(alignment: .top, spacing: 12) {
-            PersonAvatar(name: conversation.chat?.title ?? "", size: 44, isAssistant: conversation.conversationKind != "chat")
+            if let room = conversation.chat, conversation.conversationKind == "chat" {
+                ChatAvatar(room: room, size: 44)
+            } else {
+                PersonAvatar(name: conversation.chat?.title ?? "", size: 44, isAssistant: conversation.conversationKind != "chat")
+            }
             VStack(alignment: .leading, spacing: 3) {
                 let titleLine = AnyLayout(isLarge ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8)))
                 titleLine {

@@ -993,7 +993,7 @@ struct SiteListScreen: View {
             case .members:
                 ForEach(model.members) { member in
                     HStack(spacing: 12) {
-                        PersonAvatar(name: member.shownName, size: 36)
+                        UserAvatar(userId: member.id, name: member.shownName, hasAvatar: member.hasAvatar, modifiedAt: member.modifiedAt, size: 36)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(member.shownName)
                             if let email = member.email, !email.isEmpty, email != member.shownName { Text(email).font(.footnote).foregroundStyle(.secondary) }

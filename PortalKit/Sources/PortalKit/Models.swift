@@ -7,8 +7,12 @@ public struct Me: Codable, Equatable, Sendable {
     public let name: String?
     public let organizationId: String?
     public let permissions: [String]?
+    public let hasAvatar: Bool?
+    public let modifiedAt: String?
 
-    public init(id: String, email: String? = nil, name: String? = nil, organizationId: String? = nil, permissions: [String]? = nil) {
+    public init(id: String, email: String? = nil, name: String? = nil, organizationId: String? = nil, permissions: [String]? = nil, hasAvatar: Bool? = nil, modifiedAt: String? = nil) {
+        self.hasAvatar = hasAvatar
+        self.modifiedAt = modifiedAt
         self.id = id
         self.email = email
         self.name = name

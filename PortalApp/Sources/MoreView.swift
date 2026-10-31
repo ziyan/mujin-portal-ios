@@ -35,9 +35,12 @@ struct MoreView: View {
                     Button {
                         isShowingAccounts = true
                     } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(account.displayName).foregroundStyle(.primary)
-                            Text(account.server.displayHost).font(.footnote).foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            UserAvatar(userId: account.userId, name: account.displayName, hasAvatar: session.profile?.me.hasAvatar, modifiedAt: session.profile?.me.modifiedAt, size: 40)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(account.displayName).foregroundStyle(.primary)
+                                Text(account.server.displayHost).font(.footnote).foregroundStyle(.secondary)
+                            }
                         }
                     }
                     .accessibilityIdentifier("accountsButton")

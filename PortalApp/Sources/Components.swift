@@ -231,6 +231,130 @@ struct PersonAvatar: View {
     }
 }
 
+/// AvatarImageMemory holds the decoded pictures of one session, so a row that scrolls back into view draws its picture at once, with no moment of initials.
+final class AvatarImageMemory: @unchecked Sendable {
+    private let images = NSCache<NSString, UIImage>()
+
+    init() { images.countLimit = 300 }
+
+    func image(for subject: AvatarSubject) -> UIImage? { images.object(forKey: subject.cacheKey as NSString) }
+    func store(_ image: UIImage, for subject: AvatarSubject) { images.setObject(image, forKey: subject.cacheKey as NSString) }
+}
+
+/// UserAvatar is a person's picture, or their initials on the same tinted circle when they have none or it has not arrived. Where the list
+/// does not say whether the person has a picture (`hasAvatar` nil), it is asked for and the initials stay if there is none.
+struct UserAvatar: View {
+    @Environment(SessionModel.self) private var session
+    let userId: String?
+    let name: String
+    var hasAvatar: Bool?
+    var modifiedAt: String?
+    var size: CGFloat = 28
+    var isAssistant = false
+
+    @State private var loaded: UIImage?
+
+    private var subject: AvatarSubject? {
+        guard let userId, !userId.isEmpty, hasAvatar != false, !isAssistant else { return nil }
+        return AvatarSubject(kind: .user, id: userId, modifiedAt: modifiedAt)
+    }
+
+    var body: some View {
+        AvatarPicture(subject: subject, loaded: $loaded) {
+            PersonAvatar(name: name, size: size, isAssistant: isAssistant)
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .accessibilityHidden(true)
+    }
+}
+
+/// OrganizationAvatar is an organization's logo on a rounded square, or a building symbol when it has none.
+struct OrganizationAvatar: View {
+    let organizationId: String
+    var hasLogo: Bool?
+    var modifiedAt: String?
+    var size: CGFloat = 28
+
+    @State private var loaded: UIImage?
+
+    var body: some View {
+        AvatarPicture(subject: hasLogo == true ? AvatarSubject(kind: .organization, id: organizationId, modifiedAt: modifiedAt) : nil, loaded: $loaded) {
+            ZStack {
+                RoundedRectangle(cornerRadius: size * 0.22).fill(Color(.tertiarySystemFill))
+                Image(systemName: "building.2").font(.system(size: size * 0.45)).foregroundStyle(.secondary)
+            }
+            .frame(width: size, height: size)
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.22))
+        .accessibilityHidden(true)
+    }
+}
+
+/// AvatarPicture draws the placeholder, and fades the picture in over it once it is held: the placeholder never goes away first, so nothing flashes.
+private struct AvatarPicture<Placeholder: View>: View {
+    @Environment(SessionModel.self) private var session
+    let subject: AvatarSubject?
+    @Binding var loaded: UIImage?
+    @ViewBuilder let placeholder: () -> Placeholder
+
+    var body: some View {
+        let shown = loaded ?? subject.flatMap { session.avatarImages.image(for: $0) }
+        ZStack {
+            placeholder()
+            if let shown {
+                Image(uiImage: shown).resizable().scaledToFill().transition(.opacity)
+            }
+        }
+        .task(id: subject?.cacheKey) {
+            guard let subject else { loaded = nil; return }
+            if let held = session.avatarImages.image(for: subject) { loaded = held; return }
+            guard let data = await session.avatars.data(for: subject), let image = UIImage(data: data) else { return }
+            session.avatarImages.store(image, for: subject)
+            withAnimation(.easeOut(duration: 0.15)) { loaded = image }
+        }
+    }
+}
+
+/// ChatAvatar stands for a chat in a list: the other person's picture for a direct chat, two overlapping for a group.
+struct ChatAvatar: View {
+    @Environment(SessionModel.self) private var session
+    let room: ChatRoom
+    var size: CGFloat = 44
+
+    var body: some View {
+        let members = room.avatarMembers(excluding: session.account.userId)
+        if room.isGroup, members.count > 1 {
+            AvatarStack(members: members, size: size)
+        } else {
+            UserAvatar(userId: members.first?.userId, name: room.title, size: size)
+        }
+    }
+}
+
+/// AvatarStack is the two overlapping pictures that stand for a group.
+struct AvatarStack: View {
+    let members: [ChatMember]
+    var size: CGFloat = 44
+
+    var body: some View {
+        let smaller = size * 0.68
+        ZStack {
+            if let first = members.first {
+                UserAvatar(userId: first.userId, name: first.shownName, size: smaller)
+                    .frame(width: size, height: size, alignment: .topLeading)
+            }
+            if members.count > 1 {
+                UserAvatar(userId: members[1].userId, name: members[1].shownName, size: smaller)
+                    .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 2))
+                    .frame(width: size, height: size, alignment: .bottomTrailing)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
 /// DayLabel names a day between messages: Today, Yesterday, or the date.
 enum DayLabel {
     static func isNewDay(_ previous: Date?, _ current: Date?) -> Bool {

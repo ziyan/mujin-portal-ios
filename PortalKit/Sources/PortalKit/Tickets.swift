@@ -263,7 +263,7 @@ extension Documents {
 
     public static let listOrganizations = """
         query ListOrganizations($options: ListOptionsInput) {
-          ListOrganizations(options: $options) { organizations { id name isMujin isActive } meta { totalCount } }
+          ListOrganizations(options: $options) { organizations { id name isMujin isActive hasLogo modifiedAt } meta { totalCount } }
         }
         """
 
@@ -278,8 +278,12 @@ public struct OrganizationSummary: Codable, Equatable, Hashable, Identifiable, S
     public let name: String?
     public let isMujin: Bool?
     public let isActive: Bool?
+    public let hasLogo: Bool?
+    public let modifiedAt: String?
 
-    public init(id: String, name: String?, isMujin: Bool? = nil, isActive: Bool? = nil) {
+    public init(id: String, name: String?, isMujin: Bool? = nil, isActive: Bool? = nil, hasLogo: Bool? = nil, modifiedAt: String? = nil) {
+        self.hasLogo = hasLogo
+        self.modifiedAt = modifiedAt
         self.id = id
         self.name = name
         self.isMujin = isMujin

@@ -32,8 +32,12 @@ struct CustomersView: View {
                             Label {
                                 Text(organization.name ?? organization.id)
                             } icon: {
-                                Image(systemName: organization.isMujin == true ? "building.columns" : "building.2")
-                                    .foregroundStyle(.secondary)
+                                if organization.hasLogo == true {
+                                    OrganizationAvatar(organizationId: organization.id, hasLogo: true, modifiedAt: organization.modifiedAt, size: 28)
+                                } else {
+                                    Image(systemName: organization.isMujin == true ? "building.columns" : "building.2")
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                             .foregroundStyle(.primary)
                         }

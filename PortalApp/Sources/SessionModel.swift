@@ -46,6 +46,9 @@ final class SessionModel {
     let onError: @MainActor (Error) -> Void
     /// What this account's screens loaded, so going back to one shows it at once. It goes with the session at sign-out or when another account takes over.
     let cache = ResponseCache()
+    /// This account's pictures: fetched through its connection, kept on disk, and decoded images held for the session.
+    let avatars: AvatarStore
+    let avatarImages = AvatarImageMemory()
     private var siteModels: [String: SiteModel] = [:]
     private var ticketModels: [String: TicketsModel] = [:]
 
@@ -53,6 +56,15 @@ final class SessionModel {
         self.account = account
         self.connection = connection
         self.onError = onError
+        let directory = Self.avatarDirectory(accountKey: account.accountKey)
+        self.avatars = AvatarStore(connection: connection, directory: directory)
+    }
+
+    /// Where an account's pictures are kept on disk.
+    static func avatarDirectory(accountKey: String) -> URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("avatars", isDirectory: true)
+            .appendingPathComponent(accountKey.map { $0.isLetter || $0.isNumber ? String($0) : "_" }.joined(), isDirectory: true)
     }
 
     /// A site screen's model lives as long as the session, so a push and a pop, or a switch of tabs, keeps its data.

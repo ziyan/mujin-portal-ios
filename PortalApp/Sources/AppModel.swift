@@ -164,6 +164,7 @@ final class AppModel {
     private func removeWebData(of account: Account) async {
         if presentedWeb?.accountKey == account.accountKey { presentedWeb = nil }
         webSessions[account.accountKey] = nil
+        if let directory = SessionModel.avatarDirectory(accountKey: account.accountKey) { try? FileManager.default.removeItem(at: directory) }
         if !isDemo { try? await WKWebsiteDataStore.remove(forIdentifier: account.webDataStoreId) }
     }
 

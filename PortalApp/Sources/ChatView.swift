@@ -295,7 +295,7 @@ struct ChatView: View {
                         model.pick(candidate)
                     } label: {
                         HStack(spacing: 10) {
-                            PersonAvatar(name: candidate.name, size: 32, isAssistant: candidate.kind == .agent)
+                            UserAvatar(userId: candidate.kind == .user ? candidate.id : nil, name: candidate.name, size: 32, isAssistant: candidate.kind == .agent)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(candidate.name).foregroundStyle(.primary)
                                 Text(candidate.detail ?? (candidate.kind == .agent ? String(localized: "Assistant") : String(localized: "Person")))
@@ -363,7 +363,7 @@ private struct MessageRow: View {
             // Others have a small round picture at the start of each run of their messages.
             if !isMine {
                 if startsRun {
-                    PersonAvatar(name: message.authorName ?? model.member(message.authorUserId)?.shownName ?? "", size: 28, isAssistant: message.isAssistant)
+                    UserAvatar(userId: message.authorUserId, name: message.authorName ?? model.member(message.authorUserId)?.shownName ?? "", size: 28, isAssistant: message.isAssistant)
                 } else {
                     Color.clear.frame(width: 28, height: 1)
                 }
@@ -501,7 +501,7 @@ private struct MessageRow: View {
         let count = model.timeline.readerCount(of: message.id, excluding: model.currentUserId)
         if count > 0 {
             HStack(spacing: 4) {
-                if model.room?.isGroup != true { PersonAvatar(name: model.title, size: 16) }
+                if model.room?.isGroup != true { UserAvatar(userId: model.room?.avatarMembers(excluding: model.currentUserId).first?.userId, name: model.title, size: 16) }
                 if model.room?.isGroup == true {
                     Text("Seen by \(count)")
                 } else {
@@ -635,6 +635,8 @@ private struct MemberRow: View {
     let viewerOrganizationId: String?
 
     var body: some View {
+        HStack(spacing: 10) {
+        UserAvatar(userId: member.userId, name: member.shownName, size: 32)
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Text(isViewer ? String(localized: "You") : member.shownName)
@@ -652,6 +654,7 @@ private struct MemberRow: View {
             if !isViewer, member.organizationId != viewerOrganizationId, let organization = member.organizationName, !organization.isEmpty {
                 Text(organization).font(.footnote).foregroundStyle(.secondary)
             }
+        }
         }
     }
 }

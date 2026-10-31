@@ -14,7 +14,7 @@ public enum Documents {
         """
 
     public static let me = """
-        query Me { Me { id email name organizationId permissions } }
+        query Me { Me { id email name organizationId permissions hasAvatar modifiedAt } }
         """
 
     public static let organization = """

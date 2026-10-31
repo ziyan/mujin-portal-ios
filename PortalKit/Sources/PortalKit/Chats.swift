@@ -87,6 +87,12 @@ public struct ChatRoom: Codable, Equatable, Identifiable, Sendable {
     public var canWrite: Bool { isReaderMember != false }
     public var lastActivity: Date? { PortalDate.parse(lastMessageAt) }
     public var currentMembers: [ChatMember] { (members ?? []).filter(\.isPresent) }
+
+    /// The people whose pictures stand for the chat in a list: the other person of a direct chat, or the first two others of a group.
+    public func avatarMembers(excluding userId: String?) -> [ChatMember] {
+        let others = currentMembers.filter { $0.userId != userId }
+        return Array(others.prefix(isGroup ? 2 : 1))
+    }
 }
 
 /// ChatCandidate is a person the caller may start a chat with.

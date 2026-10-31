@@ -158,7 +158,7 @@ private struct ChatRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            PersonAvatar(name: room.title, size: 44)
+            ChatAvatar(room: room, size: 44)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
@@ -342,6 +342,7 @@ struct CandidateRow: View {
                     .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                     .accessibilityHidden(true)
             }
+            UserAvatar(userId: person.userId, name: person.shownName, size: 32)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(person.shownName).foregroundStyle(.primary)

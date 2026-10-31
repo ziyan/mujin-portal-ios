@@ -173,11 +173,11 @@ struct TicketDetailView: View {
             LazyVStack(alignment: .leading, spacing: 16) {
                 header(ticket)
                 if model.comments.isEmpty, let description = ticket.description, !description.isEmpty {
-                    CommentView(authorName: session.name(ofPerson: ticket.authorUserId), date: ticket.lastActivity, text: description, isInternal: false, connection: model.connection)
+                    CommentView(authorName: session.name(ofPerson: ticket.authorUserId), authorUserId: ticket.authorUserId, date: ticket.lastActivity, text: description, isInternal: false, connection: model.connection)
                 }
                 ForEach(model.comments) { comment in
                     CommentView(
-                        authorName: session.name(ofPerson: comment.authorUserId), date: comment.date, text: comment.isRemoved ? "" : (comment.body ?? ""),
+                        authorName: session.name(ofPerson: comment.authorUserId), authorUserId: comment.authorUserId, date: comment.date, text: comment.isRemoved ? "" : (comment.body ?? ""),
                         isInternal: comment.isInternal == true, connection: model.connection)
                 }
             }
@@ -276,6 +276,7 @@ struct TicketDetailView: View {
 /// CommentView is one comment: who wrote it, when, and its words and files.
 private struct CommentView: View {
     let authorName: String
+    var authorUserId: String?
     let date: Date?
     let text: String
     let isInternal: Bool
@@ -296,7 +297,8 @@ private struct CommentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .center, spacing: 8) {
+                UserAvatar(userId: authorUserId, name: authorName, size: 24)
                 Text(authorName).font(.subheadline.weight(.semibold))
                 if isInternal {
                     Label("Internal", systemImage: "lock.fill")

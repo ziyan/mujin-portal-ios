@@ -1,5 +1,6 @@
 import Foundation
 import PortalKit
+import UIKit
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -296,6 +297,12 @@ struct DemoTransport: HTTPTransport {
     let state: DemoState
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        if let path = request.url?.path, path.hasPrefix("/api/v1/user/") || path.hasPrefix("/api/v1/organization/") {
+            // Two demo people and one organization have a picture; everyone else gets a 404 and keeps their initials.
+            let image = DemoPictures.jpeg(forPath: path)
+            let response = HTTPURLResponse(url: request.url!, statusCode: image == nil ? 404 : 200, httpVersion: nil, headerFields: ["Content-Type": "image/jpeg"])!
+            return (image ?? Data(), response)
+        }
         let body = request.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
         let query = body["query"] as? String ?? ""
         let variables = body["variables"] as? [String: Any] ?? [:]
@@ -317,7 +324,7 @@ struct DemoTransport: HTTPTransport {
         case "Me":
             return [
                 "Me": [
-                    "id": "user01", "email": "alex@example.test", "name": "Alex Example", "organizationId": "organization01",
+                    "id": "user01", "email": "alex@example.test", "name": "Alex Example", "organizationId": "organization01", "hasAvatar": false, "modifiedAt": "2026-01-01T00:00:00Z",
                     "permissions": ["ticket:read", "ticket:write", "site:read", "organization:operate-all"],
                 ]
             ]
@@ -383,7 +390,7 @@ struct DemoTransport: HTTPTransport {
         case "ListSites":
             return ["ListSites": ["sites": [["id": "site01", "name": "site01", "organizationId": "organization01", "isArchived": false], ["id": "site02", "name": "site02", "organizationId": "organization01", "isArchived": false]]]]
         case "ListOrganizations":
-            return ["ListOrganizations": ["organizations": [["id": "organization01", "name": "Example Logistics", "isMujin": false, "isActive": true], ["id": "organization02", "name": "Sample Foods", "isMujin": false, "isActive": true]], "meta": ["totalCount": 2]]]
+            return ["ListOrganizations": ["organizations": [["id": "organization01", "name": "Example Logistics", "isMujin": false, "isActive": true, "hasLogo": true, "modifiedAt": "2026-01-01T00:00:00Z"], ["id": "organization02", "name": "Sample Foods", "isMujin": false, "isActive": true]], "meta": ["totalCount": 2]]]
         case "GetUser":
             let names = ["user01": "Alex Example", "user02": "Sam Sample", "user03": "Robin Demo"]
             let userId = variables["userId"] as? String ?? ""
@@ -452,8 +459,8 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListOrganizationUsers": [
                     "users": [
-                        ["id": "user01", "name": "Alex Example", "email": "alex@example.test"], ["id": "user02", "name": "Sam Sample", "email": "sam@example.test"],
-                        ["id": "user03", "name": "Robin Demo", "email": "robin@example.test"],
+                        ["id": "user01", "name": "Alex Example", "email": "alex@example.test"], ["id": "user02", "name": "Sam Sample", "email": "sam@example.test", "hasAvatar": true, "modifiedAt": "2026-01-01T00:00:00Z"],
+                        ["id": "user03", "name": "Robin Demo", "email": "robin@example.test", "hasAvatar": true, "modifiedAt": "2026-01-01T00:00:00Z"],
                     ]
                 ]
             ]
@@ -900,5 +907,35 @@ final class DemoLocked<Value>: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return body(&value)
+    }
+}
+
+
+/// DemoPictures draws the avatars and the logo the demo server serves: a head and shoulders on a colored ground.
+enum DemoPictures {
+    static func jpeg(forPath path: String) -> Data? {
+        switch path {
+        case "/api/v1/user/user02/avatar": return render(ground: .systemTeal, figure: .white, isLogo: false)
+        case "/api/v1/user/user03/avatar": return render(ground: .systemOrange, figure: .white, isLogo: false)
+        case "/api/v1/organization/organization01/logo": return render(ground: .systemIndigo, figure: .white, isLogo: true)
+        default: return nil
+        }
+    }
+
+    private static func render(ground: UIColor, figure: UIColor, isLogo: Bool) -> Data {
+        let size = CGSize(width: 200, height: 200)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.jpegData(withCompressionQuality: 0.9) { context in
+            ground.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            figure.withAlphaComponent(0.92).setFill()
+            if isLogo {
+                UIBezierPath(roundedRect: CGRect(x: 50, y: 60, width: 100, height: 90), cornerRadius: 10).fill()
+                UIBezierPath(roundedRect: CGRect(x: 70, y: 30, width: 60, height: 40), cornerRadius: 8).fill()
+            } else {
+                UIBezierPath(ovalIn: CGRect(x: 70, y: 40, width: 60, height: 60)).fill()
+                UIBezierPath(ovalIn: CGRect(x: 35, y: 115, width: 130, height: 130)).fill()
+            }
+        }
     }
 }

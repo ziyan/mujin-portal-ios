@@ -71,8 +71,12 @@ public struct SiteMember: Decodable, Equatable, Identifiable, Sendable {
     public let id: String
     public let name: String?
     public let email: String?
+    public let hasAvatar: Bool?
+    public let modifiedAt: String?
 
-    public init(id: String, name: String? = nil, email: String? = nil) {
+    public init(id: String, name: String? = nil, email: String? = nil, hasAvatar: Bool? = nil, modifiedAt: String? = nil) {
+        self.hasAvatar = hasAvatar
+        self.modifiedAt = modifiedAt
         self.id = id
         self.name = name
         self.email = email
@@ -109,7 +113,7 @@ extension Documents {
 
     public static let listOrganizationUsers = """
         query ListOrganizationUsers($organizationId: String, $options: ListOptionsInput) {
-          ListOrganizationUsers(organizationId: $organizationId, options: $options) { users { id email name } }
+          ListOrganizationUsers(organizationId: $organizationId, options: $options) { users { id email name hasAvatar modifiedAt } }
         }
         """
 
