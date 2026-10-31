@@ -82,16 +82,17 @@ jobs:
           xcodegen generate
 
       # A simulator build needs no signing, so it needs none of the
-      # developer account's secrets either.
-      - name: Build for the simulator
-        run: >
-          xcodebuild build
-          -project MujinPortal.xcodeproj
-          -scheme MujinPortal
-          -destination 'generic/platform=iOS Simulator'
-          -derivedDataPath build
-          CODE_SIGNING_ALLOWED=NO
-          -quiet
+      # developer account's secrets either. The app is built for an iPhone and
+      # for an iPad destination.
+      - name: Build for an iPhone simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone [0-9]+ Pro \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          xcodebuild build -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build CODE_SIGNING_ALLOWED=NO -quiet
+
+      - name: Build for an iPad simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPad Pro 13-inch' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          xcodebuild build -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build-ipad CODE_SIGNING_ALLOWED=NO -quiet
 
       - name: Keep the simulator build
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -100,12 +101,21 @@ jobs:
           path: build/Build/Products/Debug-iphonesimulator/MujinPortal.app
           retention-days: 3
 
-  # The screens of the demo server, as pictures to look at. Not required.
+  # The screens of the demo server, as pictures to look at: an iPhone and a
+  # 13-inch iPad, each in light, dark and the largest text size. Not required.
   screenshots:
-    name: Screenshots
+    name: Screenshots (${{ matrix.family }})
     needs: app
     runs-on: macos-26
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - family: iphone
+            pattern: 'iPhone [0-9]+ Pro \('
+          - family: ipad
+            pattern: 'iPad Pro 13-inch'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -115,29 +125,35 @@ jobs:
           path: build/MujinPortal.app
 
       - name: Take the screenshots
+        env:
+          PATTERN: ${{ matrix.pattern }}
+          FAMILY: ${{ matrix.family }}
         run: |
           mkdir -p screenshots
-          DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone [0-9]+ Pro \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E "${PATTERN}" | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
           xcrun simctl boot "${DEVICE}"
           xcrun simctl bootstatus "${DEVICE}" -b
           xcrun simctl install "${DEVICE}" build/MujinPortal.app
-          for SCREEN in list conversation:conversation02 conversation:conversation01; do
-            NAME="${SCREEN//:/-}"
-            SIMCTL_CHILD_PORTAL_DEMO_SCREEN="${SCREEN}" xcrun simctl launch "${DEVICE}" com.ziyan.mujinportal -demo
+          shoot() {
+            SIMCTL_CHILD_PORTAL_DEMO_SCREEN="$2" xcrun simctl launch "${DEVICE}" com.ziyan.mujinportal -demo
             sleep 6
-            xcrun simctl io "${DEVICE}" screenshot "screenshots/${NAME}.png"
+            xcrun simctl io "${DEVICE}" screenshot "screenshots/${FAMILY}-$1.png"
             xcrun simctl terminate "${DEVICE}" com.ziyan.mujinportal
-          done
+          }
+          shoot list list
+          shoot approval conversation:conversation02
+          shoot answer conversation:conversation01
           xcrun simctl ui "${DEVICE}" appearance dark
-          SIMCTL_CHILD_PORTAL_DEMO_SCREEN="conversation:conversation02" xcrun simctl launch "${DEVICE}" com.ziyan.mujinportal -demo
-          sleep 6
-          xcrun simctl io "${DEVICE}" screenshot "screenshots/conversation-dark.png"
+          shoot dark conversation:conversation02
+          xcrun simctl ui "${DEVICE}" appearance light
+          xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
+          shoot large-text conversation:conversation02
 
       - name: Keep the screenshots
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: screenshots
+          name: screenshots-${{ matrix.family }}
           path: screenshots
 
   # Signs the app and uploads it to App Store Connect, where it appears in

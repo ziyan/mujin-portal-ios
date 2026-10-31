@@ -8,11 +8,11 @@ struct ConversationListView: View {
     let account: Account
 
     @State private var model: ConversationListModel?
-    @State private var path: [String] = []
+    @State private var selectedConversationId: String?
     @State private var isShowingAccounts = false
 
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationSplitView {
             Group {
                 if let model {
                     content(model)
@@ -29,6 +29,10 @@ struct ConversationListView: View {
                         Label("Accounts", systemImage: "person.crop.circle")
                     }
                     .accessibilityIdentifier("accountsButton")
+                    // A popover on the iPad, anchored to this button; a sheet on the iPhone.
+                    .popover(isPresented: $isShowingAccounts) {
+                        AccountsView()
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -36,15 +40,21 @@ struct ConversationListView: View {
                     } label: {
                         Label("New conversation", systemImage: "square.and.pencil")
                     }
+                    .keyboardShortcut("n", modifiers: .command)
                     .accessibilityIdentifier("newConversationButton")
                 }
             }
-            .navigationDestination(for: String.self) { conversationId in
-                ConversationView(account: account, conversationId: conversationId, title: model?.conversations.first { $0.id == conversationId }?.title)
+        } detail: {
+            if let selectedConversationId {
+                NavigationStack {
+                    ConversationView(
+                        account: account, conversationId: selectedConversationId,
+                        title: model?.conversations.first { $0.id == selectedConversationId }?.title)
+                }
+                .id(selectedConversationId)
+            } else {
+                ContentUnavailableView("Select a conversation", systemImage: "bubble.left.and.bubble.right")
             }
-        }
-        .sheet(isPresented: $isShowingAccounts) {
-            AccountsView()
         }
         .task(id: account.accountKey) {
             let listModel = ConversationListModel(
@@ -53,7 +63,7 @@ struct ConversationListView: View {
             model = listModel
             await listModel.load()
             if appModel.isDemo, let screen = ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"], screen.hasPrefix("conversation:") {
-                path = [String(screen.dropFirst("conversation:".count))]
+                selectedConversationId = String(screen.dropFirst("conversation:".count))
             }
         }
     }
@@ -82,7 +92,7 @@ struct ConversationListView: View {
                         .buttonStyle(.borderedProminent)
                 }
             } else {
-                List(model.conversations) { conversation in
+                List(model.conversations, selection: $selectedConversationId) { conversation in
                     NavigationLink(value: conversation.id) {
                         ConversationRow(conversation: conversation)
                     }
@@ -97,7 +107,7 @@ struct ConversationListView: View {
 
     private func startConversation() async {
         guard let model, let conversationId = await model.createConversation() else { return }
-        path.append(conversationId)
+        selectedConversationId = conversationId
     }
 }
 

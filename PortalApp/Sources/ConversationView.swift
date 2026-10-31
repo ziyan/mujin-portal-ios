@@ -79,6 +79,9 @@ struct ConversationView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+                // Readable width: the column stops growing on wide screens.
+                .frame(maxWidth: Self.readableWidth)
+                .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
             .defaultScrollAnchor(.bottom)
@@ -98,6 +101,8 @@ struct ConversationView: View {
             }
         }
     }
+
+    static let readableWidth: CGFloat = 720
 
     private static func isStreamingOrCard(_ entry: TranscriptEntry) -> Bool {
         switch entry {
@@ -310,6 +315,14 @@ private struct ComposerBar: View {
                         .padding(.vertical, 10)
                         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .accessibilityIdentifier("messageField")
+                        // With a hardware keyboard, Return sends and Shift+Return
+                        // adds a line. The on-screen keyboard is not affected.
+                        .onKeyPress(.return, phases: .down) { press in
+                            if press.modifiers.contains(.shift) { return .ignored }
+                            guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !model.isRunning else { return .handled }
+                            send()
+                            return .handled
+                        }
                     if model.isRunning {
                         Button {
                             Task { await model.cancelRun() }
@@ -337,7 +350,9 @@ private struct ComposerBar: View {
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
+            .frame(maxWidth: ConversationView.readableWidth + 32)
         }
+        .frame(maxWidth: .infinity)
         .padding(.top, 6)
     }
 

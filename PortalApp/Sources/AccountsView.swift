@@ -66,6 +66,7 @@ struct AccountsView: View {
                 Text("\(account.displayName) on \(account.server.displayHost) will be removed from this phone.")
             }
         }
+        .frame(minWidth: 340, minHeight: 380)
         .presentationDetents([.medium, .large])
     }
 }
