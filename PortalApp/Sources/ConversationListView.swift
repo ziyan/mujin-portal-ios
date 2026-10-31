@@ -254,14 +254,16 @@ private struct ConversationRow: View {
                             .lineLimit(1)
                     }
                 }
-                HStack(alignment: .center, spacing: 8) {
+                // At the large sizes the signal goes on its own line under the preview, which may wrap to two lines.
+                let previewLine = AnyLayout(isLarge ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(alignment: .center, spacing: 8)))
+                previewLine {
                     if !preview.isEmpty {
                         Text(preview)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .lineLimit(isLarge ? 3 : 1)
+                            .lineLimit(isLarge ? 2 : 1)
                     }
-                    Spacer(minLength: 4)
+                    if !isLarge { Spacer(minLength: 4) }
                     signal
                 }
             }
