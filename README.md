@@ -9,6 +9,25 @@ The first account defaults to `https://portal.mujin.cloud`. "Use another
 server" takes any https address, so the same build works against another Portal
 instance.
 
+## What it does
+
+The tabs follow who is signed in, decided by the organization's `isMujin`
+flag (falling back to the permissions):
+
+| Customers | Mujin users | What it holds |
+| --- | --- | --- |
+| Assistant | Assistant | Conversations, search, "Waiting for you", reactions, artifacts, automations under More |
+| Chats | | Placeholder until the server lists chat operations |
+| Tickets | Tickets | List by status, thread, replies with photos and files, create |
+| Site | | Alarms, robots, controllers, incidents with evidence |
+| | Monitoring | Ticket queue across organizations and recent incidents |
+| | Customers | Organization picker, then its sites and tickets |
+| More | More | Notifications, settings, automations, about, sign out |
+
+On a wide iPad window the tabs become a sidebar. Features that depend on a
+newer server are built against its contract and shown only when the server
+offers the operation (`ServerCapabilities` reads the schema once per sign-in).
+
 ## Layout
 
 | Path | What it is |

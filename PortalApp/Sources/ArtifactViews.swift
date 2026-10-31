@@ -124,7 +124,7 @@ struct ArtifactWebView: UIViewRepresentable {
 
         private func measure() async {
             guard let webView else { return }
-            let measured = try? await webView.evaluateJavaScript("document.documentElement.scrollHeight")
+            let measured = try? await webView.evaluateJavaScript("Math.min(document.documentElement.scrollHeight, Math.ceil(document.body.getBoundingClientRect().bottom + 8))")
             if let number = measured as? NSNumber {
                 height.wrappedValue = ArtifactSandbox.clampedHeight(number.doubleValue)
             }

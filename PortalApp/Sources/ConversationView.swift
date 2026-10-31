@@ -382,6 +382,7 @@ private struct ToolGroupRow: View {
                 }
             }
         }
+        .tint(.secondary)
         .padding(10)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
@@ -505,6 +506,7 @@ private struct NoteLine: View {
             } label: {
                 label.font(.footnote).foregroundStyle(.secondary)
             }
+            .tint(.secondary)
         }
     }
 }
