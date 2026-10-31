@@ -23,6 +23,10 @@ final class SiteModel {
     private(set) var robots = SiteRobots()
     private(set) var controllers: [ControllerSummary] = []
     private(set) var incidents: [IncidentSummary] = []
+    private(set) var telemetry: SiteTelemetry?
+    private(set) var cells: [SiteCell] = []
+    private(set) var openTickets: [Ticket] = []
+    private(set) var virtualControllerCount = 0
 
     init(connection: Connection, organizationId: String?, onError: @escaping @MainActor (Error) -> Void) {
         self.connection = connection
@@ -60,6 +64,15 @@ final class SiteModel {
         controllers = (controllerAnswer ?? []).filter { $0.siteId == siteId }
         incidents = SiteData.incidents(incidentAnswer ?? [], siteId: siteId)
         phase = .loaded
+        // The overview's other parts arrive as they are read; each may be missing without failing the page.
+        async let cellRows = try? connection.cells(siteId: siteId)
+        async let ticketRows = try? connection.tickets(organizationId: scopeId, siteId: siteId)
+        async let virtualIds = try? connection.virtualControllerIds(siteId: siteId, organizationId: scopeId)
+        cells = await cellRows ?? []
+        openTickets = (await ticketRows ?? []).filter { $0.siteId == siteId && $0.isOpenForWork }
+        let virtualList = await virtualIds ?? []
+        virtualControllerCount = virtualList.count
+        telemetry = try? await connection.siteTelemetry(controllerIds: controllers.map(\.id), virtualControllerIds: virtualList)
     }
 }
 
@@ -112,6 +125,12 @@ struct SiteView: View {
                 }
             }
         }
+        .navigationDestination(for: SiteListKind.self) { kind in
+            if let model { fullList(kind, model) }
+        }
+        .navigationDestination(for: String.self) { ticketId in
+            TicketDetailView(ticketId: ticketId)
+        }
         .navigationDestination(for: IncidentSummary.self) { incident in
             IncidentDetailView(incident: incident)
         }
@@ -156,10 +175,13 @@ struct SiteView: View {
                 }
             } else {
                 List { PortalRows {
+                    telemetrySection(model)
+                    cellsSection(model)
+                    tilesSection(model)
+                    resourcesSection(model)
                     alarmSection(model)
-                    robotSection(model)
-                    controllerSection(model)
                     incidentSection(model)
+                    ticketSection(model)
                 } }
 .portalRootList()
                 .refreshable { await model.loadDetails() }
@@ -167,127 +189,262 @@ struct SiteView: View {
         }
     }
 
-    private func alarmSection(_ model: SiteModel) -> some View {
-        Section("Alarms") {
-            if model.alarms.isEmpty {
-                Label("No active alarms", systemImage: "checkmark.circle")
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(model.alarms) { alarm in
-                VStack(alignment: .leading, spacing: 4) {
-                    Label {
-                        Text(alarm.message)
-                    } icon: {
-                        Image(systemName: alarm.severityRank <= 1 ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(alarm.severityRank <= 1 ? Color.statusError : Color.statusWarning)
-                    }
-                    // At the accessibility text sizes the two parts go on separate lines.
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 6) {
-                            Text(alarm.originLabel ?? alarm.controllerId)
-                            if let date = alarm.occurredDate {
-                                Text("\u{00B7}")
-                                Text(date, format: .relative(presentation: .named))
-                            }
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(alarm.originLabel ?? alarm.controllerId)
-                            if let date = alarm.occurredDate {
-                                Text(date, format: .relative(presentation: .named))
-                            }
-                        }
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+    // MARK: overview
+
+    /// The last 24 hours, as the web page's telemetry cards show them.
+    @ViewBuilder
+    private func telemetrySection(_ model: SiteModel) -> some View {
+        if let telemetry = model.telemetry, telemetry.machinesTotal > 0 {
+            Section("Last 24 hours") {
+                tileGrid {
+                    StatTile(label: "Picked parts", value: telemetry.pickedParts.formatted(), detail: "\(telemetry.pickOperations.formatted()) pick operations", symbol: "shippingbox")
+                    StatTile(label: "Error rate", value: telemetry.errorRateText, detail: "\(telemetry.interventions.formatted()) interventions of \(telemetry.pickedParts.formatted()) picks", symbol: "exclamationmark.arrow.triangle.2.circlepath")
+                    StatTile(label: "Robot throughput", value: telemetry.throughputText, detail: "parts per hour", symbol: "speedometer")
+                    StatTile(label: "Machines", value: telemetry.machinesTotal.formatted(), detail: "\(telemetry.machinesReporting) reporting", symbol: "server.rack")
                 }
-            }
-            if model.unavailableControllerCount > 0 {
-                Label("Controllers that could not be reached: \(model.unavailableControllerCount)", systemImage: "wifi.slash")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
         }
     }
 
-    private func robotSection(_ model: SiteModel) -> some View {
-        Section("Robots") {
-            if model.robots.robotCount == 0 {
-                Label("No robots reported", systemImage: "gearshape.2")
-                    .foregroundStyle(.secondary)
-            } else {
-                LabeledContent("Online") { Text("\(model.robots.onlineCount) of \(model.robots.robotCount)") }
-                if model.robots.errorCount > 0 {
-                    LabeledContent("With errors") { Text("\(model.robots.errorCount)").foregroundStyle(Color.statusError) }
+    /// One card per cell with the machines it groups, the first few and the rest on a page of their own.
+    @ViewBuilder
+    private func cellsSection(_ model: SiteModel) -> some View {
+        if !model.cells.isEmpty {
+            Section("Cells") {
+                ForEach(SiteSections.top(model.cells)) { cell in cellRow(cell) }
+                showAll(.cells, count: model.cells.count, isShown: SiteSections.hasMore(model.cells))
+            }
+        }
+    }
+
+    private func cellRow(_ cell: SiteCell) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(cell.name ?? cell.id).foregroundStyle(.primary)
+            Text("\(cell.machineCount) machines").font(.footnote).foregroundStyle(.secondary)
+        }
+    }
+
+    /// The counts, each a tile that opens its full list.
+    private func tilesSection(_ model: SiteModel) -> some View {
+        Section("Overview") {
+            tileGrid {
+                NavigationLink(value: SiteListKind.controllers) { StatTile(label: "Controllers", value: model.controllers.count.formatted(), symbol: "server.rack") }
+                    .buttonStyle(.plain)
+                if model.virtualControllerCount > 0 {
+                    StatTile(label: "Virtual controllers", value: model.virtualControllerCount.formatted(), symbol: "square.stack.3d.up")
+                }
+                NavigationLink(value: SiteListKind.alarms) { StatTile(label: "Active alarms", value: model.alarms.count.formatted(), symbol: "bell.badge", tint: model.alarms.isEmpty ? nil : Color.statusError) }
+                    .buttonStyle(.plain)
+                NavigationLink(value: SiteListKind.incidents) { StatTile(label: "Incidents", value: model.incidents.count.formatted(), symbol: "exclamationmark.triangle") }
+                    .buttonStyle(.plain)
+                NavigationLink(value: SiteListKind.tickets) { StatTile(label: "Open tickets", value: model.openTickets.count.formatted(), symbol: "tray.full") }
+                    .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func resourcesSection(_ model: SiteModel) -> some View {
+        Section("Resources") {
+            NavigationLink(value: SiteListKind.controllers) {
+                LabeledContent("Controllers") { Text(model.controllers.count.formatted()).monospacedDigit() }
+            }
+            LabeledContent("Mobile robots") {
+                if model.robots.robotCount == 0 {
+                    Text("None reported").foregroundStyle(.secondary)
+                } else {
+                    Text("\(model.robots.onlineCount) of \(model.robots.robotCount) online").monospacedDigit()
                 }
             }
-            ForEach(model.robots.robots.filter { $0.hasError || !$0.isOnline }) { robot in
-                VStack(alignment: .leading, spacing: 2) {
-                    Label {
-                        Text(robot.name)
-                    } icon: {
-                        Image(systemName: robot.hasError ? "exclamationmark.triangle.fill" : "wifi.slash")
-                            .foregroundStyle(robot.hasError ? Color.statusError : Color.secondary)
+            if model.robots.errorCount > 0 {
+                LabeledContent("Robots with errors") { Text(model.robots.errorCount.formatted()).monospacedDigit().foregroundStyle(Color.statusError) }
+            }
+        }
+    }
+
+    private func tileGrid<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10, alignment: .top)], spacing: 10) { content() }
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            .listRowBackground(Color.clear)
+    }
+
+    /// The last row of a capped section: all of them on a page of their own.
+    @ViewBuilder
+    private func showAll(_ kind: SiteListKind, count: Int, isShown: Bool) -> some View {
+        if isShown {
+            NavigationLink(value: kind) { Text("Show all (\(count))").foregroundStyle(.tint) }
+        }
+    }
+
+    // MARK: the few worst of each
+
+    @ViewBuilder
+    private func alarmSection(_ model: SiteModel) -> some View {
+        if !model.alarms.isEmpty {
+            Section("Alarms") {
+                ForEach(SiteSections.top(model.alarms)) { alarm in alarmRow(alarm) }
+                showAll(.alarms, count: model.alarms.count, isShown: SiteSections.hasMore(model.alarms))
+            }
+        }
+    }
+
+    private func alarmRow(_ alarm: SiteAlarm) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label {
+                Text(alarm.message)
+            } icon: {
+                Image(systemName: alarm.severityRank <= 1 ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(alarm.severityRank <= 1 ? Color.statusError : Color.statusWarning)
+            }
+            // At the accessibility text sizes the two parts go on separate lines.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) {
+                    Text(alarm.originLabel ?? alarm.controllerId)
+                    if let date = alarm.occurredDate {
+                        Text("\u{00B7}")
+                        Text(date, format: .relative(presentation: .named))
                     }
-                    Text(robot.errorText?.isEmpty == false ? robot.errorText! : String(localized: "Offline"))
-                        .font(.footnote)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(alarm.originLabel ?? alarm.controllerId)
+                    if let date = alarm.occurredDate {
+                        Text(date, format: .relative(presentation: .named))
+                    }
+                }
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func incidentSection(_ model: SiteModel) -> some View {
+        if !model.incidents.isEmpty {
+            Section("Incidents") {
+                ForEach(SiteSections.top(model.incidents)) { incident in
+                    NavigationLink(value: incident) { incidentRow(incident) }
+                }
+                showAll(.incidents, count: model.incidents.count, isShown: SiteSections.hasMore(model.incidents))
+            }
+        }
+    }
+
+    private func incidentRow(_ incident: IncidentSummary) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(incident.title ?? incident.kind ?? "")
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+            VStack(alignment: .leading, spacing: 2) {
+                if incident.needsReview {
+                    Label("Needs review", systemImage: "eye")
+                        .foregroundStyle(Color.statusWarning)
+                }
+                if let date = incident.detectedDate {
+                    Text(date, format: .relative(presentation: .named))
                         .foregroundStyle(.secondary)
                 }
             }
+            .font(.footnote)
         }
     }
 
-    private func controllerSection(_ model: SiteModel) -> some View {
-        Section("Controllers") {
-            if model.controllers.isEmpty {
-                Label("No controllers at this site", systemImage: "server.rack")
-                    .foregroundStyle(.secondary)
+    @ViewBuilder
+    private func ticketSection(_ model: SiteModel) -> some View {
+        if !model.openTickets.isEmpty {
+            Section("Tickets") {
+                ForEach(SiteSections.top(model.openTickets)) { ticket in
+                    NavigationLink(value: ticket.id) { TicketRow(ticket: ticket) }
+                }
+                showAll(.tickets, count: model.openTickets.count, isShown: SiteSections.hasMore(model.openTickets))
             }
-            ForEach(model.controllers) { controller in
-                NavigationLink(value: controller) {
-                    HStack(spacing: 10) {
-                        Image(systemName: controller.isOnline ? "checkmark.circle" : "circle.slash")
-                            .foregroundStyle(.secondary)
-                            .accessibilityLabel(controller.isOnline ? Text("Online") : Text("Offline"))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(controller.comment?.isEmpty == false ? controller.comment! : controller.id)
-                                .foregroundStyle(.primary)
-                            if let version = controller.version {
-                                Text(version).font(.footnote).foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: the full lists
+
+    @ViewBuilder
+    private func fullList(_ kind: SiteListKind, _ model: SiteModel) -> some View {
+        List { PortalRows {
+            switch kind {
+            case .alarms:
+                ForEach(model.alarms) { alarmRow($0) }
+            case .incidents:
+                ForEach(model.incidents) { incident in NavigationLink(value: incident) { incidentRow(incident) } }
+            case .tickets:
+                ForEach(model.openTickets) { ticket in NavigationLink(value: ticket.id) { TicketRow(ticket: ticket) } }
+            case .cells:
+                ForEach(model.cells) { cellRow($0) }
+            case .controllers:
+                ForEach(model.controllers) { controller in
+                    NavigationLink(value: controller) {
+                        HStack(spacing: 10) {
+                            Image(systemName: controller.isOnline ? "checkmark.circle" : "circle.slash")
+                                .foregroundStyle(.secondary)
+                                .accessibilityLabel(controller.isOnline ? Text("Online") : Text("Offline"))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(controller.displayName).foregroundStyle(.primary)
+                                if let detail = controller.detail { Text(detail).font(.footnote).foregroundStyle(.secondary) }
                             }
                         }
                     }
                 }
             }
+        } }
+        .portalList()
+        .navigationTitle(kind.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarVisibility(.hidden, for: .tabBar)
+    }
+}
+
+/// SiteListKind is a list the site page shows the first few rows of, opened whole.
+enum SiteListKind: Hashable {
+    case alarms
+    case incidents
+    case tickets
+    case cells
+    case controllers
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .alarms: "Alarms"
+        case .incidents: "Incidents"
+        case .tickets: "Tickets"
+        case .cells: "Cells"
+        case .controllers: "Controllers"
         }
     }
+}
 
-    private func incidentSection(_ model: SiteModel) -> some View {
-        Section("Incidents") {
-            if model.incidents.isEmpty {
-                Label("No incidents", systemImage: "checkmark.shield")
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(model.incidents) { incident in
-                NavigationLink(value: incident) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(incident.title ?? incident.kind ?? "")
-                            .foregroundStyle(.primary)
-                            .lineLimit(2)
-                        VStack(alignment: .leading, spacing: 2) {
-                            if incident.needsReview {
-                                Label("Needs review", systemImage: "eye")
-                                    .foregroundStyle(Color.statusWarning)
-                            }
-                            if let date = incident.detectedDate {
-                                Text(date, format: .relative(presentation: .named))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .font(.footnote)
-                    }
-                }
+/// StatTile is one number on the site page: a label, a large figure in
+/// tabular digits, a line of detail and a symbol, on the cards' surface.
+struct StatTile: View {
+    let label: LocalizedStringKey
+    let value: String
+    var detail: LocalizedStringKey?
+    let symbol: String
+    var tint: Color?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(label, systemImage: symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .labelStyle(.titleAndIcon)
+                .lineLimit(2)
+            Text(value)
+                .font(.title.bold())
+                .monospacedDigit()
+                .foregroundStyle(tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.primary))
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+            if let detail {
+                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
         }
+        .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
+        .padding(12)
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -311,6 +468,9 @@ struct ControllerDetailView: View {
                     Label(controller.isOnline ? "Online" : "Offline", systemImage: controller.isOnline ? "checkmark.circle" : "circle.slash")
                         .foregroundStyle(.secondary)
                 }
+                if let detail = controller.detail {
+                    LabeledContent("Comment") { Text(detail) }
+                }
                 if let version = controller.version {
                     LabeledContent("Version") { Text(version) }
                 }
@@ -327,16 +487,16 @@ struct ControllerDetailView: View {
             }
         } }
         .portalList()
-        .navigationTitle(controller.comment?.isEmpty == false ? controller.comment! : controller.id)
+        .navigationTitle(controller.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                AskAboutButton(viewing: Viewing(kind: "controller", id: controller.id), subject: controller.comment ?? controller.id)
+                AskAboutButton(viewing: Viewing(kind: "controller", id: controller.id), subject: controller.displayName)
                     .labelStyle(.iconOnly)
             }
         }
         .fullScreenCover(item: $screenSession) { screen in
-            ControllerScreenView(session: screen, name: controller.comment ?? controller.id)
+            ControllerScreenView(session: screen, name: controller.displayName)
         }
         .task {
             syncedUsers = try? await appModel.connection(for: session.account).syncedUserCount(controllerId: controller.id)

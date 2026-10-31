@@ -175,7 +175,7 @@ extension View {
     /// The bar of a screen whose bottom is a composer: the title is a glass
     /// pill in the middle, the bar itself see-through so messages run under
     /// it with the system's soft edge, and the tab bar gives way.
-    func conversationBar(title: String) -> some View {
+    func conversationBar(title: String, onTitleTap: (() -> Void)? = nil) -> some View {
         navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
@@ -183,15 +183,25 @@ extension View {
             .scrollEdgeEffectStyle(.soft, for: .top)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text(title)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .glassEffect(.regular, in: .capsule)
+                    if let onTitleTap {
+                        Button(action: onTitleTap) { titlePill(title) }
+                            .buttonStyle(.plain)
+                            .accessibilityHint(Text("Shows who is in this chat"))
+                    } else {
+                        titlePill(title)
+                    }
                 }
             }
     }
+}
+
+private func titlePill(_ title: String) -> some View {
+    Text(title)
+        .font(.headline)
+        .lineLimit(1)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .glassEffect(.regular, in: .capsule)
 }
 
 /// PersonAvatar is a small round picture of someone's initials.

@@ -435,3 +435,19 @@ import Testing
         #expect(hintOnly?.goalId == "goal42")
     }
 }
+
+
+@Suite struct ReplyQuoteTests {
+    @Test func aReplyToTheMessageJustAboveItShowsNoQuote() {
+        var transcript = Transcript()
+        transcript.load(messages: [
+            ConversationMessage(id: "m1", role: "assistant", content: .string("Shall I check the alarms?")),
+            ConversationMessage(id: "m2", role: "user", content: .string("Yes"), replyToMessageId: "m1", replyToExcerpt: "Shall I check the alarms?", replyToAuthorName: "Assistant"),
+            ConversationMessage(id: "m3", role: "assistant", content: .string("Two are open.")),
+            ConversationMessage(id: "m4", role: "assistant", content: .string("One more thing.")),
+            ConversationMessage(id: "m5", role: "user", content: .string("About the first"), replyToMessageId: "m3", replyToExcerpt: "Two are open.", replyToAuthorName: "Assistant"),
+        ], questions: [], approvals: [], isRunning: false)
+        #expect(transcript.replyQuote(for: "m2") == nil)
+        #expect(transcript.replyQuote(for: "m5")?.messageId == "m3")
+    }
+}

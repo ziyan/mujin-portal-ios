@@ -62,7 +62,6 @@ struct TicketsView: View {
 
     private var screen: some View {
         VStack(spacing: 0) {
-            controls
             if let model {
                 content(model)
             } else {
@@ -74,6 +73,7 @@ struct TicketsView: View {
         .navigationTitle("Tickets")
         .notificationsBell()
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { filterMenu }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     isCreating = true
@@ -109,22 +109,25 @@ struct TicketsView: View {
         }
     }
 
-    private var controls: some View {
-        VStack(spacing: 8) {
+    /// The filter: whose tickets and which status, as lists with checkmarks.
+    /// The default is the useful view: the person's own, and open.
+    private var filterMenu: some View {
+        Menu {
             Picker("Whose tickets", selection: $scope) {
                 Text("Mine").tag(TicketScope.mine)
                 Text(session.isStaff ? LocalizedStringKey("Queue") : LocalizedStringKey("My organization")).tag(TicketScope.everyone)
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.inline)
             Picker("Status", selection: $tab) {
                 Text("Open").tag(TicketTab.open)
                 Text("Solved").tag(TicketTab.solved)
                 Text("Closed").tag(TicketTab.closed)
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.inline)
+        } label: {
+            Label("Filter", systemImage: (scope == .mine && tab == .open) ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .accessibilityIdentifier("ticketFilterButton")
     }
 
     @ViewBuilder
@@ -164,7 +167,7 @@ struct TicketsView: View {
     }
 }
 
-private struct TicketRow: View {
+struct TicketRow: View {
     @Environment(SessionModel.self) private var session
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let ticket: Ticket

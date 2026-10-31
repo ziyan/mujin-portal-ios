@@ -28,11 +28,14 @@ struct ChatView: View {
                 ProgressView()
             }
         }
-        .conversationBar(title: model?.title ?? String(localized: "Chat"))
+        .conversationBar(title: model?.title ?? String(localized: "Chat"), onTitleTap: model?.room == nil ? nil : { isShowingInfo = true })
         .toolbar {
             if let model, model.room != nil {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { isShowingInfo = true } label: { Label("Chat details", systemImage: "info.circle") }
+                    Menu {
+                        Button { isShowingInfo = true } label: { Label("Add people", systemImage: "person.badge.plus") }
+                        Button { isShowingInfo = true } label: { Label("Members", systemImage: "person.2") }
+                    } label: { Label("Chat details", systemImage: "ellipsis.circle") }
                 }
             }
         }
@@ -122,6 +125,7 @@ struct ChatView: View {
                         MessageRow(
                             message: message, model: model, isLastOwn: message.id == lastOwnMessageId(model),
                             startsRun: isNewDay || previous == nil || previous?.authorUserId != message.authorUserId || previous?.isAssistant != message.isAssistant,
+                            previousMessageId: previous?.id,
                             moreEmoji: { emojiTarget = ConversationView.EmojiTarget(id: $0) }, askDelete: { messageToDelete = $0 }
                         )
                         .id(message.id)
@@ -314,6 +318,8 @@ private struct MessageRow: View {
     let model: ChatModel
     let isLastOwn: Bool
     let startsRun: Bool
+    /// The message directly above this one, which a reply to it need not quote.
+    var previousMessageId: String?
     let moreEmoji: (String) -> Void
     let askDelete: (ChatMessage) -> Void
 
@@ -331,7 +337,7 @@ private struct MessageRow: View {
             }
             VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
                 if !isMine, startsRun { authorLine }
-                if message.isReply { quote }
+                if showsQuote { quote }
                 bubble
                 ForEach(model.previews[message.id] ?? []) { card in
                     LinkPreviewCardView(card: card, connection: model.connection)
@@ -367,6 +373,14 @@ private struct MessageRow: View {
         }
     }
 
+    /// A quote of the message right above, or of one the reader can see in the transcript, adds nothing.
+    private var showsQuote: Bool {
+        guard message.isReply, let replyId = message.replyToMessageId else { return false }
+        if replyId == previousMessageId { return false }
+        if !message.hasQuotedText, model.timeline.messages.contains(where: { $0.id == replyId }) { return false }
+        return true
+    }
+
     private var quote: some View {
         Group {
             if message.hasQuotedText {
@@ -392,7 +406,7 @@ private struct MessageRow: View {
                 if message.isAssistant {
                     MarkdownView(markdown: message.text)
                 } else {
-                    Text(Self.attributed(message.text, mentionNames: model.mentionNames, onAccent: isMine))
+                    Text(Self.attributed(MentionText.rendered(message.text, members: model.room?.members ?? [], agents: model.agents), mentionNames: model.mentionNames, onAccent: isMine))
                         .textSelection(.enabled)
                 }
                 if message.isEdited {

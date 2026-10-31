@@ -312,3 +312,14 @@ import Testing
         #expect(ChatRoom(id: "c", members: [ChatMember(id: "a", userId: "u1"), ChatMember(id: "b", userId: "u2", leftAt: "2026-03-01T10:00:00Z")]).currentMembers.count == 1)
     }
 }
+
+
+@Suite struct MentionTextTests {
+    @Test func storedMentionTokensReadAsNames() {
+        let members = [ChatMember(id: "m1", userId: "user02", userName: "Sam Sample")]
+        #expect(MentionText.rendered("Hi @user:user02, thanks", members: members) == "Hi @Sam Sample, thanks")
+        #expect(MentionText.rendered("Ask @agent:agent01", members: [], agents: [Agent(id: "agent01", name: "Mujin AI")]) == "Ask @Mujin AI")
+        #expect(MentionText.rendered("Hi @user:unknown", members: members) == "Hi @someone")
+        #expect(MentionText.rendered("no tokens here", members: members) == "no tokens here")
+    }
+}

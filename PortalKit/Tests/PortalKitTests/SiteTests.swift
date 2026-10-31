@@ -82,3 +82,46 @@ import Testing
         #expect(sentVariables(transport.requests[0])["reviewStatus"] as? String == "dismissed")
     }
 }
+
+@Suite struct SiteOverviewTests {
+    @Test func telemetryIsSummedOverTheMachinesThatAnswered() {
+        let summaries = [
+            TelemetrySummary(controllerId: "controller01", totals: .init(pickOperationCount: 120, pickedPartCount: 100, humanInterventionCount: 2, directRobotThroughputPartsPerHour: 40.25)),
+            TelemetrySummary(controllerId: "controller02", totals: .init(pickOperationCount: 60, pickedPartCount: 50, humanInterventionCount: 1, directRobotThroughputPartsPerHour: 20)),
+            TelemetrySummary(controllerId: "controller03", isAvailable: false, totals: .init(pickedPartCount: 999)),
+        ]
+        let telemetry = SiteTelemetry(summaries: summaries, machinesTotal: 3)
+        #expect(telemetry.pickedParts == 150)
+        #expect(telemetry.pickOperations == 180)
+        #expect(telemetry.interventions == 3)
+        #expect(telemetry.machinesReporting == 2 && telemetry.machinesTotal == 3)
+        #expect(telemetry.errorRateText == "2%")
+        #expect(telemetry.throughputText == "60.3")
+        #expect(SiteTelemetry().errorRate == 0)
+    }
+
+    @Test func aSectionShowsAtMostThreeRowsAndSaysWhenThereAreMore() {
+        #expect(SiteSections.top([1, 2, 3, 4, 5]) == [1, 2, 3])
+        #expect(SiteSections.hasMore([1, 2, 3, 4]))
+        #expect(!SiteSections.hasMore([1, 2, 3]))
+    }
+
+    @Test func telemetryAsksForTheSitesMachinesOnly() async throws {
+        let (connection, transport) = scriptedConnection { _, _ in
+            ["ListControllerTelemetrySummaries": [["controllerId": "controller01", "isAvailable": true, "totals": ["pickedPartCount": 10, "pickOperationCount": 12, "humanInterventionCount": 1, "directRobotThroughputPartsPerHour": 5.0]]]]
+        }
+        let telemetry = try await connection.siteTelemetry(controllerIds: ["controller01"])
+        #expect(telemetry.pickedParts == 10)
+        #expect((sentVariables(try #require(transport.requests.last))["controllerIds"] as? [String]) == ["controller01"])
+        #expect(try await connection.siteTelemetry(controllerIds: []) == SiteTelemetry())
+    }
+
+    @Test func aCellKnowsItsMachines() async throws {
+        let (connection, _) = scriptedConnection { _, _ in
+            ["ListCells": ["cells": [["id": "cell01", "name": "Cell A", "controllerIds": ["controller01"], "virtualControllerIds": ["virtual01"]], ["id": "cell02", "isArchived": true]]]]
+        }
+        let cells = try await connection.cells(siteId: "site01")
+        #expect(cells.map(\.id) == ["cell01"])
+        #expect(cells.first?.machineCount == 2)
+    }
+}

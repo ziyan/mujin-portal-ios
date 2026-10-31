@@ -4,8 +4,8 @@ import Testing
 @testable import PortalKit
 
 @Suite struct NavigationTests {
-    @Test func customersGetTheirFiveTabs() {
-        #expect(Navigation.sections(for: .customer) == [.assistant, .chats, .tickets, .site, .more])
+    @Test func customersGetMessagesSitesTicketsAndMore() {
+        #expect(Navigation.sections(for: .customer) == [.assistant, .site, .tickets, .more])
         #expect(Navigation.home(for: .customer) == .assistant)
     }
 

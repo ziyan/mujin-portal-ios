@@ -183,8 +183,7 @@ struct NotificationsView: View {
             session.selectedSection = session.isStaff ? .monitoring : .site
         case .chat(let conversationId):
             session.chatToOpen = conversationId
-            session.assistantPart = .chats
-            session.selectedSection = session.isStaff ? .assistant : .chats
+            session.selectedSection = .assistant
         case .conversation(let id):
             session.open(.conversation(id: id))
         case .goal(let id):

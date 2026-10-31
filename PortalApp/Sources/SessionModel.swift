@@ -25,8 +25,6 @@ final class SessionModel {
     var selectedSection = AppSection.assistant
     /// A conversation the Assistant tab should open as soon as it can.
     var conversationToOpen: String?
-    /// For Mujin users, which half of the Assistant tab is in front.
-    var assistantPart = AssistantPart.conversations
     /// A chat's conversation the Chats tab should open, from a notification.
     var chatToOpen: String?
     /// Unread messages across the person's chats.
@@ -151,12 +149,10 @@ final class SessionModel {
         switch route {
         case .conversation(let id):
             conversationToOpen = id
-            assistantPart = .conversations
             selectedSection = .assistant
         case .chat(let conversationId):
             chatToOpen = conversationId
-            assistantPart = .chats
-            selectedSection = isStaff ? .assistant : .chats
+            selectedSection = .assistant
         case .goal(let id):
             goalToOpen = id
             selectedSection = .more
@@ -225,7 +221,6 @@ final class SessionModel {
             let conversation = try await connection.createConversation(agentId: agent.id)
             pendingReference = PendingReference(conversationId: conversation.id, viewing: viewing, subject: subject)
             conversationToOpen = conversation.id
-            assistantPart = .conversations
             selectedSection = .assistant
         } catch {
             onError(error)
@@ -239,7 +234,6 @@ final class SessionModel {
             let conversation = try await connection.createConversation(agentId: agent.id)
             pendingDraft = PendingDraft(conversationId: conversation.id, text: text)
             conversationToOpen = conversation.id
-            assistantPart = .conversations
             selectedSection = .assistant
         } catch {
             onError(error)
@@ -268,13 +262,6 @@ final class SessionModel {
             if profile == nil { phase = .failed(error.userMessage) }
         }
     }
-}
-
-/// AssistantPart is a half of the Assistant tab for Mujin users, who have no Chats tab.
-enum AssistantPart: String, CaseIterable, Identifiable {
-    case conversations
-    case chats
-    var id: String { rawValue }
 }
 
 /// DemoOptions are the choices a screenshot run makes through the environment.

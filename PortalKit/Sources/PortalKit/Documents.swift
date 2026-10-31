@@ -178,6 +178,7 @@ public enum Documents {
         documents += dreamDocuments
         documents += artifactDocuments
         documents += memoryFilingDocuments
+        documents += siteOverviewDocuments
         return documents
     }
 }

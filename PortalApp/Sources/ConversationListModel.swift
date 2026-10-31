@@ -19,6 +19,8 @@ final class ConversationListModel {
     /// What the person searches for; empty lists everything.
     private(set) var searchText = ""
     let onError: @MainActor (Error) -> Void
+    /// Whether the server lists chats with people, which sit in the same list.
+    var offersChats = false
 
     init(account: Account, connection: Connection, onError: @escaping @MainActor (Error) -> Void) {
         self.account = account
@@ -39,13 +41,22 @@ final class ConversationListModel {
             } else {
                 rows = try await connection.conversations(userId: account.userId, search: searchText)
             }
-            conversations = rows.filter { $0.archivedAt == nil }
+            // Conversations with the assistant and chats with people are one list, newest first.
+            var all = rows
+            if offersChats { all += (try? await connection.chats(search: searchText)) ?? [] }
+            conversations = all.filter { $0.archivedAt == nil }.sorted { Self.activity($0) > Self.activity($1) }
             phase = .loaded
         } catch {
             onError(error)
             if conversations.isEmpty { phase = .failed(error.userMessage) }
         }
     }
+
+    static func activity(_ conversation: ConversationSummary) -> Date {
+        conversation.chat?.lastActivity ?? conversation.lastActivity ?? .distantPast
+    }
+
+    func conversation(id: String) -> ConversationSummary? { conversations.first { $0.id == id } }
 
     /// Makes a conversation with the main assistant and returns its id.
     func createConversation() async -> String? {

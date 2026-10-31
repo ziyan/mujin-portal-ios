@@ -411,7 +411,18 @@ public struct Transcript: Equatable, Sendable {
     // MARK: reactions
 
     /// The message a sent message replied to, for the quote above its text.
-    public func replyQuote(for messageId: String) -> ReplyReference? { replyQuotes[messageId] }
+    /// Nothing is returned for a reply to the message directly above it: the quote would only repeat it.
+    public func replyQuote(for messageId: String) -> ReplyReference? {
+        guard let quote = replyQuotes[messageId] else { return nil }
+        let displayed = displayEntries
+        if let index = displayed.firstIndex(where: { $0.id == "user:\(messageId)" }), index > 0 {
+            switch displayed[index - 1] {
+            case .assistant(let id, _, _), .user(let id, _, _): if id == quote.messageId { return nil }
+            default: break
+            }
+        }
+        return quote
+    }
 
     /// The reactions on a message: what the phone or an event changed, else what the history holds.
     public func reactions(for messageId: String) -> [Reaction] {

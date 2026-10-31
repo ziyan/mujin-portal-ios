@@ -772,3 +772,28 @@ extension Connection {
         _ = try await execute(Documents.removeMessageLinkPreviews, variables: ["conversationId": .string(conversationId), "messageId": .string(messageId)], as: JSONValue.self)
     }
 }
+
+
+/// MentionText turns the mention tokens a message may hold into names: the
+/// stored text of an older mention reads `@user:<id>` or `@agent:<id>`, which
+/// a person never sees.
+public enum MentionText {
+    private static let token = try! NSRegularExpression(pattern: #"@(user|agent):([A-Za-z0-9_-]+)"#)
+
+    public static func rendered(_ text: String, members: [ChatMember], agents: [Agent] = []) -> String {
+        let range = NSRange(text.startIndex..., in: text)
+        var result = text
+        for match in token.matches(in: text, range: range).reversed() {
+            guard let whole = Range(match.range, in: result), let kind = Range(match.range(at: 1), in: result), let identifier = Range(match.range(at: 2), in: result) else { continue }
+            let id = String(result[identifier])
+            let name: String?
+            if result[kind] == "user" {
+                name = members.first { $0.userId == id }?.shownName
+            } else {
+                name = agents.first { $0.id == id }?.name
+            }
+            result.replaceSubrange(whole, with: "@" + ((name ?? "").isEmpty ? "someone" : name!))
+        }
+        return result
+    }
+}

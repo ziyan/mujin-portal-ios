@@ -79,14 +79,6 @@ struct AutomationsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Show", selection: $part) {
-                Text("Schedule").tag(Part.schedule)
-                Text("Activity").tag(Part.activity)
-                Text("Background").tag(Part.work)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
             if let model {
                 content(model)
             } else {
@@ -101,10 +93,17 @@ struct AutomationsView: View {
             if let model {
                 ToolbarItem(placement: .topBarTrailing) {
                     @Bindable var bindable = model
+                    // What the list shows is a filter with checkmarks, not a switch across the top.
                     Menu {
+                        Picker("Show", selection: $part) {
+                            Text("Schedule").tag(Part.schedule)
+                            Text("Activity").tag(Part.activity)
+                            Text("Background").tag(Part.work)
+                        }
+                        .pickerStyle(.inline)
                         Toggle("Include other people's", isOn: $bindable.includesOthers)
                     } label: {
-                        Label("Options", systemImage: "ellipsis.circle")
+                        Label("Filter", systemImage: "line.3.horizontal.decrease")
                     }
                 }
             }

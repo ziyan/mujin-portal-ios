@@ -34,7 +34,7 @@ public enum AppSection: String, CaseIterable, Identifiable, Sendable {
 public enum Navigation {
     public static func sections(for persona: Persona) -> [AppSection] {
         switch persona {
-        case .customer: [.assistant, .chats, .tickets, .site, .more]
+        case .customer: [.assistant, .site, .tickets, .more]
         case .staff: [.monitoring, .assistant, .tickets, .customers, .more]
         }
     }

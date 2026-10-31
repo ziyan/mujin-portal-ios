@@ -11,6 +11,7 @@ struct ConversationListView: View {
     @State private var model: ConversationListModel?
     @State private var selectedConversationId: String?
     @State private var searchText = ""
+    @State private var isComposing = false
 
     var body: some View {
         NavigationSplitView {
@@ -21,13 +22,13 @@ struct ConversationListView: View {
                     ProgressView()
                 }
             }
-            .navigationTitle("Assistant")
+            .navigationTitle("Messages")
             .notificationsBell()
-            .searchable(text: $searchText, prompt: "Search conversations")
+            .searchable(text: $searchText, prompt: "Search")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await startConversation() }
+                        isComposing = true
                     } label: {
                         Label("New conversation", systemImage: "square.and.pencil")
                     }
@@ -38,9 +39,14 @@ struct ConversationListView: View {
         } detail: {
             if let selectedConversationId {
                 NavigationStack {
-                    ConversationView(
-                        account: account, conversationId: selectedConversationId,
-                        title: model?.conversations.first { $0.id == selectedConversationId }?.title)
+                    // A chat with people and a conversation with the assistant are opened the same way.
+                    if let chat = model?.conversation(id: selectedConversationId), chat.conversationKind == "chat" {
+                        ChatView(account: account, conversationId: selectedConversationId, chatId: chat.chatId)
+                    } else {
+                        ConversationView(
+                            account: account, conversationId: selectedConversationId,
+                            title: model?.conversation(id: selectedConversationId)?.title)
+                    }
                 }
                 .id(selectedConversationId)
             } else {
@@ -51,10 +57,17 @@ struct ConversationListView: View {
             let listModel = ConversationListModel(
                 account: account, connection: appModel.connection(for: account),
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
+            listModel.offersChats = session.capabilities.offersChats
             model = listModel
             await listModel.load()
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("conversation:") {
                 selectedConversationId = String(screen.dropFirst("conversation:".count))
+            }
+            if appModel.isDemo, let screen = DemoOptions.screen {
+                if screen.hasPrefix("chat:") { selectedConversationId = String(screen.dropFirst("chat:".count)) }
+                if screen == "chat-info" { selectedConversationId = "chatconv02" }
+                if screen == "chat-reply" || screen == "chat-mention" { selectedConversationId = "chatconv01" }
+                if screen.hasPrefix("chats-new") { isComposing = true }
             }
         }
         .task(id: searchText) {
@@ -62,6 +75,18 @@ struct ConversationListView: View {
             if !searchText.isEmpty { try? await Task.sleep(nanoseconds: 300_000_000) }
             if Task.isCancelled { return }
             await model?.search(searchText)
+        }
+        .sheet(isPresented: $isComposing) {
+            ComposeMessageView { conversationId in
+                selectedConversationId = conversationId
+                Task { await model?.load() }
+            }
+        }
+        .onChange(of: session.chatToOpen, initial: true) { _, conversationId in
+            guard let conversationId else { return }
+            selectedConversationId = conversationId
+            session.chatToOpen = nil
+            Task { await model?.load() }
         }
         .onChange(of: session.conversationToOpen, initial: true) { _, conversationId in
             guard let conversationId else { return }
@@ -222,16 +247,18 @@ private struct ConversationRow: View {
         // At the accessibility sizes the date goes under the title instead of
         // beside it, which would leave the title no room in a narrow sidebar.
         let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
+        HStack(alignment: .center, spacing: 12) {
+        PersonAvatar(name: conversation.chat?.title ?? "", size: 44, isAssistant: conversation.conversationKind != "chat")
         layout {
             VStack(alignment: .leading, spacing: 4) {
-                Text(conversation.title?.isEmpty == false ? conversation.title! : String(localized: "New conversation"))
+                Text(rowTitle)
                     .font(.headline)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-                if let summary = conversation.summary, !summary.isEmpty {
-                    Text(summary)
+                if !preview.isEmpty {
+                    Text(preview)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(1)
                 }
             }
             Spacer(minLength: 8)
@@ -240,6 +267,10 @@ private struct ConversationRow: View {
                     Text(date, format: .relative(presentation: .named))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                if (conversation.chat?.unreadCount ?? 0) > 0 {
+                    Circle().fill(Color.accentColor).frame(width: 10, height: 10)
+                        .accessibilityLabel(Text("\(conversation.chat?.unreadCount ?? 0) unread"))
                 }
                 if waitingCount > 0 {
                     Label("\(waitingCount)", systemImage: "exclamationmark.bubble.fill")
@@ -259,6 +290,22 @@ private struct ConversationRow: View {
                 }
             }
         }
+        }
         .padding(.vertical, 2)
+    }
+
+    private var rowTitle: String {
+        if conversation.conversationKind == "chat" { return conversation.chat?.title ?? String(localized: "Chat") }
+        return conversation.title?.isEmpty == false ? conversation.title! : String(localized: "New conversation")
+    }
+
+    /// One line of the last message: in a group the author first, a mention token read as a name.
+    private var preview: String {
+        if let room = conversation.chat, conversation.conversationKind == "chat" {
+            let text = MentionText.rendered(room.lastMessageExcerpt ?? "", members: room.members ?? [])
+            guard room.isGroup, let author = room.lastMessageAuthorName, !author.isEmpty, !text.isEmpty else { return text }
+            return "\(author.split(separator: " ").first.map(String.init) ?? author): \(text)"
+        }
+        return conversation.summary ?? ""
     }
 }

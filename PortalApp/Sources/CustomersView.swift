@@ -72,34 +72,23 @@ struct CustomersView: View {
     }
 }
 
-/// OrganizationDetailView is one customer: its sites and its tickets.
+/// OrganizationDetailView is one customer: its sites, with its tickets a row away in the toolbar.
 struct OrganizationDetailView: View {
-    enum Part: String, CaseIterable, Identifiable {
-        case sites
-        case tickets
-        var id: String { rawValue }
-    }
-
     let organization: OrganizationSummary
-    @State private var part = Part.sites
+    @State private var isShowingTickets = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            Picker("Show", selection: $part) {
-                Text("Sites").tag(Part.sites)
-                Text("Tickets").tag(Part.tickets)
+        SiteView(organizationId: organization.id, embedsNavigation: false)
+            .navigationTitle(organization.name ?? organization.id)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        TicketsView(organizationId: organization.id, embedsNavigation: false)
+                    } label: {
+                        Label("Tickets", systemImage: "tray.full")
+                    }
+                }
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            switch part {
-            case .sites:
-                SiteView(organizationId: organization.id, embedsNavigation: false)
-            case .tickets:
-                TicketsView(organizationId: organization.id, embedsNavigation: false)
-            }
-        }
-        .navigationTitle(organization.name ?? organization.id)
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

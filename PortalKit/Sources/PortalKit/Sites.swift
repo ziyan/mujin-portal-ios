@@ -79,6 +79,15 @@ public struct ControllerSummary: Codable, Equatable, Hashable, Identifiable, Sen
     public var isOnline: Bool { !(connection?.id ?? "").isEmpty }
     public var version: String? { hypervisorState?.version }
 
+    /// A physical controller is named by its id. Its comment is the detail under it, never the name.
+    public var displayName: String { id }
+
+    /// The comment, when there is one: the secondary line under the id.
+    public var detail: String? {
+        let text = (comment ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
+
     public func can(_ capability: String) -> Bool { viewerCapabilities?.contains(capability) ?? false }
 
     /// The controller's live web UI, through its connection to Portal. Open

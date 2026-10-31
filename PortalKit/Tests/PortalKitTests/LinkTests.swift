@@ -179,3 +179,13 @@ import Testing
         #expect(controller(capabilities: ["controller:connect"]).screenEntry(server: server) == .blocked(.noWritePermission))
     }
 }
+
+@Suite struct ControllerNameTests {
+    @Test func aControllerIsNamedByItsIDAndItsCommentIsTheDetail() {
+        let controller = ControllerSummary(id: "controller01", comment: " Pick station ")
+        #expect(controller.displayName == "controller01")
+        #expect(controller.detail == "Pick station")
+        #expect(ControllerSummary(id: "controller02", comment: "  ").detail == nil)
+        #expect(ControllerSummary(id: "controller03").detail == nil)
+    }
+}
