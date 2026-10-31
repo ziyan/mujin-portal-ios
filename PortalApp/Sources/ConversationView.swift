@@ -18,6 +18,7 @@ struct ConversationView: View {
     @State private var emojiTarget: EmojiTarget?
     @State private var fullArtifact: ArtifactReference?
     @State private var isShowingArtifacts = false
+    @State private var isAddingPeople = false
     @State private var drafts = AttachmentDrafts()
     @AppStorage("toolDetailsSetting") private var toolDetailsSetting = ""
 
@@ -37,6 +38,11 @@ struct ConversationView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button {
+                        isAddingPeople = true
+                    } label: {
+                        Label("Add people", systemImage: "person.badge.plus")
+                    }
                     Button {
                         renameDraft = shownTitle
                         isRenaming = true
@@ -72,6 +78,9 @@ struct ConversationView: View {
             }
         }
         .attachmentPickers(drafts)
+        .sheet(isPresented: $isAddingPeople) {
+            ComposeMessageView(onSent: { session.open(.chat(conversationId: $0)) }, reference: (conversationId, shownTitle))
+        }
         .sheet(isPresented: $isShowingArtifacts) {
             ArtifactListSheet(conversationId: conversationId, connection: appModel.connection(for: account)) { artifact in
                 isShowingArtifacts = false

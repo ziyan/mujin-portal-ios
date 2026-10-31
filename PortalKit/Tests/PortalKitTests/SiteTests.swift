@@ -116,6 +116,19 @@ import Testing
         #expect(try await connection.siteTelemetry(controllerIds: []) == SiteTelemetry())
     }
 
+    @Test func aVirtualControllerKeepsItsNameAndOpensOnlyWhileItRuns() {
+        let server = try! ServerAddress("https://portal.example.test")
+        let running = VirtualControllerSummary(id: "virtual01", name: "Training cell", status: "running", viewerCapabilities: ["virtual_controller:connect"])
+        #expect(running.displayName == "Training cell")
+        #expect(VirtualControllerSummary(id: "virtual02").displayName == "virtual02")
+        #expect(running.webEntry(server: server) == .open(URL(string: "https://virtual01-virtual.portal.example.test/")!))
+        #expect(running.screenEntry(server: server) == .open(URL(string: "https://portal.example.test/screen/virtualcontroller/virtual01")!))
+        let paused = VirtualControllerSummary(id: "virtual01", status: "paused", viewerCapabilities: ["virtual_controller:connect"])
+        #expect(paused.webEntry(server: server) == .blocked(.notRunning))
+        #expect(paused.screenEntry(server: server) == .blocked(.notRunning))
+        #expect(VirtualControllerSummary(id: "virtual01", status: "running").webEntry(server: server) == .blocked(.noConnectPermission))
+    }
+
     @Test func aCellKnowsItsMachines() async throws {
         let (connection, _) = scriptedConnection { _, _ in
             ["ListCells": ["cells": [["id": "cell01", "name": "Cell A", "controllerIds": ["controller01"], "virtualControllerIds": ["virtual01"]], ["id": "cell02", "isArchived": true]]]]

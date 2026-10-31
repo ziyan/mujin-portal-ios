@@ -116,7 +116,9 @@ extension Documents {
 
     public static let listSiteVirtualControllers = """
         query ListSiteVirtualControllers($organizationId: String, $options: ListOptionsInput) {
-          ListVirtualControllers(organizationId: $organizationId, options: $options) { virtualControllers { id siteId } }
+          ListVirtualControllers(organizationId: $organizationId, options: $options) {
+            virtualControllers { id name comment siteId region status statusMessage viewerCapabilities }
+          }
         }
         """
 
@@ -146,19 +148,56 @@ extension Connection {
         return rows.filter { $0.isArchived != true }
     }
 
-    /// The ids of the site's virtual controllers.
-    public func virtualControllerIds(siteId: String, organizationId: String?) async throws -> [String] {
-        struct Row: Decodable, Sendable {
-            let id: String
-            let siteId: String?
-        }
+    /// The site's virtual controllers.
+    public func virtualControllers(siteId: String, organizationId: String?) async throws -> [VirtualControllerSummary] {
         struct Answer: Decodable, Sendable {
-            struct List: Decodable, Sendable { let virtualControllers: [Row]? }
+            struct List: Decodable, Sendable { let virtualControllers: [VirtualControllerSummary]? }
             let ListVirtualControllers: List?
         }
         var variables: [String: JSONValue] = ["options": .object(["first": .number(200)])]
         if let organizationId { variables["organizationId"] = .string(organizationId) }
         let rows = try await execute(Documents.listSiteVirtualControllers, variables: variables, as: Answer.self).ListVirtualControllers?.virtualControllers ?? []
-        return rows.filter { $0.siteId == siteId }.map(\.id)
+        return rows.filter { $0.siteId == siteId && $0.status != "destroyed" }.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    }
+}
+
+/// VirtualControllerSummary is a controller that runs in Portal's cloud. It keeps its name, unlike a physical controller, which is named by its id.
+public struct VirtualControllerSummary: Codable, Equatable, Hashable, Identifiable, Sendable {
+    public let id: String
+    public let name: String?
+    public let comment: String?
+    public let siteId: String?
+    public let region: String?
+    /// `pending`, `provisioning`, `running`, `paused`, `error`, `destroying` or `destroyed`.
+    public let status: String?
+    public let statusMessage: String?
+    public let viewerCapabilities: [String]?
+
+    public init(id: String, name: String? = nil, comment: String? = nil, siteId: String? = nil, region: String? = nil, status: String? = "running", statusMessage: String? = nil, viewerCapabilities: [String]? = nil) {
+        self.id = id
+        self.name = name
+        self.comment = comment
+        self.siteId = siteId
+        self.region = region
+        self.status = status
+        self.statusMessage = statusMessage
+        self.viewerCapabilities = viewerCapabilities
+    }
+
+    public var displayName: String { (name ?? "").isEmpty ? id : name! }
+    public var isRunning: Bool { status == "running" }
+    public func can(_ capability: String) -> Bool { viewerCapabilities?.contains(capability) ?? false }
+
+    /// Its web UI, through Portal's virtual controller proxy.
+    public func webEntry(server: ServerAddress) -> ControllerEntry {
+        guard isRunning else { return .blocked(.notRunning) }
+        guard can("virtual_controller:connect") else { return .blocked(.noConnectPermission) }
+        return ControllerLinks.virtualURL(virtualControllerId: id, server: server).map(ControllerEntry.open) ?? .hidden
+    }
+
+    /// Its screen, while it runs.
+    public func screenEntry(server: ServerAddress) -> ControllerEntry {
+        guard isRunning else { return .blocked(.notRunning) }
+        return ControllerLinks.virtualScreenURL(virtualControllerId: id, server: server).map(ControllerEntry.open) ?? .hidden
     }
 }

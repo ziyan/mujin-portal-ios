@@ -18,6 +18,8 @@ struct ChatView: View {
     @State private var emojiTarget: ConversationView.EmojiTarget?
     @State private var messageToDelete: ChatMessage?
     @State private var isShowingInfo = DemoOptions.screen == "chat-info"
+    @State private var isAddingPeople = false
+    @State private var isStartingGroup = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -33,10 +35,30 @@ struct ChatView: View {
             if let model, model.room != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button { isShowingInfo = true } label: { Label("Add people", systemImage: "person.badge.plus") }
+                        // A group's administrators add to it; a direct chat becomes a new group; others see no such row.
+                        if let model, let room = model.room, room.canWrite {
+                            if room.isGroup, model.isAdmin {
+                                Button { isAddingPeople = true } label: { Label("Add people", systemImage: "person.badge.plus") }
+                            } else if !room.isGroup {
+                                Button { isStartingGroup = true } label: { Label("Add people", systemImage: "person.badge.plus") }
+                            }
+                        }
                         Button { isShowingInfo = true } label: { Label("Members", systemImage: "person.2") }
                     } label: { Label("Chat details", systemImage: "ellipsis.circle") }
                 }
+            }
+        }
+        .sheet(isPresented: $isAddingPeople) {
+            if let model { AddPeopleView(model: model) }
+        }
+        .sheet(isPresented: $isStartingGroup) {
+            if let model, let room = model.room {
+                let others = room.currentMembers.filter { $0.userId != model.currentUserId }.map {
+                    ChatCandidate(userId: $0.userId, userName: $0.userName, organizationId: $0.organizationId, organizationName: $0.organizationName, isMujinUser: $0.isMujinUser)
+                }
+                ComposeMessageView(
+                    onSent: { session.open(.chat(conversationId: $0)) }, initialPicked: others,
+                    note: "A new group starts with the people you pick. They see messages from now on.")
             }
         }
         .sheet(isPresented: $isShowingInfo) {
@@ -197,7 +219,7 @@ struct ChatView: View {
                 Text(error).font(.footnote).foregroundStyle(Color.statusError).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
             }
             if !model.canWrite {
-                Label("You left this chat. You can read what was said while you were in it.", systemImage: "door.left.hand.open")
+                Label("You were removed from this chat", systemImage: "door.left.hand.open")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 20)
@@ -511,6 +533,11 @@ struct ChatInfoView: View {
                     Section("People") {
                         ForEach(room.currentMembers) { member in
                             MemberRow(member: member, isViewer: member.userId == model.currentUserId, viewerOrganizationId: model.member(model.currentUserId)?.organizationId)
+                                .swipeActions {
+                                    if model.isAdmin, room.isGroup, member.userId != model.currentUserId {
+                                        Button("Remove", role: .destructive) { memberToRemove = member }
+                                    }
+                                }
                                 .contextMenu {
                                     if model.isAdmin, room.isGroup, member.userId != model.currentUserId {
                                         Button {
@@ -541,10 +568,6 @@ struct ChatInfoView: View {
                             Toggle("Save what is said to memory", isOn: Binding(
                                 get: { room.isMemoryFilingEnabled == true },
                                 set: { value in Task { await model.apply { try await model.connection.setChatMemoryFiling(chatId: room.id, isEnabled: value) } } }))
-                        }
-                    } footer: {
-                        if room.isGroup, model.isAdmin {
-                            Text("Memory is filed under the organization's, never under a person's own.")
                         }
                     }
                     if room.isGroup, model.isAdmin {

@@ -63,7 +63,16 @@ struct AssistantSettingsView: View {
                         } label: { Label("Voice of the answers", systemImage: "speaker.wave.2").foregroundStyle(.primary) }
                     }
                 }
-                if let background, background.canManageOrganization == true { organizationSection(background) }
+                // What an organization allows is for its administrators, on a screen of its own.
+                if let background, background.canManageOrganization == true {
+                    Section {
+                        NavigationLink {
+                            OrganizationAssistantSettingsView(initial: background)
+                        } label: {
+                            Label("Your organization", systemImage: "building.2").foregroundStyle(.primary)
+                        }
+                    }
+                }
                 if let errorText { Section { Text(errorText).foregroundStyle(Color.statusError) } }
             }
         }
@@ -96,23 +105,6 @@ struct AssistantSettingsView: View {
             ) { Label("Pause for 24 hours", systemImage: "moon.zzz").foregroundStyle(.primary) }
         }
         .disabled(setting.isOrganizationOff)
-    }
-
-    @ViewBuilder
-    private func organizationSection(_ setting: AgentBackgroundSetting) -> some View {
-        Section("Your organization") {
-            Toggle(
-                "Goals",
-                isOn: Binding(get: { setting.areGoalsEnabled == true }, set: { value in change { self.background = try await connection.setBackgroundSetting(areGoalsEnabled: value) } }))
-            Toggle(
-                "Ideas the assistant finds",
-                isOn: Binding(
-                    get: { setting.areFoundIdeasEnabled == true }, set: { value in change { self.background = try await connection.setBackgroundSetting(areFoundIdeasEnabled: value) } }))
-            Toggle(
-                "The assistant may start a conversation",
-                isOn: Binding(
-                    get: { setting.isSpeakFirstEnabled == true }, set: { value in change { self.background = try await connection.setBackgroundSetting(isSpeakFirstEnabled: value) } }))
-        }
     }
 
     private func load() async {
@@ -153,6 +145,50 @@ extension TurnEndText {
         case "memory_check": "Memory check-ins"
         case "idea": "Ideas"
         default: LocalizedStringKey(reason)
+        }
+    }
+}
+
+/// OrganizationAssistantSettingsView is what an organization allows its people: goals, found ideas and the assistant starting a conversation.
+struct OrganizationAssistantSettingsView: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(SessionModel.self) private var session
+    let initial: AgentBackgroundSetting
+    @State private var setting: AgentBackgroundSetting?
+    @State private var errorText: String?
+
+    var body: some View {
+        let current = setting ?? initial
+        Form {
+            PortalRows {
+                Section {
+                    Toggle(isOn: Binding(get: { current.areGoalsEnabled == true }, set: { value in change { try await $0.setBackgroundSetting(areGoalsEnabled: value) } })) {
+                        Label("Goals", systemImage: "scope").foregroundStyle(.primary)
+                    }
+                    Toggle(isOn: Binding(get: { current.areFoundIdeasEnabled == true }, set: { value in change { try await $0.setBackgroundSetting(areFoundIdeasEnabled: value) } })) {
+                        Label("Ideas the assistant finds", systemImage: "lightbulb").foregroundStyle(.primary)
+                    }
+                    Toggle(isOn: Binding(get: { current.isSpeakFirstEnabled == true }, set: { value in change { try await $0.setBackgroundSetting(isSpeakFirstEnabled: value) } })) {
+                        Label("The assistant may start a conversation", systemImage: "sparkles").foregroundStyle(.primary)
+                    }
+                }
+                if let errorText { Section { Text(errorText).foregroundStyle(Color.statusError) } }
+            }
+        }
+        .portalList()
+        .navigationTitle("Your organization")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func change(_ action: @escaping (Connection) async throws -> AgentBackgroundSetting) {
+        Task {
+            do {
+                setting = try await action(appModel.connection(for: session.account))
+                errorText = nil
+            } catch {
+                errorText = error.userMessage
+                appModel.handle(error, account: session.account)
+            }
         }
     }
 }

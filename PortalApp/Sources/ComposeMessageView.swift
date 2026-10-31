@@ -10,8 +10,14 @@ struct ComposeMessageView: View {
     @Environment(SessionModel.self) private var session
     @Environment(\.dismiss) private var dismiss
     let onSent: (String) -> Void
+    /// People already chosen, such as the other person of a chat that becomes a group.
+    var initialPicked: [ChatCandidate] = []
+    /// A conversation with the assistant this one carries a reference to.
+    var reference: (id: String, title: String)?
+    var note: LocalizedStringKey?
 
     @State private var picked: [ChatCandidate] = []
+    @State private var didStart = false
     @State private var query = ""
     @State private var candidates: [ChatCandidate] = []
     @State private var draft = ""
@@ -24,6 +30,22 @@ struct ComposeMessageView: View {
             VStack(spacing: 0) {
                 toRow
                 Divider()
+                if let reference {
+                    HStack {
+                        Label(reference.title, systemImage: "bubble.left")
+                            .font(.caption)
+                            .lineLimit(1)
+                            .padding(.horizontal, 10)
+                            .frame(minHeight: 28)
+                            .background(Color(.tertiarySystemFill), in: Capsule())
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                }
+                if let note {
+                    Text(note).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 16).padding(.top, 8).frame(maxWidth: .infinity, alignment: .leading)
+                }
                 if !query.isEmpty {
                     List(available) { person in
                         Button {
@@ -51,6 +73,9 @@ struct ComposeMessageView: View {
             .navigationTitle("New message")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .onAppear {
+                if !didStart { picked = initialPicked; didStart = true }
+            }
             .task(id: query) {
                 guard session.capabilities.offersChats, !query.trimmingCharacters(in: .whitespaces).isEmpty else {
                     candidates = []
@@ -102,8 +127,10 @@ struct ComposeMessageView: View {
     }
 
     private func send() async {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+        // The context travels as a link to the conversation, which shows as a card in the chat.
+        if let reference, !picked.isEmpty { text += "\n\n" + session.account.server.description + "/agent/" + reference.id }
         isSending = true
         defer { isSending = false }
         let connection = appModel.connection(for: session.account)

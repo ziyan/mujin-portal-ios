@@ -145,6 +145,7 @@ public enum ControllerBlock: Equatable, Sendable {
     case noWritePermission
     case noSyncedUsers
     case syncedUsersUnavailable
+    case notRunning
 }
 
 /// ControllerLinks builds the addresses Portal's proxy serves for a

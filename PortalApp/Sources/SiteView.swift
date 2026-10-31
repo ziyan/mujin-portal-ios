@@ -26,7 +26,8 @@ final class SiteModel {
     private(set) var telemetry: SiteTelemetry?
     private(set) var cells: [SiteCell] = []
     private(set) var openTickets: [Ticket] = []
-    private(set) var virtualControllerCount = 0
+    private(set) var virtualControllers: [VirtualControllerSummary] = []
+    var virtualControllerCount: Int { virtualControllers.count }
 
     init(connection: Connection, organizationId: String?, onError: @escaping @MainActor (Error) -> Void) {
         self.connection = connection
@@ -67,12 +68,11 @@ final class SiteModel {
         // The overview's other parts arrive as they are read; each may be missing without failing the page.
         async let cellRows = try? connection.cells(siteId: siteId)
         async let ticketRows = try? connection.tickets(organizationId: scopeId, siteId: siteId)
-        async let virtualIds = try? connection.virtualControllerIds(siteId: siteId, organizationId: scopeId)
+        async let virtualRows = try? connection.virtualControllers(siteId: siteId, organizationId: scopeId)
         cells = await cellRows ?? []
         openTickets = (await ticketRows ?? []).filter { $0.siteId == siteId && $0.isOpenForWork }
-        let virtualList = await virtualIds ?? []
-        virtualControllerCount = virtualList.count
-        telemetry = try? await connection.siteTelemetry(controllerIds: controllers.map(\.id), virtualControllerIds: virtualList)
+        virtualControllers = await virtualRows ?? []
+        telemetry = try? await connection.siteTelemetry(controllerIds: controllers.map(\.id), virtualControllerIds: virtualControllers.map(\.id))
     }
 }
 
@@ -126,10 +126,19 @@ struct SiteView: View {
             }
         }
         .navigationDestination(for: SiteListKind.self) { kind in
-            if let model { fullList(kind, model) }
+            if let model {
+                if kind == .telemetry {
+                    SiteTelemetryView(model: model)
+                } else {
+                    fullList(kind, model)
+                }
+            }
         }
         .navigationDestination(for: String.self) { ticketId in
             TicketDetailView(ticketId: ticketId)
+        }
+        .navigationDestination(for: VirtualControllerSummary.self) { virtual in
+            VirtualControllerDetailView(virtual: virtual)
         }
         .navigationDestination(for: IncidentSummary.self) { incident in
             IncidentDetailView(incident: incident)
@@ -195,13 +204,18 @@ struct SiteView: View {
     @ViewBuilder
     private func telemetrySection(_ model: SiteModel) -> some View {
         if let telemetry = model.telemetry, telemetry.machinesTotal > 0 {
-            Section("Last 24 hours") {
+            Section {
                 tileGrid {
                     StatTile(label: "Picked parts", value: telemetry.pickedParts.formatted(), detail: "\(telemetry.pickOperations.formatted()) pick operations", symbol: "shippingbox")
                     StatTile(label: "Error rate", value: telemetry.errorRateText, detail: "\(telemetry.interventions.formatted()) interventions of \(telemetry.pickedParts.formatted()) picks", symbol: "exclamationmark.arrow.triangle.2.circlepath")
                     StatTile(label: "Robot throughput", value: telemetry.throughputText, detail: "parts per hour", symbol: "speedometer")
                     StatTile(label: "Machines", value: telemetry.machinesTotal.formatted(), detail: "\(telemetry.machinesReporting) reporting", symbol: "server.rack")
                 }
+                if !model.cells.isEmpty {
+                    NavigationLink(value: SiteListKind.telemetry) { Text("View all").foregroundStyle(.tint) }
+                }
+            } header: {
+                Text("Last 24 hours")
             }
         }
     }
@@ -231,7 +245,8 @@ struct SiteView: View {
                 NavigationLink(value: SiteListKind.controllers) { StatTile(label: "Controllers", value: model.controllers.count.formatted(), symbol: "server.rack") }
                     .buttonStyle(.plain)
                 if model.virtualControllerCount > 0 {
-                    StatTile(label: "Virtual controllers", value: model.virtualControllerCount.formatted(), symbol: "square.stack.3d.up")
+                    NavigationLink(value: SiteListKind.virtualControllers) { StatTile(label: "Virtual controllers", value: model.virtualControllerCount.formatted(), symbol: "square.stack.3d.up") }
+                        .buttonStyle(.plain)
                 }
                 NavigationLink(value: SiteListKind.alarms) { StatTile(label: "Active alarms", value: model.alarms.count.formatted(), symbol: "bell.badge", tint: model.alarms.isEmpty ? nil : Color.statusError) }
                     .buttonStyle(.plain)
@@ -373,6 +388,17 @@ struct SiteView: View {
                 ForEach(model.openTickets) { ticket in NavigationLink(value: ticket.id) { TicketRow(ticket: ticket) } }
             case .cells:
                 ForEach(model.cells) { cellRow($0) }
+            case .telemetry:
+                EmptyView()
+            case .virtualControllers:
+                ForEach(model.virtualControllers) { virtual in
+                    NavigationLink(value: virtual) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(virtual.displayName).foregroundStyle(.primary)
+                            Text(virtual.isRunning ? LocalizedStringKey("Running") : LocalizedStringKey(virtual.status ?? "")).font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                }
             case .controllers:
                 ForEach(model.controllers) { controller in
                     NavigationLink(value: controller) {
@@ -403,9 +429,13 @@ enum SiteListKind: Hashable {
     case tickets
     case cells
     case controllers
+    case virtualControllers
+    case telemetry
 
     var title: LocalizedStringKey {
         switch self {
+        case .telemetry: "Last 24 hours"
+        case .virtualControllers: "Virtual controllers"
         case .alarms: "Alarms"
         case .incidents: "Incidents"
         case .tickets: "Tickets"
@@ -531,6 +561,7 @@ struct ControllerDetailView: View {
         case .noWritePermission: "Viewing the screen needs the controller:write permission."
         case .noSyncedUsers: "Cloud needs at least one user synced to Portal."
         case .syncedUsersUnavailable: "The synced users could not be counted."
+        case .notRunning: "It is not running."
         }
     }
 }
@@ -676,6 +707,107 @@ struct IncidentDetailView: View {
         } catch {
             errorText = error.userMessage
             appModel.handle(error, account: session.account)
+        }
+    }
+}
+
+/// SiteTelemetryView is the last 24 hours of the whole site, as on the site
+/// page, and then of each cell by itself.
+struct SiteTelemetryView: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(SessionModel.self) private var session
+    let model: SiteModel
+    @State private var perCell: [(cell: SiteCell, telemetry: SiteTelemetry)] = []
+    @State private var isLoading = true
+
+    var body: some View {
+        List { PortalRows {
+            if let telemetry = model.telemetry {
+                Section("Site") { tiles(telemetry) }
+            }
+            ForEach(perCell, id: \.cell.id) { entry in
+                Section(entry.cell.name ?? entry.cell.id) { tiles(entry.telemetry) }
+            }
+            if isLoading { Section { ProgressView() } }
+        } }
+        .portalList()
+        .navigationTitle("Last 24 hours")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarVisibility(.hidden, for: .tabBar)
+        .task {
+            let connection = appModel.connection(for: session.account)
+            var rows: [(cell: SiteCell, telemetry: SiteTelemetry)] = []
+            for cell in model.cells {
+                if let telemetry = try? await connection.siteTelemetry(controllerIds: cell.controllerIds ?? [], virtualControllerIds: cell.virtualControllerIds ?? []) {
+                    rows.append((cell, telemetry))
+                }
+            }
+            perCell = rows
+            isLoading = false
+        }
+    }
+
+    private func tiles(_ telemetry: SiteTelemetry) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10, alignment: .top)], spacing: 10) {
+            StatTile(label: "Picked parts", value: telemetry.pickedParts.formatted(), detail: "\(telemetry.pickOperations.formatted()) pick operations", symbol: "shippingbox")
+            StatTile(label: "Error rate", value: telemetry.errorRateText, detail: "\(telemetry.interventions.formatted()) interventions of \(telemetry.pickedParts.formatted()) picks", symbol: "exclamationmark.arrow.triangle.2.circlepath")
+            StatTile(label: "Robot throughput", value: telemetry.throughputText, detail: "parts per hour", symbol: "speedometer")
+            StatTile(label: "Machines", value: telemetry.machinesTotal.formatted(), detail: "\(telemetry.machinesReporting) reporting", symbol: "server.rack")
+        }
+        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+        .listRowBackground(Color.clear)
+    }
+}
+
+/// VirtualControllerDetailView is a virtual controller: its name, whether it
+/// runs, its web UI and, while it runs, its screen.
+struct VirtualControllerDetailView: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(SessionModel.self) private var session
+    @Environment(\.openURL) private var openURL
+    let virtual: VirtualControllerSummary
+    @State private var screenSession: WebSession?
+
+    var body: some View {
+        let server = session.account.server
+        List { PortalRows {
+            Section {
+                LabeledContent("Status") {
+                    Label(virtual.isRunning ? "Running" : LocalizedStringKey(virtual.status ?? ""), systemImage: virtual.isRunning ? "checkmark.circle" : "circle.slash")
+                        .foregroundStyle(.secondary)
+                }
+                if let comment = virtual.comment, !comment.isEmpty { LabeledContent("Comment") { Text(comment) } }
+                if let region = virtual.region, !region.isEmpty { LabeledContent("Region") { Text(region) } }
+            }
+            Section {
+                row(virtual.webEntry(server: server), title: "Open the web UI", systemImage: "safari") { openURL($0) }
+                row(virtual.screenEntry(server: server), title: "Screen", systemImage: "display") { url in
+                    screenSession = appModel.makeScreenSession(for: session.account, url: url)
+                }
+            }
+        } }
+        .portalList()
+        .navigationTitle(virtual.displayName)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarVisibility(.hidden, for: .tabBar)
+        .fullScreenCover(item: $screenSession) { screen in
+            ControllerScreenView(session: screen, name: virtual.displayName)
+        }
+    }
+
+    @ViewBuilder
+    private func row(_ entry: ControllerEntry, title: LocalizedStringKey, systemImage: String, open: @escaping (URL) -> Void) -> some View {
+        switch entry {
+        case .open(let url):
+            Button { open(url) } label: { Label(title, systemImage: systemImage).foregroundStyle(.tint) }
+        case .blocked(let reason):
+            VStack(alignment: .leading, spacing: 2) {
+                Label(title, systemImage: systemImage).foregroundStyle(.secondary)
+                Text(reason == .notRunning ? LocalizedStringKey("It is not running.") : LocalizedStringKey("Opening it needs the virtual_controller:connect permission."))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        case .hidden:
+            EmptyView()
         }
     }
 }
