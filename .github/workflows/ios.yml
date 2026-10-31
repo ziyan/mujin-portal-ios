@@ -176,6 +176,7 @@ jobs:
           shoot site-orchestrators site-orchestrators
           shoot site-members site-members
           shoot site-controllers site-controllers
+          shoot site-back site-back
           shoot site-staff site-staff staff
           shoot site-staff-controllers site-staff-controllers staff
           shoot site-loading site-loading

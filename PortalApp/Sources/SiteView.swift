@@ -17,7 +17,18 @@ final class SiteModel {
     let onError: @MainActor (Error) -> Void
     private(set) var phase = Phase.loading
     private(set) var sites: [SiteSummary] = []
-    var selectedSiteId: String?
+    /// The site shown. It is the place's state: kept across a push and a pop, remembered across launches, and changed only by the person (the picker) or when the site leaves the list.
+    var selectedSiteId: String? {
+        didSet {
+            guard selectedSiteId != oldValue, pinnedSiteId == nil, remembersSelection else { return }
+            selectionStore.save(selectedSiteId, accountKey: accountKey, organizationKey: organizationKey)
+        }
+    }
+    /// A site a screen was opened for, which never changes to another.
+    let pinnedSiteId: String?
+    private let selectionStore = SiteSelectionStore()
+    /// Screenshot runs do not remember a selection between launches.
+    private let remembersSelection = DemoOptions.screen == nil
     private(set) var alarms: [SiteAlarm] = []
     private(set) var unavailableControllerCount = 0
     private(set) var robots = SiteRobots()
@@ -44,16 +55,27 @@ final class SiteModel {
     let cache: ResponseCache?
     let accountKey: String
 
-    init(connection: Connection, organizationId: String?, cache: ResponseCache? = nil, accountKey: String = "", onError: @escaping @MainActor (Error) -> Void) {
+    init(connection: Connection, organizationId: String?, pinnedSiteId: String? = nil, cache: ResponseCache? = nil, accountKey: String = "", onError: @escaping @MainActor (Error) -> Void) {
         self.connection = connection
         self.organizationId = organizationId
+        self.pinnedSiteId = pinnedSiteId
         self.cache = cache
         self.accountKey = accountKey
         self.onError = onError
+        self.selectedSiteId = pinnedSiteId ?? (remembersSelection ? selectionStore.load(accountKey: accountKey, organizationKey: organizationId ?? "") : nil)
     }
 
     /// Names the model in the session's store and in a route: the organization, or empty for the person's own.
     var organizationKey: String { organizationId ?? "" }
+
+    /// Names the model in the session's store: the organization, plus the site for a screen opened for one site.
+    var sessionKey: String { organizationKey + (pinnedSiteId.map { "|" + $0 } ?? "") }
+
+    /// Keeps the current site while it is listed, else restores the remembered one, else takes the first.
+    private func resolveSelection() {
+        if let pinnedSiteId { selectedSiteId = pinnedSiteId; return }
+        selectedSiteId = SiteSelection.resolve(current: selectedSiteId, remembered: remembersSelection ? selectionStore.load(accountKey: accountKey, organizationKey: organizationKey) : nil, availableIds: sites.map(\.id))
+    }
 
     var selectedSite: SiteSummary? { sites.first { $0.id == selectedSiteId } }
 
@@ -93,14 +115,14 @@ final class SiteModel {
         let sitesKey = key("sites", organizationKey)
         if let cache, let held = cache.hit(sitesKey, as: [SiteSummary].self) {
             sites = held.value
-            if selectedSite == nil { selectedSiteId = sites.first?.id }
+            resolveSelection()
             if selectedSiteId == nil { phase = .loaded } else { await loadDetails(force: force) }
             if held.isFresh && !force { return }
         }
         do {
             sites = try await connection.sites(organizationId: organizationId)
             cache?.store(sites, for: sitesKey)
-            if selectedSite == nil { selectedSiteId = sites.first?.id }
+            resolveSelection()
             if selectedSiteId == nil { phase = .loaded } else { await loadDetails(force: force) }
         } catch {
             onError(error)
@@ -173,6 +195,8 @@ struct SiteView: View {
     @Environment(SessionModel.self) private var session
     /// Limits the sites to one organization, for a Mujin user looking at a customer.
     var organizationId: String?
+    /// A specific site, for a screen opened for that site: it never shows another.
+    var siteId: String?
     var embedsNavigation = true
 
     @State private var model: SiteModel?
@@ -218,17 +242,25 @@ struct SiteView: View {
                 }
             }
         }
-        .task(id: organizationId) {
+        .task(id: [organizationId ?? "", siteId ?? ""]) {
             // The model is the session's, so it keeps what it loaded across a push and a pop or a switch of tabs.
-            let siteModel = session.siteModel(for: organizationId)
+            let siteModel = session.siteModel(for: organizationId, siteId: siteId)
             model = siteModel
             await siteModel.loadSites()
             if appModel.isDemo {
                 if DemoOptions.screen == "incident", let incident = siteModel.incidents.first { path.append(.incident(incident)) }
                 if DemoOptions.screen == "controller" || DemoOptions.screen == "controller-screen", let controller = siteModel.controllers.first { path.append(.controller(controller)) }
-                if DemoOptions.screen == "site-orchestrators" { path.append(.siteList(.orchestrators, organizationKey: siteModel.organizationKey)) }
-                if DemoOptions.screen == "site-members" { path.append(.siteList(.members, organizationKey: siteModel.organizationKey)) }
-                if DemoOptions.screen == "site-controllers" { path.append(.siteList(.controllers, organizationKey: siteModel.organizationKey)) }
+                if DemoOptions.screen == "site-orchestrators" { path.append(.siteList(.orchestrators, organizationKey: siteModel.sessionKey)) }
+                if DemoOptions.screen == "site-members" { path.append(.siteList(.members, organizationKey: siteModel.sessionKey)) }
+                if DemoOptions.screen == "site-back" {
+                    // Choose the second site, push a list, and come back: the page must still show the second site.
+                    siteModel.selectedSiteId = "site02"
+                    await siteModel.loadDetails()
+                    path.append(.siteList(.controllers, organizationKey: siteModel.sessionKey))
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    path.removeAll()
+                }
+                if DemoOptions.screen == "site-controllers" { path.append(.siteList(.controllers, organizationKey: siteModel.sessionKey)) }
             }
         }
         .task(id: model?.selectedSiteId) {
@@ -286,7 +318,7 @@ struct SiteView: View {
             // "View all" is a row of its own, below the tiles.
             if !model.cells.isEmpty {
                 Section {
-                    NavigationLink(value: PortalRoute.siteList(.telemetry, organizationKey: model.organizationKey)) { Text("View all").foregroundStyle(.tint) }
+                    NavigationLink(value: PortalRoute.siteList(.telemetry, organizationKey: model.sessionKey)) { Text("View all").foregroundStyle(.tint) }
                 }
             }
         } else if model.telemetry == nil, model.isLoadingStats {
@@ -338,18 +370,18 @@ struct SiteView: View {
     private func overviewTiles(_ model: SiteModel) -> some View {
         Group {
             tileGrid {
-                NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.organizationKey)) { StatTile(label: "Controllers", value: model.controllers.count.formatted(), symbol: "server.rack") }
+                NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.sessionKey)) { StatTile(label: "Controllers", value: model.controllers.count.formatted(), symbol: "server.rack") }
                     .buttonStyle(.plain)
                     .navigationLinkIndicatorVisibility(.hidden)
                 if model.virtualControllerCount > 0 {
-                    NavigationLink(value: PortalRoute.siteList(.virtualControllers, organizationKey: model.organizationKey)) { StatTile(label: "Virtual controllers", value: model.virtualControllerCount.formatted(), symbol: "square.stack.3d.up") }
+                    NavigationLink(value: PortalRoute.siteList(.virtualControllers, organizationKey: model.sessionKey)) { StatTile(label: "Virtual controllers", value: model.virtualControllerCount.formatted(), symbol: "square.stack.3d.up") }
                         .buttonStyle(.plain)
                 }
-                NavigationLink(value: PortalRoute.siteList(.alarms, organizationKey: model.organizationKey)) { StatTile(label: "Active alarms", value: model.alarms.count.formatted(), symbol: "bell.badge", tint: model.alarms.isEmpty ? nil : Color.statusError) }
+                NavigationLink(value: PortalRoute.siteList(.alarms, organizationKey: model.sessionKey)) { StatTile(label: "Active alarms", value: model.alarms.count.formatted(), symbol: "bell.badge", tint: model.alarms.isEmpty ? nil : Color.statusError) }
                     .buttonStyle(.plain)
-                NavigationLink(value: PortalRoute.siteList(.incidents, organizationKey: model.organizationKey)) { StatTile(label: "Incidents", value: model.incidents.count.formatted(), symbol: "exclamationmark.triangle") }
+                NavigationLink(value: PortalRoute.siteList(.incidents, organizationKey: model.sessionKey)) { StatTile(label: "Incidents", value: model.incidents.count.formatted(), symbol: "exclamationmark.triangle") }
                     .buttonStyle(.plain)
-                NavigationLink(value: PortalRoute.siteList(.tickets, organizationKey: model.organizationKey)) { StatTile(label: "Open tickets", value: model.openTickets.count.formatted(), symbol: "tray.full") }
+                NavigationLink(value: PortalRoute.siteList(.tickets, organizationKey: model.sessionKey)) { StatTile(label: "Open tickets", value: model.openTickets.count.formatted(), symbol: "tray.full") }
                     .buttonStyle(.plain)
                     .navigationLinkIndicatorVisibility(.hidden)
             }
@@ -358,7 +390,7 @@ struct SiteView: View {
 
     private func resourcesSection(_ model: SiteModel) -> some View {
         Section("Resources") {
-            NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.organizationKey)) {
+            NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.sessionKey)) {
                 LabeledContent("Controllers") { Text(model.controllers.count.formatted()).monospacedDigit() }
             }
             LabeledContent("Mobile robots") {
@@ -368,7 +400,7 @@ struct SiteView: View {
                     Text("\(model.robots.onlineCount) of \(model.robots.robotCount) online").monospacedDigit()
                 }
             }
-            NavigationLink(value: PortalRoute.siteList(.orchestrators, organizationKey: model.organizationKey)) {
+            NavigationLink(value: PortalRoute.siteList(.orchestrators, organizationKey: model.sessionKey)) {
                 LabeledContent("Orchestrators") {
                     let summary = SiteOrchestratorSummary(model.orchestrators)
                     HStack(spacing: 6) {
@@ -382,7 +414,7 @@ struct SiteView: View {
                 }
             }
             if model.canSeeMembers {
-                NavigationLink(value: PortalRoute.siteList(.members, organizationKey: model.organizationKey)) {
+                NavigationLink(value: PortalRoute.siteList(.members, organizationKey: model.sessionKey)) {
                     LabeledContent("Members") { Text(model.members.count.formatted()).monospacedDigit() }
                 }
             }
@@ -403,7 +435,7 @@ struct SiteView: View {
     @ViewBuilder
     private func showAll(_ kind: SiteListKind, model: SiteModel, count: Int, isShown: Bool) -> some View {
         if isShown {
-            NavigationLink(value: PortalRoute.siteList(kind, organizationKey: model.organizationKey)) { Text("Show all (\(count))").foregroundStyle(.tint) }
+            NavigationLink(value: PortalRoute.siteList(kind, organizationKey: model.sessionKey)) { Text("Show all (\(count))").foregroundStyle(.tint) }
         }
     }
 

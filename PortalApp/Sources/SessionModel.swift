@@ -56,10 +56,10 @@ final class SessionModel {
     }
 
     /// A site screen's model lives as long as the session, so a push and a pop, or a switch of tabs, keeps its data.
-    func siteModel(for organizationId: String?) -> SiteModel {
-        let key = organizationId ?? ""
+    func siteModel(for organizationId: String?, siteId: String? = nil) -> SiteModel {
+        let key = (organizationId ?? "") + (siteId.map { "|" + $0 } ?? "")
         if let existing = siteModels[key] { return existing }
-        let model = SiteModel(connection: connection, organizationId: organizationId, cache: cache, accountKey: account.accountKey, onError: onError)
+        let model = SiteModel(connection: connection, organizationId: organizationId, pinnedSiteId: siteId, cache: cache, accountKey: account.accountKey, onError: onError)
         model.viewerIsMujinUser = isStaff
         model.viewerPermissions = profile?.me.permissions ?? []
         model.viewerOrganizationId = self.organizationId
