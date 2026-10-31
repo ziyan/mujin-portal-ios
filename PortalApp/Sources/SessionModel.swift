@@ -212,40 +212,29 @@ final class SessionModel {
 
     var pendingReference: PendingReference?
 
-    /// Starts a conversation about the screen the person is looking at and
-    /// opens it. The resource is a reference above the composer, not text in
-    /// it: the person types the question and sends it with the reference.
+    /// A new message the person asked for from a screen: its reference or its words are held here, and
+    /// nothing exists on the server until the first send.
+    struct ComposeRequest: Identifiable {
+        let id = UUID()
+        var viewing: Viewing?
+        var subject: String?
+        var draft = ""
+    }
+
+    var composeRequest: ComposeRequest?
+
+    /// Opens a new message about the screen the person is looking at. The resource is a reference above the
+    /// composer, not text in it; the conversation is made when the question is sent.
     func beginAsk(about viewing: Viewing, subject: String) async {
-        do {
-            let agent = try await connection.mainAgent()
-            let conversation = try await connection.createConversation(agentId: agent.id)
-            pendingReference = PendingReference(conversationId: conversation.id, viewing: viewing, subject: subject)
-            conversationToOpen = conversation.id
-            selectedSection = .assistant
-        } catch {
-            onError(error)
-        }
+        composeRequest = ComposeRequest(viewing: viewing, subject: subject)
+        selectedSection = .assistant
     }
 
-    /// Starts a conversation with `text` waiting in the composer. Nothing is sent.
+    /// Opens a new message with `text` waiting in the composer. Nothing is sent.
     func beginDraft(_ text: String) async {
-        do {
-            let agent = try await connection.mainAgent()
-            let conversation = try await connection.createConversation(agentId: agent.id)
-            pendingDraft = PendingDraft(conversationId: conversation.id, text: text)
-            conversationToOpen = conversation.id
-            selectedSection = .assistant
-        } catch {
-            onError(error)
-        }
+        composeRequest = ComposeRequest(draft: text)
+        selectedSection = .assistant
     }
-
-    struct PendingDraft {
-        let conversationId: String
-        let text: String
-    }
-
-    var pendingDraft: PendingDraft?
 
     func load() async {
         do {

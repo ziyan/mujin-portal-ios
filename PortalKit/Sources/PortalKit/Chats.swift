@@ -797,3 +797,31 @@ public enum MentionText {
         return result
     }
 }
+
+
+extension Connection {
+    /// Starts a conversation with its first message, and only then. Nothing
+    /// is created before something is said, so backing out leaves nothing
+    /// behind. With nobody picked it is a conversation with the assistant,
+    /// with one person a direct chat, with more a group; the message is sent
+    /// to what was made, and the id of that conversation is returned.
+    public func startConversation(
+        withPeople userIds: [String], groupName: String, text: String, viewing: Viewing? = nil, pageTitle: String? = nil
+    ) async throws -> String {
+        switch userIds.count {
+        case 0:
+            let agent = try await mainAgent()
+            let conversationId = try await createConversation(agentId: agent.id).id
+            try await sendMessage(conversationId: conversationId, text: text, viewing: viewing, pageTitle: pageTitle)
+            return conversationId
+        case 1:
+            let conversationId = try await startDirectChat(userId: userIds[0])
+            _ = try await sendChatMessage(conversationId: conversationId, text: text)
+            return conversationId
+        default:
+            let conversationId = try await createGroupChat(name: groupName, userIds: userIds)
+            _ = try await sendChatMessage(conversationId: conversationId, text: text)
+            return conversationId
+        }
+    }
+}

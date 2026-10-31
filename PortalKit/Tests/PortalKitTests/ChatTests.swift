@@ -323,3 +323,58 @@ import Testing
         #expect(MentionText.rendered("no tokens here", members: members) == "no tokens here")
     }
 }
+
+
+@Suite struct StartingAConversationTests {
+    func operations(_ transport: ScriptedTransport) -> [String] {
+        transport.requests.compactMap { request in
+            let body = request.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+            let words = (body["query"] as? String ?? "").split(whereSeparator: { " \n({".contains($0) })
+            return words.count > 1 ? String(words[1]) : nil
+        }
+    }
+
+    static func answer(_ operation: String, _ variables: [String: Any]) -> [String: Any] {
+        switch operation {
+        case "GetMainAgent": return ["GetMainAgent": ["id": "agent01"]]
+        case "CreateConversation": return ["CreateConversation": ["conversation": ["id": "conversation99"]]]
+        case "StartDirectChat": return ["StartDirectChat": ["chat": ["id": "chat01"], "conversation": ["id": "chatconv01"]]]
+        case "CreateGroupChat": return ["CreateGroupChat": ["chat": ["id": "chat02"], "conversation": ["id": "chatconv02"]]]
+        default: return ["SendMessage": ["runId": "run01"]]
+        }
+    }
+
+    @Test func nothingIsCreatedUntilTheFirstSend() async throws {
+        let (_, transport) = scriptedConnection(Self.answer)
+        #expect(transport.requests.isEmpty)
+    }
+
+    @Test func theFirstSendWithNobodyPickedCreatesTheAssistantsConversationAndSendsWithTheReference() async throws {
+        let (connection, transport) = scriptedConnection(Self.answer)
+        let id = try await connection.startConversation(withPeople: [], groupName: "", text: "Why?", viewing: Viewing(kind: "ticket", id: "ticket01", label: "#1 Gripper"))
+        #expect(id == "conversation99")
+        #expect(operations(transport) == ["GetMainAgent", "CreateConversation", "SendMessage"])
+        let viewing = sentVariables(transport.requests[2])["viewing"] as? [String: Any]
+        #expect(viewing?["kind"] as? String == "ticket")
+        #expect(sentVariables(transport.requests[2])["conversationId"] as? String == "conversation99")
+    }
+
+    @Test func onePersonPickedStartsADirectChatAndTwoStartAGroup() async throws {
+        let (direct, directTransport) = scriptedConnection(Self.answer)
+        #expect(try await direct.startConversation(withPeople: ["user02"], groupName: "", text: "Hi") == "chatconv01")
+        #expect(operations(directTransport) == ["StartDirectChat", "SendMessage"])
+        let (group, groupTransport) = scriptedConnection(Self.answer)
+        #expect(try await group.startConversation(withPeople: ["user02", "user03"], groupName: "Sam, Robin", text: "Hi") == "chatconv02")
+        #expect(operations(groupTransport) == ["CreateGroupChat", "SendMessage"])
+        // A chat with people carries no viewing.
+        #expect(sentVariables(groupTransport.requests[1])["viewing"] == nil)
+    }
+
+    @Test func theListLeavesOutAConversationNothingWasSaidIn() {
+        #expect(ConversationSummary(id: "c1").isEmptyAssistantConversation)
+        #expect(!ConversationSummary(id: "c2", title: "Weekly status").isEmptyAssistantConversation)
+        #expect(!ConversationSummary(id: "c3", lastMessageAt: "2026-10-31T12:00:00Z").isEmptyAssistantConversation)
+        #expect(!ConversationSummary(id: "c4", activeRunId: "run01").isEmptyAssistantConversation)
+        #expect(!ConversationSummary(id: "c5", conversationKind: "chat").isEmptyAssistantConversation)
+    }
+}

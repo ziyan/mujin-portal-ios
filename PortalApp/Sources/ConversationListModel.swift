@@ -21,6 +21,8 @@ final class ConversationListModel {
     let onError: @MainActor (Error) -> Void
     /// Whether the server lists chats with people, which sit in the same list.
     var offersChats = false
+    /// The conversation on screen, which stays in the list even while it is empty.
+    var openConversationId: String?
 
     init(account: Account, connection: Connection, onError: @escaping @MainActor (Error) -> Void) {
         self.account = account
@@ -44,7 +46,8 @@ final class ConversationListModel {
             // Conversations with the assistant and chats with people are one list, newest first.
             var all = rows
             if offersChats { all += (try? await connection.chats(search: searchText)) ?? [] }
-            conversations = all.filter { $0.archivedAt == nil }.sorted { Self.activity($0) > Self.activity($1) }
+            // A conversation nothing was said in is left out, unless it is the one open now.
+            conversations = all.filter { $0.archivedAt == nil && (!$0.isEmptyAssistantConversation || $0.id == openConversationId) }.sorted { Self.activity($0) > Self.activity($1) }
             phase = .loaded
         } catch {
             onError(error)
@@ -57,20 +60,6 @@ final class ConversationListModel {
     }
 
     func conversation(id: String) -> ConversationSummary? { conversations.first { $0.id == id } }
-
-    /// Makes a conversation with the main assistant and returns its id.
-    func createConversation() async -> String? {
-        do {
-            let agent = try await connection.mainAgent()
-            let created = try await connection.createConversation(agentId: agent.id)
-            conversations.insert(created, at: 0)
-            return created.id
-        } catch {
-            onError(error)
-            phase = conversations.isEmpty ? .failed(error.userMessage) : phase
-            return nil
-        }
-    }
 
     func archive(_ conversation: ConversationSummary) async {
         let before = conversations

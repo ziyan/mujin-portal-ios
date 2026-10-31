@@ -76,8 +76,9 @@ struct ConversationListView: View {
             if Task.isCancelled { return }
             await model?.search(searchText)
         }
-        .sheet(isPresented: $isComposing) {
-            ComposeMessageView { conversationId in
+        .onChange(of: selectedConversationId) { _, id in model?.openConversationId = id }
+        .sheet(isPresented: Binding(get: { isComposing || session.composeRequest != nil }, set: { if !$0 { isComposing = false; session.composeRequest = nil } })) {
+            ComposeMessageView(request: session.composeRequest) { conversationId in
                 selectedConversationId = conversationId
                 Task { await model?.load() }
             }
@@ -117,7 +118,7 @@ struct ConversationListView: View {
                     } description: {
                         Text("Start one to ask your assistant something.")
                     } actions: {
-                        Button("New conversation") { Task { await startConversation() } }
+                        Button("New conversation") { isComposing = true }
                             .buttonStyle(.borderedProminent)
                     }
                 } else {
@@ -145,11 +146,6 @@ struct ConversationListView: View {
                 }
             }
         }
-    }
-
-    private func startConversation() async {
-        guard let model, let conversationId = await model.createConversation() else { return }
-        selectedConversationId = conversationId
     }
 }
 

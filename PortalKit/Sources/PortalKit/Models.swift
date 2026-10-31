@@ -84,6 +84,12 @@ public struct ConversationSummary: Codable, Equatable, Identifiable, Sendable {
     }
 
     public var isRunning: Bool { !(activeRunId ?? "").isEmpty }
+
+    /// A conversation with the assistant that nothing was ever said in: no message, no title, no run.
+    /// The list leaves it out, unless it is the one open now.
+    public var isEmptyAssistantConversation: Bool {
+        conversationKind != "chat" && (lastMessageAt ?? "").isEmpty && (title ?? "").isEmpty && !isRunning
+    }
 }
 
 /// ConversationMessage is one persisted row of a conversation.

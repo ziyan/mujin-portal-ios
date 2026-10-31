@@ -9,6 +9,8 @@ struct ComposeMessageView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
     @Environment(\.dismiss) private var dismiss
+    /// What a screen asked to ask about, or the words waiting in the box.
+    var request: SessionModel.ComposeRequest?
     let onSent: (String) -> Void
     /// People already chosen, such as the other person of a chat that becomes a group.
     var initialPicked: [ChatCandidate] = []
@@ -33,6 +35,19 @@ struct ComposeMessageView: View {
                 if let reference {
                     HStack {
                         Label(reference.title, systemImage: "bubble.left")
+                            .font(.caption)
+                            .lineLimit(1)
+                            .padding(.horizontal, 10)
+                            .frame(minHeight: 28)
+                            .background(Color(.tertiarySystemFill), in: Capsule())
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                }
+                if let subject = request?.subject, picked.isEmpty {
+                    HStack {
+                        Label(subject, systemImage: "scope")
                             .font(.caption)
                             .lineLimit(1)
                             .padding(.horizontal, 10)
@@ -74,7 +89,11 @@ struct ComposeMessageView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
             .onAppear {
-                if !didStart { picked = initialPicked; didStart = true }
+                if !didStart {
+                    picked = initialPicked
+                    draft = request?.draft ?? ""
+                    didStart = true
+                }
             }
             .task(id: query) {
                 guard session.capabilities.offersChats, !query.trimmingCharacters(in: .whitespaces).isEmpty else {
@@ -135,20 +154,10 @@ struct ComposeMessageView: View {
         defer { isSending = false }
         let connection = appModel.connection(for: session.account)
         do {
-            let conversationId: String
-            switch picked.count {
-            case 0:
-                let agent = try await connection.mainAgent()
-                conversationId = try await connection.createConversation(agentId: agent.id).id
-                try await connection.sendMessage(conversationId: conversationId, text: text)
-            case 1:
-                conversationId = try await connection.startDirectChat(userId: picked[0].userId)
-                _ = try await connection.sendChatMessage(conversationId: conversationId, text: text)
-            default:
-                let name = picked.map { $0.shownName.split(separator: " ").first.map(String.init) ?? $0.shownName }.joined(separator: ", ")
-                conversationId = try await connection.createGroupChat(name: name, userIds: picked.map(\.userId))
-                _ = try await connection.sendChatMessage(conversationId: conversationId, text: text)
-            }
+            let name = picked.map { $0.shownName.split(separator: " ").first.map(String.init) ?? $0.shownName }.joined(separator: ", ")
+            // Nothing exists until now: the conversation is made with its first message.
+            let conversationId = try await connection.startConversation(
+                withPeople: picked.map(\.userId), groupName: name, text: text, viewing: picked.isEmpty ? request?.viewing.map { Viewing(kind: $0.kind, id: $0.id, label: request?.subject) } : nil)
             dismiss()
             onSent(conversationId)
         } catch {

@@ -102,10 +102,6 @@ struct ConversationView: View {
                 conversationModel.viewingReference = (pending.viewing, pending.subject)
                 session.pendingReference = nil
             }
-            if let draftToStart = session.pendingDraft, draftToStart.conversationId == conversationId {
-                draft = draftToStart.text
-                session.pendingDraft = nil
-            }
             model = conversationModel
             voice?.end()
             voice = VoiceCallController(
