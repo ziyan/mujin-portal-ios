@@ -157,12 +157,13 @@ struct SiteView: View {
                     Text("Sites you can see show up here.")
                 }
             } else {
-                List {
+                List { PortalRows {
                     alarmSection(model)
                     robotSection(model)
                     controllerSection(model)
                     incidentSection(model)
-                }
+                } }
+.portalList()
                 .refreshable { await model.loadDetails() }
             }
         }
@@ -180,7 +181,7 @@ struct SiteView: View {
                         Text(alarm.message)
                     } icon: {
                         Image(systemName: alarm.severityRank <= 1 ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(alarm.severityRank <= 1 ? Color.red : Color.orange)
+                            .foregroundStyle(alarm.severityRank <= 1 ? Color.statusError : Color.statusWarning)
                     }
                     // At the accessibility text sizes the two parts go on separate lines.
                     ViewThatFits(in: .horizontal) {
@@ -218,7 +219,7 @@ struct SiteView: View {
             } else {
                 LabeledContent("Online") { Text("\(model.robots.onlineCount) of \(model.robots.robotCount)") }
                 if model.robots.errorCount > 0 {
-                    LabeledContent("With errors") { Text("\(model.robots.errorCount)").foregroundStyle(.red) }
+                    LabeledContent("With errors") { Text("\(model.robots.errorCount)").foregroundStyle(Color.statusError) }
                 }
             }
             ForEach(model.robots.robots.filter { $0.hasError || !$0.isOnline }) { robot in
@@ -227,7 +228,7 @@ struct SiteView: View {
                         Text(robot.name).font(.body.monospaced())
                     } icon: {
                         Image(systemName: robot.hasError ? "exclamationmark.triangle.fill" : "wifi.slash")
-                            .foregroundStyle(robot.hasError ? Color.red : Color.secondary)
+                            .foregroundStyle(robot.hasError ? Color.statusError : Color.secondary)
                     }
                     Text(robot.errorText?.isEmpty == false ? robot.errorText! : String(localized: "Offline"))
                         .font(.footnote)
@@ -277,7 +278,7 @@ struct SiteView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             if incident.needsReview {
                                 Label("Needs review", systemImage: "eye")
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(Color.statusWarning)
                             }
                             if let date = incident.detectedDate {
                                 Text(date, format: .relative(presentation: .named))
@@ -301,7 +302,7 @@ struct ControllerDetailView: View {
     @State private var askRequest: AskAboutRequest?
 
     var body: some View {
-        List {
+        List { PortalRows {
             Section {
                 LabeledContent("Status") {
                     Label(controller.isOnline ? "Online" : "Offline", systemImage: controller.isOnline ? "checkmark.circle" : "circle.slash")
@@ -324,7 +325,8 @@ struct ControllerDetailView: View {
                     }
                 }
             }
-        }
+        } }
+.portalList()
         .navigationTitle(controller.comment?.isEmpty == false ? controller.comment! : controller.id)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -351,7 +353,7 @@ struct IncidentDetailView: View {
 
     var body: some View {
         let connection = appModel.connection(for: session.account)
-        List {
+        List { PortalRows {
             Section {
                 if let description = incident.description, !description.isEmpty {
                     Text(description)
@@ -389,11 +391,12 @@ struct IncidentDetailView: View {
                         Label("Dismiss as not an incident", systemImage: "xmark.circle")
                     }
                     if let errorText {
-                        Text(errorText).font(.footnote).foregroundStyle(.red)
+                        Text(errorText).font(.footnote).foregroundStyle(Color.statusError)
                     }
                 }
             }
-        }
+        } }
+.portalList()
         .navigationTitle(incident.title ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

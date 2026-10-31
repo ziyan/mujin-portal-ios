@@ -155,7 +155,9 @@ struct TicketsView: View {
                     NavigationLink(value: ticket.id) {
                         TicketRow(ticket: ticket)
                     }
-                }
+.listRowBackground(Color.portalCard)
+}
+.portalList()
                 .refreshable { await model.load() }
             }
         }
@@ -192,7 +194,7 @@ private struct TicketRow: View {
             if ticket.priority == "high" || ticket.priority == "urgent" {
                 Label(ticket.priority == "urgent" ? LocalizedStringKey("Urgent") : LocalizedStringKey("High priority"), systemImage: "exclamationmark.triangle.fill")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.statusWarning)
             }
         }
         .padding(.vertical, 2)

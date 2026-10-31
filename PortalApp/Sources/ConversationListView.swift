@@ -100,6 +100,7 @@ struct ConversationListView: View {
                 }
             } else {
                 List(selection: $selectedConversationId) {
+                    PortalRows {
                     if !session.waiting.isEmpty, model.searchText.isEmpty {
                         Section("Waiting for you") {
                             ForEach(session.waiting) { item in
@@ -117,7 +118,9 @@ struct ConversationListView: View {
                             }
                         }
                     }
-                }
+                    }
+}
+.portalList()
                 .refreshable {
                     await model.load()
                     await session.refreshWaiting()
@@ -150,7 +153,7 @@ private struct WaitingRow: View {
                         systemImage: item.isApproval ? "checkmark.shield" : "questionmark.bubble"
                     )
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(item.isApproval ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(item.isApproval ? AnyShapeStyle(Color.statusWarning) : AnyShapeStyle(.secondary))
                     Text(item.promptText ?? item.toolName ?? "")
                         .font(.body)
                         .foregroundStyle(.primary)
@@ -194,7 +197,7 @@ private struct WaitingRow: View {
                 }
             }
             if let errorText {
-                Text(errorText).font(.footnote).foregroundStyle(.red)
+                Text(errorText).font(.footnote).foregroundStyle(Color.statusError)
             }
         }
         .padding(.vertical, 4)
@@ -241,7 +244,7 @@ private struct ConversationRow: View {
                 if waitingCount > 0 {
                     Label("\(waitingCount)", systemImage: "exclamationmark.bubble.fill")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.statusWarning)
                         .accessibilityLabel(Text("Waiting for you"))
                 }
                 if conversation.isRunning {

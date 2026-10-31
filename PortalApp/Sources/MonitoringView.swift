@@ -88,7 +88,7 @@ struct MonitoringView: View {
                 Button("Try again") { Task { await model.load() } }
             }
         case .loaded:
-            List {
+            List { PortalRows {
                 if !session.capabilities.offersMonitoringBoard {
                     Section {
                         Label("The Active Monitoring board is not on this server yet. This is the ticket queue and recent incidents.", systemImage: "info.circle")
@@ -133,7 +133,7 @@ struct MonitoringView: View {
                                     .lineLimit(2)
                                 VStack(alignment: .leading, spacing: 2) {
                                     if incident.needsReview {
-                                        Label("Needs review", systemImage: "eye").foregroundStyle(.orange)
+                                        Label("Needs review", systemImage: "eye").foregroundStyle(Color.statusWarning)
                                     }
                                     HStack(spacing: 6) {
                                         if let name = session.organizationNames[incident.organizationId ?? ""] {
@@ -150,7 +150,8 @@ struct MonitoringView: View {
                         }
                     }
                 }
-            }
+            } }
+.portalList()
             .refreshable { await model.load() }
         }
     }
@@ -169,7 +170,7 @@ private struct QueueRow: View {
             HStack(spacing: 6) {
                 if ticket.priority == "urgent" || ticket.priority == "high" {
                     Label(ticket.priority == "urgent" ? LocalizedStringKey("Urgent") : LocalizedStringKey("High priority"), systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.statusWarning)
                 }
                 if let name = session.organizationNames[ticket.organizationId ?? ""] { Text(name) }
                 if let date = ticket.lastActivity { Text(date, format: .relative(presentation: .named)) }

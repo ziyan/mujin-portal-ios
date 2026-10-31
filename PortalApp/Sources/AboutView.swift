@@ -6,7 +6,7 @@ struct AboutView: View {
     @Environment(SessionModel.self) private var session
 
     var body: some View {
-        List {
+        List { PortalRows {
             Section {
                 LabeledContent("Version") { Text(Self.versionText) }
                 LabeledContent("Server") { Text(session.account.server.displayHost) }
@@ -30,7 +30,8 @@ struct AboutView: View {
                     .foregroundStyle(.secondary)
                 Link("github.com/ziyan/mujin-portal-ios", destination: URL(string: "https://github.com/ziyan/mujin-portal-ios")!)
             }
-        }
+        } }
+.portalList()
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
     }

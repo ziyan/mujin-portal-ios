@@ -158,7 +158,9 @@ struct NotificationsView: View {
                         NotificationRow(item: item)
                     }
                     .buttonStyle(.plain)
-                }
+.listRowBackground(Color.portalCard)
+}
+.portalList()
                 .refreshable { await model.load() }
             }
         }
@@ -248,7 +250,7 @@ struct NotificationPreferencesView: View {
     @State private var errorText: String?
 
     var body: some View {
-        Form {
+        Form { PortalRows {
             Section {
                 Text("Notifications always show in the app. Choose which ones also reach this phone, and which are mailed.")
                     .font(.footnote)
@@ -264,9 +266,10 @@ struct NotificationPreferencesView: View {
                 }
             }
             if let errorText {
-                Section { Text(errorText).foregroundStyle(.red) }
+                Section { Text(errorText).foregroundStyle(Color.statusError) }
             }
-        }
+        } }
+.portalList()
         .navigationTitle("Notification settings")
         .navigationBarTitleDisplayMode(.inline)
         .disabled(!isLoaded)

@@ -21,7 +21,7 @@ struct MoreView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            List {
+            List { PortalRows {
                 Section {
                     Button {
                         isShowingAccounts = true
@@ -73,7 +73,7 @@ struct MoreView: View {
                         isConfirmingSignOut = true
                     } label: {
                         Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color.statusError)
                     }
                     .confirmationDialog("Sign out of this account?", isPresented: $isConfirmingSignOut, titleVisibility: .visible) {
                         Button("Sign out of \(account.displayName)", role: .destructive) { Task { await appModel.remove(account) } }
@@ -81,7 +81,8 @@ struct MoreView: View {
                         Text("\(account.displayName) on \(account.server.displayHost) will be removed from this phone.")
                     }
                 }
-            }
+            } }
+.portalList()
             .navigationTitle("More")
             .navigationDestination(for: MoreDestination.self) { destination in
                 switch destination {

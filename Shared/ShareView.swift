@@ -36,7 +36,7 @@ struct ShareView: View {
     }
 
     private var form: some View {
-        Form {
+        Form { PortalRows {
             if model.accounts.count > 1 {
                 Section("Account") {
                     Picker("Account", selection: $model.selectedAccountKey) {
@@ -65,7 +65,7 @@ struct ShareView: View {
                     if model.isLoadingSites {
                         ProgressView()
                     } else if let error = model.sitesError {
-                        Text(error).font(.footnote).foregroundStyle(.red)
+                        Text(error).font(.footnote).foregroundStyle(Color.statusError)
                     } else if !model.sites.isEmpty {
                         Picker("Site", selection: $model.siteId) {
                             Text("Choose a site").tag("")
@@ -94,11 +94,12 @@ struct ShareView: View {
                     ForEach(model.skippedMessages, id: \.self) { message in
                         Label(message, systemImage: "exclamationmark.triangle")
                             .font(.footnote)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.statusWarning)
                     }
                 }
             }
-        }
+        } }
+.portalList()
     }
 
     private var progress: some View {
@@ -114,7 +115,7 @@ struct ShareView: View {
         VStack(spacing: 16) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 56))
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.statusSuccess)
                 .accessibilityHidden(true)
             Text("Sent")
                 .font(.title3.weight(.semibold))
@@ -132,7 +133,7 @@ struct ShareView: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 44))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.statusWarning)
                 .accessibilityHidden(true)
             Text("Could not send")
                 .font(.title3.weight(.semibold))

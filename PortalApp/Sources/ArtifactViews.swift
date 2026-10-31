@@ -164,7 +164,7 @@ struct ArtifactCardView: View {
             content
         }
         .padding(12)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
         .accessibilityElement(children: .contain)
         .accessibilityAction(named: Text("Open full size"), onOpen)
@@ -258,7 +258,7 @@ struct ArtifactFullView: View {
                 if let downloadError {
                     Text(downloadError)
                         .font(.footnote)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.statusError)
                         .padding(8)
                 }
             }
@@ -338,11 +338,11 @@ struct ProducedFileRow: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityHint(Text("Saves the file"))
             if let errorText {
-                Text(errorText).font(.footnote).foregroundStyle(.red)
+                Text(errorText).font(.footnote).foregroundStyle(Color.statusError)
             }
         }
         .padding(12)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .task(id: file.attachmentId) {
             guard file.isImage, !appModel.isDemo else { return }
             imageData = try? await connection.fetch(path: file.url ?? "/api/v1/attachment/\(file.attachmentId)")
@@ -384,7 +384,7 @@ enum DemoArtifact {
     static func html(isDark: Bool) -> String {
         let background = isDark ? "#1c1c1e" : "#ffffff"
         let text = isDark ? "#f2f2f7" : "#1c1c1e"
-        let bar = isDark ? "#5ac8fa" : "#0a84ff"
+        let bar = isDark ? "#FF7025" : "#e76125"
         return """
             <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
             <style>

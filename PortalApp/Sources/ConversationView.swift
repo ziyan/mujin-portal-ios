@@ -149,6 +149,7 @@ struct ConversationView: View {
                 .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
+            .background(Color.portalPage)
             .defaultScrollAnchor(.bottom)
             .onChange(of: model.transcript.entries) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -195,7 +196,7 @@ private struct TranscriptRow: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                         .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onAccent)
                         .textSelection(.enabled)
                 }
                 if let viewing {
@@ -250,7 +251,7 @@ private struct TranscriptRow: View {
                 text.isEmpty ? (isError ? String(localized: "The assistant could not finish.") : String(localized: "Stopped")) : text,
                 systemImage: isError ? "exclamationmark.triangle.fill" : "stop.circle")
                 .font(.footnote)
-                .foregroundStyle(isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                .foregroundStyle(isError ? AnyShapeStyle(Color.statusError) : AnyShapeStyle(.secondary))
         case .turnEnd(_, let kind, let text):
             TurnEndLine(kind: kind, text: text)
         case .note(_, let note):
@@ -269,7 +270,7 @@ private struct ViewingChip: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Color(.secondarySystemBackground), in: Capsule())
+            .background(Color.portalCard, in: Capsule())
             .accessibilityLabel(Text("About \(viewing.label ?? viewing.id)"))
     }
 }
@@ -294,7 +295,7 @@ struct ReactionStrip: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(summary.isMine ? Color.accentColor.opacity(0.2) : Color(.secondarySystemBackground), in: Capsule())
+                    .background(summary.isMine ? Color.accentColor.opacity(0.2) : Color.portalCard, in: Capsule())
                     if let onTap {
                         Button { onTap(summary.emoji) } label: { label }
                             .buttonStyle(.plain)
@@ -317,7 +318,7 @@ struct EmojiEntryView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            Form { PortalRows {
                 Section {
                     TextField("Type an emoji", text: $text)
                         .focused($isFocused)
@@ -325,7 +326,8 @@ struct EmojiEntryView: View {
                 } footer: {
                     Text("Use the emoji keyboard. One or two emoji.")
                 }
-            }
+            } }
+.portalList()
             .navigationTitle("More emoji")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -382,9 +384,9 @@ private struct ToolGroupRow: View {
                 }
             }
         }
-        .tint(.secondary)
+        .tint(Color.portalSecondary)
         .padding(10)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -465,7 +467,7 @@ private struct TurnEndLine: View {
             Image(systemName: kind == .failed ? "exclamationmark.triangle.fill" : "exclamationmark.circle")
         }
         .font(.footnote)
-        .foregroundStyle(kind == .failed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+        .foregroundStyle(kind == .failed ? AnyShapeStyle(Color.statusError) : AnyShapeStyle(.secondary))
     }
 }
 
@@ -506,7 +508,7 @@ private struct NoteLine: View {
             } label: {
                 label.font(.footnote).foregroundStyle(.secondary)
             }
-            .tint(.secondary)
+            .tint(Color.portalSecondary)
         }
     }
 }
@@ -533,7 +535,7 @@ private struct BackgroundWorkBanner: View {
                 .controlSize(.small)
         }
         .padding(10)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -576,11 +578,11 @@ struct QuestionCardView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.subheadline)
-                .foregroundStyle(.tint)
+                .foregroundStyle(.primary)
             }
         }
         .padding(14)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityElement(children: .contain)
     }
 
@@ -600,7 +602,7 @@ struct ApprovalCardView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Approval needed", systemImage: "checkmark.shield")
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.statusWarning)
             Text("The assistant wants to use \(card.toolName)")
                 .font(.body)
             if !card.policyReason.isEmpty {
@@ -639,7 +641,7 @@ struct ApprovalCardView: View {
             .controlSize(.large)
         }
         .padding(14)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityElement(children: .contain)
     }
 }
@@ -657,7 +659,7 @@ private struct ComposerBar: View {
                 HStack(spacing: 8) {
                     Text(error)
                         .font(.footnote)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.statusError)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if !isDraftEmpty {
                         Button("Retry") { send() }

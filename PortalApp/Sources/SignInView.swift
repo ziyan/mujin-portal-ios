@@ -77,7 +77,7 @@ struct SignInView: View {
                         if let message = addressError ?? model.signInError {
                             Text(message)
                                 .font(.footnote)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Color.statusError)
                                 .multilineTextAlignment(.center)
                                 .accessibilityIdentifier("signInError")
                         }

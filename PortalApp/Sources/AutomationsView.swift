@@ -178,7 +178,7 @@ private struct ScheduleList: View {
                 Text("Jobs your assistant runs on a schedule show up here for the next week.")
             }
         } else {
-            List {
+            List { PortalRows {
                 ForEach(model.days) { day in
                     Section {
                         ForEach(day.occurrences) { occurrence in
@@ -194,7 +194,8 @@ private struct ScheduleList: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-            }
+            } }
+.portalList()
             .refreshable { await model.loadAll() }
         }
     }
@@ -246,7 +247,7 @@ private struct StatusLabel: View {
         case "queued": Label("Queued", systemImage: "clock").foregroundStyle(.secondary)
         case "running": Label("Running", systemImage: "arrow.triangle.2.circlepath").foregroundStyle(.secondary)
         case "succeeded", "done": Label("Done", systemImage: "checkmark.circle").foregroundStyle(.secondary)
-        case "failed": Label("Failed", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+        case "failed": Label("Failed", systemImage: "exclamationmark.triangle.fill").foregroundStyle(Color.statusError)
         case "cancelled", "stopped": Label("Stopped", systemImage: "stop.circle").foregroundStyle(.secondary)
         default: Label(state, systemImage: "questionmark.circle").foregroundStyle(.secondary)
         }
@@ -300,7 +301,9 @@ private struct ActivityList: View {
                         Label("Ask about this", systemImage: "sparkles")
                     }
                 }
-            }
+.listRowBackground(Color.portalCard)
+}
+.portalList()
             .refreshable { await model.loadAll() }
         }
     }
@@ -342,7 +345,9 @@ private struct WorkList: View {
                         Button { open(conversationId) } label: { Label("Open the conversation", systemImage: "bubble.left") }
                     }
                 }
-            }
+.listRowBackground(Color.portalCard)
+}
+.portalList()
             .refreshable { await model.loadAll() }
         }
     }

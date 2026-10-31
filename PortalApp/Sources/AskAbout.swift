@@ -47,7 +47,7 @@ struct AskAboutSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            Form { PortalRows {
                 Section {
                     Label(request.subject, systemImage: "scope")
                         .foregroundStyle(.primary)
@@ -58,9 +58,10 @@ struct AskAboutSheet: View {
                         .focused($isFocused)
                 }
                 if let errorText {
-                    Section { Text(errorText).foregroundStyle(.red) }
+                    Section { Text(errorText).foregroundStyle(Color.statusError) }
                 }
-            }
+            } }
+.portalList()
             .navigationTitle("Ask about this")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

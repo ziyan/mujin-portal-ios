@@ -31,7 +31,7 @@ struct MarkdownView: View {
                     .font(.callout.monospaced())
                     .padding(12)
             }
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         case .bulletList(let items):
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
@@ -72,6 +72,12 @@ struct MarkdownView: View {
                 let end = AttributedString.Index(range.upperBound, within: result), result[start..<end].link == nil
             else { continue }
             result[start..<end].link = url
+        }
+        // Link text is small body text, where the accent is too faint on the
+        // page, so a link is underlined in the text color instead.
+        for run in result.runs where run.link != nil {
+            result[run.range].underlineStyle = .single
+            result[run.range].foregroundColor = Color.primary
         }
         return result
     }

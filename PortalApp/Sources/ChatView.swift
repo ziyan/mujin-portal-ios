@@ -127,6 +127,7 @@ struct ChatView: View {
                 .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
+            .background(Color.portalPage)
             .defaultScrollAnchor(.bottom)
             .onChange(of: model.timeline.messages.last?.id) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -167,7 +168,7 @@ struct ChatView: View {
     private func composer(_ model: ChatModel) -> some View {
         VStack(spacing: 6) {
             if let error = model.actionError {
-                Text(error).font(.footnote).foregroundStyle(.red).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
+                Text(error).font(.footnote).foregroundStyle(Color.statusError).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
             }
             if !model.canWrite {
                 Label("You left this chat. You can read what was said while you were in it.", systemImage: "door.left.hand.open")
@@ -346,16 +347,16 @@ private struct MessageRow: View {
                         .textSelection(.enabled)
                 }
                 if message.isEdited {
-                    Text("edited").font(.caption2).foregroundStyle(isMine ? AnyShapeStyle(.white.opacity(0.8)) : AnyShapeStyle(.secondary))
+                    Text("edited").font(.caption2).foregroundStyle(isMine ? AnyShapeStyle(Color.onAccent.opacity(0.8)) : AnyShapeStyle(.secondary))
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
-                isMine ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color(.secondarySystemBackground)),
+                isMine ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.portalCard),
                 in: RoundedRectangle(cornerRadius: 18, style: .continuous)
             )
-            .foregroundStyle(isMine ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .foregroundStyle(isMine ? AnyShapeStyle(Color.onAccent) : AnyShapeStyle(.primary))
             .contextMenu { menu }
             .accessibilityAction(named: Text("Reply")) { model.replyTarget = message }
         }
@@ -415,7 +416,7 @@ struct ChatInfoView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            List { PortalRows {
                 if let room = model.room {
                     Section("People") {
                         ForEach(room.currentMembers) { member in
@@ -464,15 +465,16 @@ struct ChatInfoView: View {
                     if room.isGroup, room.canWrite {
                         Section {
                             Button(role: .destructive) { isConfirmingLeave = true } label: {
-                                Label("Leave chat", systemImage: "rectangle.portrait.and.arrow.right").foregroundStyle(.red)
+                                Label("Leave chat", systemImage: "rectangle.portrait.and.arrow.right").foregroundStyle(Color.statusError)
                             }
                         }
                     }
                     if let error = model.actionError {
-                        Section { Text(error).foregroundStyle(.red) }
+                        Section { Text(error).foregroundStyle(Color.statusError) }
                     }
                 }
-            }
+            } }
+.portalList()
             .navigationTitle(model.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -553,7 +555,7 @@ private struct AddPeopleView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            List { PortalRows {
                 ForEach(shown) { person in
                     Button {
                         if selected.contains(person.userId) { selected.remove(person.userId) } else { selected.insert(person.userId) }
@@ -562,7 +564,8 @@ private struct AddPeopleView: View {
                     }
                     .buttonStyle(.plain)
                 }
-            }
+            } }
+.portalList()
             .searchable(text: $searchText, prompt: "Search people")
             .navigationTitle("Add people")
             .navigationBarTitleDisplayMode(.inline)

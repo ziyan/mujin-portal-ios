@@ -125,7 +125,9 @@ struct ChatsView: View {
                     NavigationLink(value: conversation.id) {
                         if let room = conversation.chat { ChatRow(room: room) }
                     }
-                }
+.listRowBackground(Color.portalCard)
+}
+.portalList()
                 .refreshable {
                     await model.load()
                     await session.refreshChatUnread()
@@ -170,7 +172,7 @@ private struct ChatRow: View {
                             .padding(.horizontal, 7)
                             .padding(.vertical, 2)
                             .background(Color.accentColor, in: Capsule())
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.onAccent)
                             .accessibilityLabel(Text("\(room.unreadCount) unread"))
                     }
                 }
@@ -217,7 +219,7 @@ struct NewChatView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            List { PortalRows {
                 Section {
                     Picker("Kind of chat", selection: $mode) {
                         Text("Direct").tag(NewChatMode.direct)
@@ -244,9 +246,10 @@ struct NewChatView: View {
                     }
                 }
                 if let errorText {
-                    Section { Text(errorText).foregroundStyle(.red) }
+                    Section { Text(errorText).foregroundStyle(Color.statusError) }
                 }
-            }
+            } }
+.portalList()
             .overlay {
                 if candidates.isEmpty { ContentUnavailableView.search(text: searchText) }
             }

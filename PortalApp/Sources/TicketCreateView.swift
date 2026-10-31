@@ -20,7 +20,7 @@ struct TicketCreateView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            Form { PortalRows {
                 Section {
                     TextField("Title", text: $title)
                         .accessibilityIdentifier("ticketTitleField")
@@ -45,13 +45,14 @@ struct TicketCreateView: View {
                     AttachmentStrip(drafts: drafts)
                     AttachMenu(drafts: drafts)
                     if let message = drafts.errorText {
-                        Text(message).font(.footnote).foregroundStyle(.red)
+                        Text(message).font(.footnote).foregroundStyle(Color.statusError)
                     }
                 }
                 if let errorText {
-                    Section { Text(errorText).foregroundStyle(.red) }
+                    Section { Text(errorText).foregroundStyle(Color.statusError) }
                 }
-            }
+            } }
+.portalList()
             .navigationTitle("New ticket")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

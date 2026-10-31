@@ -11,7 +11,7 @@ struct AccountsView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            List { PortalRows {
                 Section {
                     ForEach(model.accounts, id: \.accountKey) { account in
                         Button {
@@ -44,7 +44,8 @@ struct AccountsView: View {
                         Label("Add account", systemImage: "plus.circle")
                     }
                 }
-            }
+            } }
+.portalList()
             .navigationTitle("Accounts")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

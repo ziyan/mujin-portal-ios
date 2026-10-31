@@ -189,6 +189,7 @@ struct TicketDetailView: View {
         }
         .refreshable { await model.load() }
         .scrollDismissesKeyboard(.interactively)
+        .background(Color.portalPage)
     }
 
     private func header(_ ticket: Ticket) -> some View {
@@ -201,7 +202,7 @@ struct TicketDetailView: View {
                 }
                 if let priority = ticket.priority, priority == "high" || priority == "urgent" {
                     Label(TicketText.priority(priority), systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.statusWarning)
                 }
             }
             .font(.footnote)
@@ -223,7 +224,7 @@ struct TicketDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func composer(_ model: TicketDetailModel, ticket: Ticket) -> some View {
@@ -231,7 +232,7 @@ struct TicketDetailView: View {
             if let error = model.actionError ?? drafts.errorText {
                 Text(error)
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.statusError)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
             }
@@ -305,7 +306,7 @@ private struct CommentView: View {
                 if isInternal {
                     Label("Internal", systemImage: "lock.fill")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.statusWarning)
                 }
                 Spacer(minLength: 8)
                 if let date {
@@ -324,6 +325,6 @@ private struct CommentView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(isInternal ? Color.orange.opacity(0.12) : Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(isInternal ? Color.statusWarning.opacity(0.12) : Color.portalCard, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
