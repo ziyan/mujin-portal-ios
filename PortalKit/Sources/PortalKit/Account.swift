@@ -10,11 +10,15 @@ public struct Account: Codable, Equatable, Sendable {
     public var accessToken: String
     public var refreshToken: String
     public var accessTokenExpiresAt: Date
+    /// Names this account's web data store (cookies and site data of the
+    /// built-in browser), so accounts never share cookies. Removed with the account.
+    public var webDataStoreId: UUID
 
     public init(
         server: ServerAddress, clientId: String, userId: String, displayName: String, email: String,
-        accessToken: String, refreshToken: String, accessTokenExpiresAt: Date
+        accessToken: String, refreshToken: String, accessTokenExpiresAt: Date, webDataStoreId: UUID = UUID()
     ) {
+        self.webDataStoreId = webDataStoreId
         self.server = server
         self.clientId = clientId
         self.userId = userId
@@ -23,6 +27,24 @@ public struct Account: Codable, Equatable, Sendable {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.accessTokenExpiresAt = accessTokenExpiresAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case server, clientId, userId, displayName, email, accessToken, refreshToken, accessTokenExpiresAt, webDataStoreId
+    }
+
+    /// Reads an account kept by an older build, which had no web data store id.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        server = try container.decode(ServerAddress.self, forKey: .server)
+        clientId = try container.decode(String.self, forKey: .clientId)
+        userId = try container.decode(String.self, forKey: .userId)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        email = try container.decode(String.self, forKey: .email)
+        accessToken = try container.decode(String.self, forKey: .accessToken)
+        refreshToken = try container.decode(String.self, forKey: .refreshToken)
+        accessTokenExpiresAt = try container.decode(Date.self, forKey: .accessTokenExpiresAt)
+        webDataStoreId = try container.decodeIfPresent(UUID.self, forKey: .webDataStoreId) ?? UUID()
     }
 
     /// Which sign-in this is: one person on one server. Signing in again as
@@ -49,7 +71,10 @@ public struct AccountRing: Codable, Equatable, Sendable {
     /// server. The first one kept is the one in use.
     public mutating func put(_ account: Account) {
         if let index = accounts.firstIndex(where: { $0.accountKey == account.accountKey }) {
-            accounts[index] = account
+            // Signing in again keeps the web data store, so no store is left behind.
+            var replacement = account
+            replacement.webDataStoreId = accounts[index].webDataStoreId
+            accounts[index] = replacement
         } else {
             accounts.append(account)
         }

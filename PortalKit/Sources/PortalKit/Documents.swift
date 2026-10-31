@@ -120,6 +120,16 @@ public enum Documents {
         }
         """
 
+    /// The one-time address that signs the built-in browser in to a page. This
+    /// is the contract the backend will add (see the README); it is not in the
+    /// schema yet, so it is left out of `all` and used only when the server
+    /// offers the mutation.
+    public static let createWebSessionHandoff = """
+        mutation CreateWebSessionHandoff($targetUrl: String!) {
+          CreateWebSessionHandoff(targetUrl: $targetUrl) { url expiresAt }
+        }
+        """
+
     /// Every document, for the schema check.
     public static let all: [String] = [
         me, mainAgent, listConversations, getConversation, listMessages, listQuestions, listApprovals,

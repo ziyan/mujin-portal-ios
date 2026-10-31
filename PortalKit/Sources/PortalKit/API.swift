@@ -174,3 +174,20 @@ extension Connection {
         return (answer.__type?.fields ?? []).contains { $0.name.prefix(1).lowercased() + $0.name.dropFirst() == wanted }
     }
 }
+
+extension Connection {
+    /// A one-time address that sets this account's web session cookie and then
+    /// goes to `target`, or nil when the server does not offer the mutation
+    /// (the page then opens as it is and Portal's own login page shows).
+    public func webSessionHandoff(to target: URL) async -> URL? {
+        guard await offersMutation("createWebSessionHandoff") else { return nil }
+        struct Answer: Decodable, Sendable {
+            struct Handoff: Decodable, Sendable { let url: String }
+            let CreateWebSessionHandoff: Handoff
+        }
+        guard let answer = try? await execute(Documents.createWebSessionHandoff, variables: ["targetUrl": .string(target.absoluteString)], as: Answer.self),
+            let url = URL(string: answer.CreateWebSessionHandoff.url), url.scheme == "https" || url.scheme == "http"
+        else { return nil }
+        return url
+    }
+}
