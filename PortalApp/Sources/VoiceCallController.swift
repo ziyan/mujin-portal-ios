@@ -28,6 +28,16 @@ final class VoiceCallController {
     private(set) var notice: String?
     /// True when the call uses recorded utterances because streaming transcription is not set up.
     private(set) var isUsingOlderPath = false
+    /// How loud the microphone is now, 0 to 1, smoothed, for the level meter.
+    private(set) var inputLevel: Float = 0
+    /// Whether the person can cut the answer short: only on the streaming socket.
+    var canCutIn: Bool { !isUsingOlderPath && phase == .speaking }
+
+    /// Cuts a playing answer short, as talking over it would.
+    func cutAnswer() { if canCutIn { interruptAnswer() } }
+
+    /// A call with no socket or microphone, for the screenshots.
+    func startDemo() { phase = .listening }
 
     var isActive: Bool {
         switch phase {
@@ -206,6 +216,7 @@ final class VoiceCallController {
 
     private func microphoneFrame(_ frame: Data) async {
         let level = InterruptionJudge.level(ofPCM: frame)
+        inputLevel = inputLevel * 0.6 + min(1, level * 4) * 0.4
         let isAnswerPlaying = scheduledSampleCount > playedSampleCount
         if isUsingOlderPath {
             await olderPathFrame(frame, level: level, isAnswerPlaying: isAnswerPlaying)

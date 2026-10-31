@@ -13,6 +13,8 @@ enum MoreDestination: Hashable {
     case memoryPage(MemoryPageReference)
     case dreams
     case assistantSettings
+    case releases
+    case release(String)
 }
 
 /// MoreView is the last tab: the account, and what does not need a tab of its own.
@@ -92,6 +94,10 @@ struct MoreView: View {
                     ) { Label("Show tool details", systemImage: "wrench.and.screwdriver").foregroundStyle(.primary) }
                 }
                 Section {
+                    NavigationLink(value: MoreDestination.releases) {
+                        Label("Releases", systemImage: "shippingbox")
+                            .foregroundStyle(.primary)
+                    }
                     NavigationLink(value: MoreDestination.about) {
                         Label("About", systemImage: "info.circle")
                             .foregroundStyle(.primary)
@@ -111,6 +117,7 @@ struct MoreView: View {
             } }
 .portalRootList()
             .navigationTitle("More")
+            .portalDestinations()
             .navigationDestination(for: MoreDestination.self) { destination in
                 // A screen pushed from More has no use for the tab bar.
                 Group {
@@ -125,6 +132,8 @@ struct MoreView: View {
                 case .memoryPage(let reference): MemoryPageView(reference: reference)
                 case .dreams: DreamsView()
                 case .assistantSettings: AssistantSettingsView()
+                case .releases: ReleasesView()
+                case .release(let id): ReleaseDetailView(releaseId: id)
                 }
                 }
                 .toolbarVisibility(.hidden, for: .tabBar)

@@ -545,8 +545,10 @@ struct ControllerDetailView: View {
                 if let detail = controller.detail {
                     LabeledContent("Comment") { Text(detail) }
                 }
-                if let version = controller.version {
-                    LabeledContent("Version") { Text(version) }
+                // The release is what the controller runs; the hypervisor's version is a secondary row for staff.
+                ReleaseRow(release: controller.release)
+                if session.isStaff, let hypervisor = controller.hypervisorVersion {
+                    LabeledContent("Hypervisor") { Text(hypervisor).foregroundStyle(.secondary) }
                 }
                 if let region = controller.region, !region.isEmpty {
                     LabeledContent("Region") { Text(region) }
@@ -816,6 +818,7 @@ struct VirtualControllerDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 if let comment = virtual.comment, !comment.isEmpty { LabeledContent("Comment") { Text(comment) } }
+                ReleaseRow(release: virtual.release)
                 if let region = virtual.region, !region.isEmpty { LabeledContent("Region") { Text(region) } }
             }
             Section {

@@ -135,7 +135,7 @@ extension Documents {
     public static let listSiteVirtualControllers = """
         query ListSiteVirtualControllers($organizationId: String, $options: ListOptionsInput) {
           ListVirtualControllers(organizationId: $organizationId, options: $options) {
-            virtualControllers { id name comment siteId region status statusMessage viewerCapabilities }
+            virtualControllers { id name comment siteId region status statusMessage viewerCapabilities releaseId releaseImageId }
           }
         }
         """
@@ -190,8 +190,12 @@ public struct VirtualControllerSummary: Codable, Equatable, Hashable, Identifiab
     public let status: String?
     public let statusMessage: String?
     public let viewerCapabilities: [String]?
+    public let releaseId: String?
+    public let releaseImageId: String?
 
-    public init(id: String, name: String? = nil, comment: String? = nil, siteId: String? = nil, region: String? = nil, status: String? = "running", statusMessage: String? = nil, viewerCapabilities: [String]? = nil) {
+    public init(id: String, name: String? = nil, comment: String? = nil, siteId: String? = nil, region: String? = nil, status: String? = "running", statusMessage: String? = nil, viewerCapabilities: [String]? = nil, releaseId: String? = nil, releaseImageId: String? = nil) {
+        self.releaseId = releaseId
+        self.releaseImageId = releaseImageId
         self.id = id
         self.name = name
         self.comment = comment
@@ -204,6 +208,7 @@ public struct VirtualControllerSummary: Codable, Equatable, Hashable, Identifiab
 
     public var displayName: String { (name ?? "").isEmpty ? id : name! }
     public var isRunning: Bool { status == "running" }
+    public var release: ControllerRelease { ControllerRelease(releaseId: releaseId, releaseImageId: releaseImageId) }
     public func can(_ capability: String) -> Bool { viewerCapabilities?.contains(capability) ?? false }
 
     /// Its web UI, through Portal's virtual controller proxy.

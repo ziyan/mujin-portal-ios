@@ -107,6 +107,7 @@ struct ConversationView: View {
             voice = VoiceCallController(
                 model: conversationModel, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
             conversationModel.start()
+            if appModel.isDemo, DemoOptions.screen == "voice" { voice?.startDemo() }
             if appModel.isDemo, DemoOptions.screen == "conversation-reply" {
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 conversationModel.replyTarget = ReplyReference(
@@ -175,10 +176,9 @@ struct ConversationView: View {
                         )
                         .id(entry.id)
                     }
-                    if model.isRunning, !model.transcript.entries.contains(where: Self.isStreamingOrCard) {
-                        ProgressView()
-                            .padding(.leading, 4)
-                            .accessibilityLabel("Working")
+                    // From the send until the first words or a tool row: typing dots in the assistant's bubble.
+                    if model.isRunning, model.isAwaitingFirstWords {
+                        TypingBubble().id("typing")
                     }
                     ForEach(model.backgroundWork) { work in
                         BackgroundWorkBanner(work: work) { Task { await model.stopBackgroundWork(work) } }
@@ -747,10 +747,12 @@ private struct ComposerBar: View {
                 }
                 .padding(.horizontal, 12)
             }
+            // While a call is on, its bar takes the composer's place and the keyboard stays down.
             if let voice, voice.isActive || voice.phase != .idle {
-                VoiceCallBar(voice: voice)
+                VoiceCallBar(voice: voice, isThinking: model.isRunning)
                     .padding(.horizontal, 12)
-            }
+                    .padding(.bottom, 8)
+            } else {
             AttachmentStrip(drafts: drafts)
                 .padding(.horizontal, 16)
             if let attachError = drafts.errorText {
@@ -765,9 +767,14 @@ private struct ComposerBar: View {
                     model.replyTarget = nil
                     return true
                 }, onSend: send)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 6)
+        .onChange(of: voice?.isActive ?? false) { _, isActive in
+            // The keyboard goes down when a call starts.
+            if isActive { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+        }
     }
 
     private func send() {
@@ -843,68 +850,83 @@ private struct SpeakFirstChoicesView: View {
 /// being read, and the buttons to mute and end it.
 private struct VoiceCallBar: View {
     let voice: VoiceCallController
+    let isThinking: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .symbolEffect(.variableColor.iterative, isActive: voice.phase == .listening && !voice.isMuted)
-                .foregroundStyle(voice.isMuted ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(status)
-                    .font(.subheadline.weight(.semibold))
-                if !voice.caption.isEmpty {
-                    Text(voice.caption).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
-                } else if let notice = voice.notice {
-                    Text(notice).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
-                } else if voice.isUsingOlderPath, voice.isActive {
-                    Text("Speak, then pause. Talking over the answer is not available on this server.")
-                        .font(.footnote).foregroundStyle(.secondary).lineLimit(2)
-                }
-            }
-            Spacer(minLength: 8)
+        HStack(spacing: 12) {
+            levelMeter
+            Text(state)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
             if voice.isActive {
                 Button {
                     voice.toggleMute()
                 } label: {
                     Image(systemName: voice.isMuted ? "mic.slash.fill" : "mic.fill")
-                        .frame(width: 24, height: 24)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(voice.isMuted ? Color.white : Color.accentColor)
+                        .frame(width: 44, height: 44)
+                        .background(voice.isMuted ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color(.tertiarySystemFill)), in: .circle)
                 }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
+                .buttonStyle(.plain)
                 .accessibilityLabel(voice.isMuted ? "Unmute" : "Mute")
             }
             Button {
                 voice.end()
             } label: {
                 Image(systemName: voice.isActive ? "phone.down.fill" : "xmark")
-                    .frame(width: 24, height: 24)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(voice.isActive ? Color.statusError : Color.secondary, in: .circle)
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .tint(voice.isActive ? Color.statusError : nil)
+            .buttonStyle(.plain)
             .accessibilityLabel(voice.isActive ? "End the call" : "Close")
         }
-        .padding(12)
-        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 8)
+        .background(Color.portalCard.opacity(0.92), in: .rect(cornerRadius: 30, style: .continuous))
+        .glassEffect(.regular, in: .rect(cornerRadius: 30, style: .continuous))
         .accessibilityElement(children: .contain)
+        .sensoryFeedback(trigger: voice.phase) { _, new in new == .listening ? .impact(weight: .light) : nil }
     }
 
-    private var icon: String {
-        switch voice.phase {
-        case .speaking: "speaker.wave.2.fill"
-        case .failed: "exclamationmark.triangle.fill"
-        default: "waveform"
+    /// How loud the microphone is; a tap cuts a playing answer short where that is possible, and does nothing otherwise.
+    private var levelMeter: some View {
+        Button {
+            voice.cutAnswer()
+        } label: {
+            ZStack {
+                Circle().fill(Color(.tertiarySystemFill))
+                Circle()
+                    .fill(Color.accentColor.opacity(0.35))
+                    .scaleEffect(voice.isMuted ? 0.3 : 0.35 + 0.65 * CGFloat(voice.inputLevel))
+                    .animation(.easeOut(duration: 0.1), value: voice.inputLevel)
+                Image(systemName: voice.phase == .speaking ? "speaker.wave.2.fill" : "waveform")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(voice.isMuted ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
+            }
+            .frame(width: 44, height: 44)
         }
+        .buttonStyle(.plain)
+        .disabled(!voice.canCutIn)
+        .accessibilityLabel(voice.canCutIn ? Text("Stop the answer") : Text(state))
     }
 
-    private var status: LocalizedStringKey {
+    /// Only the state, or a problem.
+    private var state: LocalizedStringKey {
         switch voice.phase {
         case .idle: ""
-        case .connecting: "Connecting…"
-        case .listening: voice.isMuted ? "Muted" : "Listening"
-        case .speaking: "Speaking"
+        case .connecting: "Connecting\u{2026}"
         case .failed(let message): LocalizedStringKey(message)
+        case .speaking: "Speaking"
+        case .listening:
+            if let notice = voice.notice { LocalizedStringKey(notice) }
+            else if voice.isMuted { "Muted" }
+            else if isThinking { "Thinking" }
+            else { "Listening" }
         }
     }
 }

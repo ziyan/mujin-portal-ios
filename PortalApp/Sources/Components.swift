@@ -143,8 +143,10 @@ struct ReactionBadges: View {
                         Text(summary.emoji)
                         if summary.count > 1 { Text("\(summary.count)").font(.caption2) }
                     }
-                    .padding(.horizontal, 3)
-                    .background(summary.isMine ? Color.accentColor.opacity(0.25) : Color.clear, in: .capsule)
+                    .padding(.horizontal, 4)
+                    // The person's own is the same neutral pill as any other, marked by a 1 pt accent outline and no fill.
+                    .overlay(Capsule().strokeBorder(summary.isMine ? Color.accentColor : Color.clear, lineWidth: 1))
+                    .fontWeight(summary.isMine ? .bold : .regular)
                     if let onTap {
                         Button { onTap(summary.emoji) } label: { label.contentShape(Rectangle().inset(by: -12)) }
                             .buttonStyle(.plain)
@@ -273,4 +275,38 @@ private struct PlaceholderShimmer: ViewModifier {
 
 extension View {
     func placeholderWhileLoading(_ isLoading: Bool) -> some View { modifier(PlaceholderShimmer(isActive: isLoading)) }
+}
+
+/// TypingBubble is the assistant's bubble while it works and has not yet said anything: three dots that rise and
+/// brighten in turn on a 1.2 second beat. It is the size of a short assistant message, so the answer takes its place
+/// without a jump. The web chat box shows the same dots.
+struct TypingBubble: View {
+    @Environment(\.accessibilityReduceMotion) private var isReducingMotion
+    private static let beat = 1.2
+
+    var body: some View {
+        HStack(spacing: 0) {
+            TimelineView(.animation(paused: isReducingMotion)) { context in
+                let time = context.date.timeIntervalSinceReferenceDate
+                HStack(spacing: 5) {
+                    ForEach(0..<3, id: \.self) { index in
+                        // Each dot peaks a sixth of a beat after the one before it.
+                        let phase = (time / Self.beat - Double(index) / 6).truncatingRemainder(dividingBy: 1)
+                        let level = (1 - cos(2 * Double.pi * (phase < 0 ? phase + 1 : phase))) / 2
+                        Circle()
+                            .fill(Color.secondary)
+                            .frame(width: 8, height: 8)
+                            .opacity(0.4 + 0.6 * level)
+                            .offset(y: -3 * level)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            Spacer(minLength: 56)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Thinking\u{2026}"))
+    }
 }

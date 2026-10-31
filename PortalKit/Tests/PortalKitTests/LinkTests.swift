@@ -189,3 +189,72 @@ import Testing
         #expect(ControllerSummary(id: "controller03").detail == nil)
     }
 }
+
+
+@Suite struct BrowserTargetTests {
+    func target(_ text: String) -> BrowserTarget? { BrowserTarget(url: URL(string: text)!, serverHost: "portal.example.test") }
+
+    @Test func theLiveAndTheCloudUIOfOneControllerHaveDifferentHeaders() {
+        #expect(target("https://controller01-live.portal.example.test/")?.title == "controller01 \u{00B7} Live")
+        #expect(target("https://controller01-cloud.portal.example.test/")?.title == "controller01 \u{00B7} Cloud")
+        #expect(target("https://virtual01-virtual.portal.example.test/")?.title == "virtual01 \u{00B7} Virtual")
+        #expect(target("https://controller01-live.portal.example.test/")?.subtitle == "controller01-live.portal.example.test")
+    }
+
+    @Test func anyOtherAddressHasNoControllerHeader() {
+        #expect(target("https://portal.example.test/ticket/12") == nil)
+        #expect(target("https://controller01.portal.example.test/") == nil)
+        #expect(target("https://controller01-live.evil.test/") == nil)
+    }
+}
+
+@Suite struct ReleaseTests {
+    @Test func aControllerWithoutAReleaseIsNotLinkedAndOneWithoutAnImageMatchesByVersionOnly() {
+        #expect(ControllerSummary(id: "controller01").release == .notLinked)
+        #expect(ControllerSummary(id: "controller01", releaseId: "release01").release == .versionOnly(releaseId: "release01"))
+        #expect(ControllerSummary(id: "controller01", releaseId: "release01", releaseImageId: "image01").release == .exact(releaseId: "release01"))
+        #expect(ControllerSummary(id: "controller01", hypervisorState: .init(version: "9.9", publishedAt: nil)).hypervisorVersion == "9.9")
+    }
+
+    @Test func theNotesAreInThePersonsLanguageWithAnEnglishFallback() {
+        let notes = [
+            LocalizedString(locale: "en", text: "Faster picking"), LocalizedString(locale: "ja-JP", text: "ピッキングが高速化"),
+            LocalizedString(locale: "zh-TW", text: "揀選更快"), LocalizedString(locale: "zh-CN", text: "拣选更快"),
+        ]
+        #expect(LocalizedTexts.pick(notes, preferredLanguages: ["ja-JP", "en-US"]) == "ピッキングが高速化")
+        #expect(LocalizedTexts.pick(notes, preferredLanguages: ["ja"]) == "ピッキングが高速化")
+        #expect(LocalizedTexts.pick(notes, preferredLanguages: ["zh-Hant-TW"]) == "揀選更快")
+        #expect(LocalizedTexts.pick(notes, preferredLanguages: ["zh-Hans-CN"]) == "拣选更快")
+        #expect(LocalizedTexts.pick(notes, preferredLanguages: ["de-DE"]) == "Faster picking")
+        #expect(LocalizedTexts.pick([LocalizedString(locale: "fr-FR", text: "Plus rapide")], preferredLanguages: ["de-DE"]) == "Plus rapide")
+        #expect(LocalizedTexts.pick([LocalizedString(locale: "en", text: "  ")], preferredLanguages: ["en"]) == nil)
+        #expect(LocalizedTexts.pick(nil, preferredLanguages: ["en"]) == nil)
+    }
+
+    @Test func aReleaseIsNamedByNameThenVersionThenID() {
+        #expect(Release(id: "r1", name: "Autumn", versionString: "2026.10").displayName == "Autumn")
+        #expect(Release(id: "r1", versionString: "2026.10").displayName == "2026.10")
+        #expect(Release(id: "r1").displayName == "r1")
+    }
+
+    @Test func releasesAreListedNewestFirstWithoutDeletedOnes() async throws {
+        let (connection, _) = scriptedConnection { _, _ in
+            ["ListReleases": ["releases": [
+                ["id": "old", "name": "Old", "createdAt": "2026-01-01T00:00:00Z"], ["id": "new", "name": "New", "createdAt": "2026-10-01T00:00:00Z"],
+                ["id": "gone", "name": "Gone", "createdAt": "2026-12-01T00:00:00Z", "deletedAt": "2026-12-02T00:00:00Z"],
+            ]]]
+        }
+        #expect(try await connection.releases().map(\.id) == ["new", "old"])
+    }
+
+    @Test func aReleaseListsTheMachinesOnIt() async throws {
+        let (connection, transport) = scriptedConnection { operation, _ in
+            operation == "ListControllersUsingRelease"
+                ? ["ListControllersUsingRelease": [["id": "controller01", "releaseId": "r1"]]]
+                : ["ListVirtualControllersUsingRelease": [["id": "virtual01", "name": "Training cell", "status": "running"]]]
+        }
+        #expect(try await connection.controllers(usingRelease: "r1").map(\.id) == ["controller01"])
+        #expect(try await connection.virtualControllers(usingRelease: "r1").map(\.displayName) == ["Training cell"])
+        #expect(sentVariables(try #require(transport.requests.last))["releaseId"] as? String == "r1")
+    }
+}

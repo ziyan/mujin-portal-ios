@@ -207,6 +207,7 @@ struct ChatView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else if model.isAssistantAnswering {
+            TypingBubble()
             Label("The assistant is answering", systemImage: "sparkles")
                 .font(.footnote)
                 .foregroundStyle(.secondary)

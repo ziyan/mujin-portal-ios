@@ -291,7 +291,7 @@ enum DemoOptions {
         guard let screen else { return nil }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         // Screens that live under More.
-        if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings"].contains(where: { screen.hasPrefix($0) }) { return .more }
+        if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
         if screen.hasPrefix("site-staff") { return .customers }
@@ -311,6 +311,8 @@ enum DemoOptions {
         case "memory-page": [.knowledge, .memoryPage(MemoryPageReference(pageId: "page01", factNumber: 2))]
         case "dreams": [.dreams]
         case "assistant-settings": [.assistantSettings]
+        case "releases": [.releases]
+        case "release": [.releases, .release("release01")]
         default: []
         }
     }

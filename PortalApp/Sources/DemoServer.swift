@@ -419,8 +419,8 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListControllers": [
                     "controllers": [
-                        ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write"], "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
-                        ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
+                        ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
+                        ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
                     ], "meta": ["totalCount": 2],
                 ]
             ]
@@ -457,6 +457,33 @@ struct DemoTransport: HTTPTransport {
                     ]
                 ]
             ]
+        case "GetRelease":
+            return [
+                "GetRelease": [
+                    "id": "release01", "name": "Autumn release", "application": "controller", "channel": "stable", "status": "published", "versionString": "2026.10.2",
+                    "createdAt": "2026-10-20T09:00:00Z",
+                    "description": [["locale": "en", "text": "Faster picking and steadier packing lines."], ["locale": "ja-JP", "text": "ピッキングが速くなり、梱包ラインが安定します。"]],
+                    "changelog": [
+                        ["locale": "en", "text": "## Improvements\n\n- Pick cycles are about 8 percent shorter on mixed trays.\n- The packing line planner recovers from a label printer fault without a restart.\n\n## Fixes\n\n- Alarms no longer repeat after a network drop."],
+                        ["locale": "ja-JP", "text": "## 改善\n\n- 混在トレイのピッキングサイクルが約8%短縮されました。\n- 梱包ラインのプランナーが、ラベルプリンターの障害から再起動なしで復旧します。\n\n## 修正\n\n- ネットワーク切断後にアラームが繰り返されなくなりました。"],
+                    ],
+                    "images": [["id": "image01", "tag": "2026.10.2", "labelVersion": "2026.10.2"]],
+                ]
+            ]
+        case "ListReleases":
+            return [
+                "ListReleases": [
+                    "releases": [
+                        ["id": "release01", "name": "Autumn release", "channel": "stable", "status": "published", "versionString": "2026.10.2", "createdAt": "2026-10-20T09:00:00Z"],
+                        ["id": "release02", "name": "Summer release", "channel": "stable", "status": "published", "versionString": "2026.7.5", "createdAt": "2026-07-14T09:00:00Z"],
+                        ["id": "release03", "name": "Preview of the winter release", "channel": "preview", "status": "draft", "versionString": "2026.12.0-rc1", "createdAt": "2026-10-28T09:00:00Z"],
+                    ], "meta": ["totalCount": 3],
+                ]
+            ]
+        case "ListControllersUsingRelease":
+            return ["ListControllersUsingRelease": [["id": "controller01", "comment": "Pick station controller", "releaseId": "release01", "releaseImageId": "image01"], ["id": "controller02", "releaseId": "release01"]]]
+        case "ListVirtualControllersUsingRelease":
+            return ["ListVirtualControllersUsingRelease": [["id": "virtual01", "name": "Training cell", "status": "running", "releaseId": "release01"]]]
         case "ListControllerSyncedUserCounts":
             return ["ListControllerSyncedUserCounts": [["controllerId": "controller01", "count": 3, "isAvailable": true], ["controllerId": "controller02", "count": 0, "isAvailable": true]]]
         case "ListIncidents":

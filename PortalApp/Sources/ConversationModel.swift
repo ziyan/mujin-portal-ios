@@ -69,6 +69,16 @@ final class ConversationModel {
 
     var isRunning: Bool { transcript.isRunning }
 
+    /// A turn is running and nothing of the answer has shown yet: the last thing in the transcript is the person's own message.
+    var isAwaitingFirstWords: Bool {
+        guard let last = transcript.entries.last(where: { entry in
+            if case .note = entry { return false }
+            return true
+        }) else { return false }
+        if case .user = last { return true }
+        return false
+    }
+
     /// The open question that typed text would answer.
     var activeQuestion: QuestionCard? { transcript.answerableQuestion(dismissedIds: dismissedQuestionIds) }
 

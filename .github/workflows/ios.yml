@@ -170,6 +170,9 @@ jobs:
           shoot incident incident
           shoot controller controller
           shoot controller-screen controller-screen
+          shoot release release
+          shoot releases releases
+          shoot voice voice
           shoot site-orchestrators site-orchestrators
           shoot site-members site-members
           shoot site-controllers site-controllers
@@ -201,6 +204,8 @@ jobs:
           shoot tickets-dark tickets
           shoot site-dark site
           shoot site-staff-dark site-staff staff
+          shoot release-dark release
+          shoot voice-dark voice
           shoot site-loading-dark site-loading
           shoot chat-dark chat:chatconv01
           shoot chats-dark chats

@@ -68,6 +68,7 @@ struct ConversationListView: View {
             if appModel.isDemo, let screen = DemoOptions.screen {
                 if screen.hasPrefix("chat:") { selectedConversationId = String(screen.dropFirst("chat:".count)) }
                 if screen == "chat-info" { selectedConversationId = "chatconv02" }
+                if screen == "voice" { selectedConversationId = "conversation01" }
                 if screen == "chat-reply" || screen == "chat-mention" { selectedConversationId = "chatconv01" }
                 if screen.hasPrefix("chats-new") { isComposing = true }
             }

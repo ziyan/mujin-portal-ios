@@ -13,6 +13,7 @@ enum PortalRoute: Hashable {
     case virtualController(VirtualControllerSummary)
     case incident(IncidentSummary)
     case organization(OrganizationSummary)
+    case release(id: String)
 }
 
 private struct PortalDestinations: ViewModifier {
@@ -35,6 +36,8 @@ private struct PortalDestinations: ViewModifier {
                 IncidentDetailView(incident: incident)
             case .organization(let organization):
                 OrganizationDetailView(organization: organization)
+            case .release(let id):
+                ReleaseDetailView(releaseId: id)
             }
         }
     }

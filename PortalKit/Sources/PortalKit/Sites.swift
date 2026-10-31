@@ -60,11 +60,16 @@ public struct ControllerSummary: Codable, Equatable, Hashable, Identifiable, Sen
     public let hypervisorState: State?
     /// What the viewer may do at this controller's site, such as `controller:connect` and `controller:write`.
     public let viewerCapabilities: [String]?
+    /// The release of the controller software this controller runs, and the registered image that matches it exactly.
+    public let releaseId: String?
+    public let releaseImageId: String?
 
     public init(
         id: String, comment: String? = nil, siteId: String? = nil, organizationId: String? = nil, region: String? = nil, connection: Connection? = nil,
-        hypervisorState: State? = nil, viewerCapabilities: [String]? = nil
+        hypervisorState: State? = nil, viewerCapabilities: [String]? = nil, releaseId: String? = nil, releaseImageId: String? = nil
     ) {
+        self.releaseId = releaseId
+        self.releaseImageId = releaseImageId
         self.viewerCapabilities = viewerCapabilities
         self.id = id
         self.comment = comment
@@ -77,7 +82,9 @@ public struct ControllerSummary: Codable, Equatable, Hashable, Identifiable, Sen
 
     /// A controller with a live connection to Portal is online.
     public var isOnline: Bool { !(connection?.id ?? "").isEmpty }
-    public var version: String? { hypervisorState?.version }
+    /// The hypervisor's version. It is not the controller's release: that is `release`.
+    public var hypervisorVersion: String? { hypervisorState?.version }
+    public var release: ControllerRelease { ControllerRelease(releaseId: releaseId, releaseImageId: releaseImageId) }
 
     /// A physical controller is named by its id. Its comment is the detail under it, never the name.
     public var displayName: String { id }
@@ -291,7 +298,7 @@ extension Documents {
     public static let listControllers = """
         query ListControllers($organizationId: String, $options: ListOptionsInput) {
           ListControllers(organizationId: $organizationId, options: $options) {
-            controllers { id comment siteId organizationId region viewerCapabilities connection { id } hypervisorState { version publishedAt } }
+            controllers { id comment siteId organizationId region viewerCapabilities releaseId releaseImageId connection { id } hypervisorState { version publishedAt } }
             meta { totalCount }
           }
         }

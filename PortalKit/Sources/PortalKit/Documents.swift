@@ -180,6 +180,7 @@ public enum Documents {
         documents += memoryFilingDocuments
         documents += siteOverviewDocuments
         documents += siteResourceDocuments
+        documents += releaseDocuments
         return documents
     }
 }

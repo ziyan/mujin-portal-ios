@@ -102,6 +102,8 @@ final class AppModel {
     /// otherwise it opens as it is and Portal's login page shows.
     func openInApp(_ url: URL, account: Account) async {
         let session = webSession(for: account)
+        // A blank page and the right header first: the browser is reused, and shows the last page until told otherwise.
+        session.reset(for: BrowserTarget(url: url, serverHost: account.server.url.host?.lowercased() ?? ""))
         presentedWeb = session
         if isDemo { return }
         // A new one-time address for every page, since it works once and within a minute.

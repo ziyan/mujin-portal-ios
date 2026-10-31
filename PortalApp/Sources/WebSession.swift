@@ -18,6 +18,8 @@ final class WebSession: NSObject, Identifiable, WKNavigationDelegate, WKUIDelega
     private(set) var isLoading = false
     private(set) var canGoBack = false
     private(set) var canGoForward = false
+    /// Which machine and which of its web UIs is open, for the header; nil for any other page.
+    private(set) var target: BrowserTarget?
     /// A downloaded file waiting to be saved to Files.
     var downloadedFile: ExportedFile?
 
@@ -72,6 +74,14 @@ final class WebSession: NSObject, Identifiable, WKNavigationDelegate, WKUIDelega
 
     func load(_ url: URL) {
         webView.load(URLRequest(url: url))
+    }
+
+    /// Clears the web view before a new page is shown, so the last page (the live UI, say) is never on screen
+    /// while the next one (the cloud UI) is still being asked for.
+    func reset(for target: BrowserTarget?) {
+        webView.stopLoading()
+        webView.loadHTMLString("", baseURL: nil)
+        self.target = target
     }
 
     /// Opens a page through a one-time address that signs the web view in
@@ -194,7 +204,8 @@ struct WebBrowserView: View {
                             .progressViewStyle(.linear)
                     }
                 }
-                .navigationTitle(session.title.isEmpty ? (session.url?.host ?? "") : session.title)
+                .navigationTitle(session.target?.title ?? (session.title.isEmpty ? (session.url?.host ?? "") : session.title))
+                .navigationSubtitle(session.target?.subtitle ?? "")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
