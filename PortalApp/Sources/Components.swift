@@ -180,7 +180,7 @@ extension View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
             .toolbarVisibility(.hidden, for: .tabBar)
-            .scrollEdgeEffectStyle(.soft, for: .top)
+            .scrollEdgeEffectStyle(.hard, for: .top)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     if let onTitleTap {

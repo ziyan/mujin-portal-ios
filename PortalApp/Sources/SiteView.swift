@@ -277,7 +277,7 @@ struct SiteView: View {
     }
 
     private func tileGrid<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10, alignment: .top)], spacing: 10) { content() }
+        StatGrid { content() }
             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
             .listRowBackground(Color.clear)
     }
@@ -445,6 +445,17 @@ enum SiteListKind: Hashable {
     }
 }
 
+/// StatGrid lays tiles out two to a row on a phone, more on an iPad, and one
+/// to a row at the large text sizes, so no label is cut.
+struct StatGrid<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 320 : 150), spacing: 10, alignment: .top)], spacing: 10) { content }
+    }
+}
+
 /// StatTile is one number on the site page: a label, a large figure in
 /// tabular digits, a line of detail and a symbol, on the cards' surface.
 struct StatTile: View {
@@ -460,7 +471,7 @@ struct StatTile: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .labelStyle(.titleAndIcon)
-                .lineLimit(2)
+                .lineLimit(3)
             Text(value)
                 .font(.title.bold())
                 .monospacedDigit()
@@ -494,7 +505,9 @@ struct ControllerDetailView: View {
         let server = session.account.server
         List { PortalRows {
             Section {
-                LabeledContent("Status") {
+                HStack {
+                    Text("Status")
+                    Spacer(minLength: 8)
                     Label(controller.isOnline ? "Online" : "Offline", systemImage: controller.isOnline ? "checkmark.circle" : "circle.slash")
                         .foregroundStyle(.secondary)
                 }
@@ -748,7 +761,7 @@ struct SiteTelemetryView: View {
     }
 
     private func tiles(_ telemetry: SiteTelemetry) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10, alignment: .top)], spacing: 10) {
+        StatGrid {
             StatTile(label: "Picked parts", value: telemetry.pickedParts.formatted(), detail: "\(telemetry.pickOperations.formatted()) pick operations", symbol: "shippingbox")
             StatTile(label: "Error rate", value: telemetry.errorRateText, detail: "\(telemetry.interventions.formatted()) interventions of \(telemetry.pickedParts.formatted()) picks", symbol: "exclamationmark.arrow.triangle.2.circlepath")
             StatTile(label: "Robot throughput", value: telemetry.throughputText, detail: "parts per hour", symbol: "speedometer")
