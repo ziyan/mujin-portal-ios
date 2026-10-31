@@ -143,8 +143,11 @@ jobs:
           shoot list list
           shoot approval conversation:conversation02
           shoot answer conversation:conversation01
+          shoot share share
+          shoot share-ticket share-ticket
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot dark conversation:conversation02
+          shoot share-dark share
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text conversation:conversation02

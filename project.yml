@@ -26,12 +26,17 @@ targets:
     sources:
       - PortalApp/Sources
       - PortalApp/Resources
+      - Shared
     dependencies:
       - package: PortalKit
       - target: MujinPortalNotification
+      - target: PortalShare
     info:
       path: PortalApp/Info.plist
       properties:
+        PortalAppGroup: $(MUJINPORTAL_APP_GROUP)
+        PortalKeychainGroup: $(AppIdentifierPrefix)$(MUJINPORTAL_KEYCHAIN_GROUP)
+        UIBackgroundModes: [remote-notification]
         CFBundleURLTypes:
           - CFBundleURLName: $(MUJINPORTAL_BUNDLE_IDENTIFIER)
             CFBundleURLSchemes:
@@ -39,6 +44,14 @@ targets:
     entitlements:
       path: PortalApp/MujinPortal.entitlements
       properties:
+        # Development here; the App Store export re-signs for production.
+        aps-environment: development
+        com.apple.security.application-groups:
+          - $(MUJINPORTAL_APP_GROUP)
+        com.apple.developer.usernotifications.communication: true
+        com.apple.developer.usernotifications.time-sensitive: true
+        # The shared group comes first, which is where an item goes when no
+        # group is named.
         keychain-access-groups:
           - $(AppIdentifierPrefix)$(MUJINPORTAL_KEYCHAIN_GROUP)
     settings:
@@ -76,6 +89,8 @@ targets:
     entitlements:
       path: PortalNotification/MujinPortalNotification.entitlements
       properties:
+        com.apple.security.application-groups:
+          - $(MUJINPORTAL_APP_GROUP)
         keychain-access-groups:
           - $(AppIdentifierPrefix)$(MUJINPORTAL_KEYCHAIN_GROUP)
     info:
@@ -84,6 +99,8 @@ targets:
         CFBundleDisplayName: Portal
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        PortalAppGroup: $(MUJINPORTAL_APP_GROUP)
+        PortalKeychainGroup: $(AppIdentifierPrefix)$(MUJINPORTAL_KEYCHAIN_GROUP)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.usernotifications.service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
@@ -95,6 +112,53 @@ targets:
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
+
+  # The share sheet: text, addresses, images, PDFs and other files go to the
+  # assistant or become a ticket.
+  PortalShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - PortalShare
+      - Shared
+      - path: PortalApp/Resources/Localizable.xcstrings
+    dependencies:
+      - package: PortalKit
+    entitlements:
+      path: PortalShare/PortalShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - $(MUJINPORTAL_APP_GROUP)
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)$(MUJINPORTAL_KEYCHAIN_GROUP)
+    info:
+      path: PortalShare/Info.plist
+      properties:
+        CFBundleDisplayName: Portal
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        PortalAppGroup: $(MUJINPORTAL_APP_GROUP)
+        PortalKeychainGroup: $(AppIdentifierPrefix)$(MUJINPORTAL_KEYCHAIN_GROUP)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 5
+              NSExtensionActivationSupportsImageWithMaxCount: 10
+              NSExtensionActivationSupportsMovieWithMaxCount: 3
+              NSExtensionActivationSupportsFileWithMaxCount: 10
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(MUJINPORTAL_BUNDLE_IDENTIFIER).share
+        # The Swift 5 language mode, as for the notification extension.
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
 
 schemes:
   MujinPortal:

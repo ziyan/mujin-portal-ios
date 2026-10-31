@@ -16,6 +16,9 @@ final class AppModel {
     /// Why the last sign-in did not happen, in words for the person.
     var signInError: String?
     var isSigningIn = false
+    /// Whether the active account's server can register this phone for push
+    /// notifications. Until it can, the token is only kept on the phone.
+    var isPushRegistrationOffered = false
     /// Said once at the top of the screen, such as a sign-in the server ended.
     var notice: String?
 
@@ -113,20 +116,6 @@ final class AppModel {
             // The person closed the sign-in page.
         } catch {
             signInError = error.userMessage
-        }
-    }
-}
-
-extension Error {
-    /// What to tell the person: the app's own words for its own errors, and the
-    /// server's or the system's words for theirs.
-    var userMessage: String {
-        guard let error = self as? PortalError else { return localizedDescription }
-        switch error {
-        case .signedOut: return String(localized: "This sign-in has ended. Sign in again.")
-        case .invalidServerAddress: return String(localized: "Enter a server address that starts with https://.")
-        case .unreadableAnswer: return String(localized: "The server sent an answer the app cannot read.")
-        case .refused(let message), .clientNotRegistered(let message): return message
         }
     }
 }
