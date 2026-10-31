@@ -179,6 +179,7 @@ public enum Documents {
         documents += artifactDocuments
         documents += memoryFilingDocuments
         documents += siteOverviewDocuments
+        documents += siteResourceDocuments
         return documents
     }
 }

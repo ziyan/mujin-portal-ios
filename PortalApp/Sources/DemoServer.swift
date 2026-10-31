@@ -312,7 +312,7 @@ struct DemoTransport: HTTPTransport {
             return [
                 "Me": [
                     "id": "user01", "email": "alex@example.test", "name": "Alex Example", "organizationId": "organization01",
-                    "permissions": ["ticket:read", "ticket:write", "site:read"],
+                    "permissions": ["ticket:read", "ticket:write", "site:read", "organization:operate-all"],
                 ]
             ]
         case "GetOrganization":
@@ -427,6 +427,30 @@ struct DemoTransport: HTTPTransport {
             ]
         case "ListCells":
             return ["ListCells": ["cells": [["id": "cell01", "name": "Pick cell A", "controllerIds": ["controller01"]], ["id": "cell02", "name": "Packing line", "controllerIds": ["controller02"]]]]]
+        case "ListSiteOrchestrators":
+            return [
+                "ListSiteOrchestrators": [
+                    [
+                        "controllerId": "controller01", "isAvailable": true,
+                        "orchestrators": ["activeRunModeName": "Normal", "orchestrators": [
+                            ["orchestratorId": "orchestrator01", "orchestratorType": "pick_station", "runStatus": "running", "processStatus": "running", "hasError": false],
+                            ["orchestratorId": "orchestrator02", "orchestratorType": "packing_line", "runStatus": "stopped", "hasError": true, "statusMessage": "Label printer not responding"],
+                        ]],
+                    ],
+                    ["controllerId": "controller02", "isAvailable": false],
+                ]
+            ]
+        case "ListSiteUserIDs":
+            return ["ListSiteUserIDs": ["user01", "user02", "user03"]]
+        case "ListOrganizationUsers":
+            return [
+                "ListOrganizationUsers": [
+                    "users": [
+                        ["id": "user01", "name": "Alex Example", "email": "alex@example.test"], ["id": "user02", "name": "Sam Sample", "email": "sam@example.test"],
+                        ["id": "user03", "name": "Robin Demo", "email": "robin@example.test"],
+                    ]
+                ]
+            ]
         case "ListControllerSyncedUserCounts":
             return ["ListControllerSyncedUserCounts": [["controllerId": "controller01", "count": 3, "isAvailable": true], ["controllerId": "controller02", "count": 0, "isAvailable": true]]]
         case "ListIncidents":

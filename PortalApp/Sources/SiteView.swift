@@ -26,6 +26,15 @@ final class SiteModel {
     private(set) var telemetry: SiteTelemetry?
     private(set) var cells: [SiteCell] = []
     private(set) var openTickets: [Ticket] = []
+    private(set) var orchestrators: [SiteOrchestrators] = []
+    private(set) var members: [SiteMember] = []
+    /// Whether the members page is the viewer's to see: a Mujin user, or an administrator of the site's organization.
+    var viewerIsMujinUser = false
+    var viewerPermissions: [String] = []
+    var viewerOrganizationId: String?
+    var canSeeMembers: Bool {
+        SiteMembersAccess.canSee(isMujinUser: viewerIsMujinUser, permissions: viewerPermissions, viewerOrganizationId: viewerOrganizationId, siteOrganizationId: selectedSite?.organizationId)
+    }
     private(set) var virtualControllers: [VirtualControllerSummary] = []
     var virtualControllerCount: Int { virtualControllers.count }
 
@@ -72,6 +81,10 @@ final class SiteModel {
         cells = await cellRows ?? []
         openTickets = (await ticketRows ?? []).filter { $0.siteId == siteId && $0.isOpenForWork }
         virtualControllers = await virtualRows ?? []
+        orchestrators = (try? await connection.siteOrchestrators(siteId: siteId)) ?? []
+        if canSeeMembers, let organizationId = selectedSite?.organizationId ?? scopeId {
+            members = (try? await connection.siteMembers(siteId: siteId, organizationId: organizationId)) ?? []
+        }
         telemetry = try? await connection.siteTelemetry(controllerIds: controllers.map(\.id), virtualControllerIds: virtualControllers.map(\.id))
     }
 }
@@ -150,6 +163,9 @@ struct SiteView: View {
             let siteModel = SiteModel(
                 connection: appModel.connection(for: session.account), organizationId: organizationId,
                 onError: { [appModel, session] error in appModel.handle(error, account: session.account) })
+            siteModel.viewerIsMujinUser = session.isStaff
+            siteModel.viewerPermissions = session.profile?.me.permissions ?? []
+            siteModel.viewerOrganizationId = session.organizationId
             model = siteModel
             await siteModel.loadSites()
             if appModel.isDemo {
@@ -270,6 +286,24 @@ struct SiteView: View {
                     Text("None reported").foregroundStyle(.secondary)
                 } else {
                     Text("\(model.robots.onlineCount) of \(model.robots.robotCount) online").monospacedDigit()
+                }
+            }
+            NavigationLink(value: SiteListKind.orchestrators) {
+                LabeledContent("Orchestrators") {
+                    let summary = SiteOrchestratorSummary(model.orchestrators)
+                    HStack(spacing: 6) {
+                        if summary.hasError { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.statusError).accessibilityLabel(Text("Has an error")) }
+                        if summary.totalCount == 0 {
+                            Text("None reported").foregroundStyle(.secondary)
+                        } else {
+                            Text("\(summary.runningCount) of \(summary.totalCount) running").monospacedDigit()
+                        }
+                    }
+                }
+            }
+            if model.canSeeMembers {
+                NavigationLink(value: SiteListKind.members) {
+                    LabeledContent("Members") { Text(model.members.count.formatted()).monospacedDigit() }
                 }
             }
             if model.robots.errorCount > 0 {
@@ -393,6 +427,41 @@ struct SiteView: View {
                 ForEach(model.cells) { cellRow($0) }
             case .telemetry:
                 EmptyView()
+            case .orchestrators:
+                ForEach(model.orchestrators) { row in
+                    Section(row.controllerId ?? "") {
+                        if row.isAvailable == false {
+                            Label("Not reachable", systemImage: "wifi.slash").foregroundStyle(.secondary)
+                        } else if row.list.isEmpty {
+                            Text("None reported").foregroundStyle(.secondary)
+                        }
+                        ForEach(row.list) { orchestrator in
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text((orchestrator.orchestratorType ?? orchestrator.id).replacingOccurrences(of: "_", with: " ").capitalized)
+                                    Spacer(minLength: 8)
+                                    if orchestrator.hasError == true {
+                                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.statusError).accessibilityLabel(Text("Has an error"))
+                                    }
+                                    Text(orchestrator.runStatus ?? "").font(.footnote).foregroundStyle(.secondary)
+                                }
+                                if orchestrator.hasError == true, let message = orchestrator.statusMessage, !message.isEmpty {
+                                    Text(message).font(.footnote).foregroundStyle(Color.statusError)
+                                }
+                            }
+                        }
+                    }
+                }
+            case .members:
+                ForEach(model.members) { member in
+                    HStack(spacing: 12) {
+                        PersonAvatar(name: member.shownName, size: 36)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(member.shownName)
+                            if let email = member.email, !email.isEmpty, email != member.shownName { Text(email).font(.footnote).foregroundStyle(.secondary) }
+                        }
+                    }
+                }
             case .virtualControllers:
                 ForEach(model.virtualControllers) { virtual in
                     NavigationLink(value: virtual) {
@@ -433,12 +502,16 @@ enum SiteListKind: Hashable {
     case cells
     case controllers
     case virtualControllers
+    case orchestrators
+    case members
     case telemetry
 
     var title: LocalizedStringKey {
         switch self {
         case .telemetry: "Last 24 hours"
         case .virtualControllers: "Virtual controllers"
+        case .orchestrators: "Orchestrators"
+        case .members: "Members"
         case .alarms: "Alarms"
         case .incidents: "Incidents"
         case .tickets: "Tickets"

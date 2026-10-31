@@ -138,3 +138,46 @@ import Testing
         #expect(cells.first?.machineCount == 2)
     }
 }
+
+
+@Suite struct SiteResourceTests {
+    @Test func theOrchestratorRowCountsRunningOnesAndFlagsErrors() async throws {
+        let (connection, _) = scriptedConnection { _, _ in
+            [
+                "ListSiteOrchestrators": [
+                    [
+                        "controllerId": "controller01", "isAvailable": true,
+                        "orchestrators": ["activeRunModeName": "Normal", "orchestrators": [
+                            ["orchestratorId": "o1", "orchestratorType": "picking", "runStatus": "running", "hasError": false],
+                            ["orchestratorId": "o2", "orchestratorType": "packing", "runStatus": "stopped", "hasError": true, "statusMessage": "Gripper fault"],
+                        ]],
+                    ],
+                    ["controllerId": "controller02", "isAvailable": false],
+                ]
+            ]
+        }
+        let rows = try await connection.siteOrchestrators(siteId: "site01")
+        let summary = SiteOrchestratorSummary(rows)
+        #expect(summary.runningCount == 1 && summary.totalCount == 2 && summary.hasError)
+        #expect(summary.unreachableControllerCount == 1)
+        #expect(rows[0].list[1].statusMessage == "Gripper fault")
+    }
+
+    @Test func membersAreNamedFromTheOrganizationsUsersAndSortedByName() async throws {
+        let (connection, transport) = scriptedConnection { operation, _ in
+            operation == "ListSiteUserIDs"
+                ? ["ListSiteUserIDs": ["user02", "user01"]]
+                : ["ListOrganizationUsers": ["users": [["id": "user01", "name": "Robin Demo", "email": "robin@example.test"], ["id": "user02", "name": "Alex Example", "email": "alex@example.test"], ["id": "user03", "name": "Not here"]]]]
+        }
+        let members = try await connection.siteMembers(siteId: "site01", organizationId: "organization01")
+        #expect(members.map(\.shownName) == ["Alex Example", "Robin Demo"])
+        #expect(sentVariables(try #require(transport.requests.last))["organizationId"] as? String == "organization01")
+    }
+
+    @Test func membersAreShownToMujinUsersAndToAnAdministratorOfTheSitesOwnOrganization() {
+        #expect(SiteMembersAccess.canSee(isMujinUser: true, permissions: [], viewerOrganizationId: "organization09", siteOrganizationId: "organization01"))
+        #expect(SiteMembersAccess.canSee(isMujinUser: false, permissions: ["organization:operate-all"], viewerOrganizationId: "organization01", siteOrganizationId: "organization01"))
+        #expect(!SiteMembersAccess.canSee(isMujinUser: false, permissions: ["organization:operate-all"], viewerOrganizationId: "organization02", siteOrganizationId: "organization01"))
+        #expect(!SiteMembersAccess.canSee(isMujinUser: false, permissions: ["ticket:read"], viewerOrganizationId: "organization01", siteOrganizationId: "organization01"))
+    }
+}
