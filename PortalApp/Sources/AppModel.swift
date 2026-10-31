@@ -112,7 +112,14 @@ final class AppModel {
     /// A browser of its own for a controller's screen, in the account's data store
     /// (so it holds the same cookie) and signed in through a handoff address.
     func makeScreenSession(for account: Account, url: URL) -> WebSession {
-        let session = WebSession(accountKey: account.accountKey, dataStoreId: isDemo ? nil : account.webDataStoreId)
+        // The page is laid out at the phone's width and does its own panning and zooming, so the web view does none.
+        let session = WebSession(accountKey: account.accountKey, dataStoreId: isDemo ? nil : account.webDataStoreId, contentMode: .mobile)
+        let scrollView = session.webView.scrollView
+        scrollView.isScrollEnabled = false
+        scrollView.bounces = false
+        scrollView.bouncesZoom = false
+        scrollView.pinchGestureRecognizer?.isEnabled = false
+        scrollView.contentInsetAdjustmentBehavior = .never
         session.portalHost = account.server.url.host?.lowercased()
         session.renewHandoff = { [weak self] target in
             guard let self, let current = self.ring.accounts.first(where: { $0.accountKey == account.accountKey }) else { return nil }

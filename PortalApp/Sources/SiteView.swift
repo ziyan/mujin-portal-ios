@@ -620,47 +620,36 @@ struct ControllerScreenView: View {
     let name: String
 
     var body: some View {
-        WebViewHost(webView: session.webView)
-            .ignoresSafeArea()
-            .background(Color.black)
-            .overlay(alignment: .topLeading) {
-                HStack(spacing: 8) {
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .font(.body.weight(.semibold))
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .glassEffect(.regular.interactive(), in: .circle)
-                    .accessibilityLabel("Close")
-                    HStack(spacing: 6) {
-                        if session.isLoading { ProgressView().controlSize(.small) } else { Image(systemName: "dot.radiowaves.left.and.right").accessibilityHidden(true) }
-                        Text(session.isLoading ? LocalizedStringKey("Connecting\u{2026}") : LocalizedStringKey("Connected"))
-                            .font(.footnote.weight(.semibold))
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(height: 32)
-                    .glassEffect(.regular, in: .capsule)
-                    .accessibilityElement(children: .combine)
-                }
-                .padding(.leading, 12)
-                .padding(.top, 8)
+        // The page fills the screen and handles every gesture itself. The close button sits above it, inside the safe area.
+        ZStack(alignment: .topLeading) {
+            WebViewHost(webView: session.webView)
+                .ignoresSafeArea()
+                .zIndex(0)
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
             }
-            .statusBarHidden()
-            .persistentSystemOverlays(.hidden)
-            .toolbarVisibility(.hidden, for: .tabBar)
-            .onAppear {
-                UIApplication.shared.isIdleTimerDisabled = true
-                AppDelegate.allowsLandscape = true
-                session.webView.scrollView.bounces = false
-                session.webView.scrollView.alwaysBounceVertical = false
-                session.webView.scrollView.alwaysBounceHorizontal = false
-            }
-            .onDisappear {
-                UIApplication.shared.isIdleTimerDisabled = false
-                AppDelegate.allowsLandscape = false
-                session.webView.stopLoading()
-            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: .circle)
+            .padding(.leading, 12)
+            .padding(.top, 8)
+            .zIndex(1)
+            .accessibilityLabel("Close")
+        }
+        .background(Color.black.ignoresSafeArea())
+        .statusBarHidden()
+        .persistentSystemOverlays(.hidden)
+        .onAppear {
+            UIApplication.shared.isIdleTimerDisabled = true
+            AppDelegate.allowsLandscape = true
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            AppDelegate.allowsLandscape = false
+            session.webView.stopLoading()
+        }
     }
 }
 

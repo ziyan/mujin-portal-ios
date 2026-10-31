@@ -35,14 +35,14 @@ final class WebSession: NSObject, Identifiable, WKNavigationDelegate, WKUIDelega
         let url: URL
     }
 
-    init(accountKey: String, dataStoreId: UUID?) {
+    init(accountKey: String, dataStoreId: UUID?, contentMode: WKWebpagePreferences.ContentMode? = nil) {
         self.accountKey = accountKey
         let configuration = WKWebViewConfiguration()
         // Cookies are kept per account: a store named by the account's own id.
         // The demo has no account to keep them for.
         configuration.websiteDataStore = dataStoreId.map { WKWebsiteDataStore(forIdentifier: $0) } ?? .nonPersistent()
         // Controller web UIs are desktop web apps: ask for the desktop site on iPad.
-        configuration.defaultWebpagePreferences.preferredContentMode = UIDevice.current.userInterfaceIdiom == .pad ? .desktop : .recommended
+        configuration.defaultWebpagePreferences.preferredContentMode = contentMode ?? (UIDevice.current.userInterfaceIdiom == .pad ? .desktop : .recommended)
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
         webView.navigationDelegate = self
