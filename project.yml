@@ -1,0 +1,104 @@
+# The Xcode project, described as text. XcodeGen turns this into
+# MujinPortal.xcodeproj, which is not committed: run `xcodegen generate` in
+# this directory after changing it. See README.md.
+
+name: MujinPortal
+
+options:
+  developmentLanguage: en
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+configFiles:
+  Debug: Configuration/Base.xcconfig
+  Release: Configuration/Base.xcconfig
+
+packages:
+  PortalKit:
+    path: PortalKit
+
+targets:
+  MujinPortal:
+    type: application
+    platform: iOS
+    sources:
+      - PortalApp/Sources
+      - PortalApp/Resources
+    dependencies:
+      - package: PortalKit
+      - target: MujinPortalNotification
+    info:
+      path: PortalApp/Info.plist
+      properties:
+        CFBundleURLTypes:
+          - CFBundleURLName: $(MUJINPORTAL_BUNDLE_IDENTIFIER)
+            CFBundleURLSchemes:
+              - com.ziyan.mujinportal
+    entitlements:
+      path: PortalApp/MujinPortal.entitlements
+      properties:
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)$(MUJINPORTAL_KEYCHAIN_GROUP)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(MUJINPORTAL_BUNDLE_IDENTIFIER)
+        PRODUCT_NAME: MujinPortal
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Portal
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.business
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+        # The app only uses the HTTPS the system provides, which export rules
+        # exempt; saying so here spares every upload the question.
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: "NO"
+
+  # Phase 2 delivers push notifications. The extension is here now so the
+  # bundle layout, signing and keychain group are settled before then.
+  MujinPortalNotification:
+    type: app-extension
+    platform: iOS
+    sources:
+      - PortalNotification
+    dependencies:
+      - package: PortalKit
+    entitlements:
+      path: PortalNotification/MujinPortalNotification.entitlements
+      properties:
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)$(MUJINPORTAL_KEYCHAIN_GROUP)
+    info:
+      path: PortalNotification/Info.plist
+      properties:
+        CFBundleDisplayName: Portal
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(MUJINPORTAL_BUNDLE_IDENTIFIER).notification
+        # The Swift 5 language mode: the extension API hands over a
+        # completion handler that is not marked as safe to send between threads.
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  MujinPortal:
+    build:
+      targets:
+        MujinPortal: all
+    run:
+      config: Debug
+    archive:
+      config: Release
