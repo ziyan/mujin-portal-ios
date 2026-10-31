@@ -114,23 +114,26 @@ import Testing
         #expect(await client.clientRefusal(for: request) == "unknown or disabled client")
     }
 
-    @Test func registrationSurfacesTheServersRefusalOfTheRedirect() async throws {
+    @Test func signingOutAsksTheDiscoveredRevocationEndpointToEndTheGrant() async throws {
+        var document = Self.discovery
+        document["revocation_endpoint"] = "https://portal.example.test/api/v1/oidc/revoke"
+        let discovery = ScriptedTransport.json(document)
         let (client, transport) = client { request in
-            if request.url?.path == "/api/v1/oidc/register" {
-                return (400, ScriptedTransport.json(["error": "invalid_redirect_uri", "error_description": "redirect_uri must be an absolute URL"]))
-            }
-            return (200, ScriptedTransport.json(Self.discovery))
+            if request.url?.path == "/api/v1/oidc/revoke" { return (200, Data()) }
+            return (200, discovery)
         }
-        let configuration = try await client.discover()
-        await #expect(throws: PortalError.refused("redirect_uri must be an absolute URL")) { try await client.register(configuration: configuration) }
-        #expect(transport.requests.last?.httpMethod == "POST")
+        await client.revoke(makeAccount())
+        let revocation = try #require(transport.requests.last)
+        #expect(revocation.url?.path == "/api/v1/oidc/revoke")
+        #expect(revocation.httpMethod == "POST")
+        let body = String(decoding: revocation.httpBody!, as: UTF8.self)
+        #expect(body.contains("client_id=mujin-portal-ios"))
+        #expect(body.contains("token=refresh-1"))
     }
 
-    @Test func registrationReturnsTheClientIdWhenAccepted() async throws {
-        let (client, _) = client { request in
-            if request.url?.path == "/api/v1/oidc/register" { return (201, ScriptedTransport.json(["client_id": "dcr_abc"])) }
-            return (200, ScriptedTransport.json(Self.discovery))
-        }
-        #expect(try await client.register(configuration: try await client.discover()) == "dcr_abc")
+    @Test func aServerWithoutARevocationEndpointIsLeftAlone() async {
+        let (client, transport) = client { _ in (200, ScriptedTransport.json(Self.discovery)) }
+        await client.revoke(makeAccount())
+        #expect(transport.requests.allSatisfy { $0.url?.path == "/.well-known/openid-configuration" })
     }
 }

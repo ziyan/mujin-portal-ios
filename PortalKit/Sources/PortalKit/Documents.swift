@@ -5,7 +5,7 @@ import Foundation
 /// removes fails a test here before it fails on a phone.
 public enum Documents {
     static let conversationFields = """
-        id agentId title summary lastMessageAt activeRunId archivedAt createdAt modifiedAt isTitleCustom conversationKind chatId
+        id agentId title summary lastMessageAt activeRunId archivedAt createdAt modifiedAt isTitleCustom conversationKind chatId hasRunningBackgroundWork userId
         """
 
     static let chatMessageFields = """
@@ -132,8 +132,8 @@ public enum Documents {
             toolResult { toolCallId toolName result toolNote durationMS }
             pendingQuestion { questionId question choices allowOther }
             pendingApproval { approvalId toolCallId toolName policyReason risk arguments }
-            runComplete { stopReason promptTokens completionTokens turnEndReason }
-            runError { error turnEndReason }
+            runComplete { stopReason promptTokens completionTokens turnEndReason reasonKind reasonParameters }
+            runError { error turnEndReason reasonKind reasonParameters }
             roundRetry { discardedMessageId }
             reacted { messageId emoji reactorKind reactorUserId }
             modelSwitch { switchCause switchReason }
@@ -149,10 +149,7 @@ public enum Documents {
         }
         """
 
-    /// The one-time address that signs the built-in browser in to a page. This
-    /// is the contract the backend will add (see the README); it is not in the
-    /// schema yet, so it is left out of `all` and used only when the server
-    /// offers the mutation.
+    /// The one-time address that signs the built-in browser in to a page.
     public static let createWebSessionHandoff = """
         mutation CreateWebSessionHandoff($targetUrl: String!) {
           CreateWebSessionHandoff(targetUrl: $targetUrl) { url expiresAt }
@@ -161,10 +158,19 @@ public enum Documents {
 
     /// Every document, for the schema check.
     public static var all: [String] {
-        [
+        var documents: [String] = [
             me, organization, mainAgent, listConversations, getConversation, listMessages, listQuestions, listApprovals,
             createConversation, sendMessage, cancelRun, answerQuestion, resolveToolApproval, archiveConversation,
-            listSites, createTicket, onConversationEvent,
-        ] + assistantDocuments + automationDocuments + ticketDocuments + siteDocuments + notificationDocuments + chatDocuments
+            listSites, createTicket, onConversationEvent, createWebSessionHandoff,
+        ]
+        documents += assistantDocuments
+        documents += automationDocuments
+        documents += ticketDocuments
+        documents += siteDocuments
+        documents += notificationDocuments
+        documents += chatDocuments
+        documents += pushDocuments
+        documents += presenceDocuments
+        return documents
     }
 }

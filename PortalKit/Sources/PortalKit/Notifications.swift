@@ -34,14 +34,39 @@ public struct PortalNotification: Codable, Equatable, Identifiable, Sendable {
     public let chatMessageExcerpt: String?
     /// Open this conversation for a chat message.
     public let chatConversationId: String?
+    /// The assistant spoke: open `agentMessageConversationId`.
+    public let agentMessageConversationId: String?
+    public let agentMessageReason: String?
+    public let agentMessageExcerpt: String?
+    /// A question or an approval waits: `question` or `approval`.
+    public let agentWaitingKind: String?
+    public let agentWaitingConversationId: String?
+    public let agentWaitingPrompt: String?
+    public let agentWaitingToolName: String?
+    public let agentGoalId: String?
+    public let agentGoalTitle: String?
+    public let agentGoalQuestion: String?
 
     public init(
         id: String, kind: String, readAt: String? = nil, createdAt: String? = nil, ticketId: String? = nil, ticket: TicketRef? = nil,
         incidentId: String? = nil, incident: IncidentRef? = nil, controllerId: String? = nil, siteName: String? = nil,
         organizationName: String? = nil, alarmMessage: String? = nil, agentJobName: String? = nil, agentJobFailureMessage: String? = nil,
         isAgentJobPaused: Bool? = nil, chatId: String? = nil, chatName: String? = nil, chatAuthorName: String? = nil,
-        chatMessageExcerpt: String? = nil, chatConversationId: String? = nil
+        chatMessageExcerpt: String? = nil, chatConversationId: String? = nil, agentMessageConversationId: String? = nil,
+        agentMessageReason: String? = nil, agentMessageExcerpt: String? = nil, agentWaitingKind: String? = nil,
+        agentWaitingConversationId: String? = nil, agentWaitingPrompt: String? = nil, agentWaitingToolName: String? = nil,
+        agentGoalId: String? = nil, agentGoalTitle: String? = nil, agentGoalQuestion: String? = nil
     ) {
+        self.agentMessageConversationId = agentMessageConversationId
+        self.agentMessageReason = agentMessageReason
+        self.agentMessageExcerpt = agentMessageExcerpt
+        self.agentWaitingKind = agentWaitingKind
+        self.agentWaitingConversationId = agentWaitingConversationId
+        self.agentWaitingPrompt = agentWaitingPrompt
+        self.agentWaitingToolName = agentWaitingToolName
+        self.agentGoalId = agentGoalId
+        self.agentGoalTitle = agentGoalTitle
+        self.agentGoalQuestion = agentGoalQuestion
         self.chatId = chatId
         self.chatName = chatName
         self.chatAuthorName = chatAuthorName
@@ -78,6 +103,9 @@ public struct PortalNotification: Codable, Equatable, Identifiable, Sendable {
         case "incident": return incident?.title ?? ""
         case "alarm": return alarmMessage ?? ""
         case "agent_job_failed": return agentJobName ?? ""
+        case "agent_message": return agentMessageExcerpt ?? ""
+        case "agent_waiting": return agentWaitingPrompt ?? ""
+        case "agent_goal_needs_you": return agentGoalTitle ?? ""
         case "chat_message":
             // "<author> in <chat>: <excerpt>"
             let place = (chatName ?? "").isEmpty ? "" : " in \(chatName!)"
@@ -91,6 +119,7 @@ public struct PortalNotification: Codable, Equatable, Identifiable, Sendable {
         switch kind {
         case "agent_job_failed": return (agentJobFailureMessage ?? "").isEmpty ? nil : agentJobFailureMessage
         case "alarm": return siteName ?? controllerId
+        case "agent_goal_needs_you": return (agentGoalQuestion ?? "").isEmpty ? nil : agentGoalQuestion
         default: return nil
         }
     }
@@ -100,6 +129,9 @@ public struct PortalNotification: Codable, Equatable, Identifiable, Sendable {
         if let id = ticketId ?? ticket?.id, !id.isEmpty, kind.hasPrefix("ticket_") { return .ticket(id: id) }
         if kind == "incident" { return .incident }
         if kind == "chat_message", let id = chatConversationId, !id.isEmpty { return .chat(conversationId: id) }
+        if kind == "agent_message", let id = agentMessageConversationId, !id.isEmpty { return .conversation(id: id) }
+        if kind == "agent_waiting", let id = agentWaitingConversationId, !id.isEmpty { return .conversation(id: id) }
+        if kind == "agent_goal_needs_you", let id = agentGoalId, !id.isEmpty { return .goal(id: id) }
         if kind == "alarm" { return .site }
         if kind == "agent_job_failed" { return .automations }
         return .none
@@ -112,6 +144,8 @@ public enum NotificationTarget: Equatable, Sendable {
     case site
     case automations
     case chat(conversationId: String)
+    case conversation(id: String)
+    case goal(id: String)
     case none
 }
 
@@ -127,7 +161,7 @@ public struct NotificationPreferenceRow: Codable, Equatable, Sendable {
 /// NotificationPreferences is the person's choices, with the server's defaults
 /// for what they have not chosen.
 public struct NotificationPreferences: Equatable, Sendable {
-    public static let kinds = ["ticket_comment", "ticket_assigned", "ticket_mentioned", "ticket_lifecycle", "ticket_activity", "incident", "alarm", "budget_alert", "agent_job_failed", "chat_message"]
+    public static let kinds = ["ticket_comment", "ticket_assigned", "ticket_mentioned", "ticket_lifecycle", "ticket_activity", "incident", "alarm", "budget_alert", "agent_job_failed", "chat_message", "agent_message", "agent_waiting", "agent_goal_needs_you"]
     public static let channels = ["in_app", "push", "email"]
 
     private var rows: [String: Bool] = [:]
@@ -136,12 +170,19 @@ public struct NotificationPreferences: Equatable, Sendable {
         for row in rows { self.rows["\(row.kind)|\(row.channel)"] = row.isEnabled ?? false }
     }
 
-    /// In-app is always on. Email for a failed job, and push and email for a chat message, are off until chosen; the rest are on.
+    /// The kinds that push by default; the others push only once chosen.
+    static let pushByDefault: Set<String> = ["agent_message", "agent_waiting", "agent_goal_needs_you", "agent_job_failed", "chat_message"]
+
+    /// In-app is always on. Push is on by default for the assistant's kinds and chat messages and off for ticket, alarm, incident and budget kinds; email is off by default for the assistant's kinds and chat messages and on for the rest.
     public func isEnabled(kind: String, channel: String) -> Bool {
         if channel == "in_app" { return true }
         if let chosen = rows["\(kind)|\(channel)"] { return chosen }
-        if kind == "chat_message" { return false }
-        return !(kind == "agent_job_failed" && channel == "email")
+        let isAssistantOrChat = kind.hasPrefix("agent_") || kind == "chat_message"
+        switch channel {
+        case "push": return Self.pushByDefault.contains(kind)
+        case "email": return !isAssistantOrChat
+        default: return false
+        }
     }
 
     public mutating func set(kind: String, channel: String, isEnabled: Bool) {
@@ -157,6 +198,9 @@ extension Documents {
               id kind readAt createdAt ticketId ticket { id sequence title } incidentId incident { id title } controllerId siteName organizationName
               alarmMessage agentJobName agentJobFailureMessage isAgentJobPaused
               chatId chatName chatAuthorName chatMessageExcerpt chatConversationId
+              agentMessageConversationId agentMessageReason agentMessageExcerpt
+              agentWaitingKind agentWaitingConversationId agentWaitingPrompt agentWaitingToolName
+              agentGoalId agentGoalTitle agentGoalQuestion
             }
             meta { totalCount }
           }
@@ -183,8 +227,13 @@ extension Documents {
         }
         """
 
+    /// Told when a row is created; the event carries no content.
+    public static let onNotification = """
+        subscription OnNotification { OnNotification { type notificationId kind createdAt } }
+        """
+
     static var notificationDocuments: [String] {
-        [listNotifications, countUnreadNotifications, markNotificationRead, markAllNotificationsRead, notificationPreferences, setNotificationPreference]
+        [onNotification, listNotifications, countUnreadNotifications, markNotificationRead, markAllNotificationsRead, notificationPreferences, setNotificationPreference]
     }
 }
 

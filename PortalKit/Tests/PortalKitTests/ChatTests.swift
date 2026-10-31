@@ -153,6 +153,15 @@ import Testing
         #expect(Mentions.ranges(of: [agent], in: "I edited the name away").isEmpty)
     }
 
+    @Test func mentionRangesCountUTF16CodeUnitsLikeTheServer() {
+        let agent = MentionCandidate(kind: .agent, id: "agent01", name: "Mujin AI")
+        // Each emoji is two UTF-16 code units and one character.
+        let text = "\u{1F600}\u{1F600} @Mujin AI hi"
+        let mention = Mentions.ranges(of: [agent], in: text).first
+        #expect(mention?.start == 5)
+        #expect(mention?.length == 9)
+    }
+
     @Test func sentMessagesDrawTheirMentionsAsChips() {
         let text = "Hi @Sam Sample, can @Mujin AI check this? me@Mujin AI no"
         let spans = Mentions.spans(in: text, names: ["Mujin AI", "Sam Sample"])
@@ -292,7 +301,8 @@ import Testing
             chatConversationId: "c1")
         #expect(notification.subject == "Sam Sample in Pick team: Ready?")
         #expect(notification.target == .chat(conversationId: "c1"))
-        #expect(!NotificationPreferences().isEnabled(kind: "chat_message", channel: "push"))
+        #expect(NotificationPreferences().isEnabled(kind: "chat_message", channel: "push"))
+        #expect(!NotificationPreferences().isEnabled(kind: "chat_message", channel: "email"))
         #expect(NotificationPreferences().isEnabled(kind: "chat_message", channel: "in_app"))
     }
 

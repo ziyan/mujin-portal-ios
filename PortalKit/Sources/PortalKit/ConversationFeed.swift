@@ -80,18 +80,40 @@ final class SilenceWatch: @unchecked Sendable {
     }
 }
 
-/// ConversationFeed streams a conversation's events through the
-/// graphql-transport-ws subscription OnConversationEvent, and keeps the
-/// stream alive: it pings, watches for silence, renews the token when Portal
-/// closes the socket with 4401 (its access tokens last five minutes), and
-/// reconnects with a growing pause.
-public enum ConversationFeed {
-    public static func updates(
-        connection: Connection, conversationId: String, socketFactory: @escaping FeedSocketFactory, timing: FeedTiming = FeedTiming()
-    ) -> AsyncStream<FeedUpdate> {
+/// SubscriptionRequest is one subscription to keep alive: its document, its
+/// variables and the root field the payloads come under.
+public struct SubscriptionRequest: Sendable {
+    public let query: String
+    public let variables: [String: JSONValue]
+    public let field: String
+
+    public init(query: String, variables: [String: JSONValue] = [:], field: String) {
+        self.query = query
+        self.variables = variables
+        self.field = field
+    }
+}
+
+/// RawFeedUpdate is what a kept-alive subscription hands its caller before
+/// the payload is read into a type.
+enum RawFeedUpdate: Equatable, Sendable {
+    case connected
+    case payload(JSONValue)
+    case reconnecting
+    case signedOut
+}
+
+/// SubscriptionFeed keeps one graphql-transport-ws subscription alive: it
+/// pings, watches for silence, renews the token when Portal closes the socket
+/// with 4401 (its access tokens last five minutes), and reconnects with a
+/// growing pause.
+enum SubscriptionFeed {
+    static func updates(
+        connection: Connection, request: SubscriptionRequest, socketFactory: @escaping FeedSocketFactory, timing: FeedTiming
+    ) -> AsyncStream<RawFeedUpdate> {
         AsyncStream { continuation in
             let task = Task {
-                await run(connection: connection, conversationId: conversationId, socketFactory: socketFactory, timing: timing) {
+                await run(connection: connection, request: request, socketFactory: socketFactory, timing: timing) {
                     continuation.yield($0)
                 }
                 continuation.finish()
@@ -106,8 +128,8 @@ public enum ConversationFeed {
     }
 
     static func run(
-        connection: Connection, conversationId: String, socketFactory: FeedSocketFactory, timing: FeedTiming,
-        yield: @Sendable (FeedUpdate) -> Void
+        connection: Connection, request: SubscriptionRequest, socketFactory: FeedSocketFactory, timing: FeedTiming,
+        yield: @Sendable (RawFeedUpdate) -> Void
     ) async {
         var failures = 0
         var refusedToken: String?
@@ -121,8 +143,7 @@ public enum ConversationFeed {
                     token = try await connection.accessToken()
                 }
                 let server = await connection.server
-                let ending = await runSocket(
-                    socket: try await socketFactory(server, token), conversationId: conversationId, timing: timing, yield: yield)
+                let ending = await runSocket(socket: try await socketFactory(server, token), request: request, timing: timing, yield: yield)
                 switch ending {
                 case .unauthorized:
                     refusedToken = token
@@ -153,7 +174,7 @@ public enum ConversationFeed {
     }
 
     private static func runSocket(
-        socket: any FeedSocket, conversationId: String, timing: FeedTiming, yield: @Sendable (FeedUpdate) -> Void
+        socket: any FeedSocket, request: SubscriptionRequest, timing: FeedTiming, yield: @Sendable (RawFeedUpdate) -> Void
     ) async -> Ending {
         let watch = SilenceWatch(now: timing.now())
         let guardian = Task {
@@ -183,20 +204,15 @@ public enum ConversationFeed {
                     guard let message = try? SubscriptionMessage(decoding: text) else { continue }
                     switch message {
                     case .connectionAck:
-                        try await socket.send(
-                            SubscriptionMessage.subscribe(
-                                id: "1", query: Documents.onConversationEvent, variables: ["conversationId": .string(conversationId)]
-                            ).encoded())
+                        try await socket.send(SubscriptionMessage.subscribe(id: "1", query: request.query, variables: request.variables).encoded())
                         isSubscribed = true
                         yield(.connected)
                     case .ping:
                         try await socket.send(SubscriptionMessage.pong.encoded())
                     case .next(_, let data, let errors):
                         if !errors.isEmpty { continue }
-                        guard let payload = data?["OnConversationEvent"], payload != .null,
-                            let event = try? JSONDecoder().decode(ConversationEvent.self, from: JSONEncoder().encode(payload))
-                        else { continue }
-                        yield(.event(event))
+                        guard let payload = data?[request.field], payload != .null else { continue }
+                        yield(.payload(payload))
                     case .error, .complete:
                         return .lost(wasSubscribed: isSubscribed)
                     default:
@@ -208,6 +224,73 @@ public enum ConversationFeed {
             return .lost(wasSubscribed: isSubscribed)
         }
         return .lost(wasSubscribed: isSubscribed)
+    }
+}
+
+/// ConversationFeed streams a conversation's events through the
+/// graphql-transport-ws subscription OnConversationEvent.
+public enum ConversationFeed {
+    public static func updates(
+        connection: Connection, conversationId: String, socketFactory: @escaping FeedSocketFactory, timing: FeedTiming = FeedTiming()
+    ) -> AsyncStream<FeedUpdate> {
+        let request = SubscriptionRequest(
+            query: Documents.onConversationEvent, variables: ["conversationId": .string(conversationId)], field: "OnConversationEvent")
+        let raw = SubscriptionFeed.updates(connection: connection, request: request, socketFactory: socketFactory, timing: timing)
+        return AsyncStream { continuation in
+            let task = Task {
+                for await update in raw {
+                    switch update {
+                    case .connected: continuation.yield(.connected)
+                    case .reconnecting: continuation.yield(.reconnecting)
+                    case .signedOut: continuation.yield(.signedOut)
+                    case .payload(let payload):
+                        if let event = try? JSONDecoder().decode(ConversationEvent.self, from: JSONEncoder().encode(payload)) {
+                            continuation.yield(.event(event))
+                        }
+                    }
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+}
+
+/// NotificationFeedUpdate is what the inbox feed tells a screen.
+public enum NotificationFeedUpdate: Equatable, Sendable {
+    /// The socket is subscribed. Events are not replayed after a reconnect,
+    /// so the inbox is read again.
+    case connected
+    /// A row was created. The event carries no content: read the row.
+    case created(notificationId: String, kind: String?)
+    case reconnecting
+    case signedOut
+}
+
+/// NotificationFeed streams the inbox's OnNotification subscription, with the
+/// same keep-alive, 4401 renewal and reconnect as a conversation's.
+public enum NotificationFeed {
+    public static func updates(
+        connection: Connection, socketFactory: @escaping FeedSocketFactory, timing: FeedTiming = FeedTiming()
+    ) -> AsyncStream<NotificationFeedUpdate> {
+        let request = SubscriptionRequest(query: Documents.onNotification, field: "OnNotification")
+        let raw = SubscriptionFeed.updates(connection: connection, request: request, socketFactory: socketFactory, timing: timing)
+        return AsyncStream { continuation in
+            let task = Task {
+                for await update in raw {
+                    switch update {
+                    case .connected: continuation.yield(.connected)
+                    case .reconnecting: continuation.yield(.reconnecting)
+                    case .signedOut: continuation.yield(.signedOut)
+                    case .payload(let payload):
+                        guard payload["type"]?.stringValue == "created", let id = payload["notificationId"]?.stringValue, !id.isEmpty else { continue }
+                        continuation.yield(.created(notificationId: id, kind: payload["kind"]?.stringValue))
+                    }
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 }
 

@@ -205,16 +205,24 @@ extension Connection {
 }
 
 extension Connection {
-    /// A one-time address that sets this account's web session cookie and then
-    /// goes to `target`, or nil when the server does not offer the mutation
-    /// (the page then opens as it is and Portal's own login page shows).
+    /// A one-time address that sets this account's web session cookie for the
+    /// whole domain and then goes to `target`, or nil when the server will not
+    /// give one: the page then opens as it is and Portal's own login page
+    /// shows. The server accepts an https address on its host or on a
+    /// controller or virtual controller host under it, with no port or
+    /// credentials. Open the address once, within 60 seconds.
     public func webSessionHandoff(to target: URL) async -> URL? {
-        guard await offersMutation("createWebSessionHandoff") else { return nil }
+        guard var components = URLComponents(url: target, resolvingAgainstBaseURL: false), components.host != nil else { return nil }
+        guard components.user == nil, components.password == nil else { return nil }
+        components.fragment = nil
+        components.port = nil
+        components.scheme = "https"
+        guard let wanted = components.url else { return nil }
         struct Answer: Decodable, Sendable {
             struct Handoff: Decodable, Sendable { let url: String }
             let CreateWebSessionHandoff: Handoff
         }
-        guard let answer = try? await execute(Documents.createWebSessionHandoff, variables: ["targetUrl": .string(target.absoluteString)], as: Answer.self),
+        guard let answer = try? await execute(Documents.createWebSessionHandoff, variables: ["targetUrl": .string(wanted.absoluteString)], as: Answer.self),
             let url = URL(string: answer.CreateWebSessionHandoff.url), url.scheme == "https" || url.scheme == "http"
         else { return nil }
         return url

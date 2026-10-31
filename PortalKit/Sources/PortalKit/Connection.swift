@@ -127,7 +127,19 @@ public actor Connection {
     }
 
     public struct GraphQLError: Decodable, Equatable, Sendable {
+        public struct Extensions: Decodable, Equatable, Sendable {
+            /// A machine-readable code, such as `CARD_NO_LONGER_WAITING` or `ASSISTANT_BUSY`.
+            public let code: String?
+            /// For a card that is no longer waiting: `answered`, `cancelled` or `expired`.
+            public let reason: String?
+        }
         public let message: String
+        public let extensions: Extensions?
+
+        public init(message: String, extensions: Extensions? = nil) {
+            self.message = message
+            self.extensions = extensions
+        }
     }
 
     /// Runs a GraphQL document and decodes its data.
@@ -143,7 +155,7 @@ public actor Connection {
         // The errors are read on their own first: a refused field comes back
         // as null beside them, which the answer's own shape does not allow.
         if let error = (try? JSONDecoder().decode(GraphQLAnswer<JSONValue>.self, from: data))?.errors?.first {
-            throw PortalError.refused(error.message)
+            throw PortalError(graphQLError: error)
         }
         guard let decoded = try? JSONDecoder().decode(GraphQLAnswer<Answer>.self, from: data), let value = decoded.data else {
             throw PortalError.unreadableAnswer

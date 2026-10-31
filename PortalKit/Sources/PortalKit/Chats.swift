@@ -176,7 +176,7 @@ public struct MentionCandidate: Equatable, Identifiable, Sendable {
 }
 
 /// ChatMention is a mention a message carries: an agent or a person, with
-/// where it sits in the text, counted in characters.
+/// where it sits in the text, counted in UTF-16 code units as the server does.
 public struct ChatMention: Equatable, Sendable {
     public let kind: MentionCandidate.Kind
     public let id: String
@@ -231,7 +231,7 @@ public enum Mentions {
                 let isBoundary = end == text.endIndex || !(text[end].isLetter || text[end].isNumber || text[end] == "_")
                 let isStart = range.lowerBound == text.startIndex || text[text.index(before: range.lowerBound)].isWhitespace
                 if isBoundary && isStart {
-                    found.append(ChatMention(kind: candidate.kind, id: candidate.id, start: text.distance(from: text.startIndex, to: range.lowerBound), length: token.count))
+                    found.append(ChatMention(kind: candidate.kind, id: candidate.id, start: text.utf16.distance(from: text.utf16.startIndex, to: range.lowerBound.samePosition(in: text.utf16) ?? text.utf16.startIndex), length: text[range].utf16.count))
                     break
                 }
                 searchStart = end

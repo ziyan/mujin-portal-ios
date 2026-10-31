@@ -42,7 +42,13 @@ public enum SubscriptionMessage: Equatable, Sendable {
         let id = value["id"]?.stringValue ?? ""
         func errors(from payload: JSONValue?) -> [Connection.GraphQLError] {
             guard case .array(let items)? = payload else { return [] }
-            return items.compactMap { $0["message"]?.stringValue.map { Connection.GraphQLError(message: $0) } }
+            return items.compactMap { item in
+                item["message"]?.stringValue.map { message in
+                    let code = item["extensions"]?["code"]?.stringValue
+                    let reason = item["extensions"]?["reason"]?.stringValue
+                    return Connection.GraphQLError(message: message, extensions: code == nil && reason == nil ? nil : .init(code: code, reason: reason))
+                }
+            }
         }
         switch type {
         case "connection_init": self = .connectionInit

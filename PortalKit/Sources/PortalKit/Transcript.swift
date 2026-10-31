@@ -85,11 +85,14 @@ public struct ToolActivity: Equatable, Identifiable, Sendable {
     }
 }
 
-/// TurnEndKind says why a turn ended without an answer.
+/// TurnEndKind says how a turn that ended without an answer reads: as a
+/// failure, or as a quieter note.
 public enum TurnEndKind: Equatable, Sendable {
     case failed
     case roundLimit
     case repeatedFailure
+    /// A stop the person asked for, or a wait for an answer already under way.
+    case interruption
 
     init?(stopReason: String?) {
         switch stopReason {
@@ -99,6 +102,62 @@ public enum TurnEndKind: Equatable, Sendable {
         default: return nil
         }
     }
+}
+
+/// TurnEndReason is the structured reason a turn ended, so the app words it
+/// in the person's language. A `kind` the app does not know shows the row's
+/// own sentence.
+public struct TurnEndReason: Equatable, Sendable {
+    public let kind: String
+    /// `httpStatus`, `roundCount` or `toolName`, as the server sent them.
+    public let parameters: [String: String]
+
+    public init(kind: String, parameters: [String: String] = [:]) {
+        self.kind = kind
+        self.parameters = parameters
+    }
+
+    static let knownKinds: Set<String> = [
+        "failed", "contextTooLong", "providerCredentials", "providerRateLimited", "providerUnavailable", "providerRefused",
+        "connectionInterrupted", "roundLimit", "repeatedFailure", "stoppedByUser", "queuedBehindRun", "unreadableToolCall",
+    ]
+
+    public var isKnown: Bool { Self.knownKinds.contains(kind) }
+
+    /// How the line reads: a failure in red, the rest as a quiet note.
+    public var turnEndKind: TurnEndKind {
+        switch kind {
+        case "roundLimit": .roundLimit
+        case "repeatedFailure": .repeatedFailure
+        case "stoppedByUser", "queuedBehindRun", "unreadableToolCall": .interruption
+        default: .failed
+        }
+    }
+
+    init?(kind: String?, parameters: JSONValue?) {
+        guard let kind, !kind.isEmpty else { return nil }
+        var values: [String: String] = [:]
+        var object = parameters
+        if case .string(let text)? = object, let data = text.data(using: .utf8) { object = try? JSONDecoder().decode(JSONValue.self, from: data) }
+        if case .object(let fields)? = object {
+            for (key, value) in fields {
+                if let text = value.stringValue {
+                    values[key] = text
+                } else if let number = value.numberValue {
+                    values[key] = number == number.rounded() ? String(Int(number)) : String(number)
+                }
+            }
+        }
+        self.init(kind: kind, parameters: values)
+    }
+}
+
+/// DepthKind says the assistant is working harder than usual.
+public enum DepthKind: String, Equatable, Sendable {
+    /// The effort judgment chose a closer look.
+    case lookingClosely
+    /// The quick model handed over with `think_harder`.
+    case thinkingHarder
 }
 
 /// TranscriptNote is a line about the assistant's own turns, drawn small
@@ -114,6 +173,12 @@ public enum TranscriptNote: Equatable, Sendable {
     case backgroundNotice(text: String)
     /// A long conversation was compacted into `summary`.
     case compaction(summary: String)
+    /// The assistant started this conversation. `reason` is `onboarding`, `goal_needs_you`, `memory_check` or `idea`.
+    case speakFirst(reason: String)
+    /// A goal's own turn; `message` is the text the model was given.
+    case goalCheckIn(title: String, message: String)
+    /// The assistant is looking more closely or thinking harder; `reason` is its few words.
+    case depth(DepthKind, reason: String, sentence: String)
 }
 
 /// TranscriptEntry is one thing shown in a conversation.
@@ -129,8 +194,12 @@ public enum TranscriptEntry: Equatable, Identifiable, Sendable {
     case question(QuestionCard)
     case approval(ApprovalCard)
     case notice(id: String, text: String, isError: Bool)
-    case turnEnd(id: String, kind: TurnEndKind, text: String)
+    case turnEnd(id: String, kind: TurnEndKind, text: String, reason: TurnEndReason? = nil)
     case note(id: String, TranscriptNote)
+    /// A goal is blocked and needs the person: the question, and the goal it is about.
+    case goalNeedsYou(id: String, goalId: String, title: String, question: String)
+    /// "Not now" and "Stop these", under the first answer after the assistant spoke first.
+    case speakFirstChoices(id: String, reason: String)
 
     public var id: String {
         switch self {
@@ -142,7 +211,9 @@ public enum TranscriptEntry: Equatable, Identifiable, Sendable {
         case .question(let card): "question:\(card.id)"
         case .approval(let card): "approval:\(card.id)"
         case .notice(let id, _, _): "notice:\(id)"
-        case .turnEnd(let id, _, _): "turnend:\(id)"
+        case .turnEnd(let id, _, _, _): "turnend:\(id)"
+        case .goalNeedsYou(let id, _, _, _): "goalneedsyou:\(id)"
+        case .speakFirstChoices(let id, _): "speakfirst:\(id)"
         case .note(let id, _): "note:\(id)"
         }
     }
@@ -209,6 +280,7 @@ public struct Transcript: Equatable, Sendable {
         var rebuilt: [TranscriptEntry] = []
         var argumentsByCall: [String: String] = [:]
         var lastUserText: String?
+        var speakFirstReasonAwaitingAnswer: String?
         for message in messages {
             switch message.role {
             case "user":
@@ -216,6 +288,7 @@ public struct Transcript: Equatable, Sendable {
                 guard !text.isEmpty else { continue }
                 lastUserText = text
                 if let note = Self.note(forUserText: text) {
+                    if case .speakFirst(let reason) = note { speakFirstReasonAwaitingAnswer = reason }
                     rebuilt.append(.note(id: message.id, note))
                 } else {
                     var viewing: Viewing?
@@ -227,8 +300,14 @@ public struct Transcript: Equatable, Sendable {
             case "assistant":
                 for call in Self.toolCalls(in: message.toolCalls) { argumentsByCall[call.id] = call.arguments }
                 let text = Self.visibleText(Self.text(of: message.content))
-                if !text.isEmpty {
+                if let needsYou = Self.goalNeedsYou(text: text, metadata: message.metadata?.objectValue) {
+                    rebuilt.append(.goalNeedsYou(id: message.id, goalId: needsYou.goalId, title: needsYou.title, question: needsYou.question))
+                } else if !text.isEmpty {
                     rebuilt.append(.assistant(id: message.id, text: text, isStreaming: false))
+                    if let reason = speakFirstReasonAwaitingAnswer {
+                        rebuilt.append(.speakFirstChoices(id: message.id, reason: reason))
+                        speakFirstReasonAwaitingAnswer = nil
+                    }
                 } else if message.stopReason == "cancelled" {
                     rebuilt.append(.notice(id: message.id, text: "", isError: false))
                 }
@@ -265,14 +344,14 @@ public struct Transcript: Equatable, Sendable {
 
         // Keep live entries the history does not hold.
         let persistedTurnEnds = rebuilt.compactMap { entry -> TurnEndKind? in
-            if case .turnEnd(_, let kind, _) = entry { return kind }
+            if case .turnEnd(_, let kind, _, _) = entry { return kind }
             return nil
         }
         for entry in live where !entries.contains(where: { $0.id == entry.id }) {
             switch entry {
             case .assistant(let id, _, _) where persistedMessageIds.contains(id): continue
             case .tool(let activity) where persistedToolCallIds.contains(activity.id): continue
-            case .turnEnd(_, let kind, _) where persistedTurnEnds.contains(kind): continue
+            case .turnEnd(_, let kind, _, _) where persistedTurnEnds.contains(kind): continue
             default: entries.append(entry)
             }
         }
@@ -404,16 +483,20 @@ public struct Transcript: Equatable, Sendable {
         case .runComplete:
             finishStreaming()
             isRunning = false
-            let reason = event.runComplete?.turnEndReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if !reason.isEmpty, let kind = TurnEndKind(stopReason: event.runComplete?.stopReason) {
-                appendLiveTurnEnd(kind: kind, text: reason, runId: event.runId)
+            let sentence = event.runComplete?.turnEndReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let structured = TurnEndReason(kind: event.runComplete?.reasonKind, parameters: event.runComplete?.reasonParameters)
+            if let structured, structured.kind != "failed" || !sentence.isEmpty {
+                appendLiveTurnEnd(kind: structured.turnEndKind, text: sentence, reason: structured, runId: event.runId)
+            } else if !sentence.isEmpty, let kind = TurnEndKind(stopReason: event.runComplete?.stopReason) {
+                appendLiveTurnEnd(kind: kind, text: sentence, reason: nil, runId: event.runId)
             }
         case .runError:
             finishStreaming()
             isRunning = false
             // The operator's text is not for the person; the bounded sentence is.
-            let reason = event.runError?.turnEndReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            appendLiveTurnEnd(kind: .failed, text: reason, runId: event.runId)
+            let sentence = event.runError?.turnEndReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let structured = TurnEndReason(kind: event.runError?.reasonKind, parameters: event.runError?.reasonParameters)
+            appendLiveTurnEnd(kind: structured?.turnEndKind ?? .failed, text: sentence, reason: structured, runId: event.runId)
         case .roundRetry:
             // The round starts over: the text it streamed is dropped.
             guard let discarded = event.roundRetry?.discardedMessageId, !discarded.isEmpty else { return }
@@ -440,10 +523,10 @@ public struct Transcript: Equatable, Sendable {
         }
     }
 
-    private mutating func appendLiveTurnEnd(kind: TurnEndKind, text: String, runId: String?) {
+    private mutating func appendLiveTurnEnd(kind: TurnEndKind, text: String, reason: TurnEndReason?, runId: String?) {
         noticeCount += 1
         let id = "\(runId ?? "run"):\(noticeCount)"
-        entries.append(.turnEnd(id: id, kind: kind, text: text))
+        entries.append(.turnEnd(id: id, kind: kind, text: text, reason: reason))
         liveEntryIds.insert("turnend:\(id)")
     }
 
@@ -501,6 +584,8 @@ public struct Transcript: Equatable, Sendable {
         }
         if let name = title(after: "[Scheduled:") { return .scheduled(jobName: name, message: rest) }
         if let name = title(after: "[Background work finished:") { return .backgroundFinished(title: name, report: rest) }
+        if let reason = title(after: "[Speaking first:") { return .speakFirst(reason: reason) }
+        if let name = title(after: "[Goal check-in:") { return .goalCheckIn(title: name, message: rest) }
         return nil
     }
 
@@ -510,8 +595,16 @@ public struct Transcript: Equatable, Sendable {
     static func entry(forSystem message: ConversationMessage) -> TranscriptEntry? {
         let metadata = message.metadata?.objectValue
         let text = Self.text(of: message.content).trimmingCharacters(in: .whitespacesAndNewlines)
-        if metadata?["turnEnd"]?.boolValue == true, let kind = TurnEndKind(stopReason: message.stopReason) {
-            return .turnEnd(id: message.id, kind: kind, text: text)
+        let reason = TurnEndReason(kind: metadata?["reasonKind"]?.stringValue, parameters: metadata?["reasonParameters"])
+        if metadata?["turnEnd"]?.boolValue == true {
+            if let reason { return .turnEnd(id: message.id, kind: reason.turnEndKind, text: text, reason: reason) }
+            if let kind = TurnEndKind(stopReason: message.stopReason) { return .turnEnd(id: message.id, kind: kind, text: text) }
+            if message.stopReason == "cancelled" || message.stopReason == "queued" || message.stopReason == "unreadable_call", !text.isEmpty {
+                return .turnEnd(id: message.id, kind: .interruption, text: text)
+            }
+        }
+        if metadata?["depthNote"]?.boolValue == true, let depth = reason.flatMap({ DepthKind(rawValue: $0.kind) }) {
+            return .note(id: message.id, .depth(depth, reason: reason?.parameters["reason"] ?? "", sentence: text))
         }
         if metadata?["backgroundNote"]?.boolValue == true, !text.isEmpty {
             return .note(id: message.id, .backgroundNotice(text: text))
@@ -520,6 +613,23 @@ public struct Transcript: Equatable, Sendable {
             return .note(id: message.id, .compaction(summary: text))
         }
         return nil
+    }
+
+    /// The question of a blocked goal's message: `[Goal needs you: <title>]`,
+    /// a repeat line, the question, then an answer hint ending `(goal id: <id>)`.
+    static func goalNeedsYou(text: String, metadata: [String: JSONValue]?) -> (goalId: String, title: String, question: String)? {
+        let marker = "[Goal needs you:"
+        guard text.hasPrefix(marker) else { return nil }
+        let paragraphs = text.components(separatedBy: "\n\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard let first = paragraphs.first, first.hasSuffix("]") || first.contains("]") else { return nil }
+        let title = String(first.dropFirst(marker.count).prefix { $0 != "]" }).trimmingCharacters(in: .whitespaces)
+        var goalId = metadata?["goalNeedsYou"]?["goalId"]?.stringValue ?? ""
+        if goalId.isEmpty, let hint = paragraphs.last, let open = hint.range(of: "(goal id: "), let close = hint.range(of: ")", range: open.upperBound..<hint.endIndex) {
+            goalId = String(hint[open.upperBound..<close.lowerBound])
+        }
+        // The second paragraph repeats the marker's idea; the question follows it.
+        let question = paragraphs.count > 2 ? paragraphs[2] : (paragraphs.count > 1 ? paragraphs[1] : "")
+        return (goalId, title, question)
     }
 
     /// The text of a message's content: a string, or a list of typed parts.

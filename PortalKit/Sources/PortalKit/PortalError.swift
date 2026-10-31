@@ -13,6 +13,11 @@ public enum PortalError: Error, Equatable, Sendable, LocalizedError {
     case invalidServerAddress
     /// The server cannot sign this app in yet.
     case clientNotRegistered(String)
+    /// A question or approval card that is no longer open: someone answered
+    /// it, it was cancelled or it timed out. `reason` is `answered`, `cancelled` or `expired`.
+    case cardNoLongerWaiting(reason: String)
+    /// A chat message was posted but the assistant already answers three other members.
+    case assistantBusy(String)
 
     public var errorDescription: String? {
         switch self {
@@ -21,6 +26,23 @@ public enum PortalError: Error, Equatable, Sendable, LocalizedError {
         case .unreadableAnswer: "The server sent an answer the app cannot read."
         case .invalidServerAddress: "Enter a server address that starts with https://."
         case .clientNotRegistered(let message): message
+        case .cardNoLongerWaiting(let reason):
+            switch reason {
+            case "answered": "That was already answered."
+            case "expired": "That question timed out."
+            default: "That was cancelled."
+            }
+        case .assistantBusy: "Your message was posted. The assistant is answering other people and will not reply to it."
+        }
+    }
+
+    /// The error a GraphQL error stands for: a known code becomes its own
+    /// case, anything else keeps the server's words.
+    init(graphQLError error: Connection.GraphQLError) {
+        switch error.extensions?.code {
+        case "CARD_NO_LONGER_WAITING": self = .cardNoLongerWaiting(reason: error.extensions?.reason ?? "")
+        case "ASSISTANT_BUSY": self = .assistantBusy(error.message)
+        default: self = .refused(error.message)
         }
     }
 }

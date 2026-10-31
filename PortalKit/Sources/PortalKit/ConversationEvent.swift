@@ -74,9 +74,14 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
         public let stopReason: String?
         /// The sentence to show when the runner ended the turn itself.
         public let turnEndReason: String?
-        public init(stopReason: String? = nil, turnEndReason: String? = nil) {
+        /// Why the turn ended, as a kind the app words itself: see `TurnEndReason`.
+        public let reasonKind: String?
+        public let reasonParameters: JSONValue?
+        public init(stopReason: String? = nil, turnEndReason: String? = nil, reasonKind: String? = nil, reasonParameters: JSONValue? = nil) {
             self.stopReason = stopReason
             self.turnEndReason = turnEndReason
+            self.reasonKind = reasonKind
+            self.reasonParameters = reasonParameters
         }
     }
 
@@ -85,9 +90,13 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
         public let error: String?
         /// The bounded sentence for a failed run.
         public let turnEndReason: String?
-        public init(error: String? = nil, turnEndReason: String? = nil) {
+        public let reasonKind: String?
+        public let reasonParameters: JSONValue?
+        public init(error: String? = nil, turnEndReason: String? = nil, reasonKind: String? = nil, reasonParameters: JSONValue? = nil) {
             self.error = error
             self.turnEndReason = turnEndReason
+            self.reasonKind = reasonKind
+            self.reasonParameters = reasonParameters
         }
     }
 

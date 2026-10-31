@@ -47,12 +47,19 @@ public struct ConversationSummary: Codable, Equatable, Identifiable, Sendable {
     public let conversationKind: String?
     public let chatId: String?
     public let chat: ChatRoom?
+    /// Whose conversation it is. Nil when the server did not say.
+    public let userId: String?
+    /// Work the assistant started in it is still running.
+    public let hasRunningBackgroundWork: Bool?
 
     public init(
         id: String, agentId: String? = nil, title: String? = nil, summary: String? = nil, lastMessageAt: String? = nil,
         activeRunId: String? = nil, archivedAt: String? = nil, createdAt: String? = nil, modifiedAt: String? = nil, isTitleCustom: Bool? = nil,
-        conversationKind: String? = nil, chatId: String? = nil, chat: ChatRoom? = nil
+        conversationKind: String? = nil, chatId: String? = nil, chat: ChatRoom? = nil, userId: String? = nil,
+        hasRunningBackgroundWork: Bool? = nil
     ) {
+        self.userId = userId
+        self.hasRunningBackgroundWork = hasRunningBackgroundWork
         self.conversationKind = conversationKind
         self.chatId = chatId
         self.chat = chat

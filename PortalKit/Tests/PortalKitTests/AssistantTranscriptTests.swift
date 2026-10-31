@@ -342,3 +342,96 @@ import Testing
         #expect(MessageWindow().reloadCount == MessageWindow.pageSize)
     }
 }
+
+@Suite struct GapClosingTranscriptTests {
+    func load(_ messages: [ConversationMessage]) -> Transcript {
+        var transcript = Transcript()
+        transcript.load(messages: messages, questions: [], approvals: [], isRunning: false)
+        return transcript
+    }
+
+    @Test func aStoredTurnEndKeepsItsStructuredReason() {
+        let transcript = load([
+            ConversationMessage(
+                id: "s1", role: "system", content: .string("The model provider refused the request (HTTP 402)."), stopReason: "error",
+                metadata: .object([
+                    "turnEnd": .bool(true), "reasonKind": .string("providerRefused"), "reasonParameters": .object(["httpStatus": .string("402")]),
+                ])),
+            ConversationMessage(
+                id: "s2", role: "system", content: .string("Stopped."), stopReason: "cancelled",
+                metadata: .object(["turnEnd": .bool(true), "reasonKind": .string("stoppedByUser")])),
+            ConversationMessage(
+                id: "s3", role: "system", content: .string("Something new."), stopReason: "error",
+                metadata: .object(["turnEnd": .bool(true), "reasonKind": .string("aKindFromTheFuture")])),
+        ])
+        #expect(
+            transcript.entries == [
+                .turnEnd(id: "s1", kind: .failed, text: "The model provider refused the request (HTTP 402).", reason: TurnEndReason(kind: "providerRefused", parameters: ["httpStatus": "402"])),
+                .turnEnd(id: "s2", kind: .interruption, text: "Stopped.", reason: TurnEndReason(kind: "stoppedByUser")),
+                .turnEnd(id: "s3", kind: .failed, text: "Something new.", reason: TurnEndReason(kind: "aKindFromTheFuture")),
+            ])
+        guard case .turnEnd(_, _, _, let unknown?) = transcript.entries[2] else { return }
+        #expect(!unknown.isKnown)
+    }
+
+    @Test func aLiveFailedRunCarriesItsReasonKindAndNotTheOperatorText() {
+        var transcript = Transcript()
+        transcript.apply(
+            ConversationEvent(
+                type: "run_error", runId: "run01",
+                runError: .init(error: "upstream is down", turnEndReason: "The model provider is not available.", reasonKind: "providerUnavailable")))
+        #expect(
+            transcript.entries == [.turnEnd(id: "run01:1", kind: .failed, text: "The model provider is not available.", reason: TurnEndReason(kind: "providerUnavailable"))])
+    }
+
+    @Test func aDepthNoteReadsLookingCloselyOrThinkingHarder() {
+        let transcript = load([
+            ConversationMessage(
+                id: "d1", role: "system", content: .string("Looking more closely: it is a hard question."),
+                metadata: .object(["depthNote": .bool(true), "reasonKind": .string("lookingClosely"), "reasonParameters": .object(["reason": .string("a hard question")])])),
+            ConversationMessage(
+                id: "d2", role: "system", content: .string("Thinking harder."),
+                metadata: .object(["depthNote": .bool(true), "reasonKind": .string("thinkingHarder"), "reasonParameters": .object([:])])),
+        ])
+        #expect(
+            transcript.entries == [
+                .note(id: "d1", .depth(.lookingClosely, reason: "a hard question", sentence: "Looking more closely: it is a hard question.")),
+                .note(id: "d2", .depth(.thinkingHarder, reason: "", sentence: "Thinking harder.")),
+            ])
+    }
+
+    @Test func speakFirstShowsANoteAndOffersChoicesUnderTheFirstAnswerOnly() {
+        let transcript = load([
+            ConversationMessage(id: "m1", role: "user", content: .string("[Speaking first: idea]\nStart with the person's open idea.")),
+            ConversationMessage(id: "m2", role: "assistant", content: .string("I have an idea about your morning checks.")),
+            ConversationMessage(id: "m3", role: "user", content: .string("Tell me more")),
+            ConversationMessage(id: "m4", role: "assistant", content: .string("Sure.")),
+        ])
+        #expect(
+            transcript.entries == [
+                .note(id: "m1", .speakFirst(reason: "idea")),
+                .assistant(id: "m2", text: "I have an idea about your morning checks.", isStreaming: false),
+                .speakFirstChoices(id: "m2", reason: "idea"),
+                .user(id: "m3", text: "Tell me more", viewing: nil),
+                .assistant(id: "m4", text: "Sure.", isStreaming: false),
+            ])
+    }
+
+    @Test func aMessageThatOnlyMentionsTheMarkerLaterIsThePersonsOwn() {
+        let transcript = load([ConversationMessage(id: "m1", role: "user", content: .string("What does [Speaking first: idea] mean?"))])
+        #expect(transcript.entries == [.user(id: "m1", text: "What does [Speaking first: idea] mean?", viewing: nil)])
+    }
+
+    @Test func aGoalCheckInIsAMutedNoteThatOpensToItsText() {
+        let transcript = load([ConversationMessage(id: "m1", role: "user", content: .string("[Goal check-in: Keep the pick rate up]\nLook at today's numbers."))])
+        #expect(transcript.entries == [.note(id: "m1", .goalCheckIn(title: "Keep the pick rate up", message: "Look at today's numbers."))])
+    }
+
+    @Test func aBlockedGoalBecomesACardWithItsQuestionAndGoal() {
+        let text = "[Goal needs you: Keep the pick rate up]\n\nThe goal \"Keep the pick rate up\" is waiting for you.\n\nShould I stop the night shift reports?\n\nAnswer here and I will pass it on. (goal id: goal42)"
+        let transcript = load([ConversationMessage(id: "m1", role: "assistant", content: .string(text), metadata: .object(["goalNeedsYou": .object(["goalId": .string("goal42"), "waitId": .string("wait7")])]))])
+        #expect(transcript.entries == [.goalNeedsYou(id: "m1", goalId: "goal42", title: "Keep the pick rate up", question: "Should I stop the night shift reports?")])
+        let hintOnly = Transcript.goalNeedsYou(text: text, metadata: nil)
+        #expect(hintOnly?.goalId == "goal42")
+    }
+}

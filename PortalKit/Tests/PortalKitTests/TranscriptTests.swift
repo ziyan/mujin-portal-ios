@@ -57,7 +57,7 @@ import Testing
             ConversationEvent(
                 type: "run_error", runId: "run01", runError: .init(error: "provider unavailable at 10.0.0.1", turnEndReason: "The model did not answer.")))
         #expect(transcript.entries.count == 1)
-        guard case .turnEnd(_, let kind, let text) = transcript.entries[0] else { Issue.record("not a turn end"); return }
+        guard case .turnEnd(_, let kind, let text, _) = transcript.entries[0] else { Issue.record("not a turn end"); return }
         #expect(kind == .failed)
         #expect(text == "The model did not answer.")
         #expect(!transcript.isRunning)
@@ -66,7 +66,7 @@ import Testing
     @Test func aRunErrorWithoutASentenceStillShowsAFailure() {
         var transcript = Transcript()
         transcript.apply(ConversationEvent(type: "run_error", runId: "run01", runError: .init(error: "internal detail")))
-        guard case .turnEnd(_, .failed, let text) = transcript.entries[0] else { Issue.record("not a failed turn end"); return }
+        guard case .turnEnd(_, .failed, let text, _) = transcript.entries[0] else { Issue.record("not a failed turn end"); return }
         #expect(text.isEmpty)
     }
 

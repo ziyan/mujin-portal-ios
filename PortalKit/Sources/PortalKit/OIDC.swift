@@ -12,7 +12,6 @@ public enum PortalClient {
     public static let redirectURI = "com.ziyan.mujinportal:/oauth"
     public static let callbackScheme = "com.ziyan.mujinportal"
     public static let scopes = ["openid", "profile", "email", "offline_access", "api:read", "api:write"]
-    public static let clientName = "Mujin Portal for iPhone"
 }
 
 /// OIDCConfiguration is what a server's discovery document says about
@@ -21,14 +20,12 @@ public struct OIDCConfiguration: Decodable, Equatable, Sendable {
     public let issuer: String
     public let authorizationEndpoint: URL
     public let tokenEndpoint: URL
-    public let registrationEndpoint: URL?
     public let revocationEndpoint: URL?
 
     enum CodingKeys: String, CodingKey {
         case issuer
         case authorizationEndpoint = "authorization_endpoint"
         case tokenEndpoint = "token_endpoint"
-        case registrationEndpoint = "registration_endpoint"
         case revocationEndpoint = "revocation_endpoint"
     }
 }
@@ -122,34 +119,6 @@ public struct OIDCClient: Sendable {
         return "HTTP \(response.statusCode)"
     }
 
-    /// Registers the app dynamically (RFC 7591). The server accepts this only
-    /// when it allows the app's redirect address; otherwise its refusal is
-    /// thrown as it came.
-    public func register(configuration: OIDCConfiguration) async throws -> String {
-        let endpoint = configuration.registrationEndpoint ?? server.endpoint("/api/v1/oidc/register")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode([
-            "client_name": JSONValue.string(PortalClient.clientName),
-            "redirect_uris": .array([.string(PortalClient.redirectURI)]),
-            "scope": .string(PortalClient.scopes.joined(separator: " ")),
-            "token_endpoint_auth_method": .string("none"),
-            "grant_types": .array([.string("authorization_code"), .string("refresh_token")]),
-            "response_types": .array([.string("code")]),
-        ])
-        let (data, response) = try await transport.send(request)
-        guard response.statusCode == 200 || response.statusCode == 201 else {
-            throw Self.refusal(data)
-        }
-        struct Registered: Decodable {
-            let clientId: String
-            enum CodingKeys: String, CodingKey { case clientId = "client_id" }
-        }
-        guard let registered = try? JSONDecoder().decode(Registered.self, from: data) else { throw PortalError.unreadableAnswer }
-        return registered.clientId
-    }
-
     /// The code a return to the redirect address carries, when it answers the
     /// request made with `state`. Throws the server's refusal when the return
     /// carries an error.
@@ -195,9 +164,12 @@ public struct OIDCClient: Sendable {
         return renewed
     }
 
-    /// Gives up a sign-in at the server when it offers a revocation endpoint
-    /// (RFC 7009). Portal does not yet, so this does nothing there; the
-    /// person can end the grant under Authorized apps on the web.
+    /// Ends the grant at the server through the discovery document's
+    /// `revocation_endpoint` (RFC 7009): every refresh token, the web
+    /// sessions handed to the built-in browser and the push devices of this
+    /// sign-in go with it. The answer is always 200 for a known client, so
+    /// nothing is read from it; a failure only means the person can end the
+    /// grant under Authorized apps on the web.
     public func revoke(_ account: Account) async {
         guard let endpoint = (try? await discover())?.revocationEndpoint else { return }
         var request = URLRequest(url: endpoint)
