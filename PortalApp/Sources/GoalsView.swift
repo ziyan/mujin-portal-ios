@@ -66,7 +66,7 @@ struct GoalsView: View {
     private var list: some View {
         List {
             PortalRows {
-                ForEach(sections, id: \.title) { section in
+                ForEach(sections, id: \.key) { section in
                     Section(section.title) {
                         ForEach(section.goals) { goal in
                             NavigationLink(value: MoreDestination.goal(goal.id)) { GoalRow(goal: goal) }
@@ -80,18 +80,19 @@ struct GoalsView: View {
     }
 
     private struct GoalSection {
+        let key: String
         let title: LocalizedStringKey
         let goals: [Goal]
     }
 
     private var sections: [GoalSection] {
-        let sorted = goals.sortedForList
-        func goals(_ state: GoalState) -> [Goal] { sorted.filter { $0.state == state } }
+        let sorted = self.goals.sortedForList
+        func inState(_ state: GoalState) -> [Goal] { sorted.filter { $0.state == state } }
         return [
-            GoalSection(title: "Needs you", goals: goals(.waiting)),
-            GoalSection(title: "Working", goals: goals(.working)),
-            GoalSection(title: "Done", goals: goals(.met)),
-            GoalSection(title: "Stopped", goals: goals(.stopped)),
+            GoalSection(key: "waiting", title: "Needs you", goals: inState(.waiting)),
+            GoalSection(key: "working", title: "Working", goals: inState(.working)),
+            GoalSection(key: "met", title: "Done", goals: inState(.met)),
+            GoalSection(key: "stopped", title: "Stopped", goals: inState(.stopped)),
         ].filter { !$0.goals.isEmpty }
     }
 
