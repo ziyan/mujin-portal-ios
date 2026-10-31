@@ -110,7 +110,10 @@ extension Connection {
     /// screen the person asks about; the server drops it silently when they
     /// may not see that resource.
     @discardableResult
-    public func sendMessage(conversationId: String, text: String, viewing: Viewing? = nil, replyToMessageId: String? = nil) async throws -> String {
+    public func sendMessage(
+        conversationId: String, text: String, viewing: Viewing? = nil, replyToMessageId: String? = nil, isVoice: Bool = false,
+        interruptedAnswer: InterruptedAnswer? = nil
+    ) async throws -> String {
         struct Answer: Decodable, Sendable {
             struct Sent: Decodable, Sendable { let runId: String? }
             let SendMessage: Sent
@@ -119,6 +122,13 @@ extension Connection {
             "conversationId": .string(conversationId), "message": .string(text), "surface": .string("ios"),
         ]
         if let replyToMessageId, !replyToMessageId.isEmpty { variables["replyToMessageId"] = .string(replyToMessageId) }
+        if isVoice {
+            variables["voice"] = .bool(true)
+            // Only meaningful with a spoken message: put in front of the model for that run and never stored.
+            if let interruptedAnswer {
+                variables["interruptedAnswer"] = .object(["heardText": .string(interruptedAnswer.heardText), "unheardText": .string(interruptedAnswer.unheardText)])
+            }
+        }
         if let viewing { variables["viewing"] = .object(["kind": .string(viewing.kind), "id": .string(viewing.id)]) }
         let answer = try await execute(Documents.sendMessage, variables: variables, as: Answer.self)
         return answer.SendMessage.runId ?? ""
@@ -143,6 +153,17 @@ extension Connection {
     public func archiveConversation(id: String) async throws {
         _ = try await execute(
             Documents.archiveConversation, variables: ["conversationId": .string(id), "archived": .bool(true)], as: JSONValue.self)
+    }
+}
+
+/// InterruptedAnswer is what the person heard of an answer before they talked over it.
+public struct InterruptedAnswer: Equatable, Sendable {
+    public let heardText: String
+    public let unheardText: String
+
+    public init(heardText: String, unheardText: String) {
+        self.heardText = heardText
+        self.unheardText = unheardText
     }
 }
 

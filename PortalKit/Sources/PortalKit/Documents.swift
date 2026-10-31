@@ -77,10 +77,11 @@ public enum Documents {
     public static let sendMessage = """
         mutation SendMessage(
           $conversationId: String!, $message: String!, $surface: ConversationSurface, $viewing: ConversationViewingInput,
-          $replyToMessageId: String
+          $replyToMessageId: String, $voice: Boolean, $interruptedAnswer: ConversationInterruptedAnswerInput
         ) {
           SendMessage(
-            conversationId: $conversationId, message: $message, surface: $surface, viewing: $viewing, replyToMessageId: $replyToMessageId
+            conversationId: $conversationId, message: $message, surface: $surface, viewing: $viewing, replyToMessageId: $replyToMessageId,
+            voice: $voice, interruptedAnswer: $interruptedAnswer
           ) { runId }
         }
         """
@@ -171,6 +172,7 @@ public enum Documents {
         documents += chatDocuments
         documents += pushDocuments
         documents += presenceDocuments
+        documents += voiceDocuments
         return documents
     }
 }
