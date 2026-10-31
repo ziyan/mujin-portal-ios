@@ -145,6 +145,7 @@ jobs:
           shoot answer conversation:conversation01
           shoot share share
           shoot share-ticket share-ticket
+          shoot browser browser
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot dark conversation:conversation02
           shoot share-dark share

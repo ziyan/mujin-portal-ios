@@ -1,6 +1,8 @@
 import Foundation
 import Observation
+import SwiftUI
 import PortalKit
+import WebKit
 
 /// AppModel is the app's state: which accounts are signed in, which one is in
 /// use, and a connection for each.
@@ -21,6 +23,12 @@ final class AppModel {
     var isPushRegistrationOffered = false
     /// Said once at the top of the screen, such as a sign-in the server ended.
     var notice: String?
+
+    /// The built-in browser being shown, and the page in Safari's view.
+    var presentedWeb: WebSession?
+    var safariPage: IdentifiableURL?
+    /// One browser per account, kept after its screen closes.
+    private var webSessions: [String: WebSession] = [:]
 
     private var connections: [String: Connection] = [:]
     private let webSignIn = WebSignIn()
@@ -54,6 +62,48 @@ final class AppModel {
         return connection
     }
 
+    /// Decides where a tapped link opens: Portal and its controllers in the
+    /// built-in browser, other web addresses in Safari's view, anything else
+    /// (mail, phone) in the system.
+    func handleLink(_ url: URL) -> OpenURLAction.Result {
+        guard let account = activeAccount else { return .systemAction }
+        switch LinkClassifier.classify(url, server: account.server) {
+        case .portal, .controller:
+            Task { await openInApp(url, account: account) }
+            return .handled
+        case .external:
+            safariPage = IdentifiableURL(url: url)
+            return .handled
+        case .other:
+            return .systemAction
+        }
+    }
+
+    /// Opens a Portal or controller page in the account's browser. When the
+    /// server can hand over a web session, the page opens signed in;
+    /// otherwise it opens as it is and Portal's login page shows.
+    func openInApp(_ url: URL, account: Account) async {
+        let session = webSession(for: account)
+        presentedWeb = session
+        if isDemo { return }
+        let target = await connection(for: account).webSessionHandoff(to: url) ?? url
+        session.load(target)
+    }
+
+    func webSession(for account: Account) -> WebSession {
+        if let existing = webSessions[account.accountKey] { return existing }
+        let session = WebSession(accountKey: account.accountKey, dataStoreId: isDemo ? nil : account.webDataStoreId)
+        webSessions[account.accountKey] = session
+        return session
+    }
+
+    /// Forgets an account's browser and deletes the cookies it kept.
+    private func removeWebData(of account: Account) async {
+        if presentedWeb?.accountKey == account.accountKey { presentedWeb = nil }
+        webSessions[account.accountKey] = nil
+        if !isDemo { try? await WKWebsiteDataStore.remove(forIdentifier: account.webDataStoreId) }
+    }
+
     func reloadRing() {
         ring = (try? store.loadRing()) ?? ring
     }
@@ -68,6 +118,7 @@ final class AppModel {
         await OIDCClient(server: account.server, transport: transport).revoke(account)
         try? store.remove(account.accountKey)
         connections[account.accountKey] = nil
+        await removeWebData(of: account)
         reloadRing()
     }
 
@@ -77,6 +128,7 @@ final class AppModel {
         guard error as? PortalError == .signedOut else { return }
         try? store.remove(account.accountKey)
         connections[account.accountKey] = nil
+        Task { await removeWebData(of: account) }
         reloadRing()
         notice = String(localized: "The sign-in for \(account.displayName) on \(account.server.displayHost) has ended. Sign in again.")
     }
