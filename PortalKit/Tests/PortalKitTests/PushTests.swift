@@ -194,3 +194,38 @@ import Testing
         #expect(seen == [.connected, .reconnecting, .connected, .created(notificationId: "n3", kind: "alarm")])
     }
 }
+
+
+@Suite struct PageContextTests {
+    @Test func everyMessageCarriesThePageEvenWithoutAResource() async throws {
+        let transport = ScriptedTransport { _ in (200, ScriptedTransport.json(["data": ["SendMessage": ["runId": "r"]]])) }
+        let connection = Connection(account: makeAccount(), transport: transport)
+        _ = try await connection.sendMessage(conversationId: "c1", text: "Hi", pageTitle: "Weekly status")
+        let viewing = sentVariables(try #require(transport.requests.last))["viewing"] as? [String: Any]
+        #expect(viewing?["page"] as? String == "/agent/c1")
+        #expect(viewing?["pageTitle"] as? String == "Weekly status")
+        #expect(viewing?["kind"] == nil)
+    }
+
+    @Test func aResourceBringsItsOwnWebPath() async throws {
+        let transport = ScriptedTransport { _ in (200, ScriptedTransport.json(["data": ["SendMessage": ["runId": "r"]]])) }
+        let connection = Connection(account: makeAccount(), transport: transport)
+        _ = try await connection.sendMessage(conversationId: "c1", text: "Why?", viewing: Viewing(kind: "ticket", id: "ticket01", label: "#1 Gripper drops boxes"))
+        let viewing = sentVariables(try #require(transport.requests.last))["viewing"] as? [String: Any]
+        #expect(viewing?["kind"] as? String == "ticket")
+        #expect(viewing?["page"] as? String == "/ticket/ticket01")
+        #expect(viewing?["pageTitle"] as? String == "#1 Gripper drops boxes")
+    }
+
+    @Test func pathsAndTitlesAreCleanedAndBounded() {
+        #expect(PageContext.path("/site/site01?tab=1#x") == "/site/site01")
+        #expect(PageContext.path("//evil.test/a") == nil)
+        #expect(PageContext.path("site/site01") == nil)
+        #expect(PageContext.path("/" + String(repeating: "a", count: 300))?.count == 200)
+        #expect(PageContext.title("Line one\nline two") == "Line one line two")
+        #expect(PageContext.title(String(repeating: "t", count: 300))?.count == 120)
+        #expect(PageContext.title("  ") == nil)
+        #expect(Viewing(kind: "virtual_controller", id: "virtual01").page == "/virtualcontroller/virtual01")
+        #expect(Viewing(kind: "cell", id: "cell01").page == nil)
+    }
+}

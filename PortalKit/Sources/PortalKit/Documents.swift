@@ -5,7 +5,7 @@ import Foundation
 /// removes fails a test here before it fails on a phone.
 public enum Documents {
     static let conversationFields = """
-        id agentId title summary lastMessageAt activeRunId archivedAt createdAt modifiedAt isTitleCustom conversationKind chatId hasRunningBackgroundWork userId
+        id agentId title summary lastMessageAt activeRunId archivedAt createdAt modifiedAt isTitleCustom conversationKind chatId hasRunningBackgroundWork userId lastMessageExcerpt
         """
 
     static let chatMessageFields = """

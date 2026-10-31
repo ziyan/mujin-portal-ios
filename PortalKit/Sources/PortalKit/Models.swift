@@ -51,13 +51,16 @@ public struct ConversationSummary: Codable, Equatable, Identifiable, Sendable {
     public let userId: String?
     /// Work the assistant started in it is still running.
     public let hasRunningBackgroundWork: Bool?
+    /// The one line under a row of the list.
+    public let lastMessageExcerpt: String?
 
     public init(
         id: String, agentId: String? = nil, title: String? = nil, summary: String? = nil, lastMessageAt: String? = nil,
         activeRunId: String? = nil, archivedAt: String? = nil, createdAt: String? = nil, modifiedAt: String? = nil, isTitleCustom: Bool? = nil,
         conversationKind: String? = nil, chatId: String? = nil, chat: ChatRoom? = nil, userId: String? = nil,
-        hasRunningBackgroundWork: Bool? = nil
+        hasRunningBackgroundWork: Bool? = nil, lastMessageExcerpt: String? = nil
     ) {
+        self.lastMessageExcerpt = lastMessageExcerpt
         self.userId = userId
         self.hasRunningBackgroundWork = hasRunningBackgroundWork
         self.conversationKind = conversationKind

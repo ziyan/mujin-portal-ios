@@ -112,7 +112,7 @@ extension Connection {
     @discardableResult
     public func sendMessage(
         conversationId: String, text: String, viewing: Viewing? = nil, replyToMessageId: String? = nil, isVoice: Bool = false,
-        interruptedAnswer: InterruptedAnswer? = nil
+        interruptedAnswer: InterruptedAnswer? = nil, pageTitle: String? = nil
     ) async throws -> String {
         struct Answer: Decodable, Sendable {
             struct Sent: Decodable, Sendable { let runId: String? }
@@ -129,7 +129,18 @@ extension Connection {
                 variables["interruptedAnswer"] = .object(["heardText": .string(interruptedAnswer.heardText), "unheardText": .string(interruptedAnswer.unheardText)])
             }
         }
-        if let viewing { variables["viewing"] = .object(["kind": .string(viewing.kind), "id": .string(viewing.id)]) }
+        // The page the person is on goes with every message to the assistant, with or without a resource:
+        // the resource's own screen, else the conversation itself.
+        var viewingObject: [String: JSONValue] = [:]
+        if let viewing {
+            viewingObject["kind"] = .string(viewing.kind)
+            viewingObject["id"] = .string(viewing.id)
+        }
+        if let page = PageContext.path(viewing?.page ?? "/agent/\(conversationId)") {
+            viewingObject["page"] = .string(page)
+            if let title = PageContext.title(viewing?.label ?? pageTitle) { viewingObject["pageTitle"] = .string(title) }
+        }
+        variables["viewing"] = .object(viewingObject)
         let answer = try await execute(Documents.sendMessage, variables: variables, as: Answer.self)
         return answer.SendMessage.runId ?? ""
     }

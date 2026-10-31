@@ -295,6 +295,6 @@ private struct ConversationRow: View {
             guard room.isGroup, let author = room.lastMessageAuthorName, !author.isEmpty, !text.isEmpty else { return text }
             return "\(author.split(separator: " ").first.map(String.init) ?? author): \(text)"
         }
-        return conversation.summary ?? ""
+        return conversation.lastMessageExcerpt ?? conversation.summary ?? ""
     }
 }

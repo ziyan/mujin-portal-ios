@@ -13,6 +13,38 @@ public struct Viewing: Equatable, Sendable {
         self.id = id
         self.label = label
     }
+
+    /// The path of the screen a resource is on, matching the web routes: `/site/<id>` and so on.
+    public var page: String? {
+        switch kind {
+        case "site": "/site/\(id)"
+        case "controller": "/controller/\(id)"
+        case "virtual_controller": "/virtualcontroller/\(id)"
+        case "ticket": "/ticket/\(id)"
+        case "incident": "/incident/\(id)"
+        default: nil
+        }
+    }
+}
+
+/// PageContext is the screen the person is on, sent with every message to the
+/// assistant so it knows what "this" is. A path with no query or fragment, at
+/// most 200 characters, and the screen's title, at most 120.
+public enum PageContext {
+    public static let maximumPathLength = 200
+    public static let maximumTitleLength = 120
+
+    public static func path(_ path: String) -> String? {
+        var text = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let cut = text.firstIndex(where: { $0 == "?" || $0 == "#" }) { text = String(text[..<cut]) }
+        guard text.hasPrefix("/"), !text.hasPrefix("//") else { return nil }
+        return String(text.prefix(maximumPathLength))
+    }
+
+    public static func title(_ title: String?) -> String? {
+        let text = (title ?? "").split(whereSeparator: \.isNewline).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        return text.isEmpty ? nil : String(text.prefix(maximumTitleLength))
+    }
 }
 
 /// ReplyReference is a message a reply is about, shown above the composer

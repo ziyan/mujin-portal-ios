@@ -10,7 +10,7 @@ import Testing
         #expect(runId == "run01")
         let variables = sentVariables(transport.requests[0])
         #expect(variables["surface"] as? String == "ios")
-        #expect(variables["viewing"] == nil)
+        #expect((variables["viewing"] as? [String: Any])?["page"] as? String == "/agent/conversation01")
     }
 
     @Test func aSendCanNameTheScreenItAsksAbout() async throws {

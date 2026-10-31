@@ -249,7 +249,7 @@ final class ConversationModel {
         let viewing = viewingReference?.viewing
         transcript.appendPendingUser(trimmed, viewing: viewing)
         do {
-            try await connection.sendMessage(conversationId: conversationId, text: trimmed, viewing: viewing, replyToMessageId: reply?.messageId)
+            try await connection.sendMessage(conversationId: conversationId, text: trimmed, viewing: viewing, replyToMessageId: reply?.messageId, pageTitle: title)
             replyTarget = nil
             viewingReference = nil
             return true
