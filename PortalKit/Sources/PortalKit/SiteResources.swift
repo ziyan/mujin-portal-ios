@@ -122,18 +122,32 @@ extension Connection {
         return try await execute(Documents.listSiteOrchestrators, variables: ["siteId": .string(siteId)], as: Answer.self).ListSiteOrchestrators ?? []
     }
 
-    /// The people of a site: its user ids, named from the organization's users.
-    public func siteMembers(siteId: String, organizationId: String) async throws -> [SiteMember] {
+    /// The people of a site: its user ids, named from the site organization's
+    /// users and, for a viewer of another organization (Mujin staff), from the
+    /// viewer's organization too, as the web does. A member neither list names
+    /// is still listed, by id, after the named ones.
+    public func siteMembers(siteId: String, organizationId: String, viewerOrganizationId: String? = nil) async throws -> [SiteMember] {
         struct Ids: Decodable, Sendable { let ListSiteUserIDs: [String]? }
         struct Users: Decodable, Sendable {
             struct List: Decodable, Sendable { let users: [SiteMember]? }
             let ListOrganizationUsers: List?
         }
-        let ids = Set(try await execute(Documents.listSiteUserIDs, variables: ["siteId": .string(siteId)], as: Ids.self).ListSiteUserIDs ?? [])
+        let ids = try await execute(Documents.listSiteUserIDs, variables: ["siteId": .string(siteId)], as: Ids.self).ListSiteUserIDs ?? []
         guard !ids.isEmpty else { return [] }
-        let users = try await execute(
-            Documents.listOrganizationUsers, variables: ["organizationId": .string(organizationId), "options": .object(["first": .number(500)])], as: Users.self
-        ).ListOrganizationUsers?.users ?? []
-        return users.filter { ids.contains($0.id) }.sorted { $0.shownName.localizedCaseInsensitiveCompare($1.shownName) == .orderedAscending }
+        var organizationIds = [organizationId]
+        if let viewerOrganizationId, !viewerOrganizationId.isEmpty, viewerOrganizationId != organizationId {
+            organizationIds.append(viewerOrganizationId)
+        }
+        var userById: [String: SiteMember] = [:]
+        for listedOrganizationId in organizationIds {
+            let users = try await execute(
+                Documents.listOrganizationUsers,
+                variables: ["organizationId": .string(listedOrganizationId), "options": .object(["first": .number(500)])], as: Users.self
+            ).ListOrganizationUsers?.users ?? []
+            for user in users { userById[user.id] = user }
+        }
+        let named = ids.compactMap { userById[$0] }.sorted { $0.shownName.localizedCaseInsensitiveCompare($1.shownName) == .orderedAscending }
+        let unnamed = ids.filter { userById[$0] == nil }.map { SiteMember(id: $0) }
+        return named + unnamed
     }
 }

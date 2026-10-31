@@ -174,6 +174,18 @@ import Testing
         #expect(sentVariables(try #require(transport.requests.last))["organizationId"] as? String == "organization01")
     }
 
+    @Test func membersOfAnotherOrganizationAreNamedFromTheViewersOrganizationAndNoneIsDropped() async throws {
+        let (connection, _) = scriptedConnection { operation, variables in
+            if operation == "ListSiteUserIDs" { return ["ListSiteUserIDs": ["user01", "user02", "user03"]] }
+            return variables["organizationId"] as? String == "organization01"
+                ? ["ListOrganizationUsers": ["users": [["id": "user01", "name": "Robin Demo"]]]]
+                : ["ListOrganizationUsers": ["users": [["id": "user02", "name": "Alex Example"]]]]
+        }
+        let members = try await connection.siteMembers(siteId: "site01", organizationId: "organization01", viewerOrganizationId: "organization09")
+        #expect(members.map(\.id) == ["user02", "user01", "user03"])
+        #expect(members.map(\.name) == ["Alex Example", "Robin Demo", nil])
+    }
+
     @Test func membersAreShownToMujinUsersAndToAnAdministratorOfTheSitesOwnOrganization() {
         #expect(SiteMembersAccess.canSee(isMujinUser: true, permissions: [], viewerOrganizationId: "organization09", siteOrganizationId: "organization01"))
         #expect(SiteMembersAccess.canSee(isMujinUser: false, permissions: ["organization:operate-all"], viewerOrganizationId: "organization01", siteOrganizationId: "organization01"))

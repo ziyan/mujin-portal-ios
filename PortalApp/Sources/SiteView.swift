@@ -83,7 +83,7 @@ final class SiteModel {
         virtualControllers = await virtualRows ?? []
         orchestrators = (try? await connection.siteOrchestrators(siteId: siteId)) ?? []
         if canSeeMembers, let organizationId = selectedSite?.organizationId ?? scopeId {
-            members = (try? await connection.siteMembers(siteId: siteId, organizationId: organizationId)) ?? []
+            members = (try? await connection.siteMembers(siteId: siteId, organizationId: organizationId, viewerOrganizationId: viewerOrganizationId)) ?? []
         }
         telemetry = try? await connection.siteTelemetry(controllerIds: controllers.map(\.id), virtualControllerIds: virtualControllers.map(\.id))
     }
