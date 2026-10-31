@@ -1,0 +1,21 @@
+// What every build of the app shares.
+//
+// The bundle identifier and the team belong to whoever signs the build. The
+// published app is signed by the project's developer account; a person who
+// builds it under their own account sets theirs in Identity.xcconfig, which
+// is not committed (copy Identity.example.xcconfig). A simulator build needs
+// neither.
+
+MUJINPORTAL_BUNDLE_IDENTIFIER = com.ziyan.mujinportal
+
+// The keychain group the app and its notification extension share.
+MUJINPORTAL_KEYCHAIN_GROUP = $(MUJINPORTAL_BUNDLE_IDENTIFIER).shared
+
+// The app and its extensions carry the same version; CI sets the build
+// number of each upload to the workflow run number.
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+
+#include? "Identity.xcconfig"
