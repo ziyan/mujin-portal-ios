@@ -688,7 +688,7 @@ struct QuestionCardView: View {
             HStack(spacing: 12) {
                 if let onChatInstead {
                     Button(action: onChatInstead) {
-                        Text("Chat about it instead").frame(maxWidth: .infinity)
+                        Text("Chat instead").lineLimit(1).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                 }
