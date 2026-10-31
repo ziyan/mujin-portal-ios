@@ -116,3 +116,25 @@ func ackFrame() -> FeedFrame { .text(#"{"type":"connection_ack"}"#) }
 func eventFrame(_ payload: String) -> FeedFrame {
     .text(#"{"id":"1","type":"next","payload":{"data":{"OnConversationEvent":\#(payload)}}}"#)
 }
+
+/// A connection to a fake server that answers each GraphQL document with
+/// `{"data": ...}`. The closure gets the operation name and the variables.
+func scriptedConnection(
+    _ answer: @escaping @Sendable (_ operation: String, _ variables: [String: Any]) -> [String: Any]
+) -> (connection: Connection, transport: ScriptedTransport) {
+    let transport = ScriptedTransport { request in
+        let body = request.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+        let query = body["query"] as? String ?? ""
+        let words = query.split(whereSeparator: { " \n({".contains($0) })
+        let operation = words.count > 1 ? String(words[1]) : ""
+        let variables = body["variables"] as? [String: Any] ?? [:]
+        return (200, ScriptedTransport.json(["data": answer(operation, variables)]))
+    }
+    return (Connection(account: makeAccount(), transport: transport), transport)
+}
+
+/// The variables a request sent, read back.
+func sentVariables(_ request: URLRequest) -> [String: Any] {
+    let body = request.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    return body["variables"] as? [String: Any] ?? [:]
+}

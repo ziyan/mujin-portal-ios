@@ -10,7 +10,7 @@ struct RootView: View {
             if model.isDemo, let screen = ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"], screen.hasPrefix("share") {
                 DemoShare.view(ticket: screen == "share-ticket")
             } else if let account = model.activeAccount {
-                ConversationListView(account: account)
+                MainTabsView(account: account)
                     .id(account.accountKey)
             } else {
                 SignInView(isAddingAccount: false)

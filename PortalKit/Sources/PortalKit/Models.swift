@@ -6,6 +6,15 @@ public struct Me: Codable, Equatable, Sendable {
     public let email: String?
     public let name: String?
     public let organizationId: String?
+    public let permissions: [String]?
+
+    public init(id: String, email: String? = nil, name: String? = nil, organizationId: String? = nil, permissions: [String]? = nil) {
+        self.id = id
+        self.email = email
+        self.name = name
+        self.organizationId = organizationId
+        self.permissions = permissions
+    }
 }
 
 public struct Agent: Codable, Equatable, Sendable {

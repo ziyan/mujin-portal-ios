@@ -9,7 +9,6 @@ struct ConversationListView: View {
 
     @State private var model: ConversationListModel?
     @State private var selectedConversationId: String?
-    @State private var isShowingAccounts = false
 
     var body: some View {
         NavigationSplitView {
@@ -22,18 +21,6 @@ struct ConversationListView: View {
             }
             .navigationTitle("Conversations")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        isShowingAccounts = true
-                    } label: {
-                        Label("Accounts", systemImage: "person.crop.circle")
-                    }
-                    .accessibilityIdentifier("accountsButton")
-                    // A popover on the iPad, anchored to this button; a sheet on the iPhone.
-                    .popover(isPresented: $isShowingAccounts) {
-                        AccountsView()
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Task { await startConversation() }

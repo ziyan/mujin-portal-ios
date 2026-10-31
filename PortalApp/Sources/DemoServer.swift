@@ -159,7 +159,22 @@ struct DemoTransport: HTTPTransport {
         let conversationId = variables["conversationId"] as? String ?? ""
         switch operation {
         case "Me":
-            return ["Me": ["id": "user01", "email": "alex@example.test", "name": "Alex Example", "organizationId": "organization01"]]
+            return [
+                "Me": [
+                    "id": "user01", "email": "alex@example.test", "name": "Alex Example", "organizationId": "organization01",
+                    "permissions": ["ticket:read", "ticket:write", "site:read"],
+                ]
+            ]
+        case "GetOrganization":
+            return ["GetOrganization": ["id": "organization01", "name": DemoOptions.isStaff ? "Support" : "Example Logistics", "isMujin": DemoOptions.isStaff]]
+        case "ServerCapabilities":
+            return [
+                "__schema": [
+                    "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"]]],
+                    "mutationType": ["fields": [["name": "sendMessage"], ["name": "registerPushDevice"]]],
+                    "subscriptionType": ["fields": [["name": "onConversationEvent"]]],
+                ]
+            ]
         case "GetMainAgent":
             return ["GetMainAgent": ["id": "agent01", "name": "Assistant", "isMain": true]]
         case "ListConversations":

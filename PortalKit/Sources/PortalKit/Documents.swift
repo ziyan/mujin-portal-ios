@@ -9,7 +9,11 @@ public enum Documents {
         """
 
     public static let me = """
-        query Me { Me { id email name organizationId } }
+        query Me { Me { id email name organizationId permissions } }
+        """
+
+    public static let organization = """
+        query GetOrganization($organizationId: String) { GetOrganization(organizationId: $organizationId) { id name isMujin } }
         """
 
     public static let mainAgent = """
@@ -132,7 +136,7 @@ public enum Documents {
 
     /// Every document, for the schema check.
     public static let all: [String] = [
-        me, mainAgent, listConversations, getConversation, listMessages, listQuestions, listApprovals,
+        me, organization, mainAgent, listConversations, getConversation, listMessages, listQuestions, listApprovals,
         createConversation, sendMessage, cancelRun, answerQuestion, resolveToolApproval, archiveConversation,
         listSites, createTicket, onConversationEvent,
     ]

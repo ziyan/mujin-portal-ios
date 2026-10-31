@@ -7,6 +7,23 @@ extension Connection {
         return try await execute(Documents.me, as: Answer.self).Me
     }
 
+    /// The person with what decides their navigation. When the organization
+    /// cannot be read, the permissions decide.
+    public func profile() async throws -> Profile {
+        struct Answer: Decodable, Sendable {
+            struct Row: Decodable, Sendable {
+                let name: String?
+                let isMujin: Bool?
+            }
+            let GetOrganization: Row?
+        }
+        let me = try await me()
+        guard let organizationId = me.organizationId, !organizationId.isEmpty,
+            let answer = try? await execute(Documents.organization, variables: ["organizationId": .string(organizationId)], as: Answer.self)
+        else { return Profile(me: me) }
+        return Profile(me: me, organizationName: answer.GetOrganization?.name, isMujinOrganization: answer.GetOrganization?.isMujin)
+    }
+
     public func mainAgent() async throws -> Agent {
         struct Answer: Decodable, Sendable { let GetMainAgent: Agent }
         return try await execute(Documents.mainAgent, as: Answer.self).GetMainAgent
