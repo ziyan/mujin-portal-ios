@@ -49,7 +49,7 @@ struct AssistantSettingsView: View {
                             "Remember my conversations",
                             isOn: Binding(
                                 get: { memory.isFilingEnabledForUser == true },
-                                set: { value in change { memory = try await connection.setMemoryFiling(isEnabled: value) } }))
+                                set: { value in change { self.memory = try await connection.setMemoryFiling(isEnabled: value) } }))
                         if memory.isFilingEnabledForOrganization == false {
                             Text("Your organization has turned remembering off, so nothing is remembered whatever you choose here.")
                                 .font(.footnote).foregroundStyle(.secondary)
@@ -80,7 +80,7 @@ struct AssistantSettingsView: View {
                 "Let the assistant start a conversation",
                 isOn: Binding(
                     get: { setting.isEnabledForUser == true },
-                    set: { value in change { speakFirst = try await connection.setSpeakFirst(isEnabled: value) } }))
+                    set: { value in change { self.speakFirst = try await connection.setSpeakFirst(isEnabled: value) } }))
             if setting.isOrganizationOff {
                 Text("Your organization has turned this off, so the assistant never starts a conversation whatever you choose here.")
                     .font(.footnote).foregroundStyle(.secondary)
@@ -93,13 +93,13 @@ struct AssistantSettingsView: View {
                     TurnEndText.speakFirstSwitchTitle(reason),
                     isOn: Binding(
                         get: { setting.isReasonEnabled(reason) },
-                        set: { value in change { speakFirst = try await connection.setSpeakFirstReason(reason, isEnabled: value) } }))
+                        set: { value in change { self.speakFirst = try await connection.setSpeakFirstReason(reason, isEnabled: value) } }))
             }
             Toggle(
                 "Pause for 24 hours",
                 isOn: Binding(
                     get: { setting.isSnoozed },
-                    set: { value in change { speakFirst = try await connection.snoozeSpeakFirst(isSnoozed: value) } }))
+                    set: { value in change { self.speakFirst = try await connection.snoozeSpeakFirst(isSnoozed: value) } }))
         }
         .disabled(setting.isOrganizationOff)
     }
@@ -109,15 +109,15 @@ struct AssistantSettingsView: View {
         Section("Your organization") {
             Toggle(
                 "Goals",
-                isOn: Binding(get: { setting.areGoalsEnabled == true }, set: { value in change { background = try await connection.setBackgroundSetting(areGoalsEnabled: value) } }))
+                isOn: Binding(get: { setting.areGoalsEnabled == true }, set: { value in change { self.background = try await connection.setBackgroundSetting(areGoalsEnabled: value) } }))
             Toggle(
                 "Ideas the assistant finds",
                 isOn: Binding(
-                    get: { setting.areFoundIdeasEnabled == true }, set: { value in change { background = try await connection.setBackgroundSetting(areFoundIdeasEnabled: value) } }))
+                    get: { setting.areFoundIdeasEnabled == true }, set: { value in change { self.background = try await connection.setBackgroundSetting(areFoundIdeasEnabled: value) } }))
             Toggle(
                 "The assistant may start a conversation",
                 isOn: Binding(
-                    get: { setting.isSpeakFirstEnabled == true }, set: { value in change { background = try await connection.setBackgroundSetting(isSpeakFirstEnabled: value) } }))
+                    get: { setting.isSpeakFirstEnabled == true }, set: { value in change { self.background = try await connection.setBackgroundSetting(isSpeakFirstEnabled: value) } }))
         }
     }
 

@@ -176,6 +176,14 @@ jobs:
           shoot automations automations
           shoot automations-activity automations-activity
           shoot automations-work automations-work
+          shoot speaks-first conversation:conversation06
+          shoot goals goals
+          shoot goal goal
+          shoot ideas ideas
+          shoot knowledge knowledge
+          shoot memory-page memory-page
+          shoot dreams dreams
+          shoot assistant-settings assistant-settings
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot dark conversation:conversation02
           shoot share-dark share
@@ -187,6 +195,9 @@ jobs:
           shoot site-dark site
           shoot chat-dark chat:chatconv01
           shoot chats-dark chats
+          shoot speaks-first-dark conversation:conversation06
+          shoot goals-dark goals
+          shoot knowledge-dark memory-page
           shoot notifications-dark notifications
           shoot monitoring-staff-dark section:monitoring staff
           xcrun simctl ui "${DEVICE}" appearance light
@@ -198,6 +209,8 @@ jobs:
           shoot large-text-ticket ticket
           shoot large-text-site site
           shoot large-text-chat chat:chatconv01
+          shoot large-text-speaks-first conversation:conversation06
+          shoot large-text-goals goals
           shoot large-text-monitoring section:monitoring staff
 
       - name: Keep the screenshots
