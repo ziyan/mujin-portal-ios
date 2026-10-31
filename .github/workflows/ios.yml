@@ -158,6 +158,8 @@ jobs:
           shoot controller controller
           shoot notifications notifications
           shoot about about
+          shoot monitoring-staff section:monitoring staff
+          shoot customers-staff section:customers staff
           shoot automations automations
           shoot automations-activity automations-activity
           shoot automations-work automations-work
@@ -171,6 +173,7 @@ jobs:
           shoot tickets-dark tickets
           shoot site-dark site
           shoot notifications-dark notifications
+          shoot monitoring-staff-dark section:monitoring staff
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text conversation:conversation02
@@ -179,6 +182,7 @@ jobs:
           shoot large-text-tickets tickets
           shoot large-text-ticket ticket
           shoot large-text-site site
+          shoot large-text-monitoring section:monitoring staff
 
       - name: Keep the screenshots
         if: always()

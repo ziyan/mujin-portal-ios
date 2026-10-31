@@ -143,6 +143,28 @@ public enum TicketFilter {
     }
 }
 
+public enum TicketQueue {
+    static func priorityRank(_ priority: String?) -> Int {
+        switch priority {
+        case "urgent": 0
+        case "high": 1
+        case "normal": 2
+        default: 3
+        }
+    }
+
+    /// The tickets that need a person first: open ones, the most urgent
+    /// first, new ones before those already being worked, the longest waiting first.
+    public static func needingAttention(_ tickets: [Ticket], limit: Int) -> [Ticket] {
+        Array(
+            tickets.filter(\.isOpenForWork).sorted { first, second in
+                if priorityRank(first.priority) != priorityRank(second.priority) { return priorityRank(first.priority) < priorityRank(second.priority) }
+                if (first.status == "new") != (second.status == "new") { return first.status == "new" }
+                return (first.lastActivity ?? .distantFuture) < (second.lastActivity ?? .distantFuture)
+            }.prefix(limit))
+    }
+}
+
 /// BodyPart is a piece of a ticket's text: words, or a file the text holds.
 public enum BodyPart: Equatable, Sendable {
     case text(String)
@@ -251,7 +273,7 @@ extension Documents {
 }
 
 /// OrganizationSummary is an organization in a picker.
-public struct OrganizationSummary: Codable, Equatable, Identifiable, Sendable {
+public struct OrganizationSummary: Codable, Equatable, Hashable, Identifiable, Sendable {
     public let id: String
     public let name: String?
     public let isMujin: Bool?

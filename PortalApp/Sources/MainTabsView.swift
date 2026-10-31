@@ -104,23 +104,8 @@ private struct SectionContent: View {
         case .more: MoreView(account: account)
         case .tickets: TicketsView()
         case .site: SiteView()
-        case .monitoring, .customers: PlaceholderView(section: section)
-        }
-    }
-}
-
-/// PlaceholderView stands in for a part that is not built yet.
-private struct PlaceholderView: View {
-    let section: AppSection
-
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView {
-                Label(section.titleKey, systemImage: section.symbol)
-            } description: {
-                Text("This part is coming soon.")
-            }
-            .navigationTitle(section.titleKey)
+        case .monitoring: MonitoringView()
+        case .customers: CustomersView()
         }
     }
 }

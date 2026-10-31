@@ -34,6 +34,18 @@ import Testing
         #expect(counts[.open] == 2 && counts[.solved] == 1 && counts[.closed] == 1)
     }
 
+    @Test func theQueueShowsUrgentFirstThenNewThenTheLongestWaiting() {
+        let queue = [
+            Ticket(id: "a", status: "open", priority: "normal", modifiedAt: "2026-03-01T10:00:00Z"),
+            Ticket(id: "b", status: "new", priority: "normal", modifiedAt: "2026-03-03T10:00:00Z"),
+            Ticket(id: "c", status: "pending", priority: "urgent", modifiedAt: "2026-03-04T10:00:00Z"),
+            Ticket(id: "d", status: "open", priority: "normal", modifiedAt: "2026-02-01T10:00:00Z"),
+            Ticket(id: "e", status: "solved", priority: "urgent", modifiedAt: "2026-02-01T10:00:00Z"),
+        ]
+        #expect(TicketQueue.needingAttention(queue, limit: 10).map(\.id) == ["c", "b", "d", "a"])
+        #expect(TicketQueue.needingAttention(queue, limit: 2).map(\.id) == ["c", "b"])
+    }
+
     @Test func aTicketIsNamedWithItsNumber() {
         #expect(Self.tickets[0].displayName == "#1 Gripper drops boxes")
         #expect(Ticket(id: "x", title: "No number").displayName == "No number")

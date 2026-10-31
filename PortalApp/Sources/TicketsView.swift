@@ -99,7 +99,7 @@ struct TicketsView: View {
                 connection: appModel.connection(for: session.account), organizationId: organizationId,
                 onError: { [appModel, session] error in appModel.handle(error, account: session.account) })
             model = ticketsModel
-            if session.isStaff && organizationId == nil { scope = .everyone }
+            if session.isStaff { scope = .everyone }
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("tickets") {
                 if screen.hasSuffix("solved") { tab = .solved }
                 if screen.hasSuffix("everyone") { scope = .everyone }
