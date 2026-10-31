@@ -151,7 +151,7 @@ struct MonitoringView: View {
                     }
                 }
             } }
-.portalList()
+.portalRootList()
             .refreshable { await model.load() }
         }
     }

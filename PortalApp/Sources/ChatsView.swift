@@ -122,13 +122,27 @@ struct ChatsView: View {
                     ContentUnavailableView.search(text: model.searchText)
                 }
             } else {
-                List(model.chats, selection: $selectedConversationId) { conversation in
-                    NavigationLink(value: conversation.id) {
-                        if let room = conversation.chat { ChatRow(room: room) }
+                List(selection: $selectedConversationId) {
+                    let people = model.chats.filter { $0.chat?.isGroup != true }
+                    let groups = model.chats.filter { $0.chat?.isGroup == true }
+                    if !people.isEmpty {
+                        Section("People") {
+                            ForEach(people) { conversation in
+                                NavigationLink(value: conversation.id) { if let room = conversation.chat { ChatRow(room: room) } }
+                                    .listRowBackground(Color.portalCard)
+                            }
+                        }
                     }
-.listRowBackground(Color.portalCard)
-}
-.portalList()
+                    if !groups.isEmpty {
+                        Section("Groups") {
+                            ForEach(groups) { conversation in
+                                NavigationLink(value: conversation.id) { if let room = conversation.chat { ChatRow(room: room) } }
+                                    .listRowBackground(Color.portalCard)
+                            }
+                        }
+                    }
+                }
+.portalRootList()
                 .refreshable {
                     await model.load()
                     await session.refreshChatUnread()
@@ -144,10 +158,7 @@ private struct ChatRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: room.isGroup ? "person.3.fill" : "person.crop.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-                .frame(width: 44)
+            PersonAvatar(name: room.title, size: 44)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {

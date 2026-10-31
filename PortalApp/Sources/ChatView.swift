@@ -28,8 +28,7 @@ struct ChatView: View {
                 ProgressView()
             }
         }
-        .navigationTitle(model?.title ?? String(localized: "Chat"))
-        .navigationBarTitleDisplayMode(.inline)
+        .conversationBar(title: model?.title ?? String(localized: "Chat"))
         .toolbar {
             if let model, model.room != nil {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -109,9 +108,20 @@ struct ChatView: View {
                         }
                         .padding(.top, 48)
                     }
-                    ForEach(model.timeline.messages) { message in
+                    let messages = model.timeline.messages
+                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                        let previous = index > 0 ? messages[index - 1] : nil
+                        let isNewDay = DayLabel.isNewDay(previous?.date, message.date)
+                        if isNewDay, let date = message.date {
+                            Text(DayLabel.text(for: date))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 6)
+                        }
                         MessageRow(
                             message: message, model: model, isLastOwn: message.id == lastOwnMessageId(model),
+                            startsRun: isNewDay || previous == nil || previous?.authorUserId != message.authorUserId || previous?.isAssistant != message.isAssistant,
                             moreEmoji: { emojiTarget = ConversationView.EmojiTarget(id: $0) }, askDelete: { messageToDelete = $0 }
                         )
                         .id(message.id)
@@ -209,45 +219,25 @@ struct ChatView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 20)
                 }
-                GlassEffectContainer {
-                    // Large text puts the button under the field so the prompt can wrap.
-                    let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 8)) : AnyLayout(HStackLayout(alignment: .bottom, spacing: 8))
-                    layout {
-                        TextField(fieldPrompt(model), text: $draft, axis: .vertical)
-                            .lineLimit(1...6)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .frame(minHeight: 44)
-                            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                            .accessibilityIdentifier("chatMessageField")
-                            // With a hardware keyboard, Escape in an empty field takes the reply away.
-                            .onKeyPress(.escape, phases: .down) { _ in
-                                guard draft.isEmpty, model.replyTarget != nil else { return .ignored }
-                                model.replyTarget = nil
-                                return .handled
-                            }
-                            .onChange(of: draft) { _, text in
-                                if !text.isEmpty && model.editTarget == nil { model.noteTyping() }
-                            }
-                        Button {
-                            let text = draft
-                            draft = ""
-                            Task { if await !model.send(text) { draft = text } }
-                        } label: {
-                            Image(systemName: model.editTarget == nil ? "arrow.up" : "checkmark").frame(width: 28, height: 28)
-                        }
-                        .buttonStyle(.glassProminent)
-                        .buttonBorderShape(.circle)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .opacity(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1)
-                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        .accessibilityLabel(model.editTarget == nil ? Text("Send") : Text("Save edit"))
-                        .accessibilityIdentifier("chatSendButton")
+                ComposerCard(
+                    placeholder: fieldPrompt(model), text: $draft, isEnabled: model.canWrite,
+                    canSend: !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    sendSymbol: model.editTarget == nil ? "arrow.up" : "checkmark", sendLabel: model.editTarget == nil ? "Send" : "Save edit",
+                    fieldIdentifier: "chatMessageField", sendIdentifier: "chatSendButton",
+                    onEscape: {
+                        guard draft.isEmpty, model.replyTarget != nil else { return false }
+                        model.replyTarget = nil
+                        return true
+                    },
+                    onSend: {
+                        let text = draft
+                        draft = ""
+                        Task { if await !model.send(text) { draft = text } }
                     }
+                )
+                .onChange(of: draft) { _, text in
+                    if !text.isEmpty && model.editTarget == nil { model.noteTyping() }
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
-                .frame(maxWidth: ConversationView.readableWidth + 32)
             }
         }
         .frame(maxWidth: .infinity)
@@ -274,27 +264,27 @@ struct ChatView: View {
                         draft = Mentions.inserting(candidate, into: draft)
                         model.pick(candidate)
                     } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: candidate.kind == .agent ? "sparkles" : "person")
-                                .foregroundStyle(Color.portalSecondary)
-                                .frame(width: 22)
-                                .accessibilityHidden(true)
-                            Text(candidate.name).foregroundStyle(.primary)
-                            if let detail = candidate.detail, !detail.isEmpty {
-                                Text(detail).font(.footnote).foregroundStyle(.secondary)
+                        HStack(spacing: 10) {
+                            PersonAvatar(name: candidate.name, size: 32, isAssistant: candidate.kind == .agent)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(candidate.name).foregroundStyle(.primary)
+                                Text(candidate.detail ?? (candidate.kind == .agent ? String(localized: "Assistant") : String(localized: "Person")))
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
+                        .frame(minHeight: 52)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    if candidate.id != suggestions.last?.id { Divider() }
+                    if candidate.id != suggestions.last?.id { Divider().padding(.leading, 54) }
                 }
             }
-            .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
+            .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
             .padding(.horizontal, 12)
             .frame(maxWidth: ConversationView.readableWidth + 32)
         }
@@ -323,24 +313,32 @@ private struct MessageRow: View {
     let message: ChatMessage
     let model: ChatModel
     let isLastOwn: Bool
+    let startsRun: Bool
     let moreEmoji: (String) -> Void
     let askDelete: (ChatMessage) -> Void
 
     private var isMine: Bool { message.authorUserId == model.currentUserId && !message.isAssistant }
 
     var body: some View {
-        VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
-            if !isMine { authorLine }
-            if message.isReply { quote }
-            bubble
-            ReactionStrip(reactions: model.timeline.reactions(for: message.id), currentUserId: model.currentUserId) { emoji in
-                Task { await model.react(messageId: message.id, emoji: emoji) }
+        HStack(alignment: .top, spacing: 8) {
+            // Others have a small round picture at the start of each run of their messages.
+            if !isMine {
+                if startsRun {
+                    PersonAvatar(name: message.authorName ?? model.member(message.authorUserId)?.shownName ?? "", size: 28, isAssistant: message.isAssistant)
+                } else {
+                    Color.clear.frame(width: 28, height: 1)
+                }
             }
-            ForEach(model.previews[message.id] ?? []) { card in
-                LinkPreviewCardView(card: card, connection: model.connection)
-                    .frame(maxWidth: 320)
+            VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
+                if !isMine, startsRun { authorLine }
+                if message.isReply { quote }
+                bubble
+                ForEach(model.previews[message.id] ?? []) { card in
+                    LinkPreviewCardView(card: card, connection: model.connection)
+                        .frame(maxWidth: 320)
+                }
+                if isMine, isLastOwn { receipt }
             }
-            if isMine, isLastOwn { receipt }
         }
         .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
     }
@@ -398,16 +396,20 @@ private struct MessageRow: View {
                         .textSelection(.enabled)
                 }
                 if message.isEdited {
-                    Text("edited").font(.caption2).foregroundStyle(isMine ? AnyShapeStyle(Color.onAccent.opacity(0.8)) : AnyShapeStyle(.secondary))
+                    Text("edited").font(.caption2).foregroundStyle(AnyShapeStyle(.secondary))
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
-                isMine ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.portalCard),
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                isMine ? AnyShapeStyle(Color.accentColor.opacity(0.2)) : AnyShapeStyle(Color(.secondarySystemBackground)),
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
             )
-            .foregroundStyle(isMine ? AnyShapeStyle(Color.onAccent) : AnyShapeStyle(.primary))
+            .foregroundStyle(.primary)
+            // The reactions sit on the bubble's corner; a tap toggles the person's own.
+            .reactionCorner(model.timeline.reactions(for: message.id), currentUserId: model.currentUserId, isLeading: isMine) { emoji in
+                Task { await model.react(messageId: message.id, emoji: emoji) }
+            }
             .contextMenu { menu }
             .accessibilityAction(named: Text("Reply")) { model.replyTarget = message }
         }
@@ -450,11 +452,16 @@ private struct MessageRow: View {
     private var receipt: some View {
         let count = model.timeline.readerCount(of: message.id, excluding: model.currentUserId)
         if count > 0 {
-            if model.room?.isGroup == true {
-                Label("Seen by \(count)", systemImage: "checkmark").font(.caption2).foregroundStyle(.secondary)
-            } else {
-                Label("Seen", systemImage: "checkmark").font(.caption2).foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                if model.room?.isGroup != true { PersonAvatar(name: model.title, size: 16) }
+                if model.room?.isGroup == true {
+                    Text("Seen by \(count)")
+                } else {
+                    Text("Seen")
+                }
             }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
     }
 }

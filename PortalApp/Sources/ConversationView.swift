@@ -33,8 +33,7 @@ struct ConversationView: View {
                 ProgressView()
             }
         }
-        .navigationTitle(shownTitle)
-        .navigationBarTitleDisplayMode(.inline)
+        .conversationBar(title: shownTitle)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -249,12 +248,13 @@ private struct TranscriptRow: View {
                 }
                 HStack {
                     Spacer(minLength: 48)
+                    // The person's side in the accent's tint with primary text, as in Messages.
                     Text(text)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .foregroundStyle(Color.onAccent)
+                        .background(Color.accentColor.opacity(0.2), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .textSelection(.enabled)
+                        .reactionCorner(model.transcript.reactions(for: id), currentUserId: model.currentUserId, isLeading: false, onTap: nil)
                         .contextMenu {
                             if !id.hasPrefix("pending:") {
                                 Button {
@@ -268,19 +268,19 @@ private struct TranscriptRow: View {
                 if let viewing {
                     ViewingChip(viewing: viewing)
                 }
-                // The assistant's first reaction to a typed message lands here. It is shown, not tapped.
-                ReactionStrip(reactions: model.transcript.reactions(for: id), currentUserId: model.currentUserId, onTap: nil)
             }
             .frame(maxWidth: Self.bubbleWidth, alignment: .trailing)
             .frame(maxWidth: .infinity, alignment: .trailing)
         case .assistant(let id, let text, let isStreaming):
-            VStack(alignment: .leading, spacing: 6) {
+            HStack {
                 MarkdownView(markdown: text)
-                if !isStreaming {
-                    ReactionStrip(reactions: model.transcript.reactions(for: id), currentUserId: model.currentUserId) { emoji in
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .reactionCorner(isStreaming ? [] : model.transcript.reactions(for: id), currentUserId: model.currentUserId, isLeading: false) { emoji in
                         Task { await model.react(messageId: id, emoji: emoji) }
                     }
-                }
+                Spacer(minLength: 24)
             }
             .frame(maxWidth: Self.bubbleWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -452,7 +452,7 @@ private struct ToolGroupRow: View {
                         .accessibilityHidden(true)
                 }
                 Text("What it did")
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                 if tools.count > 1 {
                     Text("\(tools.count)")
@@ -462,8 +462,7 @@ private struct ToolGroupRow: View {
             }
         }
         .tint(Color.portalSecondary)
-        .padding(10)
-        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.vertical, 2)
     }
 }
 
@@ -642,6 +641,7 @@ struct QuestionCardView: View {
     let card: QuestionCard
     let onAnswer: (String) -> Void
     let onChatInstead: (() -> Void)?
+    @State private var chosen: String?
     @State private var otherAnswer = ""
 
     var body: some View {
@@ -651,45 +651,64 @@ struct QuestionCardView: View {
                 .foregroundStyle(.secondary)
             Text(card.question)
                 .font(.body)
-            ForEach(card.choices, id: \.self) { choice in
+            // The answers are rows with a radio, not buttons of their own.
+            if !card.choices.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(card.choices, id: \.self) { choice in
+                        Button {
+                            chosen = choice
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: chosen == choice ? "largecircle.fill.circle" : "circle")
+                                    .foregroundStyle(chosen == choice ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                                Text(choice).foregroundStyle(.primary).frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(chosen == choice ? .isSelected : [])
+                        if choice != card.choices.last { Divider() }
+                    }
+                }
+            }
+            if onChatInstead != nil {
+                if card.allowOther || card.choices.isEmpty {
+                    Text("Or type your answer below.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else if card.allowOther || card.choices.isEmpty {
+                // Where the box below is for talking to people, the answer is typed here.
+                TextField("Your answer", text: $otherAnswer)
+                    .textFieldStyle(.roundedBorder)
+                    .submitLabel(.send)
+                    .onSubmit { if !trimmedOther.isEmpty { onAnswer(trimmedOther) } }
+            }
+            HStack(spacing: 12) {
+                if let onChatInstead {
+                    Button(action: onChatInstead) {
+                        Text("Chat about it instead").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
                 Button {
-                    onAnswer(choice)
+                    if let chosen { onAnswer(chosen) } else if !trimmedOther.isEmpty { onAnswer(trimmedOther) }
                 } label: {
-                    Text(choice).frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Answer").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
+                .disabled(chosen == nil && trimmedOther.isEmpty)
             }
-            if card.allowOther || card.choices.isEmpty {
-                HStack {
-                    TextField("Your answer", text: $otherAnswer)
-                        .textFieldStyle(.roundedBorder)
-                        .submitLabel(.send)
-                        .onSubmit(submitOther)
-                    Button("Send", action: submitOther)
-                        .buttonStyle(.borderedProminent)
-                        .disabled(otherAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-            if let onChatInstead {
-                Button(action: onChatInstead) {
-                    Label("Chat about it instead", systemImage: "bubble.left")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-            }
+            .controlSize(.large)
         }
         .padding(14)
-        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5))
         .accessibilityElement(children: .contain)
     }
 
-    private func submitOther() {
-        let answer = otherAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !answer.isEmpty else { return }
-        onAnswer(answer)
-    }
+    private var trimmedOther: String { otherAnswer.trimmingCharacters(in: .whitespacesAndNewlines) }
 }
 
 struct ApprovalCardView: View {
@@ -725,22 +744,24 @@ struct ApprovalCardView: View {
             }
             HStack(spacing: 12) {
                 Button {
-                    onDecide(false)
-                } label: {
-                    Text("Reject").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                Button {
                     onDecide(true)
                 } label: {
-                    Text("Approve").frame(maxWidth: .infinity)
+                    Text("Do it").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                Button {
+                    onDecide(false)
+                } label: {
+                    Text("Don\u{2019}t").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.secondary)
             }
             .controlSize(.large)
         }
         .padding(14)
-        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color(.separator).opacity(0.5), lineWidth: 0.5))
         .accessibilityElement(children: .contain)
     }
 }
@@ -750,8 +771,6 @@ private struct ComposerBar: View {
     let voice: VoiceCallController?
     let drafts: AttachmentDrafts
     @Binding var draft: String
-    @FocusState private var isFocused: Bool
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var isDraftEmpty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var canSend: Bool { !isDraftEmpty || !drafts.items.isEmpty }
@@ -791,92 +810,22 @@ private struct ComposerBar: View {
                     .padding(.horizontal, 20)
             }
             AttachmentStrip(drafts: drafts)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 16)
             if let attachError = drafts.errorText {
                 Text(attachError).font(.footnote).foregroundStyle(Color.statusError).padding(.horizontal, 20)
             }
-            GlassEffectContainer {
-                let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 8)) : AnyLayout(HStackLayout(alignment: .bottom, spacing: 8))
-                layout {
-                    if !dynamicTypeSize.isAccessibilitySize { attachButton }
-                    TextField(model.activeQuestion == nil ? LocalizedStringKey("Message") : LocalizedStringKey("Your answer"), text: $draft, axis: .vertical)
-                        .lineLimit(1...6)
-                        .focused($isFocused)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .frame(minHeight: 44)
-                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .accessibilityIdentifier("messageField")
-                        // With a hardware keyboard, Escape in an empty field takes the reply away.
-                        .onKeyPress(.escape, phases: .down) { _ in
-                            guard draft.isEmpty, model.replyTarget != nil else { return .ignored }
-                            model.replyTarget = nil
-                            return .handled
-                        }
-                        // With a hardware keyboard, Return sends and Shift+Return
-                        // adds a line. The on-screen keyboard is not affected.
-                        .onKeyPress(.return, phases: .down) { press in
-                            if press.modifiers.contains(.shift) { return .ignored }
-                            guard canSend else { return .handled }
-                            send()
-                            return .handled
-                        }
-                    // Large text puts the buttons on a row of their own under the field.
-                    HStack(spacing: 8) {
-                        if dynamicTypeSize.isAccessibilitySize { attachButton }
-                        // Stop and Send are both there while a turn runs: a message sent
-                        // meanwhile steers the turn.
-                        if model.isRunning {
-                            Button {
-                                Task { await model.cancelRun() }
-                            } label: {
-                                Image(systemName: "stop.fill").frame(width: 28, height: 28)
-                            }
-                            .buttonStyle(.glass)
-                            .buttonBorderShape(.circle)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .accessibilityLabel("Stop")
-                        }
-                        if !canSend, let voice, !voice.isActive {
-                            Button {
-                                Task { await voice.start() }
-                            } label: {
-                                Image(systemName: "waveform").frame(width: 28, height: 28)
-                            }
-                            .buttonStyle(.glass)
-                            .buttonBorderShape(.circle)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .accessibilityLabel("Talk to the assistant")
-                            .accessibilityIdentifier("voiceButton")
-                        }
-                        // Accent when there is something to send; plainly dimmed when there is not.
-                        Button {
-                            send()
-                        } label: {
-                            Image(systemName: "arrow.up").frame(width: 28, height: 28)
-                        }
-                        .buttonStyle(.glassProminent)
-                        .buttonBorderShape(.circle)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .disabled(!canSend)
-                        .opacity(canSend ? 1 : 0.4)
-                        .accessibilityLabel("Send")
-                        .accessibilityIdentifier("sendButton")
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
-            .frame(maxWidth: ConversationView.readableWidth + 32)
+            ComposerCard(
+                placeholder: model.activeQuestion == nil ? LocalizedStringKey("Message") : LocalizedStringKey("Your answer"), text: $draft, drafts: drafts,
+                canSend: canSend, onVoice: voice.map { voice in { Task { await voice.start() } } },
+                onStop: model.isRunning ? { Task { await model.cancelRun() } } : nil,
+                onEscape: {
+                    guard draft.isEmpty, model.replyTarget != nil else { return false }
+                    model.replyTarget = nil
+                    return true
+                }, onSend: send)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 6)
-    }
-
-    private var attachButton: some View {
-        AttachMenu(drafts: drafts, systemImage: "plus")
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
     }
 
     private func send() {

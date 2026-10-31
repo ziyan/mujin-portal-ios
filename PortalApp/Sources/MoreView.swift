@@ -86,10 +86,10 @@ struct MoreView: View {
                             .foregroundStyle(.primary)
                     }
                     Toggle(
-                        "Show tool details",
                         isOn: Binding(
                             get: { AssistantDisplay.showsToolDetails(setting: toolDetailsSetting, persona: session.persona) },
-                            set: { toolDetailsSetting = $0 ? "1" : "0" }))
+                            set: { toolDetailsSetting = $0 ? "1" : "0" })
+                    ) { Label("Show tool details", systemImage: "wrench.and.screwdriver").foregroundStyle(.primary) }
                 }
                 Section {
                     NavigationLink(value: MoreDestination.about) {
@@ -109,9 +109,11 @@ struct MoreView: View {
                     }
                 }
             } }
-.portalList()
+.portalRootList()
             .navigationTitle("More")
             .navigationDestination(for: MoreDestination.self) { destination in
+                // A screen pushed from More has no use for the tab bar.
+                Group {
                 switch destination {
                 case .automations: AutomationsView()
                 case .notificationSettings: NotificationPreferencesView()
@@ -124,6 +126,8 @@ struct MoreView: View {
                 case .dreams: DreamsView()
                 case .assistantSettings: AssistantSettingsView()
                 }
+                }
+                .toolbarVisibility(.hidden, for: .tabBar)
             }
             .sheet(isPresented: $isShowingAccounts) {
                 AccountsView()

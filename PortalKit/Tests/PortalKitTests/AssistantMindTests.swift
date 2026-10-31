@@ -61,7 +61,8 @@ import Testing
     @Test func aCitationBecomesALinkAndCodeIsLeftAlone() {
         let text = "You prefer short answers [[user/preferences#3]].\n```\n[[not/a#1]]\n```\nAnd `[[nor/this#2]]` stays."
         let linked = MemoryCitation.linking(text)
-        #expect(linked.contains("[user/preferences#3](portal-memory:user/preferences#3)"))
+        #expect(linked.contains("[Preferences](portal-memory:user/preferences#3)"))
+        #expect(!linked.contains("[user/preferences#3]"))
         #expect(linked.contains("[[not/a#1]]"))
         #expect(linked.contains("`[[nor/this#2]]`"))
     }
@@ -71,6 +72,8 @@ import Testing
         #expect(citation.path == "site/dock-3/doors")
         #expect(citation.number == 12)
         #expect(citation.label == "site/dock-3/doors#12")
+        #expect(citation.displayName == "Doors")
+        #expect(MemoryCitation(path: "user/dock-door_notes", number: 1).displayName == "Dock door notes")
         #expect(MemoryCitation(url: URL(string: "https://example.test/a#1")!) == nil)
     }
 

@@ -122,6 +122,7 @@ struct TicketDetailView: View {
             }
         }
         .attachmentPickers(drafts)
+        .toolbarVisibility(.hidden, for: .tabBar)
         .task(id: ticketId) {
             let detailModel = TicketDetailModel(
                 ticketId: ticketId, connection: appModel.connection(for: session.account),
@@ -236,39 +237,35 @@ struct TicketDetailView: View {
             }
             AttachmentStrip(drafts: drafts)
                 .padding(.horizontal, 20)
-            GlassEffectContainer {
-                HStack(alignment: .bottom, spacing: 8) {
-                    AttachMenu(drafts: drafts)
-                        .labelStyle(.iconOnly)
-                        .padding(10)
-                        .glassEffect(.regular.interactive(), in: Circle())
-                    TextField(isInternal ? LocalizedStringKey("Internal note") : LocalizedStringKey("Reply"), text: $draft, axis: .vertical)
-                        .lineLimit(1...6)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .accessibilityIdentifier("replyField")
-                    Button {
-                        let text = draft
-                        Task {
-                            if await model.comment(text: text, drafts: drafts, isInternal: isInternal) { draft = "" }
-                        }
-                    } label: {
-                        Image(systemName: "arrow.up")
-                            .frame(width: 24, height: 24)
+            ComposerCard(
+                placeholder: isInternal ? LocalizedStringKey("Internal note") : LocalizedStringKey("Reply"), text: $draft, drafts: drafts,
+                canSend: !model.isSending && !(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && drafts.items.isEmpty),
+                isSending: model.isSending, fieldIdentifier: "replyField",
+                onSend: {
+                    let text = draft
+                    Task {
+                        if await model.comment(text: text, drafts: drafts, isInternal: isInternal) { draft = "" }
                     }
-                    .buttonStyle(.glassProminent)
-                    .buttonBorderShape(.circle)
-                    .disabled(model.isSending || (draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && drafts.items.isEmpty))
-                    .accessibilityLabel("Send")
-                }
-            }
-            .padding(.horizontal, 12)
-            if session.isStaff {
-                Toggle("Internal note", isOn: $isInternal)
-                    .font(.footnote)
-                    .padding(.horizontal, 20)
-            }
+                },
+                accessory: {
+                    // Staff choose here whether a reply is an internal note: a lock chip in the card, not a row of its own.
+                    if session.isStaff {
+                        Button {
+                            isInternal.toggle()
+                        } label: {
+                            Label("Internal note", systemImage: isInternal ? "lock.fill" : "lock.open")
+                                .labelStyle(.iconOnly)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(isInternal ? Color.onAccent : Color.secondary)
+                                .frame(width: 36, height: 36)
+                                .background(isInternal ? AnyShapeStyle(Color.statusWarning) : AnyShapeStyle(Color(.tertiarySystemFill)), in: .circle)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(.rect)
+                        }
+                        .accessibilityLabel("Internal note")
+                        .accessibilityValue(isInternal ? Text("On") : Text("Off"))
+                    }
+                })
         }
         .padding(.top, 6)
         .padding(.bottom, 8)

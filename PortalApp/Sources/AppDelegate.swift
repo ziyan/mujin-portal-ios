@@ -9,6 +9,14 @@ import UserNotifications
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     private var shareBackend: LiveShareBackend?
 
+    /// Set while a controller's screen is open: the phone may turn to landscape there and nowhere else.
+    nonisolated(unsafe) static var allowsLandscape = false
+
+    nonisolated func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        if UIDevice.current.userInterfaceIdiom == .pad || Self.allowsLandscape { return .allButUpsideDown }
+        return .portrait
+    }
+
     private var isDemo: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {

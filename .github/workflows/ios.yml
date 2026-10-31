@@ -169,6 +169,7 @@ jobs:
           shoot site site
           shoot incident incident
           shoot controller controller
+          shoot controller-screen controller-screen
           shoot notifications notifications
           shoot about about
           shoot monitoring-staff section:monitoring staff

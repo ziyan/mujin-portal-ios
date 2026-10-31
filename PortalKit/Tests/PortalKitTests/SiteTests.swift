@@ -58,10 +58,11 @@ import Testing
         #expect(SiteData.incidents(all, siteId: nil).map(\.id) == ["i3", "i2", "i1"])
     }
 
-    @Test func aControllerIsServedUnderTheServersHost() throws {
+    @Test func theAddressesTheAppBuildsAreTheOnesTheAppOpensAsControllers() throws {
         let server = try ServerAddress("https://portal.example.test")
-        #expect(ControllerSummary(id: "controller01").webURL(server: server)?.absoluteString == "https://controller01.portal.example.test/")
-        #expect(LinkClassifier.classify(ControllerSummary(id: "controller01").webURL(server: server)!, server: server) == .controller)
+        for url in [ControllerLinks.liveURL(controllerId: "controller01", server: server)!, ControllerLinks.cloudURL(controllerId: "controller01", server: server)!] {
+            #expect(LinkClassifier.classify(url, server: server) == .controller)
+        }
     }
 
     @Test func sitesCanBeLimitedToAnOrganization() async throws {

@@ -109,6 +109,34 @@ final class AppModel {
         session.open(target: url, handoff: handoff)
     }
 
+    /// A browser of its own for a controller's screen, in the account's data store
+    /// (so it holds the same cookie) and signed in through a handoff address.
+    func makeScreenSession(for account: Account, url: URL) -> WebSession {
+        let session = WebSession(accountKey: account.accountKey, dataStoreId: isDemo ? nil : account.webDataStoreId)
+        session.portalHost = account.server.url.host?.lowercased()
+        session.renewHandoff = { [weak self] target in
+            guard let self, let current = self.ring.accounts.first(where: { $0.accountKey == account.accountKey }) else { return nil }
+            return await self.connection(for: current).webSessionHandoff(to: target)
+        }
+        if isDemo {
+            session.loadHTML(
+                """
+                <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>
+                body { margin: 0; background: #101418; color: #d7dee6; font-family: -apple-system, sans-serif; }
+                .bar { background: #1d3c8a; padding: 10px 14px; font-size: 13px; }
+                .win { margin: 24px; border: 1px solid #2c3540; border-radius: 8px; padding: 16px; background: #181e25; }
+                </style></head><body><div class="bar">controller01 (stub screen for the demo)</div>
+                <div class="win"><b>Planner</b><br>Running</div><div class="win"><b>Robot bridge</b><br>Connected</div></body></html>
+                """)
+        } else {
+            Task {
+                let handoff = await connection(for: account).webSessionHandoff(to: url)
+                session.open(target: url, handoff: handoff)
+            }
+        }
+        return session
+    }
+
     func webSession(for account: Account) -> WebSession {
         if let existing = webSessions[account.accountKey] { return existing }
         let session = WebSession(accountKey: account.accountKey, dataStoreId: isDemo ? nil : account.webDataStoreId)

@@ -126,7 +126,7 @@ struct SiteView: View {
             await siteModel.loadSites()
             if appModel.isDemo {
                 if DemoOptions.screen == "incident", let incident = siteModel.incidents.first { path.append(incident) }
-                if DemoOptions.screen == "controller", let controller = siteModel.controllers.first { path.append(controller) }
+                if DemoOptions.screen == "controller" || DemoOptions.screen == "controller-screen", let controller = siteModel.controllers.first { path.append(controller) }
             }
         }
         .task(id: model?.selectedSiteId) {
@@ -161,7 +161,7 @@ struct SiteView: View {
                     controllerSection(model)
                     incidentSection(model)
                 } }
-.portalList()
+.portalRootList()
                 .refreshable { await model.loadDetails() }
             }
         }
@@ -223,7 +223,7 @@ struct SiteView: View {
             ForEach(model.robots.robots.filter { $0.hasError || !$0.isOnline }) { robot in
                 VStack(alignment: .leading, spacing: 2) {
                     Label {
-                        Text(robot.name).font(.body.monospaced())
+                        Text(robot.name)
                     } icon: {
                         Image(systemName: robot.hasError ? "exclamationmark.triangle.fill" : "wifi.slash")
                             .foregroundStyle(robot.hasError ? Color.statusError : Color.secondary)
@@ -252,7 +252,7 @@ struct SiteView: View {
                             Text(controller.comment?.isEmpty == false ? controller.comment! : controller.id)
                                 .foregroundStyle(.primary)
                             if let version = controller.version {
-                                Text(version).font(.footnote.monospaced()).foregroundStyle(.secondary)
+                                Text(version).font(.footnote).foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -292,13 +292,19 @@ struct SiteView: View {
 }
 
 /// ControllerDetailView is one controller: whether it is online, its
-/// version, and a way into its own web UI in the built-in browser.
+/// version, and the ways into it: its live and cloud web UIs in the built-in
+/// browser, and its screen. An entry that cannot be opened says why.
 struct ControllerDetailView: View {
+    @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
     @Environment(\.openURL) private var openURL
     let controller: ControllerSummary
 
+    @State private var syncedUsers: SyncedUserCount?
+    @State private var screenSession: WebSession?
+
     var body: some View {
+        let server = session.account.server
         List { PortalRows {
             Section {
                 LabeledContent("Status") {
@@ -306,24 +312,21 @@ struct ControllerDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 if let version = controller.version {
-                    LabeledContent("Version") { Text(version).font(.body.monospaced()) }
+                    LabeledContent("Version") { Text(version) }
                 }
                 if let region = controller.region, !region.isEmpty {
                     LabeledContent("Region") { Text(region) }
                 }
             }
-            if let url = controller.webURL(server: session.account.server) {
-                Section {
-                    Button {
-                        openURL(url)
-                    } label: {
-                        Label("Open the controller's web UI", systemImage: "safari")
-                            .foregroundStyle(.tint)
-                    }
+            Section {
+                entry(controller.liveEntry(server: server), title: "Open the live web UI", systemImage: "safari") { openURL($0) }
+                entry(controller.cloudEntry(server: server, syncedUsers: syncedUsers), title: "Open the cloud web UI", systemImage: "cloud") { openURL($0) }
+                entry(controller.screenEntry(server: server), title: "Screen", systemImage: "display") { url in
+                    screenSession = appModel.makeScreenSession(for: session.account, url: url)
                 }
             }
         } }
-.portalList()
+        .portalList()
         .navigationTitle(controller.comment?.isEmpty == false ? controller.comment! : controller.id)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -332,6 +335,97 @@ struct ControllerDetailView: View {
                     .labelStyle(.iconOnly)
             }
         }
+        .fullScreenCover(item: $screenSession) { screen in
+            ControllerScreenView(session: screen, name: controller.comment ?? controller.id)
+        }
+        .task {
+            syncedUsers = try? await appModel.connection(for: session.account).syncedUserCount(controllerId: controller.id)
+            if appModel.isDemo, DemoOptions.screen == "controller-screen" {
+                try? await Task.sleep(nanoseconds: 800_000_000)
+                screenSession = appModel.makeScreenSession(for: session.account, url: ControllerLinks.screenURL(controllerId: controller.id, server: session.account.server)!)
+            }
+        }
+    }
+
+    /// A row that opens, or says why it cannot.
+    @ViewBuilder
+    private func entry(_ entry: ControllerEntry, title: LocalizedStringKey, systemImage: String, open: @escaping (URL) -> Void) -> some View {
+        switch entry {
+        case .open(let url):
+            Button { open(url) } label: { Label(title, systemImage: systemImage).foregroundStyle(.tint) }
+        case .blocked(let reason):
+            VStack(alignment: .leading, spacing: 2) {
+                Label(title, systemImage: systemImage).foregroundStyle(.secondary)
+                Text(Self.hint(for: reason)).font(.footnote).foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+        case .hidden:
+            EmptyView()
+        }
+    }
+
+    private static func hint(for reason: ControllerBlock) -> LocalizedStringKey {
+        switch reason {
+        case .offline: "The controller is offline."
+        case .noConnectPermission: "Opening the controller needs the controller:connect permission."
+        case .noWritePermission: "Viewing the screen needs the controller:write permission."
+        case .noSyncedUsers: "Cloud needs at least one user synced to Portal."
+        case .syncedUsersUnavailable: "The synced users could not be counted."
+        }
+    }
+}
+
+/// ControllerScreenView is the controller's screen, edge to edge: Portal's
+/// screen page in a web view signed in by the handoff, with a close button
+/// and the connection's state. The screen stays awake while it is open and
+/// the page does not bounce, so a drag is a drag on the controller.
+struct ControllerScreenView: View {
+    @Environment(\.dismiss) private var dismiss
+    let session: WebSession
+    let name: String
+
+    var body: some View {
+        WebViewHost(webView: session.webView)
+            .ignoresSafeArea()
+            .background(Color.black)
+            .overlay(alignment: .topLeading) {
+                HStack(spacing: 8) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: .circle)
+                    .accessibilityLabel("Close")
+                    HStack(spacing: 6) {
+                        if session.isLoading { ProgressView().controlSize(.small) } else { Image(systemName: "dot.radiowaves.left.and.right").accessibilityHidden(true) }
+                        Text(session.isLoading ? LocalizedStringKey("Connecting\u{2026}") : LocalizedStringKey("Connected"))
+                            .font(.footnote.weight(.semibold))
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: 32)
+                    .glassEffect(.regular, in: .capsule)
+                    .accessibilityElement(children: .combine)
+                }
+                .padding(.leading, 12)
+                .padding(.top, 8)
+            }
+            .statusBarHidden()
+            .persistentSystemOverlays(.hidden)
+            .toolbarVisibility(.hidden, for: .tabBar)
+            .onAppear {
+                UIApplication.shared.isIdleTimerDisabled = true
+                AppDelegate.allowsLandscape = true
+                session.webView.scrollView.bounces = false
+                session.webView.scrollView.alwaysBounceVertical = false
+                session.webView.scrollView.alwaysBounceHorizontal = false
+            }
+            .onDisappear {
+                UIApplication.shared.isIdleTimerDisabled = false
+                AppDelegate.allowsLandscape = false
+                session.webView.stopLoading()
+            }
     }
 }
 

@@ -142,7 +142,12 @@ struct AttachMenu: View {
         } label: {
             Label("Attach", systemImage: systemImage)
                 .labelStyle(.iconOnly)
+                .font(.body.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 36, height: 36)
+                .background(Color(.tertiarySystemFill), in: .circle)
                 .frame(minWidth: 44, minHeight: 44)
+                .contentShape(.rect)
         }
         .accessibilityIdentifier("attachMenu")
     }

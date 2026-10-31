@@ -413,11 +413,13 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListControllers": [
                     "controllers": [
-                        ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
-                        ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
+                        ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write"], "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
+                        ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
                     ], "meta": ["totalCount": 2],
                 ]
             ]
+        case "ListControllerSyncedUserCounts":
+            return ["ListControllerSyncedUserCounts": [["controllerId": "controller01", "count": 3, "isAvailable": true], ["controllerId": "controller02", "count": 0, "isAvailable": true]]]
         case "ListIncidents":
             let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
             return [

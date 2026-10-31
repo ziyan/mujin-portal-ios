@@ -169,13 +169,18 @@ private struct IdeaCard: View {
                     }
                 }
             }
-            HStack(spacing: 10) {
-                Button("Talk it through", action: onTalk).buttonStyle(.borderedProminent)
-                Button("Make it a goal", action: onGoal).buttonStyle(.bordered)
-                Spacer(minLength: 0)
-                Button("Not interested", role: .destructive, action: onDismiss).buttonStyle(.plain).font(.footnote)
+            // Full-width capsules on their own lines, so no label ever wraps; the one prominent button is first.
+            VStack(spacing: 8) {
+                Button(action: onTalk) { Text("Talk it through").frame(maxWidth: .infinity) }
+                    .buttonStyle(.borderedProminent)
+                Button(action: onGoal) { Text("Make it a goal").frame(maxWidth: .infinity) }
+                    .buttonStyle(.bordered)
+                Button(action: onDismiss) { Text("Not interested").frame(maxWidth: .infinity) }
+                    .buttonStyle(.bordered)
+                    .tint(.secondary)
             }
-            .controlSize(.small)
+            .controlSize(.large)
+            .buttonBorderShape(.capsule)
             .disabled(isBusy)
         }
         .padding(.vertical, 4)

@@ -157,7 +157,7 @@ struct TicketsView: View {
                     }
 .listRowBackground(Color.portalCard)
 }
-.portalList()
+.portalRootList()
                 .refreshable { await model.load() }
             }
         }

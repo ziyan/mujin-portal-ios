@@ -337,10 +337,7 @@ private struct FactRow: View {
                 if fact.isInferred == true {
                     Text("Inferred")
                         .font(.caption2.weight(.semibold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1)
-                        .background(Color.statusWarning.opacity(0.2), in: Capsule())
-                        .foregroundStyle(Color.statusWarning)
+                        .foregroundStyle(.secondary)
                 }
             }
             if let quote = fact.evidence?.first?.quote, !quote.isEmpty {
@@ -348,7 +345,6 @@ private struct FactRow: View {
             }
         }
         .padding(.vertical, 2)
-        .listRowBackground(isPointedAt ? Color.accentColor.opacity(0.15) : Color.portalCard)
     }
 }
 

@@ -273,12 +273,14 @@ struct NotificationPreferencesView: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(NotificationPreferences.kinds, id: \.self) { kind in
-                Section(Self.title(kind)) {
-                    Toggle("Push", isOn: binding(kind: kind, channel: "push"))
+                Section {
+                    Toggle(isOn: binding(kind: kind, channel: "push")) { Label("Push", systemImage: "iphone.gen3.radiowaves.left.and.right").foregroundStyle(.primary) }
                     // The assistant's notifications and chat messages have no email.
                     if !kind.hasPrefix("agent_") && kind != "chat_message" {
-                        Toggle("Email", isOn: binding(kind: kind, channel: "email"))
+                        Toggle(isOn: binding(kind: kind, channel: "email")) { Label("Email", systemImage: "envelope").foregroundStyle(.primary) }
                     }
+                } header: {
+                    Label(Self.title(kind), systemImage: Self.symbol(kind))
                 }
             }
             if let errorText {
@@ -315,6 +317,24 @@ struct NotificationPreferencesView: View {
                     }
                 }
             })
+    }
+
+    static func symbol(_ kind: String) -> String {
+        switch kind {
+        case "ticket_comment": "text.bubble"
+        case "ticket_assigned": "person.badge.plus"
+        case "ticket_mentioned": "at"
+        case "ticket_lifecycle", "ticket_activity": "tray.full"
+        case "incident": "exclamationmark.triangle"
+        case "alarm": "bell.badge"
+        case "budget_alert": "creditcard"
+        case "agent_job_failed": "clock.badge.exclamationmark"
+        case "chat_message": "bubble.left.and.bubble.right"
+        case "agent_message": "sparkles"
+        case "agent_waiting": "questionmark.bubble"
+        case "agent_goal_needs_you": "scope"
+        default: "bell"
+        }
     }
 
     static func title(_ kind: String) -> LocalizedStringKey {

@@ -58,8 +58,14 @@ public struct ControllerSummary: Codable, Equatable, Hashable, Identifiable, Sen
     public let region: String?
     public let connection: Connection?
     public let hypervisorState: State?
+    /// What the viewer may do at this controller's site, such as `controller:connect` and `controller:write`.
+    public let viewerCapabilities: [String]?
 
-    public init(id: String, comment: String? = nil, siteId: String? = nil, organizationId: String? = nil, region: String? = nil, connection: Connection? = nil, hypervisorState: State? = nil) {
+    public init(
+        id: String, comment: String? = nil, siteId: String? = nil, organizationId: String? = nil, region: String? = nil, connection: Connection? = nil,
+        hypervisorState: State? = nil, viewerCapabilities: [String]? = nil
+    ) {
+        self.viewerCapabilities = viewerCapabilities
         self.id = id
         self.comment = comment
         self.siteId = siteId
@@ -73,12 +79,107 @@ public struct ControllerSummary: Codable, Equatable, Hashable, Identifiable, Sen
     public var isOnline: Bool { !(connection?.id ?? "").isEmpty }
     public var version: String? { hypervisorState?.version }
 
-    /// Where the controller's own web UI is served: `<id>.<the server's host>`.
-    public func webURL(server: ServerAddress) -> URL? {
-        guard var components = URLComponents(url: server.url, resolvingAgainstBaseURL: false), let host = components.host else { return nil }
-        components.host = "\(id).\(host)"
+    public func can(_ capability: String) -> Bool { viewerCapabilities?.contains(capability) ?? false }
+
+    /// The controller's live web UI, through its connection to Portal. Open
+    /// only when the controller is online and the viewer may connect.
+    public func liveEntry(server: ServerAddress) -> ControllerEntry {
+        guard isOnline else { return .blocked(.offline) }
+        guard can("controller:connect") else { return .blocked(.noConnectPermission) }
+        return ControllerLinks.liveURL(controllerId: id, server: server).map(ControllerEntry.open) ?? .hidden
+    }
+
+    /// The cached cloud web UI. Cloud signs in only accounts that sync has
+    /// pushed, so it needs at least one synced user, as the web app does.
+    /// `syncedUsers` is nil until the count is read.
+    public func cloudEntry(server: ServerAddress, syncedUsers: SyncedUserCount?) -> ControllerEntry {
+        guard can("controller:connect") else { return .blocked(.noConnectPermission) }
+        guard let syncedUsers else { return .hidden }
+        guard syncedUsers.isAvailable else { return .blocked(.syncedUsersUnavailable) }
+        guard syncedUsers.count > 0 else { return .blocked(.noSyncedUsers) }
+        return ControllerLinks.cloudURL(controllerId: id, server: server).map(ControllerEntry.open) ?? .hidden
+    }
+
+    /// The controller's screen (the VNC viewer). It forwards input, so it
+    /// needs write access as well as an online controller.
+    public func screenEntry(server: ServerAddress) -> ControllerEntry {
+        guard isOnline else { return .blocked(.offline) }
+        guard can("controller:write") else { return .blocked(.noWritePermission) }
+        return ControllerLinks.screenURL(controllerId: id, server: server).map(ControllerEntry.open) ?? .hidden
+    }
+}
+
+/// SyncedUserCount is how many of a controller's users Portal holds, which decides whether its cloud web UI can be signed in to.
+public struct SyncedUserCount: Codable, Equatable, Sendable {
+    public let controllerId: String?
+    public let count: Int
+    public let isAvailable: Bool
+
+    public init(controllerId: String? = nil, count: Int, isAvailable: Bool = true) {
+        self.controllerId = controllerId
+        self.count = count
+        self.isAvailable = isAvailable
+    }
+}
+
+/// ControllerEntry is what a controller's web entry point offers: a page to
+/// open, or the reason it cannot be opened, or nothing to say yet.
+public enum ControllerEntry: Equatable, Sendable {
+    case open(URL)
+    case blocked(ControllerBlock)
+    case hidden
+}
+
+public enum ControllerBlock: Equatable, Sendable {
+    case offline
+    case noConnectPermission
+    case noWritePermission
+    case noSyncedUsers
+    case syncedUsersUnavailable
+}
+
+/// ControllerLinks builds the addresses Portal's proxy serves for a
+/// controller: `<id>-live.<host>`, `<id>-cloud.<host>` and, for a virtual
+/// controller, `<id>-virtual.<host>`, each keeping the server's scheme and
+/// port, and the full-bleed screen pages on Portal's own host.
+public enum ControllerLinks {
+    public static let hostKinds = ["live", "cloud", "virtual"]
+
+    public static func liveURL(controllerId: String, server: ServerAddress) -> URL? { url(prefix: controllerId, kind: "live", server: server) }
+    public static func cloudURL(controllerId: String, server: ServerAddress) -> URL? { url(prefix: controllerId, kind: "cloud", server: server) }
+    public static func virtualURL(virtualControllerId: String, server: ServerAddress) -> URL? { url(prefix: virtualControllerId, kind: "virtual", server: server) }
+
+    /// The page that draws just the controller's screen, with no Portal chrome.
+    public static func screenURL(controllerId: String, server: ServerAddress) -> URL? { screen("controller", controllerId, server) }
+    public static func virtualScreenURL(virtualControllerId: String, server: ServerAddress) -> URL? { screen("virtualcontroller", virtualControllerId, server) }
+
+    /// Whether `host` is one of those three shapes under the server's host:
+    /// `<id>-live`, `<id>-cloud` or `<id>-virtual`, the id holding no dot or dash.
+    public static func isControllerHost(_ host: String, serverHost: String) -> Bool {
+        let host = host.lowercased()
+        let base = serverHost.lowercased()
+        guard !base.isEmpty, host.hasSuffix("." + base) else { return false }
+        let label = String(host.dropLast(base.count + 1))
+        guard !label.contains(".") else { return false }
+        for kind in hostKinds where label.hasSuffix("-" + kind) {
+            let identifier = label.dropLast(kind.count + 1)
+            return !identifier.isEmpty && !identifier.contains("-")
+        }
+        return false
+    }
+
+    private static func url(prefix: String, kind: String, server: ServerAddress) -> URL? {
+        guard !prefix.isEmpty, !prefix.contains("."), !prefix.contains("-"), !prefix.contains("/"),
+            var components = URLComponents(url: server.url, resolvingAgainstBaseURL: false), let host = components.host
+        else { return nil }
+        components.host = "\(prefix)-\(kind).\(host)"
         components.path = "/"
         return components.url
+    }
+
+    private static func screen(_ kind: String, _ identifier: String, _ server: ServerAddress) -> URL? {
+        guard !identifier.isEmpty, !identifier.contains("/") else { return nil }
+        return server.endpoint("/screen/\(kind)/\(identifier)")
     }
 }
 
@@ -180,9 +281,15 @@ extension Documents {
     public static let listControllers = """
         query ListControllers($organizationId: String, $options: ListOptionsInput) {
           ListControllers(organizationId: $organizationId, options: $options) {
-            controllers { id comment siteId organizationId region connection { id } hypervisorState { version publishedAt } }
+            controllers { id comment siteId organizationId region viewerCapabilities connection { id } hypervisorState { version publishedAt } }
             meta { totalCount }
           }
+        }
+        """
+
+    public static let listControllerSyncedUserCounts = """
+        query ListControllerSyncedUserCounts($controllerIds: [String]) {
+          ListControllerSyncedUserCounts(controllerIds: $controllerIds) { controllerId count isAvailable }
         }
         """
 
@@ -211,7 +318,7 @@ extension Documents {
         """
 
     static var siteDocuments: [String] {
-        [listSiteAlarms, listSiteRobots, listControllers, listIncidents, listIncidentEvidence, transitionIncident]
+        [listControllerSyncedUserCounts, listSiteAlarms, listSiteRobots, listControllers, listIncidents, listIncidentEvidence, transitionIncident]
     }
 }
 
@@ -320,5 +427,15 @@ extension Connection {
     public func setIncidentReview(id: String, reviewStatus: String) async throws {
         _ = try await execute(
             Documents.transitionIncident, variables: ["incidentId": .string(id), "reviewStatus": .string(reviewStatus)], as: JSONValue.self)
+    }
+}
+
+extension Connection {
+    /// How many users Portal holds for a controller, which the cloud web UI needs.
+    public func syncedUserCount(controllerId: String) async throws -> SyncedUserCount? {
+        struct Answer: Decodable, Sendable { let ListControllerSyncedUserCounts: [SyncedUserCount]? }
+        let rows = try await execute(Documents.listControllerSyncedUserCounts, variables: ["controllerIds": .array([.string(controllerId)])], as: Answer.self)
+            .ListControllerSyncedUserCounts ?? []
+        return rows.first { $0.controllerId == controllerId }
     }
 }

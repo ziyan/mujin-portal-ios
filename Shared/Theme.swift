@@ -28,10 +28,17 @@ struct PortalRows<Content: View>: View {
     var body: some View {
         Group { content }
             .listRowBackground(Color.portalCard)
+            // Switches take the accent, not the system green.
+            .tint(Color.accentColor)
     }
 }
 
 extension View {
+    /// A list at the root of a tab: it also leaves room under its last row for the floating tab bar.
+    func portalRootList() -> some View {
+        portalList().contentMargins(.bottom, 88, for: .scrollContent)
+    }
+
     /// Shows a list or form on the page color instead of the system's grouped gray.
     func portalList() -> some View {
         scrollContentBackground(.hidden)

@@ -46,10 +46,10 @@ struct AssistantSettingsView: View {
                 if let memory {
                     Section("Memory") {
                         Toggle(
-                            "Remember my conversations",
                             isOn: Binding(
                                 get: { memory.isFilingEnabledForUser == true },
-                                set: { value in change { self.memory = try await connection.setMemoryFiling(isEnabled: value) } }))
+                                set: { value in change { self.memory = try await connection.setMemoryFiling(isEnabled: value) } })
+                        ) { Label("Remember my conversations", systemImage: "brain.head.profile").foregroundStyle(.primary) }
                         if memory.isFilingEnabledForOrganization == false {
                             Text("Your organization has turned remembering off, so nothing is remembered whatever you choose here.")
                                 .font(.footnote).foregroundStyle(.secondary)
@@ -61,9 +61,9 @@ struct AssistantSettingsView: View {
                 }
                 if let voice, let voices = voice.speechVoices, !voices.isEmpty {
                     Section("Voice") {
-                        Picker("Voice of the answers", selection: Binding(get: { voice.effectiveVoice }, set: { value in change { self.voice = try await connection.setSpeechVoice(value) } })) {
+                        Picker(selection: Binding(get: { voice.effectiveVoice }, set: { value in change { self.voice = try await connection.setSpeechVoice(value) } })) {
                             ForEach(voices, id: \.self) { Text($0.capitalized).tag($0) }
-                        }
+                        } label: { Label("Voice of the answers", systemImage: "speaker.wave.2").foregroundStyle(.primary) }
                     }
                 }
                 if let background, background.canManageOrganization == true { organizationSection(background) }
@@ -77,10 +77,10 @@ struct AssistantSettingsView: View {
     private func speakFirstSection(_ setting: AgentSpeakFirstSetting) -> some View {
         Section("Starting conversations") {
             Toggle(
-                "Let the assistant start a conversation",
                 isOn: Binding(
                     get: { setting.isEnabledForUser == true },
-                    set: { value in change { self.speakFirst = try await connection.setSpeakFirst(isEnabled: value) } }))
+                    set: { value in change { self.speakFirst = try await connection.setSpeakFirst(isEnabled: value) } })
+            ) { Label("Let the assistant start a conversation", systemImage: "sparkles").foregroundStyle(.primary) }
             if setting.isOrganizationOff {
                 Text("Your organization has turned this off, so the assistant never starts a conversation whatever you choose here.")
                     .font(.footnote).foregroundStyle(.secondary)
@@ -90,16 +90,16 @@ struct AssistantSettingsView: View {
             }
             ForEach(AgentSpeakFirstSetting.switchableReasons, id: \.self) { reason in
                 Toggle(
-                    TurnEndText.speakFirstSwitchTitle(reason),
                     isOn: Binding(
                         get: { setting.isReasonEnabled(reason) },
-                        set: { value in change { self.speakFirst = try await connection.setSpeakFirstReason(reason, isEnabled: value) } }))
+                        set: { value in change { self.speakFirst = try await connection.setSpeakFirstReason(reason, isEnabled: value) } })
+                ) { Label(TurnEndText.speakFirstSwitchTitle(reason), systemImage: "arrow.turn.down.right").foregroundStyle(.primary) }
             }
             Toggle(
-                "Pause for 24 hours",
                 isOn: Binding(
                     get: { setting.isSnoozed },
-                    set: { value in change { self.speakFirst = try await connection.snoozeSpeakFirst(isSnoozed: value) } }))
+                    set: { value in change { self.speakFirst = try await connection.snoozeSpeakFirst(isSnoozed: value) } })
+            ) { Label("Pause for 24 hours", systemImage: "moon.zzz").foregroundStyle(.primary) }
         }
         .disabled(setting.isOrganizationOff)
     }

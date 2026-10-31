@@ -120,7 +120,7 @@ struct ConversationListView: View {
                     }
                     }
 }
-.portalList()
+.portalRootList()
                 .refreshable {
                     await model.load()
                     await session.refreshWaiting()

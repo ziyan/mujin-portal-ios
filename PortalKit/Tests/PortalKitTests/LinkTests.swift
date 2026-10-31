@@ -16,9 +16,21 @@ import Testing
         #expect(kind("http://portal.example.test/x") == .portal)
     }
 
-    @Test func subdomainsOfTheBaseDomainAreControllers() {
-        #expect(kind("https://controller01.portal.example.test/") == .controller)
-        #expect(kind("https://a.b.portal.example.test/path?q=1") == .controller)
+    @Test func theThreeProxyHostsAreControllers() {
+        #expect(kind("https://controller01-live.portal.example.test/") == .controller)
+        #expect(kind("https://controller01-cloud.portal.example.test/path?q=1") == .controller)
+        #expect(kind("https://virtual01-virtual.portal.example.test/") == .controller)
+    }
+
+    @Test func otherSubdomainsAndLookalikeHostsAreNotControllers() {
+        #expect(kind("https://controller01.portal.example.test/") == .external)
+        #expect(kind("https://a.b.portal.example.test/path") == .external)
+        #expect(kind("https://controller01-other.portal.example.test/") == .external)
+        #expect(kind("https://-live.portal.example.test/") == .external)
+        #expect(kind("https://a-b-live.portal.example.test/") == .external)
+        #expect(kind("https://controller01-live.evil.test/") == .external)
+        #expect(kind("https://controller01-live.portal.example.test.evil.test/") == .external)
+        #expect(kind("https://x.controller01-live.portal.example.test/") == .external)
     }
 
     @Test func lookalikesAreExternal() {
@@ -30,15 +42,15 @@ import Testing
 
     @Test func theClassificationFollowsTheAccountsServer() {
         let other = try! ServerAddress("https://portal.other.test")
-        #expect(kind("https://controller01.portal.other.test/", server: other) == .controller)
-        #expect(kind("https://controller01.portal.other.test/") == .external)
-        #expect(kind("https://controller01.portal.example.test/", server: other) == .external)
+        #expect(kind("https://controller01-live.portal.other.test/", server: other) == .controller)
+        #expect(kind("https://controller01-live.portal.other.test/") == .external)
+        #expect(kind("https://controller01-live.portal.example.test/", server: other) == .external)
     }
 
     @Test func aServerWithAPortHasTheSameBaseDomain() {
         let local = try! ServerAddress("http://localhost:8080")
         #expect(kind("http://localhost:8080/a", server: local) == .portal)
-        #expect(kind("http://controller01.localhost:8080/", server: local) == .controller)
+        #expect(kind("http://controller01-live.localhost:8080/", server: local) == .controller)
     }
 
     @Test func nonWebAddressesAreLeftToTheSystem() {
@@ -71,12 +83,12 @@ import Testing
     }
 
     @Test func aServerThatOffersItReturnsTheOneTimeAddress() async {
-        let url = await connection(offered: true, handoff: "https://portal.example.test/handoff/abc").webSessionHandoff(to: URL(string: "https://controller01.portal.example.test/")!)
+        let url = await connection(offered: true, handoff: "https://portal.example.test/handoff/abc").webSessionHandoff(to: URL(string: "https://controller01-live.portal.example.test/")!)
         #expect(url?.absoluteString == "https://portal.example.test/handoff/abc")
     }
 
     @Test func aServerWithoutItGivesNothingSoThePageOpensAsItIs() async {
-        #expect(await connection(offered: false, handoff: nil).webSessionHandoff(to: URL(string: "https://controller01.portal.example.test/")!) == nil)
+        #expect(await connection(offered: false, handoff: nil).webSessionHandoff(to: URL(string: "https://controller01-live.portal.example.test/")!) == nil)
     }
 
     @Test func aRefusalOrAnOddAddressGivesNothing() async {
@@ -115,5 +127,55 @@ import Testing
         ring.put(makeAccount(userId: "user01"))
         ring.put(makeAccount(userId: "user02"))
         #expect(Set(ring.accounts.map(\.webDataStoreId)).count == 2)
+    }
+}
+
+@Suite struct ControllerLinkTests {
+    let server = try! ServerAddress("https://portal.example.test")
+
+    func controller(online: Bool = true, capabilities: [String] = ["controller:connect", "controller:write"]) -> ControllerSummary {
+        ControllerSummary(id: "controller01", connection: online ? .init(id: "connection01") : nil, viewerCapabilities: capabilities)
+    }
+
+    @Test func liveAndCloudAndVirtualAddressesUseTheProxyHosts() {
+        #expect(ControllerLinks.liveURL(controllerId: "controller01", server: server)?.absoluteString == "https://controller01-live.portal.example.test/")
+        #expect(ControllerLinks.cloudURL(controllerId: "controller01", server: server)?.absoluteString == "https://controller01-cloud.portal.example.test/")
+        #expect(ControllerLinks.virtualURL(virtualControllerId: "virtual01", server: server)?.absoluteString == "https://virtual01-virtual.portal.example.test/")
+    }
+
+    @Test func theSchemeAndPortOfTheServerAreKept() {
+        let local = try! ServerAddress("http://localhost:8080")
+        #expect(ControllerLinks.liveURL(controllerId: "controller01", server: local)?.absoluteString == "http://controller01-live.localhost:8080/")
+    }
+
+    @Test func anIdentifierThatCouldChangeTheHostIsRefused() {
+        #expect(ControllerLinks.liveURL(controllerId: "a.b", server: server) == nil)
+        #expect(ControllerLinks.liveURL(controllerId: "a-b", server: server) == nil)
+        #expect(ControllerLinks.liveURL(controllerId: "", server: server) == nil)
+    }
+
+    @Test func theScreenPagesAreOnPortalsOwnHost() {
+        #expect(ControllerLinks.screenURL(controllerId: "controller01", server: server)?.absoluteString == "https://portal.example.test/screen/controller/controller01")
+        #expect(ControllerLinks.virtualScreenURL(virtualControllerId: "virtual01", server: server)?.absoluteString == "https://portal.example.test/screen/virtualcontroller/virtual01")
+    }
+
+    @Test func liveOpensOnlyForAnOnlineControllerTheViewerMayConnectTo() {
+        #expect(controller().liveEntry(server: server) == .open(URL(string: "https://controller01-live.portal.example.test/")!))
+        #expect(controller(online: false).liveEntry(server: server) == .blocked(.offline))
+        #expect(controller(capabilities: []).liveEntry(server: server) == .blocked(.noConnectPermission))
+    }
+
+    @Test func cloudNeedsThePermissionAndAtLeastOneSyncedUser() {
+        #expect(controller(capabilities: []).cloudEntry(server: server, syncedUsers: SyncedUserCount(count: 3)) == .blocked(.noConnectPermission))
+        #expect(controller().cloudEntry(server: server, syncedUsers: nil) == .hidden)
+        #expect(controller().cloudEntry(server: server, syncedUsers: SyncedUserCount(count: 0, isAvailable: false)) == .blocked(.syncedUsersUnavailable))
+        #expect(controller().cloudEntry(server: server, syncedUsers: SyncedUserCount(count: 0)) == .blocked(.noSyncedUsers))
+        #expect(controller(online: false).cloudEntry(server: server, syncedUsers: SyncedUserCount(count: 2)) == .open(URL(string: "https://controller01-cloud.portal.example.test/")!))
+    }
+
+    @Test func theScreenNeedsAnOnlineControllerAndWriteAccess() {
+        #expect(controller().screenEntry(server: server) == .open(URL(string: "https://portal.example.test/screen/controller/controller01")!))
+        #expect(controller(online: false).screenEntry(server: server) == .blocked(.offline))
+        #expect(controller(capabilities: ["controller:connect"]).screenEntry(server: server) == .blocked(.noWritePermission))
     }
 }

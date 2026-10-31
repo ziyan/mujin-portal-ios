@@ -38,7 +38,7 @@ struct CustomersView: View {
                         }
 .listRowBackground(Color.portalCard)
 }
-.portalList()
+.portalRootList()
                     .overlay {
                         if shown.isEmpty { ContentUnavailableView.search(text: searchText) }
                     }

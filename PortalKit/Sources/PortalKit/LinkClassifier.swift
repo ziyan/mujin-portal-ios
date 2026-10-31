@@ -4,8 +4,8 @@ import Foundation
 public enum LinkKind: Equatable, Sendable {
     /// Portal itself: the account's server.
     case portal
-    /// A controller or virtual controller web UI, served under the server's
-    /// base domain as `<name>.<base domain>`.
+    /// A controller or virtual controller web UI, which Portal's proxy serves
+    /// as `<id>-live`, `<id>-cloud` or `<id>-virtual` under the server's host.
     case controller
     /// Any other web address.
     case external
@@ -21,8 +21,9 @@ public enum LinkClassifier {
         guard let host = url.host?.lowercased(), !host.isEmpty else { return .other }
         let base = (server.url.host ?? "").lowercased()
         if host == base { return .portal }
-        // The base domain is the server's own host: controllers are its subdomains.
-        if !base.isEmpty, host.hasSuffix("." + base) { return .controller }
+        // Only the three proxy hosts are controllers: they take the session
+        // cookie from the handoff. Any other subdomain is not Portal's to sign in.
+        if ControllerLinks.isControllerHost(host, serverHost: base) { return .controller }
         return .external
     }
 

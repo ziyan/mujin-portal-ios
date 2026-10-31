@@ -160,6 +160,13 @@ public struct MemoryCitation: Equatable, Sendable {
     public let number: Int
     public var label: String { "\(path)#\(number)" }
 
+    /// The page's name as a person reads it: the last part of its path, in words.
+    public var displayName: String {
+        let last = path.split(separator: "/").last.map(String.init) ?? path
+        let words = last.replacingOccurrences(of: "-", with: " ").replacingOccurrences(of: "_", with: " ")
+        return words.prefix(1).uppercased() + words.dropFirst()
+    }
+
     private static let expression = try! NSRegularExpression(pattern: #"\[\[([a-z0-9][a-z0-9_-]*(?:/[a-z0-9][a-z0-9_-]*)*)#([0-9]+)\]\]"#)
 
     /// The scheme the app uses to turn a citation into a link that opens the page.
@@ -196,7 +203,8 @@ public struct MemoryCitation: Equatable, Sendable {
         for match in expression.matches(in: text, range: range).reversed() {
             guard let whole = Range(match.range, in: result), let path = Range(match.range(at: 1), in: result), let number = Range(match.range(at: 2), in: result) else { continue }
             let citation = "\(result[path])#\(result[number])"
-            result.replaceSubrange(whole, with: "[\(citation)](\(linkScheme):\(citation))")
+            let name = MemoryCitation(path: String(result[path]), number: Int(result[number]) ?? 0).displayName
+            result.replaceSubrange(whole, with: "[\(name)](\(linkScheme):\(citation))")
         }
         return result
     }

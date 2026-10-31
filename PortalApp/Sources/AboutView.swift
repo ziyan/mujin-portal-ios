@@ -24,12 +24,6 @@ struct AboutView: View {
                 capability("Active monitoring board", session.capabilities.offersMonitoringBoard)
                 capability("Signing in the built-in browser", session.capabilities.offersWebSessionHandoff)
             }
-            Section {
-                Text("Source code and issues are on GitHub.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Link("github.com/ziyan/mujin-portal-ios", destination: URL(string: "https://github.com/ziyan/mujin-portal-ios")!)
-            }
         } }
 .portalList()
         .navigationTitle("About")

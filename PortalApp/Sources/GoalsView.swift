@@ -207,14 +207,6 @@ struct GoalDetailView: View {
                             Text(question)
                         }
                     }
-                    if goal.isOpen {
-                        Section(goal.state == .waiting ? "Your answer" : "Tell the assistant") {
-                            TextField("Say something about this goal", text: $note, axis: .vertical)
-                                .lineLimit(1...5)
-                            Button("Send") { Task { await tell() } }
-                                .disabled(note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isBusy)
-                        }
-                    }
                     if let conversationId = goal.conversationId, !conversationId.isEmpty {
                         Section {
                             Button {
@@ -264,6 +256,14 @@ struct GoalDetailView: View {
         .portalList()
         .navigationTitle(goal?.title ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if goal?.isOpen == true {
+                ComposerCard(
+                    placeholder: goal?.state == .waiting ? LocalizedStringKey("Your answer") : LocalizedStringKey("Tell the assistant"), text: $note,
+                    canSend: !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isBusy, isSending: isBusy,
+                    fieldIdentifier: "goalField", sendIdentifier: "goalSendButton", onSend: { Task { await tell() } })
+            }
+        }
         .confirmationDialog("Stop this goal?", isPresented: $isConfirmingStop, titleVisibility: .visible) {
             Button("Stop this goal", role: .destructive) { Task { await change { try await $0.stopGoal(id: goalId) } } }
         } message: {
