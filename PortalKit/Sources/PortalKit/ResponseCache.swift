@@ -86,7 +86,8 @@ public final class ResponseCache: @unchecked Sendable {
     /// stored, shown and returned.
     @discardableResult
     public func load<Value: Sendable>(
-        _ key: CacheKey, force: Bool = false, show: (Value) -> Void, fetch: () async throws -> Value
+        _ key: CacheKey, force: Bool = false, show: (Value) -> Void, fetch: () async throws -> Value,
+        isolation: isolated (any Actor)? = #isolation
     ) async throws -> Value {
         if let held: (value: Value, isFresh: Bool) = hit(key) {
             show(held.value)
