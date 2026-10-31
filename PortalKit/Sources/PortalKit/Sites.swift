@@ -38,6 +38,8 @@ public struct SiteRobots: Equatable, Sendable {
 
     public var robots: [Robot] = []
     public var unavailableControllerCount = 0
+
+    public init() {}
     public var robotCount: Int { robots.count }
     public var onlineCount: Int { robots.filter(\.isOnline).count }
     public var errorCount: Int { robots.filter(\.hasError).count }
