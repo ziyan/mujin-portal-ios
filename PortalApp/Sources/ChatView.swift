@@ -36,7 +36,7 @@ struct ChatView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         // A group's administrators add to it; a direct chat becomes a new group; others see no such row.
-                        if let model, let room = model.room, room.canWrite {
+                        if let room = model.room, room.canWrite {
                             if room.isGroup, model.isAdmin {
                                 Button { isAddingPeople = true } label: { Label("Add people", systemImage: "person.badge.plus") }
                             } else if !room.isGroup {
