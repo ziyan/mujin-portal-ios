@@ -279,7 +279,7 @@ enum DemoOptions {
         if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
-        if screen.hasPrefix("site") || screen.hasPrefix("incident") { return .site }
+        if screen.hasPrefix("site") || screen.hasPrefix("incident") || screen.hasPrefix("controller") { return .site }
         return nil
     }
 

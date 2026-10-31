@@ -418,6 +418,15 @@ struct DemoTransport: HTTPTransport {
                     ], "meta": ["totalCount": 2],
                 ]
             ]
+        case "ListControllerTelemetrySummaries":
+            return [
+                "ListControllerTelemetrySummaries": [
+                    ["controllerId": "controller01", "isAvailable": true, "activeAlarmCount": 1, "totals": ["pickOperationCount": 1_480, "pickedPartCount": 1_392, "humanInterventionCount": 21, "directRobotThroughputPartsPerHour": 58.0]],
+                    ["controllerId": "controller02", "isAvailable": false],
+                ]
+            ]
+        case "ListCells":
+            return ["ListCells": ["cells": [["id": "cell01", "name": "Pick cell A", "controllerIds": ["controller01"]], ["id": "cell02", "name": "Packing line", "controllerIds": ["controller02"]]]]]
         case "ListControllerSyncedUserCounts":
             return ["ListControllerSyncedUserCounts": [["controllerId": "controller01", "count": 3, "isAvailable": true], ["controllerId": "controller02", "count": 0, "isAvailable": true]]]
         case "ListIncidents":
