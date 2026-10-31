@@ -44,17 +44,12 @@ struct DreamsView: View {
     private var list: some View {
         List {
             PortalRows {
-                Section {
-                    Text("When it is on, the assistant tidies what it remembers in the background: it merges repeats, lets old facts fade and proposes links between pages. It uses part of your organization's daily allowance.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
                 if let setting {
                     Section("Status") {
-                        LabeledContent("Dreaming") { Text(setting.isDreamEnabled == true ? LocalizedStringKey("On") : LocalizedStringKey("Off")) }
-                        if setting.isDreaming == true { LabeledContent("Right now") { Text("Tidying up") } }
+                        LabeledContent("Tidies up in the background") { Text(setting.isDreamEnabled == true ? LocalizedStringKey("On") : LocalizedStringKey("Off")) }
                         if let last = setting.lastDreamEnd { LabeledContent("Last run") { Text(last, format: .relative(presentation: .named)) } }
-                        if let allowance = setting.todayBudgetTokenCount, allowance > 0 {
+                        // The numbers are for the people who pay for it.
+                        if canManage, let allowance = setting.todayBudgetTokenCount, allowance > 0 {
                             LabeledContent("Today") { Text("\(setting.todaySpentTokenCount ?? 0) of \(allowance) tokens") }
                         }
                     }
@@ -123,7 +118,6 @@ struct DreamsView: View {
             }
             Button("Tidy up now") { Task { await dreamNow() } }
                 .disabled(setting.isDreamEnabled != true || setting.isDreaming == true)
-            Text("Whoever turns this on pays for it.").font(.footnote).foregroundStyle(.secondary)
         }
     }
 

@@ -53,9 +53,6 @@ struct AssistantSettingsView: View {
                         if memory.isFilingEnabledForOrganization == false {
                             Text("Your organization has turned remembering off, so nothing is remembered whatever you choose here.")
                                 .font(.footnote).foregroundStyle(.secondary)
-                        } else {
-                            Text("After a conversation has been quiet for five minutes, the assistant files what matters into what it knows.")
-                                .font(.footnote).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -83,9 +80,6 @@ struct AssistantSettingsView: View {
             ) { Label("Let the assistant start a conversation", systemImage: "sparkles").foregroundStyle(.primary) }
             if setting.isOrganizationOff {
                 Text("Your organization has turned this off, so the assistant never starts a conversation whatever you choose here.")
-                    .font(.footnote).foregroundStyle(.secondary)
-            } else {
-                Text("It does this rarely, at most once a day, and only when you are using the app.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             ForEach(AgentSpeakFirstSetting.switchableReasons, id: \.self) { reason in
@@ -156,8 +150,8 @@ extension TurnEndText {
     static func speakFirstSwitchTitle(_ reason: String) -> LocalizedStringKey {
         switch reason {
         case "goal_needs_you": "When a goal needs me"
-        case "memory_check": "To check what it remembers"
-        case "idea": "To share an idea"
+        case "memory_check": "Memory check-ins"
+        case "idea": "Ideas"
         default: LocalizedStringKey(reason)
         }
     }

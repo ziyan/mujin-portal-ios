@@ -277,10 +277,9 @@ private struct ActivityList: View {
                     if let message = activity.errorMessage, activity.hasFailed, !message.isEmpty {
                         Text(message).font(.footnote).foregroundStyle(.secondary)
                     }
-                    if let cost = activity.costText {
+                    // What a run cost is for administrators; nobody is told it was not recorded.
+                    if session.isStaff, let cost = activity.costText {
                         Text(cost).font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        Text("Cost not recorded").font(.caption).foregroundStyle(.tertiary)
                     }
                 }
                 .padding(.vertical, 2)

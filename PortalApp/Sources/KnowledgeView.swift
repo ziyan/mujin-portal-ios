@@ -81,7 +81,7 @@ struct KnowledgeView: View {
                             NavigationLink(value: MoreDestination.memoryPage(MemoryPageReference(path: fact.pagePath, scope: fact.memoryScope, siteId: fact.siteId, factNumber: fact.number))) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(fact.sentence ?? "").foregroundStyle(.primary)
-                                    Text("\(fact.pageName ?? fact.pagePath ?? "")#\(fact.number ?? 0)").font(.caption).foregroundStyle(.secondary)
+                                    Text(fact.pageName ?? fact.pagePath ?? "").font(.caption).foregroundStyle(.secondary)
                                 }
                             }
                         }
@@ -229,8 +229,7 @@ struct MemoryPageView: View {
                                 NavigationLink(value: MoreDestination.memoryPage(MemoryPageReference(pageId: link.fromMemoryPageId == page.id ? link.toMemoryPageId : link.fromMemoryPageId))) {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(linkedName(link, from: page)).foregroundStyle(.primary)
-                                        Text((link.relation ?? "").replacingOccurrences(of: "_", with: " ") + ((link.linkStatus == "proposed") ? " · " + String(localized: "proposed") : ""))
-                                            .font(.caption).foregroundStyle(.secondary)
+                                        if link.linkStatus == "proposed" { Text("proposed").font(.caption).foregroundStyle(.secondary) }
                                     }
                                 }
                             }
@@ -333,7 +332,6 @@ private struct FactRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(fact.sentence ?? "")
             HStack(spacing: 6) {
-                if let number = fact.number { Text("#\(number)").font(.caption).foregroundStyle(.secondary) }
                 if fact.isInferred == true {
                     Text("Inferred")
                         .font(.caption2.weight(.semibold))

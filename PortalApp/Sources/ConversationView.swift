@@ -150,16 +150,10 @@ struct ConversationView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
+                    // Earlier messages load as the top comes into view; no strip says so.
                     if model.window.earlierCount > 0 {
-                        Button {
-                            Task { await model.loadEarlier() }
-                        } label: {
-                            Text("\(model.window.earlierCount) earlier messages")
-                                .font(.footnote)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isLoadingEarlier)
+                        Color.clear.frame(height: 1)
+                            .onAppear { Task { await model.loadEarlier() } }
                     }
                     if model.transcript.entries.isEmpty {
                         ContentUnavailableView {
@@ -169,7 +163,7 @@ struct ConversationView: View {
                         }
                         .padding(.top, 48)
                     }
-                    ForEach(model.transcript.displayEntries) { entry in
+                    ForEach(model.transcript.displayEntries.filter(Self.isShown)) { entry in
                         TranscriptRow(
                             entry: entry, model: model, showsToolDetails: showsToolDetails,
                             openArtifact: { fullArtifact = $0 }, moreEmoji: { emojiTarget = EmojiTarget(id: $0) }
@@ -180,9 +174,6 @@ struct ConversationView: View {
                         ProgressView()
                             .padding(.leading, 4)
                             .accessibilityLabel("Working")
-                    }
-                    if let note = model.filingNote {
-                        FilingNoteView(model: model, filing: note)
                     }
                     ForEach(model.backgroundWork) { work in
                         BackgroundWorkBanner(work: work) { Task { await model.stopBackgroundWork(work) } }
@@ -219,6 +210,13 @@ struct ConversationView: View {
     }
 
     static let readableWidth: CGFloat = 720
+
+    /// Bookkeeping notes are not drawn, so they leave no gap either.
+    private static func isShown(_ entry: TranscriptEntry) -> Bool {
+        if case .note(_, let note) = entry, case .backgroundNotice = note { return true }
+        if case .note = entry { return false }
+        return true
+    }
 
     private static func isStreamingOrCard(_ entry: TranscriptEntry) -> Bool {
         switch entry {
@@ -531,14 +529,12 @@ private struct TurnEndLine: View {
 
     var body: some View {
         Label {
-            if let reason, reason.kind != "failed", let sentence = TurnEndText.sentence(for: reason) {
-                Text(sentence)
+            if kind == .interruption {
+                Text("Stopped")
             } else if kind == .failed {
-                if text.isEmpty {
-                    Text("This answer failed.")
-                } else {
-                    Text("This answer failed: \(text)")
-                }
+                Text("Didn\u{2019}t answer. Try again.")
+            } else if let reason, let sentence = TurnEndText.sentence(for: reason) {
+                Text(sentence)
             } else {
                 Text(text)
             }
@@ -553,60 +549,18 @@ private struct TurnEndLine: View {
 /// NoteLine is a small line about the assistant's own turns.
 private struct NoteLine: View {
     let note: TranscriptNote
-    @State private var isExpanded = false
 
     var body: some View {
         switch note {
-        case .restart:
-            Label("Carrying on after a restart", systemImage: "arrow.counterclockwise")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        case .scheduled(let jobName, let message):
-            openable(Label("Scheduled: \(jobName)", systemImage: "clock"), body: message)
-        case .backgroundFinished(let title, let report):
-            openable(Label("Background work finished: \(title)", systemImage: "checkmark.circle"), body: report)
         case .backgroundNotice(let text):
+            // The only note that is for the person: finished work could not wake the assistant.
             Label(text, systemImage: "info.circle")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-        case .compaction(let summary):
-            openable(Label("Earlier messages were summarized", systemImage: "arrow.down.right.and.arrow.up.left"), body: summary)
-        case .speakFirst(let reason):
-            Label("The assistant started this conversation (\(TurnEndText.speakFirstReason(reason)))", systemImage: "sparkles")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        case .goalCheckIn(let title, let message):
-            openable(Label("Goal check-in: \(title)", systemImage: "scope"), body: message)
-        case .depth(let kind, let reason, let sentence):
-            HStack(spacing: 6) {
-                Image(systemName: kind == .thinkingHarder ? "brain" : "magnifyingglass")
-                    .accessibilityHidden(true)
-                Text(kind == .thinkingHarder ? "Thinking harder" : "Looking more closely")
-                if !reason.isEmpty {
-                    Text(reason).foregroundStyle(.tertiary)
-                } else if !sentence.isEmpty {
-                    Text(sentence).foregroundStyle(.tertiary)
-                }
-            }
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-        }
-    }
-
-    @ViewBuilder
-    private func openable(_ label: some View, body text: String) -> some View {
-        if text.isEmpty {
-            label.font(.footnote).foregroundStyle(.secondary)
-        } else {
-            DisclosureGroup(isExpanded: $isExpanded) {
-                MarkdownView(markdown: text)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 4)
-            } label: {
-                label.font(.footnote).foregroundStyle(.secondary)
-            }
-            .tint(Color.portalSecondary)
+        default:
+            // The rest is bookkeeping (a restart, a summary, a schedule, a goal check-in, a depth change,
+            // how the conversation began): the messages around it say everything that matters.
+            EmptyView()
         }
     }
 }
@@ -688,7 +642,7 @@ struct QuestionCardView: View {
             HStack(spacing: 12) {
                 if let onChatInstead {
                     Button(action: onChatInstead) {
-                        Text("Chat instead").lineLimit(1).frame(maxWidth: .infinity)
+                        Text("Discuss").lineLimit(1).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                 }
@@ -723,16 +677,6 @@ struct ApprovalCardView: View {
                 .foregroundStyle(Color.statusWarning)
             Text("The assistant wants to use \(card.toolName)")
                 .font(.body)
-            if !card.policyReason.isEmpty {
-                Text(card.policyReason)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            if !card.risk.isEmpty {
-                Text("Risk: \(card.risk)")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
             if !card.arguments.isEmpty {
                 DisclosureGroup("Details", isExpanded: $isShowingArguments) {
                     Text(card.arguments.prefix(2000))
@@ -801,13 +745,6 @@ private struct ComposerBar: View {
             if let voice, voice.isActive || voice.phase != .idle {
                 VoiceCallBar(voice: voice)
                     .padding(.horizontal, 12)
-            }
-            if model.activeQuestion != nil {
-                Label("Your message answers the question above.", systemImage: "questionmark.bubble")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
             }
             AttachmentStrip(drafts: drafts)
                 .padding(.horizontal, 16)
@@ -884,12 +821,15 @@ private struct SpeakFirstChoicesView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else {
-            HStack(spacing: 10) {
+            Menu {
                 Button("Not now") { Task { await model.snoozeSpeakFirst() } }
                 Button("Stop these") { Task { await model.stopSpeakingFirst(reason: reason) } }
+            } label: {
+                Label("More", systemImage: "ellipsis")
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 44, minHeight: 44)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
     }
 }

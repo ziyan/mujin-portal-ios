@@ -122,6 +122,8 @@ struct ChatView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 6)
                         }
+                        // A deleted message is one quiet line, and a run of them is one.
+                        if !(message.isDeleted && previous?.isDeleted == true) {
                         MessageRow(
                             message: message, model: model, isLastOwn: message.id == lastOwnMessageId(model),
                             startsRun: isNewDay || previous == nil || previous?.authorUserId != message.authorUserId || previous?.isAssistant != message.isAssistant,
@@ -129,6 +131,7 @@ struct ChatView: View {
                             moreEmoji: { emojiTarget = ConversationView.EmojiTarget(id: $0) }, askDelete: { messageToDelete = $0 }
                         )
                         .id(message.id)
+                        }
                     }
                     ForEach(model.questions) { card in
                         QuestionCardView(card: card, onAnswer: { answer in Task { await model.answer(card, with: answer) } }, onChatInstead: nil)
@@ -326,6 +329,13 @@ private struct MessageRow: View {
     private var isMine: Bool { message.authorUserId == model.currentUserId && !message.isAssistant }
 
     var body: some View {
+        if message.isDeleted {
+            Text("This message was deleted")
+                .font(.footnote)
+                .italic()
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+        } else {
         HStack(alignment: .top, spacing: 8) {
             // Others have a small round picture at the start of each run of their messages.
             if !isMine {
@@ -347,6 +357,7 @@ private struct MessageRow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
+        }
     }
 
     private var authorLine: some View {

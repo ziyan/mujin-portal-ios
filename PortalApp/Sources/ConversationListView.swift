@@ -110,7 +110,7 @@ struct ConversationListView: View {
                 Button("Try again") { Task { await model.load() } }
             }
         case .loaded:
-            if model.conversations.isEmpty && session.waiting.isEmpty {
+            if model.conversations.isEmpty {
                 if model.searchText.isEmpty {
                     ContentUnavailableView {
                         Label("No conversations yet", systemImage: "bubble.left.and.bubble.right")
@@ -126,15 +126,8 @@ struct ConversationListView: View {
             } else {
                 List(selection: $selectedConversationId) {
                     PortalRows {
-                    if !session.waiting.isEmpty, model.searchText.isEmpty {
-                        Section("Waiting for you") {
-                            ForEach(session.waiting) { item in
-                                WaitingRow(item: item) { selectedConversationId = item.conversationId }
-                            }
-                        }
-                    }
                     Section {
-                        ForEach(model.conversations) { conversation in
+                        ForEach(model.conversations.sorted { (session.waitingCounts[$0.id] ?? 0) > 0 && (session.waitingCounts[$1.id] ?? 0) == 0 }) { conversation in
                             NavigationLink(value: conversation.id) {
                                 ConversationRow(conversation: conversation, waitingCount: session.waitingCounts[conversation.id] ?? 0)
                             }
@@ -268,25 +261,21 @@ private struct ConversationRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                if (conversation.chat?.unreadCount ?? 0) > 0 {
+                // One signal per row: it needs the person, or there is something unread, or it is working.
+                if waitingCount > 0 {
+                    Text("Needs you")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.statusWarning.opacity(0.18), in: Capsule())
+                        .foregroundStyle(Color.statusWarning)
+                } else if (conversation.chat?.unreadCount ?? 0) > 0 {
                     Circle().fill(Color.accentColor).frame(width: 10, height: 10)
                         .accessibilityLabel(Text("\(conversation.chat?.unreadCount ?? 0) unread"))
-                }
-                if waitingCount > 0 {
-                    Label("\(waitingCount)", systemImage: "exclamationmark.bubble.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.statusWarning)
-                        .accessibilityLabel(Text("Waiting for you"))
-                }
-                if conversation.isRunning {
+                } else if conversation.isRunning || conversation.hasRunningBackgroundWork == true {
                     ProgressView()
                         .controlSize(.small)
                         .accessibilityLabel("Working")
-                } else if conversation.hasRunningBackgroundWork == true {
-                    Image(systemName: "clock.arrow.2.circlepath")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("Working in the background")
                 }
             }
         }

@@ -89,13 +89,6 @@ struct MonitoringView: View {
             }
         case .loaded:
             List { PortalRows {
-                if !session.capabilities.offersMonitoringBoard {
-                    Section {
-                        Label("The Active Monitoring board is not on this server yet. This is the ticket queue and recent incidents.", systemImage: "info.circle")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
                 Section {
                     if model.attention.isEmpty {
                         Label("The queue is clear", systemImage: "checkmark.circle")

@@ -51,13 +51,20 @@ struct ShareView: View {
                 }
             }
             Section {
-                Picker("Send to", selection: $model.destination) {
-                    Text("Ask the assistant").tag(ShareModel.Destination.assistant)
-                    Text("New ticket").tag(ShareModel.Destination.ticket)
+                Button { model.destination = .assistant } label: {
+                    HStack {
+                        Label("Ask the assistant", systemImage: "sparkles").foregroundStyle(.primary)
+                        Spacer()
+                        if model.destination == .assistant { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                    }
                 }
-                .pickerStyle(.segmented)
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
+                Button { model.destination = .ticket } label: {
+                    HStack {
+                        Label("Open a ticket", systemImage: "tray.full").foregroundStyle(.primary)
+                        Spacer()
+                        if model.destination == .ticket { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                    }
+                }
             }
             if model.destination == .ticket {
                 Section("Ticket") {

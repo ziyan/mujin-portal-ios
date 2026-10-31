@@ -18,24 +18,10 @@ struct AboutView: View {
                     Text(session.isStaff ? LocalizedStringKey("Mujin staff") : LocalizedStringKey("Customer"))
                 }
             }
-            Section("This server offers") {
-                capability("Push notifications", session.capabilities.offersPushRegistration)
-                capability("Chats with colleagues", session.capabilities.offersChats)
-                capability("Active monitoring board", session.capabilities.offersMonitoringBoard)
-                capability("Signing in the built-in browser", session.capabilities.offersWebSessionHandoff)
-            }
         } }
 .portalList()
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func capability(_ name: LocalizedStringKey, _ isOffered: Bool) -> some View {
-        LabeledContent(name) {
-            Label(isOffered ? LocalizedStringKey("Yes") : LocalizedStringKey("Not yet"), systemImage: isOffered ? "checkmark.circle.fill" : "minus.circle")
-                .foregroundStyle(isOffered ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-                .labelStyle(.titleAndIcon)
-        }
     }
 
     static var versionText: String {

@@ -169,17 +169,19 @@ private struct IdeaCard: View {
                     }
                 }
             }
-            // Full-width capsules on their own lines, so no label ever wraps; the one prominent button is first.
+            // One prominent button, then two quiet ones side by side; none wraps.
             VStack(spacing: 8) {
-                Button(action: onTalk) { Text("Talk it through").frame(maxWidth: .infinity) }
+                Button(action: onTalk) { Text("Talk it through").lineLimit(1).frame(maxWidth: .infinity) }
                     .buttonStyle(.borderedProminent)
-                Button(action: onGoal) { Text("Make it a goal").frame(maxWidth: .infinity) }
-                    .buttonStyle(.bordered)
-                Button(action: onDismiss) { Text("Not interested").frame(maxWidth: .infinity) }
-                    .buttonStyle(.bordered)
-                    .tint(.secondary)
+                HStack(spacing: 8) {
+                    Button(action: onGoal) { Text("Make it a goal").lineLimit(1).minimumScaleFactor(0.8).frame(maxWidth: .infinity) }
+                        .buttonStyle(.bordered)
+                    Button(action: onDismiss) { Text("Not interested").lineLimit(1).minimumScaleFactor(0.8).frame(maxWidth: .infinity) }
+                        .buttonStyle(.bordered)
+                        .tint(.secondary)
+                }
             }
-            .controlSize(.large)
+            .controlSize(.regular)
             .buttonBorderShape(.capsule)
             .disabled(isBusy)
         }

@@ -200,7 +200,6 @@ struct GoalDetailView: View {
                             LabeledContent("Next check") { Text(next, format: .relative(presentation: .named)) }
                         }
                         if let last = goal.lastCheck { LabeledContent("Last check") { Text(last, format: .relative(presentation: .named)) } }
-                        if let count = goal.turnCount { LabeledContent("Turns") { Text("\(count) (\(goal.todayTurnCount ?? 0) today)") } }
                     }
                     if goal.state == .waiting, let question = goal.waitingQuestion, !question.isEmpty {
                         Section("The assistant asks") {
