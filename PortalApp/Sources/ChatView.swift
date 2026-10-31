@@ -210,11 +210,14 @@ struct ChatView: View {
                         .padding(.horizontal, 20)
                 }
                 GlassEffectContainer {
-                    HStack(alignment: .bottom, spacing: 8) {
+                    // Large text puts the button under the field so the prompt can wrap.
+                    let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 8)) : AnyLayout(HStackLayout(alignment: .bottom, spacing: 8))
+                    layout {
                         TextField(fieldPrompt(model), text: $draft, axis: .vertical)
                             .lineLimit(1...6)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
+                            .frame(minHeight: 44)
                             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                             .accessibilityIdentifier("chatMessageField")
                             // With a hardware keyboard, Escape in an empty field takes the reply away.
@@ -231,10 +234,12 @@ struct ChatView: View {
                             draft = ""
                             Task { if await !model.send(text) { draft = text } }
                         } label: {
-                            Image(systemName: model.editTarget == nil ? "arrow.up" : "checkmark").frame(width: 24, height: 24)
+                            Image(systemName: model.editTarget == nil ? "arrow.up" : "checkmark").frame(width: 28, height: 28)
                         }
                         .buttonStyle(.glassProminent)
                         .buttonBorderShape(.circle)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .opacity(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1)
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityLabel(model.editTarget == nil ? Text("Send") : Text("Save edit"))
                         .accessibilityIdentifier("chatSendButton")
@@ -253,7 +258,7 @@ struct ChatView: View {
     }
 
     private func fieldPrompt(_ model: ChatModel) -> LocalizedStringKey {
-        if let agent = model.agents.first?.name { return LocalizedStringKey("Message, or @\(agent) to ask") }
+        if !dynamicTypeSize.isAccessibilitySize, let agent = model.agents.first?.name { return LocalizedStringKey("Message, or @\(agent) to ask") }
         return LocalizedStringKey("Message")
     }
 
