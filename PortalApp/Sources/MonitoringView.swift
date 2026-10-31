@@ -108,6 +108,7 @@ struct MonitoringView: View {
                         } label: {
                             QueueRow(ticket: ticket)
                         }
+                        .buttonStyle(.plain)
                     }
                     if model.openCount > model.attention.count {
                         Button {
@@ -130,15 +131,17 @@ struct MonitoringView: View {
                                 Text(incident.title ?? incident.kind ?? "")
                                     .foregroundStyle(.primary)
                                     .lineLimit(2)
-                                HStack(spacing: 6) {
-                                    if let name = session.organizationNames[incident.organizationId ?? ""] {
-                                        Text(name)
-                                    }
+                                VStack(alignment: .leading, spacing: 2) {
                                     if incident.needsReview {
                                         Label("Needs review", systemImage: "eye").foregroundStyle(.orange)
                                     }
-                                    if let date = incident.detectedDate {
-                                        Text(date, format: .relative(presentation: .named))
+                                    HStack(spacing: 6) {
+                                        if let name = session.organizationNames[incident.organizationId ?? ""] {
+                                            Text(name)
+                                        }
+                                        if let date = incident.detectedDate {
+                                            Text(date, format: .relative(presentation: .named))
+                                        }
                                     }
                                 }
                                 .font(.footnote)

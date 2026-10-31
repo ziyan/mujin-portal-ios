@@ -182,11 +182,20 @@ struct SiteView: View {
                         Image(systemName: alarm.severityRank <= 1 ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
                             .foregroundStyle(alarm.severityRank <= 1 ? Color.red : Color.orange)
                     }
-                    HStack(spacing: 6) {
-                        Text(alarm.originLabel ?? alarm.controllerId)
-                        if let date = alarm.occurredDate {
-                            Text("\u{00B7}")
-                            Text(date, format: .relative(presentation: .named))
+                    // At the accessibility text sizes the two parts go on separate lines.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) {
+                            Text(alarm.originLabel ?? alarm.controllerId)
+                            if let date = alarm.occurredDate {
+                                Text("\u{00B7}")
+                                Text(date, format: .relative(presentation: .named))
+                            }
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(alarm.originLabel ?? alarm.controllerId)
+                            if let date = alarm.occurredDate {
+                                Text(date, format: .relative(presentation: .named))
+                            }
                         }
                     }
                     .font(.footnote)
@@ -194,7 +203,7 @@ struct SiteView: View {
                 }
             }
             if model.unavailableControllerCount > 0 {
-                Label("\(model.unavailableControllerCount) controllers could not be reached.", systemImage: "wifi.slash")
+                Label("Controllers that could not be reached: \(model.unavailableControllerCount)", systemImage: "wifi.slash")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -265,7 +274,7 @@ struct SiteView: View {
                         Text(incident.title ?? incident.kind ?? "")
                             .foregroundStyle(.primary)
                             .lineLimit(2)
-                        HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: 2) {
                             if incident.needsReview {
                                 Label("Needs review", systemImage: "eye")
                                     .foregroundStyle(.orange)
