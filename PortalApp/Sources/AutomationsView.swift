@@ -252,6 +252,7 @@ private struct StatusLabel: View {
 }
 
 private struct ActivityList: View {
+    @Environment(SessionModel.self) private var session
     let model: AutomationsModel
     let open: (String) -> Void
     let ask: (AgentActivity) -> Void
