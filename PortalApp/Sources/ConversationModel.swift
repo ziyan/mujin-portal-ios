@@ -224,9 +224,22 @@ final class ConversationModel {
 
     /// Sends what the person typed. While a fresh question is open the text
     /// answers it; otherwise it goes out as a message.
-    func send(_ text: String) async -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
+    func send(_ text: String, attachments: AttachmentDrafts? = nil) async -> Bool {
+        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasFiles = !(attachments?.items.isEmpty ?? true)
+        guard !trimmed.isEmpty || hasFiles else { return false }
+        if hasFiles, let attachments {
+            // Files go up first, then the message names them the way the web app does.
+            do {
+                let files = try await attachments.upload(using: connection)
+                trimmed = SharePayload.assistantMessage(text: trimmed, files: files)
+                attachments.clear()
+            } catch {
+                actionError = error.userMessage
+                onError(error)
+                return false
+            }
+        }
         if let question = activeQuestion {
             await answer(question, with: trimmed)
             return actionError == nil

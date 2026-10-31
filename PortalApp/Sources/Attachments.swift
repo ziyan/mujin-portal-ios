@@ -118,6 +118,7 @@ extension View {
 /// AttachMenu is the button that offers the ways to add a file.
 struct AttachMenu: View {
     let drafts: AttachmentDrafts
+    var systemImage = "paperclip"
 
     var body: some View {
         Menu {
@@ -139,7 +140,9 @@ struct AttachMenu: View {
                 Label("Choose a file", systemImage: "doc")
             }
         } label: {
-            Label("Attach", systemImage: "paperclip")
+            Label("Attach", systemImage: systemImage)
+                .labelStyle(.iconOnly)
+                .frame(minWidth: 44, minHeight: 44)
         }
         .accessibilityIdentifier("attachMenu")
     }

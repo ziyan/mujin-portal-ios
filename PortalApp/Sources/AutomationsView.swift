@@ -82,7 +82,7 @@ struct AutomationsView: View {
             Picker("Show", selection: $part) {
                 Text("Schedule").tag(Part.schedule)
                 Text("Activity").tag(Part.activity)
-                Text("Background work").tag(Part.work)
+                Text("Background").tag(Part.work)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 16)

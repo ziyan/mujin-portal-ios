@@ -18,6 +18,7 @@ struct ConversationView: View {
     @State private var emojiTarget: EmojiTarget?
     @State private var fullArtifact: ArtifactReference?
     @State private var isShowingArtifacts = false
+    @State private var drafts = AttachmentDrafts()
     @AppStorage("toolDetailsSetting") private var toolDetailsSetting = ""
 
     struct EmojiTarget: Identifiable {
@@ -71,6 +72,7 @@ struct ConversationView: View {
                 Task { await model?.react(messageId: target.id, emoji: emoji) }
             }
         }
+        .attachmentPickers(drafts)
         .sheet(isPresented: $isShowingArtifacts) {
             ArtifactListSheet(conversationId: conversationId, connection: appModel.connection(for: account)) { artifact in
                 isShowingArtifacts = false
@@ -140,7 +142,7 @@ struct ConversationView: View {
         case .loaded:
             transcript(model)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    ComposerBar(model: model, voice: voice, draft: $draft)
+                    ComposerBar(model: model, voice: voice, drafts: drafts, draft: $draft)
                 }
         }
     }
@@ -196,7 +198,10 @@ struct ConversationView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background(Color.portalPage)
-            .defaultScrollAnchor(.bottom)
+            // A short thread starts at the top; a long one opens, and follows, at the end.
+            .defaultScrollAnchor(.top, for: .alignment)
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .onChange(of: model.transcript.entries) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
@@ -226,6 +231,8 @@ struct ConversationView: View {
 }
 
 private struct TranscriptRow: View {
+    /// Bubbles stop growing here, so a wide iPad window keeps readable lines.
+    static let bubbleWidth: CGFloat = 620
     let entry: TranscriptEntry
     let model: ConversationModel
     let showsToolDetails: Bool
@@ -264,6 +271,7 @@ private struct TranscriptRow: View {
                 // The assistant's first reaction to a typed message lands here. It is shown, not tapped.
                 ReactionStrip(reactions: model.transcript.reactions(for: id), currentUserId: model.currentUserId, onTap: nil)
             }
+            .frame(maxWidth: Self.bubbleWidth, alignment: .trailing)
             .frame(maxWidth: .infinity, alignment: .trailing)
         case .assistant(let id, let text, let isStreaming):
             VStack(alignment: .leading, spacing: 6) {
@@ -274,6 +282,7 @@ private struct TranscriptRow: View {
                     }
                 }
             }
+            .frame(maxWidth: Self.bubbleWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contextMenu {
                 if !isStreaming {
@@ -365,7 +374,7 @@ struct ReactionStrip: View {
                     .padding(.vertical, 4)
                     .background(summary.isMine ? Color.accentColor.opacity(0.2) : Color.portalCard, in: Capsule())
                     if let onTap {
-                        Button { onTap(summary.emoji) } label: { label }
+                        Button { onTap(summary.emoji) } label: { label.frame(minWidth: 44, minHeight: 44).contentShape(Rectangle()) }
                             .buttonStyle(.plain)
                             .accessibilityLabel(Text("Reacted with \(summary.emoji)"))
                     } else {
@@ -739,10 +748,13 @@ struct ApprovalCardView: View {
 private struct ComposerBar: View {
     let model: ConversationModel
     let voice: VoiceCallController?
+    let drafts: AttachmentDrafts
     @Binding var draft: String
     @FocusState private var isFocused: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var isDraftEmpty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var canSend: Bool { !isDraftEmpty || !drafts.items.isEmpty }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -778,13 +790,21 @@ private struct ComposerBar: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
             }
+            AttachmentStrip(drafts: drafts)
+                .padding(.horizontal, 12)
+            if let attachError = drafts.errorText {
+                Text(attachError).font(.footnote).foregroundStyle(Color.statusError).padding(.horizontal, 20)
+            }
             GlassEffectContainer {
-                HStack(alignment: .bottom, spacing: 8) {
+                let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 8)) : AnyLayout(HStackLayout(alignment: .bottom, spacing: 8))
+                layout {
+                    if !dynamicTypeSize.isAccessibilitySize { attachButton }
                     TextField(model.activeQuestion == nil ? LocalizedStringKey("Message") : LocalizedStringKey("Your answer"), text: $draft, axis: .vertical)
                         .lineLimit(1...6)
                         .focused($isFocused)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
+                        .frame(minHeight: 44)
                         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .accessibilityIdentifier("messageField")
                         // With a hardware keyboard, Escape in an empty field takes the reply away.
@@ -797,46 +817,52 @@ private struct ComposerBar: View {
                         // adds a line. The on-screen keyboard is not affected.
                         .onKeyPress(.return, phases: .down) { press in
                             if press.modifiers.contains(.shift) { return .ignored }
-                            guard !isDraftEmpty else { return .handled }
+                            guard canSend else { return .handled }
                             send()
                             return .handled
                         }
-                    // Stop and Send are both there while a turn runs: a message sent
-                    // meanwhile steers the turn.
-                    if model.isRunning {
-                        Button {
-                            Task { await model.cancelRun() }
-                        } label: {
-                            Image(systemName: "stop.fill")
-                                .frame(width: 24, height: 24)
+                    // Large text puts the buttons on a row of their own under the field.
+                    HStack(spacing: 8) {
+                        if dynamicTypeSize.isAccessibilitySize { attachButton }
+                        // Stop and Send are both there while a turn runs: a message sent
+                        // meanwhile steers the turn.
+                        if model.isRunning {
+                            Button {
+                                Task { await model.cancelRun() }
+                            } label: {
+                                Image(systemName: "stop.fill").frame(width: 28, height: 28)
+                            }
+                            .buttonStyle(.glass)
+                            .buttonBorderShape(.circle)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .accessibilityLabel("Stop")
                         }
-                        .buttonStyle(.glass)
-                        .buttonBorderShape(.circle)
-                        .accessibilityLabel("Stop")
-                    }
-                    if isDraftEmpty, let voice, !voice.isActive {
-                        Button {
-                            Task { await voice.start() }
-                        } label: {
-                            Image(systemName: "waveform")
-                                .frame(width: 24, height: 24)
+                        if !canSend, let voice, !voice.isActive {
+                            Button {
+                                Task { await voice.start() }
+                            } label: {
+                                Image(systemName: "waveform").frame(width: 28, height: 28)
+                            }
+                            .buttonStyle(.glass)
+                            .buttonBorderShape(.circle)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .accessibilityLabel("Talk to the assistant")
+                            .accessibilityIdentifier("voiceButton")
                         }
-                        .buttonStyle(.glass)
+                        // Accent when there is something to send; plainly dimmed when there is not.
+                        Button {
+                            send()
+                        } label: {
+                            Image(systemName: "arrow.up").frame(width: 28, height: 28)
+                        }
+                        .buttonStyle(.glassProminent)
                         .buttonBorderShape(.circle)
-                        .accessibilityLabel("Talk to the assistant")
-                        .accessibilityIdentifier("voiceButton")
+                        .frame(minWidth: 44, minHeight: 44)
+                        .disabled(!canSend)
+                        .opacity(canSend ? 1 : 0.4)
+                        .accessibilityLabel("Send")
+                        .accessibilityIdentifier("sendButton")
                     }
-                    Button {
-                        send()
-                    } label: {
-                        Image(systemName: "arrow.up")
-                            .frame(width: 24, height: 24)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .buttonBorderShape(.circle)
-                    .disabled(isDraftEmpty)
-                    .accessibilityLabel("Send")
-                    .accessibilityIdentifier("sendButton")
                 }
             }
             .padding(.horizontal, 12)
@@ -847,11 +873,17 @@ private struct ComposerBar: View {
         .padding(.top, 6)
     }
 
+    private var attachButton: some View {
+        AttachMenu(drafts: drafts, systemImage: "plus")
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+    }
+
     private func send() {
         let text = draft
         draft = ""
         Task {
-            if await !model.send(text) { draft = text }
+            if await !model.send(text, attachments: drafts) { draft = text }
         }
     }
 }

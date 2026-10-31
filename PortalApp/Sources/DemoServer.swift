@@ -57,6 +57,7 @@ final class DemoState: @unchecked Sendable {
             conversation("conversation03", "Questions about site01", "Pallet counts match the last shift.", 90_000),
             conversation("conversation04", "Throughput by site", "Site01 leads this week.", 1_800),
             conversation("conversation05", "Overnight checks", "No alarms overnight.", 7_200),
+            conversation("conversation06", "A thought about dock doors", "The assistant started this conversation.", 600),
         ]
         data.messages["conversation01"] = [
             ["id": "m01", "role": "user", "content": "Give me a status summary for this week.", "createdAt": stamp(3_700)],
@@ -222,6 +223,26 @@ final class DemoState: @unchecked Sendable {
             [
                 "id": "m46", "role": "system", "content": "The model did not answer in time.", "stopReason": "error", "metadata": ["turnEnd": true],
                 "createdAt": stamp(7_300),
+            ],
+        ]
+        data.messages["conversation06"] = [
+            ["id": "m50", "role": "user", "content": "[Speaking first: idea]\nShare the open idea about dock doors.", "createdAt": stamp(660)],
+            [
+                "id": "m51", "role": "assistant", "createdAt": stamp(650),
+                "content": "I noticed dock door 3 opened late four mornings in a row. Want me to watch it and tell you when it happens? You prefer short answers [[user/preferences#2]].",
+            ],
+            [
+                "id": "m52", "role": "system", "content": "Looking more closely: the pattern needs a week of history.", "createdAt": stamp(640),
+                "metadata": ["depthNote": true, "reasonKind": "lookingClosely", "reasonParameters": ["reason": "the pattern needs a week of history"]],
+            ],
+            [
+                "id": "m53", "role": "assistant", "createdAt": stamp(630),
+                "content": "[Goal needs you: Keep dock waits under 20 minutes]\n\nThe goal \"Keep dock waits under 20 minutes\" is waiting for you.\n\nShould I also watch dock door 4?\n\nAnswer here and I will pass it on. (goal id: goal01)",
+                "metadata": ["goalNeedsYou": ["goalId": "goal01", "waitId": "wait01"]],
+            ],
+            [
+                "id": "m54", "role": "system", "content": "The model provider is busy. Try again in a minute.", "stopReason": "error", "createdAt": stamp(620),
+                "metadata": ["turnEnd": true, "reasonKind": "providerRateLimited", "reasonParameters": [:]],
             ],
         ]
         data.messages["conversation03"] = [
@@ -617,6 +638,128 @@ struct DemoTransport: HTTPTransport {
         case "ArchiveConversation":
             state.withData { data in data.conversations.removeAll { ($0["id"] as? String) == conversationId } }
             return ["ArchiveConversation": ["conversation": ["id": conversationId, "archivedAt": ISO8601DateFormatter().string(from: Date())]]]
+        case "ListGoals":
+            let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
+            return [
+                "ListGoals": [
+                    "goals": [
+                        [
+                            "id": "goal01", "title": "Keep dock waits under 20 minutes", "description": "Watch the dock doors and tell me when a truck waits too long.",
+                            "goalState": "waiting", "statusLine": "Dock door 3 opened late four mornings in a row.", "waitingQuestion": "Should I also watch dock door 4?",
+                            "conversationId": "conversation06", "nextCheckAt": stamp(-3_600), "lastCheckAt": stamp(1_800), "checkIntervalMinutes": 60, "turnCount": 9, "todayTurnCount": 3,
+                        ],
+                        [
+                            "id": "goal02", "title": "Reduce pallet rework at site02", "goalState": "working", "statusLine": "Rework fell from 6 to 4 percent this week.",
+                            "nextCheckAt": stamp(-7_200), "lastCheckAt": stamp(3_000), "checkIntervalMinutes": 240, "turnCount": 14, "todayTurnCount": 1,
+                        ],
+                        ["id": "goal03", "title": "Clear the open alarm backlog", "goalState": "met", "statusLine": "No open alarms remain.", "turnCount": 6],
+                    ], "meta": ["totalCount": 3],
+                ]
+            ]
+        case "GetGoal":
+            let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
+            return [
+                "GetGoal": [
+                    "id": "goal01", "title": "Keep dock waits under 20 minutes", "description": "Watch the dock doors and tell me when a truck waits too long.",
+                    "goalState": "waiting", "statusLine": "Dock door 3 opened late four mornings in a row.", "waitingQuestion": "Should I also watch dock door 4?",
+                    "conversationId": "conversation06", "nextCheckAt": stamp(-3_600), "lastCheckAt": stamp(1_800), "checkIntervalMinutes": 60, "turnCount": 9, "todayTurnCount": 3,
+                ]
+            ]
+        case "ListGoalActivities":
+            let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
+            return [
+                "ListGoalActivities": [
+                    ["id": "activity-goal1", "goalId": "goal01", "activityText": "Read the last 30 days of dock door events.", "createdAt": stamp(7_000)],
+                    ["id": "activity-goal2", "goalId": "goal01", "activityText": "Found that door 3 opens late on weekday mornings.", "createdAt": stamp(1_800)],
+                ]
+            ]
+        case "ListIdeas":
+            return [
+                "ListIdeas": [
+                    "ideas": [
+                        [
+                            "id": "idea01", "ideaKind": "found", "headline": "Watch dock door 3", "rank": 1,
+                            "body": "It opened late four mornings in a row. I can watch it and tell you each time.",
+                            "evidence": [["evidenceKind": "site", "evidenceId": "site01", "evidenceLabel": "Site01"], ["evidenceKind": "ticket", "evidenceId": "ticket01", "evidenceLabel": "#1 Gripper drops boxes"]],
+                        ],
+                        ["id": "catalog:weekly", "ideaKind": "catalog", "headline": "A weekly summary on Mondays", "rank": 2, "body": "Get the week's throughput and alarms as one short note every Monday morning."],
+                    ]
+                ]
+            ]
+        case "ListMemoryPages":
+            return [
+                "ListMemoryPages": [
+                    "memoryPages": [
+                        ["id": "page01", "path": "user/preferences", "memoryScope": "user", "name": "Your preferences", "summary": "How you like answers written.", "liveFactCount": 3],
+                        ["id": "page02", "path": "site/site01/docks", "memoryScope": "site", "name": "Site01 docks", "summary": "Door timings and known quirks.", "liveFactCount": 5],
+                        ["id": "page03", "path": "organization/shifts", "memoryScope": "organization", "name": "Shift pattern", "summary": "Three shifts, handover at 06:00, 14:00 and 22:00.", "liveFactCount": 2],
+                    ], "meta": ["totalCount": 3],
+                ]
+            ]
+        case "GetMemoryPage":
+            return [
+                "GetMemoryPage": [
+                    "id": "page01", "path": "user/preferences", "memoryScope": "user", "name": "Your preferences", "summary": "How you like answers written.", "liveFactCount": 3,
+                    "isWritableByReader": true, "aliases": [],
+                    "facts": [
+                        ["id": "fact01", "number": 1, "factKind": "preference", "sentence": "Prefers short answers without tables.", "evidence": [["evidenceKind": "conversation", "quote": "Keep it short, no tables please."]]],
+                        ["id": "fact02", "number": 2, "factKind": "preference", "sentence": "Reads the summary first and the details only if needed.", "isInferred": true],
+                        ["id": "fact03", "number": 3, "factKind": "fact", "sentence": "Works the early shift at site01."],
+                        ["id": "fact04", "number": 4, "factKind": "fact", "sentence": "Used to work at site03.", "supersededByFactId": "fact03"],
+                    ],
+                    "links": [["fromMemoryPageId": "page01", "toMemoryPageId": "page02", "relation": "works_on", "linkStatus": "stated", "toPageName": "Site01 docks", "toPagePath": "site/site01/docks"]],
+                ]
+            ]
+        case "ListMemoryRevisions":
+            return ["ListMemoryRevisions": [["revisionNumber": 2, "revisionKind": "fact_added", "actorKind": "assistant", "changeReason": "Filed after a conversation", "createdAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-3_600))]]]
+        case "GetAgentDreamSetting":
+            return [
+                "GetAgentDreamSetting": [
+                    "organizationId": "organization01", "isDreamEnabled": true, "dreamBudgetSharePercent": 20, "dreamTokenCap": 200_000, "dailyTokenAllowance": 2_000_000,
+                    "todayBudgetTokenCount": 400_000, "todaySpentTokenCount": 120_000, "lastDreamEndedAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-14_000)),
+                    "isDreaming": false, "hasBacklog": true, "canManageOrganization": true,
+                ]
+            ]
+        case "ListMemoryLinkProposals":
+            return ["ListMemoryLinkProposals": [["fromMemoryPageId": "page02", "toMemoryPageId": "page03", "relation": "follows", "linkStatus": "proposed", "fromPageName": "Site01 docks", "toPageName": "Shift pattern"]]]
+        case "ListMemoryDreams":
+            return [
+                "ListMemoryDreams": [
+                    "memoryDreams": [
+                        [
+                            "id": "dream01", "dreamStatus": "completed", "dreamTrigger": "automatic", "startedAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-14_400)),
+                            "endedAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-14_000)),
+                            "phaseReports": [["dreamPhase": "decay", "phaseOutcome": "done", "doneItemCount": 4], ["dreamPhase": "associate", "phaseOutcome": "done", "doneItemCount": 1]],
+                            "gapQuestions": ["Which dock handles returns?"],
+                        ]
+                    ], "meta": ["totalCount": 1],
+                ]
+            ]
+        case "GetAgentSpeakFirstSetting":
+            return ["GetAgentSpeakFirstSetting": ["isEnabledForOrganization": true, "isEnabledForUser": true, "disabledReasons": ["memory_check"], "canManageOrganization": true]]
+        case "GetAgentMemorySetting":
+            return ["GetAgentMemorySetting": ["isFilingEnabledForUser": true, "isFilingEnabledForOrganization": true, "canManageOrganization": true]]
+        case "GetAgentVoiceSetting":
+            return ["GetAgentVoiceSetting": ["speechVoice": "", "defaultSpeechVoice": "alloy", "speechVoices": ["alloy", "ash", "coral", "nova", "sage"]]]
+        case "GetAgentBackgroundSetting":
+            return ["GetAgentBackgroundSetting": ["areGoalsEnabled": true, "areFoundIdeasEnabled": true, "isSpeakFirstEnabled": true, "canManageOrganization": true]]
+        case "ListMemoryFilings":
+            guard conversationId == "conversation06" else { return ["ListMemoryFilings": []] }
+            return [
+                "ListMemoryFilings": [
+                    [
+                        "id": "filing01", "sourceKind": "conversation", "conversationId": "conversation06", "filingTrigger": "automatic", "writtenFactCount": 2,
+                        "createdAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-300)),
+                        "facts": [
+                            ["id": "fact02", "number": 2, "pagePath": "user/preferences", "sentence": "Reads the summary first and the details only if needed.", "isInferred": true, "memoryScope": "user"],
+                            ["id": "fact05", "number": 5, "pagePath": "site/site01/docks", "sentence": "Dock door 3 opens late on weekday mornings.", "memoryScope": "site"],
+                        ],
+                    ]
+                ]
+            ]
+        case "ListConversationArtifacts":
+            guard conversationId == "conversation04" else { return ["ListConversationArtifacts": []] }
+            return ["ListConversationArtifacts": [["id": "artifact01", "conversationId": "conversation04", "attachmentId": "attachment01", "title": "Throughput by site", "artifactKind": "html", "sizeBytes": 2048]]]
         default:
             return ["CancelRun": NSNull()]
         }

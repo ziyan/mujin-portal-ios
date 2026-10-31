@@ -36,5 +36,7 @@ extension View {
     func portalList() -> some View {
         scrollContentBackground(.hidden)
             .background(Color.portalPage)
+            // The floating tab bar's blur must not sit over the last row's text.
+            .contentMargins(.bottom, 16, for: .scrollContent)
     }
 }
