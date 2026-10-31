@@ -9,6 +9,7 @@ import PortalKit
 /// answers the GraphQL documents the app sends from invented data and plays a
 /// scripted turn through the subscription feed. Launch the app with `-demo`.
 /// Every name here is made up.
+@MainActor
 enum DemoServer {
     static let server = try! ServerAddress("https://demo.example.test")
 
