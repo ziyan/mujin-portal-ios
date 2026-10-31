@@ -34,7 +34,6 @@ struct MainTabsView: View {
     let account: Account
 
     @State private var session: SessionModel?
-    @State private var selection = AppSection.assistant
 
     var body: some View {
         Group {
@@ -63,21 +62,29 @@ struct MainTabsView: View {
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             session = newSession
             await newSession.load()
-            selection = DemoOptions.section ?? Navigation.home(for: newSession.persona)
+            newSession.selectedSection = DemoOptions.section ?? Navigation.home(for: newSession.persona)
         }
     }
 
     private func tabs(_ session: SessionModel) -> some View {
-        TabView(selection: $selection) {
+        TabView(selection: Binding(get: { session.selectedSection }, set: { session.selectedSection = $0 })) {
             ForEach(Navigation.sections(for: session.persona)) { section in
                 Tab(section.titleKey, systemImage: section.symbol, value: section) {
                     SectionContent(section: section, account: account)
                 }
+                .badge(section == .assistant ? session.waiting.count : 0)
             }
         }
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
         .environment(session)
+        .task {
+            // The web app polls what waits for the person every 30 seconds; so does this.
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+                await session.refreshWaiting()
+            }
+        }
     }
 }
 

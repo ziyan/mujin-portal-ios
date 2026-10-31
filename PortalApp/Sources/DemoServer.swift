@@ -52,6 +52,8 @@ final class DemoState: @unchecked Sendable {
             conversation("conversation02", "Restart the planner on controller01", "Waiting for your approval.", 120, running: true),
             conversation("conversation01", "Weekly status summary", "Three sites are healthy, one needs attention.", 3_600),
             conversation("conversation03", "Questions about site01", "Pallet counts match the last shift.", 90_000),
+            conversation("conversation04", "Throughput by site", "Site01 leads this week.", 1_800),
+            conversation("conversation05", "Overnight checks", "No alarms overnight.", 7_200),
         ]
         data.messages["conversation01"] = [
             ["id": "m01", "role": "user", "content": "Give me a status summary for this week.", "createdAt": stamp(3_700)],
@@ -94,6 +96,51 @@ final class DemoState: @unchecked Sendable {
                 "id": "approval01", "toolCallId": "call02", "toolName": "shell", "policyReason": "This command changes a running service.", "risk": "high",
                 "arguments": "{\"command\":\"systemctl restart planner\"}", "requestedAt": stamp(140), "decidedAt": NSNull(), "cancelledAt": NSNull(),
             ]
+        ]
+        func toolMessage(_ id: String, _ callId: String, _ name: String, _ content: String, note: String?, durationMS: Int?, _ secondsAgo: TimeInterval) -> [String: Any] {
+            var metadata: [String: Any] = [:]
+            if let note { metadata["toolNote"] = note }
+            if let durationMS { metadata["durationMS"] = durationMS }
+            return ["id": id, "role": "tool", "toolCallId": callId, "toolName": name, "content": content, "metadata": metadata, "createdAt": stamp(secondsAgo)]
+        }
+        func call(_ id: String, _ name: String, _ arguments: String) -> [String: Any] { ["id": id, "function": ["name": name, "arguments": arguments]] }
+        data.messages["conversation04"] = [
+            [
+                "id": "m30", "role": "user", "content": "Show me throughput by site this week.", "createdAt": stamp(1_900),
+                "viewingKind": "site", "viewingId": "site01", "viewingLabel": "site01",
+                "reactions": [["id": "r30", "messageId": "m30", "reactorKind": "assistant", "reactorUserId": NSNull(), "emoji": "\u{1F440}", "isAcknowledgment": true]],
+            ],
+            [
+                "id": "m31", "role": "assistant", "content": "Let me pull the numbers.", "createdAt": stamp(1_880),
+                "toolCalls": [call("call10", "controllers", "{\"action\":\"list\"}"), call("call11", "metrics", "{\"days\":7}")],
+            ],
+            toolMessage("m32", "call10", "controllers", "3 controllers", note: "3 controllers", durationMS: 850, 1_870),
+            toolMessage("m33", "call11", "metrics", "ok", note: "7 days of throughput", durationMS: 2_400, 1_860),
+            [
+                "id": "m34", "role": "assistant", "content": "", "createdAt": stamp(1_850),
+                "toolCalls": [call("call12", "think_harder", "{\"switchReason\":\"Needs a closer comparison\"}"), call("call13", "artifact", "{\"title\":\"Throughput by site\"}")],
+            ],
+            toolMessage("m35", "call12", "think_harder", "", note: nil, durationMS: nil, 1_845),
+            toolMessage(
+                "m36", "call13", "artifact",
+                "{\"artifactId\":\"artifact01\",\"attachmentId\":\"attachment01\",\"title\":\"Throughput by site\",\"artifactKind\":\"html\",\"sizeBytes\":2048,\"url\":\"/api/v1/artifact/artifact01\"}",
+                note: "1 chart", durationMS: 600, 1_840),
+            [
+                "id": "m37", "role": "assistant", "content": "Site01 leads this week with 1,240 pallets, ahead of site02 and site03.", "createdAt": stamp(1_800),
+                "reactions": [["id": "r31", "messageId": "m37", "reactorKind": "user", "reactorUserId": "user01", "emoji": "\u{1F44D}", "isAcknowledgment": false]],
+            ],
+        ]
+        data.messages["conversation05"] = [
+            ["id": "m40", "role": "user", "content": "[Scheduled: Morning check]\nLook at the overnight alarms.", "createdAt": stamp(8_000)],
+            ["id": "m41", "role": "assistant", "content": "No alarms overnight.", "createdAt": stamp(7_990)],
+            ["id": "m42", "role": "user", "content": "[Background work finished: Compare sites]\nSite01 is faster than site02.", "createdAt": stamp(7_800)],
+            ["id": "m43", "role": "assistant", "content": "Site01 is faster than site02.", "createdAt": stamp(7_790)],
+            ["id": "m44", "role": "user", "content": "[Carrying on after a restart]\nContinue.", "createdAt": stamp(7_500)],
+            ["id": "m45", "role": "system", "content": "Earlier: the plan was to compare sites.", "stopReason": "context_summary", "createdAt": stamp(7_400)],
+            [
+                "id": "m46", "role": "system", "content": "The model did not answer in time.", "stopReason": "error", "metadata": ["turnEnd": true],
+                "createdAt": stamp(7_300),
+            ],
         ]
         data.messages["conversation03"] = [
             ["id": "m20", "role": "user", "content": "How many pallets did site01 move?", "createdAt": stamp(90_100)],
@@ -183,6 +230,99 @@ struct DemoTransport: HTTPTransport {
             return ["GetConversation": state.withData { $0.conversations.first { ($0["id"] as? String) == conversationId } ?? [:] }]
         case "ListConversationMessages":
             return ["ListConversationMessages": state.withData { $0.messages[conversationId] ?? [] }]
+        case "ListConversationWaiting":
+            return [
+                "ListConversationWaiting": state.withData { data -> [[String: Any]] in
+                    var rows: [[String: Any]] = []
+                    for (conversationId, cards) in data.approvals {
+                        for card in cards {
+                            rows.append([
+                                "conversationId": conversationId, "conversationTitle": "Restart the planner on controller01", "waitingKind": "approval",
+                                "interactionId": card["id"] ?? "", "promptText": "The assistant wants to restart the planner on controller01.", "toolName": "shell",
+                                "toolRisk": "high", "askedAt": card["requestedAt"] ?? NSNull(),
+                            ])
+                        }
+                    }
+                    for (conversationId, cards) in data.questions {
+                        for card in cards {
+                            rows.append([
+                                "conversationId": conversationId, "conversationTitle": "Restart the planner on controller01", "waitingKind": "question",
+                                "interactionId": card["id"] ?? "", "promptText": card["question"] ?? "", "askedAt": card["askedAt"] ?? NSNull(),
+                            ])
+                        }
+                    }
+                    return rows
+                }
+            ]
+        case "CountConversationMessages":
+            let loaded = state.withData { $0.messages[conversationId]?.count ?? 0 }
+            return ["CountConversationMessages": ["messageCount": conversationId == "conversation04" ? loaded + 12 : loaded]]
+        case "RenameConversation":
+            let title = variables["title"] as? String ?? ""
+            state.withData { data in
+                if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) { data.conversations[index]["title"] = title }
+            }
+            return ["RenameConversation": ["conversation": ["id": conversationId, "title": title, "isTitleCustom": true]]]
+        case "ReactToConversationMessage":
+            let messageId = variables["messageId"] as? String ?? ""
+            let emoji = variables["emoji"] as? String ?? ""
+            let reactions: [[String: Any]] = emoji.isEmpty ? [] : [["id": "demo-reaction", "messageId": messageId, "reactorKind": "user", "reactorUserId": "user01", "emoji": emoji, "isAcknowledgment": false]]
+            return ["ReactToConversationMessage": ["message": ["id": messageId, "conversationId": conversationId, "reactions": reactions]]]
+        case "ListBackgroundWork":
+            // A conversation's own list holds only unfinished work; the Automations list holds all of it.
+            if variables["conversationId"] != nil { return ["ListBackgroundWork": ["backgroundWork": [], "meta": ["totalCount": 0]]] }
+            let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
+            return [
+                "ListBackgroundWork": [
+                    "backgroundWork": [
+                        [
+                            "id": "work01", "title": "Compare throughput of site01 and site02", "purpose": "Read both sites' last 30 days and compare them.",
+                            "workState": "running", "parentConversationId": "conversation04", "startedAt": stamp(300), "createdAt": stamp(320),
+                        ],
+                        [
+                            "id": "work02", "title": "Check overnight alarms", "purpose": "Summarize alarms from the last 12 hours.", "workState": "done",
+                            "resultText": "No alarms in the last 12 hours on any controller.", "parentConversationId": "conversation05", "startedAt": stamp(9_000),
+                            "finishedAt": stamp(8_800), "createdAt": stamp(9_100), "costMicroMinorUnits": 3_400_000, "costCurrency": "USD",
+                        ],
+                    ], "meta": ["totalCount": 2],
+                ]
+            ]
+        case "ListAgentSchedule":
+            let formatter = ISO8601DateFormatter()
+            let calendar = Calendar.current
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+            func at(_ base: Date, _ hour: Int) -> String { formatter.string(from: calendar.date(bySettingHour: hour, minute: 0, second: 0, of: base) ?? base) }
+            return [
+                "ListAgentSchedule": [
+                    "occurrences": [
+                        ["occurrenceKind": "job", "occursAt": at(Date(), 17), "subjectId": "job02", "title": "End of shift report", "jobType": "recurring", "conversationId": "conversation05"],
+                        ["occurrenceKind": "job", "occursAt": at(tomorrow, 7), "subjectId": "job01", "title": "Morning check", "jobType": "recurring", "conversationId": "conversation05"],
+                        ["occurrenceKind": "goal_check_in", "occursAt": at(tomorrow, 9), "subjectId": "goal01", "title": "Reduce dock wait time"],
+                        ["occurrenceKind": "job", "occursAt": at(tomorrow, 15), "subjectId": "job03", "title": "Watch controller01 planner", "jobType": "monitor"],
+                    ], "unreadableJobCount": 0,
+                ]
+            ]
+        case "ListAgentActivity":
+            let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
+            return [
+                "ListAgentActivity": [
+                    "activities": [
+                        ["id": "activity01", "activityKind": "scheduled_job", "activityStatus": "running", "title": "End of shift report", "startedAt": stamp(60), "conversationId": "conversation05"],
+                        [
+                            "id": "activity02", "activityKind": "scheduled_job", "activityStatus": "succeeded", "title": "Morning check", "startedAt": stamp(7_200),
+                            "endedAt": stamp(7_100), "costMicroMinorUnits": 12_300_000, "costCurrency": "USD", "conversationId": "conversation05",
+                        ],
+                        [
+                            "id": "activity03", "activityKind": "monitor", "activityStatus": "failed", "title": "Watch controller01 planner", "startedAt": stamp(20_000),
+                            "endedAt": stamp(19_900), "errorMessage": "The controller did not answer.",
+                        ],
+                        [
+                            "id": "activity04", "activityKind": "background_work", "activityStatus": "succeeded", "title": "Check overnight alarms", "startedAt": stamp(9_000),
+                            "endedAt": stamp(8_800), "costMicroMinorUnits": 3_400_000, "costCurrency": "USD", "backgroundWorkId": "work02",
+                        ],
+                    ], "meta": ["totalCount": 4],
+                ]
+            ]
         case "ListConversationQuestions":
             return ["ListConversationQuestions": state.withData { $0.questions[conversationId] ?? [] }]
         case "ListConversationApprovals":

@@ -5,12 +5,22 @@ import SwiftUI
 /// streaming in, question and approval cards, and the composer.
 struct ConversationView: View {
     @Environment(AppModel.self) private var appModel
+    @Environment(SessionModel.self) private var session
     let account: Account
     let conversationId: String
     let title: String?
 
     @State private var model: ConversationModel?
     @State private var draft = ""
+    @State private var isRenaming = false
+    @State private var renameDraft = ""
+    @State private var emojiTarget: EmojiTarget?
+    @State private var fullArtifact: ArtifactReference?
+    @AppStorage("toolDetailsSetting") private var toolDetailsSetting = ""
+
+    struct EmojiTarget: Identifiable {
+        let id: String
+    }
 
     var body: some View {
         Group {
@@ -20,17 +30,55 @@ struct ConversationView: View {
                 ProgressView()
             }
         }
-        .navigationTitle(model?.title?.isEmpty == false ? model!.title! : (title?.isEmpty == false ? title! : String(localized: "New conversation")))
+        .navigationTitle(shownTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        renameDraft = shownTitle
+                        isRenaming = true
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                } label: {
+                    Label("Conversation options", systemImage: "ellipsis.circle")
+                }
+            }
+        }
+        .alert("Rename conversation", isPresented: $isRenaming) {
+            TextField("Title", text: $renameDraft)
+            Button("Save") { Task { await model?.rename(to: renameDraft) } }
+            Button("Cancel", role: .cancel) {}
+        }
+        .sheet(item: $emojiTarget) { target in
+            EmojiEntryView { emoji in
+                Task { await model?.react(messageId: target.id, emoji: emoji) }
+            }
+        }
+        .fullScreenCover(item: $fullArtifact) { artifact in
+            ArtifactFullView(artifact: artifact, connection: appModel.connection(for: account))
+        }
         .task(id: conversationId) {
             let conversationModel = ConversationModel(
-                conversationId: conversationId, connection: appModel.connection(for: account), socketFactory: appModel.socketFactory,
+                conversationId: conversationId, currentUserId: account.userId, connection: appModel.connection(for: account),
+                socketFactory: appModel.socketFactory,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             model = conversationModel
             conversationModel.start()
         }
         .onAppear { model?.start() }
         .onDisappear { model?.stop() }
+    }
+
+    private var shownTitle: String {
+        if let modelTitle = model?.title, !modelTitle.isEmpty { return modelTitle }
+        if let title, !title.isEmpty { return title }
+        return String(localized: "New conversation")
+    }
+
+    private var showsToolDetails: Bool {
+        AssistantDisplay.showsToolDetails(setting: toolDetailsSetting, persona: session.persona)
     }
 
     @ViewBuilder
@@ -58,6 +106,17 @@ struct ConversationView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
+                    if model.window.earlierCount > 0 {
+                        Button {
+                            Task { await model.loadEarlier() }
+                        } label: {
+                            Text("\(model.window.earlierCount) earlier messages")
+                                .font(.footnote)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.isLoadingEarlier)
+                    }
                     if model.transcript.entries.isEmpty {
                         ContentUnavailableView {
                             Label("Ask anything", systemImage: "sparkles")
@@ -66,14 +125,20 @@ struct ConversationView: View {
                         }
                         .padding(.top, 48)
                     }
-                    ForEach(model.transcript.entries) { entry in
-                        TranscriptRow(entry: entry, model: model)
-                            .id(entry.id)
+                    ForEach(model.transcript.displayEntries) { entry in
+                        TranscriptRow(
+                            entry: entry, model: model, showsToolDetails: showsToolDetails,
+                            openArtifact: { fullArtifact = $0 }, moreEmoji: { emojiTarget = EmojiTarget(id: $0) }
+                        )
+                        .id(entry.id)
                     }
                     if model.isRunning, !model.transcript.entries.contains(where: Self.isStreamingOrCard) {
                         ProgressView()
                             .padding(.leading, 4)
                             .accessibilityLabel("Working")
+                    }
+                    ForEach(model.backgroundWork) { work in
+                        BackgroundWorkBanner(work: work) { Task { await model.stopBackgroundWork(work) } }
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
@@ -116,28 +181,66 @@ struct ConversationView: View {
 private struct TranscriptRow: View {
     let entry: TranscriptEntry
     let model: ConversationModel
+    let showsToolDetails: Bool
+    let openArtifact: (ArtifactReference) -> Void
+    let moreEmoji: (String) -> Void
 
     var body: some View {
         switch entry {
-        case .user(_, let text):
-            HStack {
-                Spacer(minLength: 48)
-                Text(text)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .foregroundStyle(.white)
-                    .textSelection(.enabled)
+        case .user(let id, let text, let viewing):
+            VStack(alignment: .trailing, spacing: 4) {
+                HStack {
+                    Spacer(minLength: 48)
+                    Text(text)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .foregroundStyle(.white)
+                        .textSelection(.enabled)
+                }
+                if let viewing {
+                    ViewingChip(viewing: viewing)
+                }
+                // The assistant's first reaction to a typed message lands here. It is shown, not tapped.
+                ReactionStrip(reactions: model.transcript.reactions(for: id), currentUserId: model.currentUserId, onTap: nil)
             }
-        case .assistant(_, let text, _):
-            MarkdownView(markdown: text)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        case .tool(_, let name, let arguments, let result):
-            ToolRow(name: name, arguments: arguments, result: result)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        case .assistant(let id, let text, let isStreaming):
+            VStack(alignment: .leading, spacing: 6) {
+                MarkdownView(markdown: text)
+                if !isStreaming {
+                    ReactionStrip(reactions: model.transcript.reactions(for: id), currentUserId: model.currentUserId) { emoji in
+                        Task { await model.react(messageId: id, emoji: emoji) }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contextMenu {
+                if !isStreaming {
+                    ForEach(Reactions.palette, id: \.self) { emoji in
+                        Button(emoji) { Task { await model.react(messageId: id, emoji: emoji) } }
+                    }
+                    Button {
+                        moreEmoji(id)
+                    } label: {
+                        Label("More emoji", systemImage: "face.smiling")
+                    }
+                }
+            }
+        case .tool(let activity):
+            if activity.isThinkingHarder {
+                ThinkingHarderLine(activity: activity)
+            } else {
+                ToolGroupRow(tools: [activity], showsDetails: showsToolDetails)
+            }
+        case .toolGroup(_, let tools):
+            ToolGroupRow(tools: tools, showsDetails: showsToolDetails)
+        case .produced(.artifact(let artifact)):
+            ArtifactCardView(artifact: artifact, connection: model.connection) { openArtifact(artifact) }
+        case .produced(.file(let file)):
+            ProducedFileRow(file: file, connection: model.connection)
         case .question(let card):
-            QuestionCardView(card: card) { answer in
-                Task { await model.answer(card, with: answer) }
-            }
+            QuestionCardView(card: card, onAnswer: { answer in Task { await model.answer(card, with: answer) } }, onChatInstead: { model.dismissQuestion(card) })
         case .approval(let card):
             ApprovalCardView(card: card) { isApproved in
                 Task { await model.decide(card, isApproved: isApproved) }
@@ -148,47 +251,284 @@ private struct TranscriptRow: View {
                 systemImage: isError ? "exclamationmark.triangle.fill" : "stop.circle")
                 .font(.footnote)
                 .foregroundStyle(isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+        case .turnEnd(_, let kind, let text):
+            TurnEndLine(kind: kind, text: text)
+        case .note(_, let note):
+            NoteLine(note: note)
         }
     }
 }
 
-private struct ToolRow: View {
-    let name: String
-    let arguments: String
-    let result: String?
+/// ViewingChip names the screen a message was written about.
+private struct ViewingChip: View {
+    let viewing: Viewing
+
+    var body: some View {
+        Label(viewing.label ?? viewing.id, systemImage: "scope")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color(.secondarySystemBackground), in: Capsule())
+            .accessibilityLabel(Text("About \(viewing.label ?? viewing.id)"))
+    }
+}
+
+/// ReactionStrip shows the emoji on a message with how many chose each. It
+/// is tapped to take the person's own back or to join in, when `onTap` is given.
+private struct ReactionStrip: View {
+    let reactions: [Reaction]
+    let currentUserId: String
+    let onTap: ((String) -> Void)?
+
+    var body: some View {
+        let summaries = Reactions.summaries(reactions, currentUserId: currentUserId)
+        if !summaries.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(summaries) { summary in
+                    let label = HStack(spacing: 3) {
+                        Text(summary.emoji)
+                        if summary.count > 1 {
+                            Text("\(summary.count)").font(.caption)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(summary.isMine ? Color.accentColor.opacity(0.2) : Color(.secondarySystemBackground), in: Capsule())
+                    if let onTap {
+                        Button { onTap(summary.emoji) } label: { label }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(Text("Reacted with \(summary.emoji)"))
+                    } else {
+                        label.accessibilityLabel(Text("Reacted with \(summary.emoji)"))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// EmojiEntryView takes any emoji from the system keyboard.
+private struct EmojiEntryView: View {
+    @Environment(\.dismiss) private var dismiss
+    let onChoose: (String) -> Void
+    @State private var text = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Type an emoji", text: $text)
+                        .focused($isFocused)
+                        .font(.largeTitle)
+                } footer: {
+                    Text("Use the emoji keyboard. One or two emoji.")
+                }
+            }
+            .navigationTitle("More emoji")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("React") {
+                        onChoose(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                        dismiss()
+                    }
+                    .disabled(!Reactions.isAcceptable(text))
+                }
+            }
+            .onAppear { isFocused = true }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
+/// ToolGroupRow is a stretch of tool calls as one quiet line. With tool
+/// details off it opens to the notes the tools wrote; with them on it also
+/// shows each call's arguments and result.
+private struct ToolGroupRow: View {
+    let tools: [ToolActivity]
+    let showsDetails: Bool
     @State private var isExpanded = false
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: 8) {
-                if !arguments.isEmpty {
-                    Text(arguments)
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                }
-                if let result, !result.isEmpty {
-                    Divider()
-                    Text(result.prefix(2000))
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(tools) { tool in
+                    ToolLine(tool: tool, showsDetails: showsDetails)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 4)
         } label: {
             HStack(spacing: 8) {
-                if result == nil {
+                if tools.contains(where: \.isRunning) {
                     ProgressView().controlSize(.small)
                 } else {
                     Image(systemName: "checkmark.circle")
                         .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                 }
-                Text(name.isEmpty ? String(localized: "Tool") : name)
+                Text("What it did")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                if tools.count > 1 {
+                    Text("\(tools.count)")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
+        }
+        .padding(10)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private struct ToolLine: View {
+    let tool: ToolActivity
+    let showsDetails: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(showsDetails ? tool.displayName : (tool.note ?? tool.displayName))
+                    .font(.footnote)
+                if showsDetails, let note = tool.note {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                if let duration = tool.durationText {
+                    Text(duration)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            if showsDetails {
+                if !tool.arguments.isEmpty {
+                    Text(tool.arguments.prefix(1_000))
+                        .font(.caption.monospaced())
+                        .textSelection(.enabled)
+                }
+                if let result = tool.result, !result.isEmpty {
+                    Text(result.prefix(2_000))
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+}
+
+/// ThinkingHarderLine says the quick model handed the turn to the main one.
+private struct ThinkingHarderLine: View {
+    let activity: ToolActivity
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "brain")
+                .accessibilityHidden(true)
+            Text("Thinking harder")
+            if let reason = activity.thinkHarderReason {
+                Text(reason).foregroundStyle(.tertiary)
+            }
+        }
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+    }
+}
+
+/// TurnEndLine says why a turn ended without an answer. It is read from the
+/// stored note, so it is still there after a reload.
+private struct TurnEndLine: View {
+    let kind: TurnEndKind
+    let text: String
+
+    var body: some View {
+        Label {
+            if kind == .failed {
+                if text.isEmpty {
+                    Text("This answer failed.")
+                } else {
+                    Text("This answer failed: \(text)")
+                }
+            } else {
+                Text(text)
+            }
+        } icon: {
+            Image(systemName: kind == .failed ? "exclamationmark.triangle.fill" : "exclamationmark.circle")
+        }
+        .font(.footnote)
+        .foregroundStyle(kind == .failed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+    }
+}
+
+/// NoteLine is a small line about the assistant's own turns.
+private struct NoteLine: View {
+    let note: TranscriptNote
+    @State private var isExpanded = false
+
+    var body: some View {
+        switch note {
+        case .restart:
+            Label("Carrying on after a restart", systemImage: "arrow.counterclockwise")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        case .scheduled(let jobName, let message):
+            openable(Label("Scheduled: \(jobName)", systemImage: "clock"), body: message)
+        case .backgroundFinished(let title, let report):
+            openable(Label("Background work finished: \(title)", systemImage: "checkmark.circle"), body: report)
+        case .backgroundNotice(let text):
+            Label(text, systemImage: "info.circle")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        case .compaction(let summary):
+            openable(Label("Earlier messages were summarized", systemImage: "arrow.down.right.and.arrow.up.left"), body: summary)
+        }
+    }
+
+    @ViewBuilder
+    private func openable(_ label: some View, body text: String) -> some View {
+        if text.isEmpty {
+            label.font(.footnote).foregroundStyle(.secondary)
+        } else {
+            DisclosureGroup(isExpanded: $isExpanded) {
+                MarkdownView(markdown: text)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+            } label: {
+                label.font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// BackgroundWorkBanner says work the assistant started is still running.
+private struct BackgroundWorkBanner: View {
+    let work: BackgroundWork
+    let onStop: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Working in the background")
+                    .font(.footnote.weight(.semibold))
+                Text(work.title ?? work.purpose ?? "")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            Button("Stop", role: .destructive, action: onStop)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
         }
         .padding(10)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -198,6 +538,7 @@ private struct ToolRow: View {
 private struct QuestionCardView: View {
     let card: QuestionCard
     let onAnswer: (String) -> Void
+    let onChatInstead: () -> Void
     @State private var otherAnswer = ""
 
     var body: some View {
@@ -226,6 +567,13 @@ private struct QuestionCardView: View {
                         .disabled(otherAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+            Button(action: onChatInstead) {
+                Label("Chat about it instead", systemImage: "bubble.left")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .font(.subheadline)
+            .foregroundStyle(.tint)
         }
         .padding(14)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -297,18 +645,33 @@ private struct ComposerBar: View {
     @Binding var draft: String
     @FocusState private var isFocused: Bool
 
+    private var isDraftEmpty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
     var body: some View {
         VStack(spacing: 6) {
             if let error = model.actionError {
-                Text(error)
+                HStack(spacing: 8) {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if !isDraftEmpty {
+                        Button("Retry") { send() }
+                            .font(.footnote.weight(.semibold))
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+            if model.activeQuestion != nil {
+                Label("Your message answers the question above.", systemImage: "questionmark.bubble")
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
             }
             GlassEffectContainer {
                 HStack(alignment: .bottom, spacing: 8) {
-                    TextField("Message", text: $draft, axis: .vertical)
+                    TextField(model.activeQuestion == nil ? "Message" : "Your answer", text: $draft, axis: .vertical)
                         .lineLimit(1...6)
                         .focused($isFocused)
                         .padding(.horizontal, 14)
@@ -319,10 +682,12 @@ private struct ComposerBar: View {
                         // adds a line. The on-screen keyboard is not affected.
                         .onKeyPress(.return, phases: .down) { press in
                             if press.modifiers.contains(.shift) { return .ignored }
-                            guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !model.isRunning else { return .handled }
+                            guard !isDraftEmpty else { return .handled }
                             send()
                             return .handled
                         }
+                    // Stop and Send are both there while a turn runs: a message sent
+                    // meanwhile steers the turn.
                     if model.isRunning {
                         Button {
                             Task { await model.cancelRun() }
@@ -333,19 +698,18 @@ private struct ComposerBar: View {
                         .buttonStyle(.glass)
                         .buttonBorderShape(.circle)
                         .accessibilityLabel("Stop")
-                    } else {
-                        Button {
-                            send()
-                        } label: {
-                            Image(systemName: "arrow.up")
-                                .frame(width: 24, height: 24)
-                        }
-                        .buttonStyle(.glassProminent)
-                        .buttonBorderShape(.circle)
-                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        .accessibilityLabel("Send")
-                        .accessibilityIdentifier("sendButton")
                     }
+                    Button {
+                        send()
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .frame(width: 24, height: 24)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .buttonBorderShape(.circle)
+                    .disabled(isDraftEmpty)
+                    .accessibilityLabel("Send")
+                    .accessibilityIdentifier("sendButton")
                 }
             }
             .padding(.horizontal, 12)

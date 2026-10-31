@@ -16,6 +16,8 @@ final class ConversationListModel {
     let connection: Connection
     private(set) var phase = Phase.loading
     private(set) var conversations: [ConversationSummary] = []
+    /// What the person searches for; empty lists everything.
+    private(set) var searchText = ""
     let onError: @MainActor (Error) -> Void
 
     init(account: Account, connection: Connection, onError: @escaping @MainActor (Error) -> Void) {
@@ -24,9 +26,20 @@ final class ConversationListModel {
         self.onError = onError
     }
 
+    func search(_ text: String) async {
+        searchText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        await load()
+    }
+
     func load() async {
         do {
-            conversations = try await connection.conversations(userId: account.userId).filter { $0.archivedAt == nil }
+            let rows: [ConversationSummary]
+            if searchText.isEmpty {
+                rows = try await connection.conversations(userId: account.userId)
+            } else {
+                rows = try await connection.conversations(userId: account.userId, search: searchText)
+            }
+            conversations = rows.filter { $0.archivedAt == nil }
             phase = .loaded
         } catch {
             onError(error)
