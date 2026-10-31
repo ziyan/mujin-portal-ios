@@ -120,6 +120,25 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
         }
     }
 
+    /// A chat event: a message said, edited or deleted in a room, a reaction,
+    /// a change of members, someone typing, a read mark, a link preview ready.
+    public struct Chat: Codable, Equatable, Sendable {
+        public let type: String?
+        public let chatId: String?
+        public let messageId: String?
+        public let messageCreatedAt: String?
+        public let message: ConversationMessage?
+        public let actorUserId: String?
+        public let actorUserName: String?
+        public let isActorAssistant: Bool?
+        public let lastReadMessageId: String?
+        /// joined, left, removed or updated.
+        public let memberChangeKind: String?
+        public let affectedUserIds: [String]?
+        /// Empty when the reaction was taken away.
+        public let reactionEmoji: String?
+    }
+
     /// The event types Portal emits (backend/agents/agents.go).
     public enum Kind: String, Sendable {
         case textDelta = "text_delta"
@@ -132,6 +151,14 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
         case roundRetry = "round_retry"
         case reacted
         case modelSwitch = "model_switch"
+        case chatSaid = "chat_said"
+        case chatEdited = "chat_edited"
+        case chatDeleted = "chat_deleted"
+        case chatReacted = "chat_reacted"
+        case chatMembers = "chat_members"
+        case chatTyping = "chat_typing"
+        case chatRead = "chat_read"
+        case chatLinkPreview = "chat_link_preview"
     }
 
     public let type: String
@@ -146,12 +173,14 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
     public let roundRetry: RoundRetry?
     public let reacted: Reacted?
     public let modelSwitch: ModelSwitch?
+    public let chat: Chat?
 
     public init(
         type: String, runId: String? = nil, textDelta: TextDelta? = nil, toolCall: ToolCall? = nil, toolResult: ToolResult? = nil,
         pendingQuestion: PendingQuestion? = nil, pendingApproval: PendingApproval? = nil, runComplete: RunComplete? = nil, runError: RunError? = nil,
-        roundRetry: RoundRetry? = nil, reacted: Reacted? = nil, modelSwitch: ModelSwitch? = nil
+        roundRetry: RoundRetry? = nil, reacted: Reacted? = nil, modelSwitch: ModelSwitch? = nil, chat: Chat? = nil
     ) {
+        self.chat = chat
         self.roundRetry = roundRetry
         self.reacted = reacted
         self.modelSwitch = modelSwitch

@@ -28,13 +28,25 @@ public struct PortalNotification: Codable, Equatable, Identifiable, Sendable {
     public let agentJobName: String?
     public let agentJobFailureMessage: String?
     public let isAgentJobPaused: Bool?
+    public let chatId: String?
+    public let chatName: String?
+    public let chatAuthorName: String?
+    public let chatMessageExcerpt: String?
+    /// Open this conversation for a chat message.
+    public let chatConversationId: String?
 
     public init(
         id: String, kind: String, readAt: String? = nil, createdAt: String? = nil, ticketId: String? = nil, ticket: TicketRef? = nil,
         incidentId: String? = nil, incident: IncidentRef? = nil, controllerId: String? = nil, siteName: String? = nil,
         organizationName: String? = nil, alarmMessage: String? = nil, agentJobName: String? = nil, agentJobFailureMessage: String? = nil,
-        isAgentJobPaused: Bool? = nil
+        isAgentJobPaused: Bool? = nil, chatId: String? = nil, chatName: String? = nil, chatAuthorName: String? = nil,
+        chatMessageExcerpt: String? = nil, chatConversationId: String? = nil
     ) {
+        self.chatId = chatId
+        self.chatName = chatName
+        self.chatAuthorName = chatAuthorName
+        self.chatMessageExcerpt = chatMessageExcerpt
+        self.chatConversationId = chatConversationId
         self.id = id
         self.kind = kind
         self.readAt = readAt
@@ -66,6 +78,10 @@ public struct PortalNotification: Codable, Equatable, Identifiable, Sendable {
         case "incident": return incident?.title ?? ""
         case "alarm": return alarmMessage ?? ""
         case "agent_job_failed": return agentJobName ?? ""
+        case "chat_message":
+            // "<author> in <chat>: <excerpt>"
+            let place = (chatName ?? "").isEmpty ? "" : " in \(chatName!)"
+            return "\(chatAuthorName ?? "")\(place): \(chatMessageExcerpt ?? "")".trimmingCharacters(in: .whitespaces)
         default: return ""
         }
     }
@@ -83,6 +99,7 @@ public struct PortalNotification: Codable, Equatable, Identifiable, Sendable {
     public var target: NotificationTarget {
         if let id = ticketId ?? ticket?.id, !id.isEmpty, kind.hasPrefix("ticket_") { return .ticket(id: id) }
         if kind == "incident" { return .incident }
+        if kind == "chat_message", let id = chatConversationId, !id.isEmpty { return .chat(conversationId: id) }
         if kind == "alarm" { return .site }
         if kind == "agent_job_failed" { return .automations }
         return .none
@@ -94,6 +111,7 @@ public enum NotificationTarget: Equatable, Sendable {
     case incident
     case site
     case automations
+    case chat(conversationId: String)
     case none
 }
 
@@ -109,7 +127,7 @@ public struct NotificationPreferenceRow: Codable, Equatable, Sendable {
 /// NotificationPreferences is the person's choices, with the server's defaults
 /// for what they have not chosen.
 public struct NotificationPreferences: Equatable, Sendable {
-    public static let kinds = ["ticket_comment", "ticket_assigned", "ticket_mentioned", "ticket_lifecycle", "ticket_activity", "incident", "alarm", "budget_alert", "agent_job_failed"]
+    public static let kinds = ["ticket_comment", "ticket_assigned", "ticket_mentioned", "ticket_lifecycle", "ticket_activity", "incident", "alarm", "budget_alert", "agent_job_failed", "chat_message"]
     public static let channels = ["in_app", "push", "email"]
 
     private var rows: [String: Bool] = [:]
@@ -118,10 +136,11 @@ public struct NotificationPreferences: Equatable, Sendable {
         for row in rows { self.rows["\(row.kind)|\(row.channel)"] = row.isEnabled ?? false }
     }
 
-    /// In-app is always on. Email for a failed job is off until chosen; the rest are on.
+    /// In-app is always on. Email for a failed job, and push and email for a chat message, are off until chosen; the rest are on.
     public func isEnabled(kind: String, channel: String) -> Bool {
         if channel == "in_app" { return true }
         if let chosen = rows["\(kind)|\(channel)"] { return chosen }
+        if kind == "chat_message" { return false }
         return !(kind == "agent_job_failed" && channel == "email")
     }
 
@@ -137,6 +156,7 @@ extension Documents {
             notifications {
               id kind readAt createdAt ticketId ticket { id sequence title } incidentId incident { id title } controllerId siteName organizationName
               alarmMessage agentJobName agentJobFailureMessage isAgentJobPaused
+              chatId chatName chatAuthorName chatMessageExcerpt chatConversationId
             }
             meta { totalCount }
           }

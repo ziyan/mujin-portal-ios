@@ -24,9 +24,8 @@ public struct ServerCapabilities: Equatable, Sendable {
     public func offersMutation(_ name: String) -> Bool { mutationNames.contains(Self.normalized(name)) }
     public func offersSubscription(_ name: String) -> Bool { subscriptionNames.contains(Self.normalized(name)) }
 
-    /// Chats between people. The operations are not in the schema yet, so
-    /// this is false until one of the names the backend plan uses appears.
-    public var offersChats: Bool { offersQuery("ListChats") || offersQuery("ListChatRooms") }
+    /// Chats between people.
+    public var offersChats: Bool { offersQuery("ListChatCandidates") && offersMutation("StartDirectChat") }
 
     public var offersPushRegistration: Bool { offersMutation("RegisterPushDevice") }
     public var offersWebSessionHandoff: Bool { offersMutation("CreateWebSessionHandoff") }

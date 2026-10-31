@@ -35,11 +35,19 @@ public struct ConversationSummary: Codable, Equatable, Identifiable, Sendable {
     public let createdAt: String?
     public let modifiedAt: String?
     public let isTitleCustom: Bool?
+    /// `assistant` or `chat`.
+    public let conversationKind: String?
+    public let chatId: String?
+    public let chat: ChatRoom?
 
     public init(
         id: String, agentId: String? = nil, title: String? = nil, summary: String? = nil, lastMessageAt: String? = nil,
-        activeRunId: String? = nil, archivedAt: String? = nil, createdAt: String? = nil, modifiedAt: String? = nil, isTitleCustom: Bool? = nil
+        activeRunId: String? = nil, archivedAt: String? = nil, createdAt: String? = nil, modifiedAt: String? = nil, isTitleCustom: Bool? = nil,
+        conversationKind: String? = nil, chatId: String? = nil, chat: ChatRoom? = nil
     ) {
+        self.conversationKind = conversationKind
+        self.chatId = chatId
+        self.chat = chat
         self.isTitleCustom = isTitleCustom
         self.id = id
         self.agentId = agentId
@@ -76,12 +84,45 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
     public let viewingKind: String?
     public let viewingId: String?
     public let viewingLabel: String?
+    // What a message said in a chat adds. A message with `isChatMessage` false is a private tool row.
+    public let isChatMessage: Bool?
+    public let authorUserId: String?
+    public let authorName: String?
+    public let authorOrganizationId: String?
+    public let authorOrganizationName: String?
+    public let onBehalfOfUserId: String?
+    public let onBehalfOfUserName: String?
+    public let replyToMessageId: String?
+    public let replyToExcerpt: String?
+    public let replyToAuthorName: String?
+    public let isAddressingAssistant: Bool?
+    public let editedAt: String?
+    public let deletedAt: String?
+    public let linkPreviewsRemovedAt: String?
 
     public init(
         id: String, role: String, content: JSONValue? = nil, toolCalls: JSONValue? = nil, toolCallId: String? = nil,
         toolName: String? = nil, stopReason: String? = nil, createdAt: String? = nil, metadata: JSONValue? = nil,
-        reactions: [Reaction]? = nil, viewingKind: String? = nil, viewingId: String? = nil, viewingLabel: String? = nil
+        reactions: [Reaction]? = nil, viewingKind: String? = nil, viewingId: String? = nil, viewingLabel: String? = nil,
+        isChatMessage: Bool? = nil, authorUserId: String? = nil, authorName: String? = nil, authorOrganizationId: String? = nil,
+        authorOrganizationName: String? = nil, onBehalfOfUserId: String? = nil, onBehalfOfUserName: String? = nil,
+        replyToMessageId: String? = nil, replyToExcerpt: String? = nil, replyToAuthorName: String? = nil,
+        isAddressingAssistant: Bool? = nil, editedAt: String? = nil, deletedAt: String? = nil, linkPreviewsRemovedAt: String? = nil
     ) {
+        self.isChatMessage = isChatMessage
+        self.authorUserId = authorUserId
+        self.authorName = authorName
+        self.authorOrganizationId = authorOrganizationId
+        self.authorOrganizationName = authorOrganizationName
+        self.onBehalfOfUserId = onBehalfOfUserId
+        self.onBehalfOfUserName = onBehalfOfUserName
+        self.replyToMessageId = replyToMessageId
+        self.replyToExcerpt = replyToExcerpt
+        self.replyToAuthorName = replyToAuthorName
+        self.isAddressingAssistant = isAddressingAssistant
+        self.editedAt = editedAt
+        self.deletedAt = deletedAt
+        self.linkPreviewsRemovedAt = linkPreviewsRemovedAt
         self.id = id
         self.role = role
         self.content = content

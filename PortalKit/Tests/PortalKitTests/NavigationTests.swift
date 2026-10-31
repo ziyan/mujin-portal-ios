@@ -77,7 +77,7 @@ import Testing
     }
 
     @Test func chatsAppearWhenTheServerListsThem() {
-        #expect(ServerCapabilities(queryNames: ["ListChats"]).offersChats)
+        #expect(ServerCapabilities(queryNames: ["ListChatCandidates"], mutationNames: ["StartDirectChat"]).offersChats)
     }
 }
 

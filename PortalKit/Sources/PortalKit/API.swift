@@ -35,7 +35,8 @@ extension Connection {
             struct List: Decodable, Sendable { let conversations: [ConversationSummary]? }
             let ListConversations: List
         }
-        let answer = try await execute(Documents.listConversations, variables: ["userId": .string(userId)], as: Answer.self)
+        let answer = try await execute(
+            Documents.listConversations, variables: ["userId": .string(userId), "conversationKind": .string("assistant")], as: Answer.self)
         return (answer.ListConversations.conversations ?? []).sorted { ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast) }
     }
 

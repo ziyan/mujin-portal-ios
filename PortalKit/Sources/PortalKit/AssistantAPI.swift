@@ -74,7 +74,8 @@ extension Connection {
             let ListConversations: List
         }
         let answer = try await execute(
-            Documents.listConversations, variables: ["userId": .string(userId), "search": .string(search)], as: Answer.self)
+            Documents.listConversations,
+            variables: ["userId": .string(userId), "search": .string(search), "conversationKind": .string("assistant")], as: Answer.self)
         return (answer.ListConversations.conversations ?? []).sorted { ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast) }
     }
 

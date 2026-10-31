@@ -8,6 +8,11 @@ public enum Documents {
         id agentId title summary lastMessageAt activeRunId archivedAt createdAt modifiedAt isTitleCustom
         """
 
+    static let chatMessageFields = """
+        isChatMessage authorUserId authorName authorOrganizationId authorOrganizationName onBehalfOfUserId onBehalfOfUserName replyToMessageId
+        replyToExcerpt replyToAuthorName isAddressingAssistant editedAt deletedAt linkPreviewsRemovedAt
+        """
+
     public static let me = """
         query Me { Me { id email name organizationId permissions } }
         """
@@ -21,8 +26,8 @@ public enum Documents {
         """
 
     public static let listConversations = """
-        query ListConversations($userId: String, $search: String) {
-          ListConversations(userId: $userId, search: $search) {
+        query ListConversations($userId: String, $search: String, $conversationKind: ConversationKind) {
+          ListConversations(userId: $userId, search: $search, conversationKind: $conversationKind) {
             conversations { \(conversationFields) }
             meta { totalCount }
           }
@@ -41,6 +46,7 @@ public enum Documents {
             conversationId: $conversationId, latestMessageCount: $latestMessageCount, beforeMessageId: $beforeMessageId
           ) {
             id role content toolCalls toolCallId toolName stopReason createdAt metadata viewingKind viewingId viewingLabel
+            \(chatMessageFields)
             reactions { id messageId reactorKind reactorUserId emoji isAcknowledgment createdAt }
           }
         }
@@ -128,6 +134,14 @@ public enum Documents {
             roundRetry { discardedMessageId }
             reacted { messageId emoji reactorKind reactorUserId }
             modelSwitch { switchCause switchReason }
+            chat {
+              type chatId messageId messageCreatedAt actorUserId actorUserName isActorAssistant lastReadMessageId memberChangeKind affectedUserIds
+              reactionEmoji
+              message {
+                id role content createdAt \(chatMessageFields)
+                reactions { id messageId reactorKind reactorUserId emoji isAcknowledgment createdAt }
+              }
+            }
           }
         }
         """
@@ -148,6 +162,6 @@ public enum Documents {
             me, organization, mainAgent, listConversations, getConversation, listMessages, listQuestions, listApprovals,
             createConversation, sendMessage, cancelRun, answerQuestion, resolveToolApproval, archiveConversation,
             listSites, createTicket, onConversationEvent,
-        ] + assistantDocuments + automationDocuments + ticketDocuments + siteDocuments + notificationDocuments
+        ] + assistantDocuments + automationDocuments + ticketDocuments + siteDocuments + notificationDocuments + chatDocuments
     }
 }
