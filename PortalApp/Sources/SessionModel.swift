@@ -40,6 +40,47 @@ final class SessionModel {
 
     var waitingCounts: [String: Int] { waiting.countsByConversation }
 
+    // MARK: names
+
+    private(set) var personNames: [String: String] = [:]
+    private var requestedPeople: Set<String> = []
+    private(set) var organizationNames: [String: String] = [:]
+    private(set) var siteNames: [String: String] = [:]
+
+    /// How a person is named beside a comment or a ticket.
+    func name(ofPerson id: String?) -> String {
+        guard let id, !id.isEmpty else { return String(localized: "Nobody") }
+        if id == userId { return String(localized: "You") }
+        return personNames[id] ?? String(localized: "Someone")
+    }
+
+    /// Looks up the names of people not looked up yet.
+    func loadPeople(_ ids: [String]) async {
+        let wanted = Set(ids.filter { !$0.isEmpty && $0 != userId }).subtracting(requestedPeople)
+        guard !wanted.isEmpty else { return }
+        requestedPeople.formUnion(wanted)
+        let connection = connection
+        let found = await withTaskGroup(of: PersonSummary?.self, returning: [PersonSummary].self) { group in
+            for id in wanted { group.addTask { try? await connection.person(id: id) } }
+            var people: [PersonSummary] = []
+            for await person in group { if let person { people.append(person) } }
+            return people
+        }
+        for person in found { if let name = person.shownName { personNames[person.id] = name } }
+    }
+
+    /// Names organizations and sites for the lists that show where something is.
+    func loadPlaces() async {
+        if let sites = try? await connection.sites() {
+            siteNames = Dictionary(sites.map { ($0.id, $0.name ?? "") }, uniquingKeysWith: { first, _ in first })
+        }
+        if isStaff, let organizations = try? await connection.organizations() {
+            organizationNames = Dictionary(organizations.map { ($0.id, $0.name ?? "") }, uniquingKeysWith: { first, _ in first })
+        } else if let id = organizationId, let name = profile?.organizationName {
+            organizationNames[id] = name
+        }
+    }
+
     /// Reads what waits for the person. The web app asks every 30 seconds too.
     func refreshWaiting() async {
         do {
@@ -98,6 +139,7 @@ final class SessionModel {
             capabilities = newCapabilities
             phase = .loaded
             await refreshWaiting()
+            await loadPlaces()
         } catch {
             onError(error)
             if profile == nil { phase = .failed(error.userMessage) }
@@ -118,6 +160,7 @@ enum DemoOptions {
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         // Screens that live under More.
         if ["automations", "notifications", "about", "settings"].contains(where: { screen.hasPrefix($0) }) { return .more }
+        if screen.hasPrefix("ticket") { return .tickets }
         return nil
     }
 

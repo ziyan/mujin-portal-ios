@@ -671,7 +671,7 @@ private struct ComposerBar: View {
             }
             GlassEffectContainer {
                 HStack(alignment: .bottom, spacing: 8) {
-                    TextField(model.activeQuestion == nil ? "Message" : "Your answer", text: $draft, axis: .vertical)
+                    TextField(model.activeQuestion == nil ? LocalizedStringKey("Message") : LocalizedStringKey("Your answer"), text: $draft, axis: .vertical)
                         .lineLimit(1...6)
                         .focused($isFocused)
                         .padding(.horizontal, 14)

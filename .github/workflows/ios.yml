@@ -148,6 +148,11 @@ jobs:
           shoot browser browser
           shoot artifacts conversation:conversation04
           shoot notes conversation:conversation05
+          shoot tickets tickets
+          shoot ticket ticket
+          shoot tickets-solved tickets-solved
+          shoot tickets-staff tickets-everyone staff
+          shoot ticket-staff ticket staff
           shoot automations automations
           shoot automations-activity automations-activity
           shoot automations-work automations-work
@@ -157,11 +162,15 @@ jobs:
           shoot artifacts-dark conversation:conversation04
           shoot automations-activity-dark automations-activity
           shoot list-dark list
+          shoot ticket-dark ticket
+          shoot tickets-dark tickets
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text conversation:conversation02
           shoot large-text-artifacts conversation:conversation04
           shoot large-text-list list
+          shoot large-text-tickets tickets
+          shoot large-text-ticket ticket
 
       - name: Keep the screenshots
         if: always()

@@ -32,6 +32,8 @@ final class DemoState: @unchecked Sendable {
         var messages: [String: [[String: Any]]] = [:]
         var questions: [String: [[String: Any]]] = [:]
         var approvals: [String: [[String: Any]]] = [:]
+        var tickets: [[String: Any]] = []
+        var comments: [String: [[String: Any]]] = [:]
         var sockets: [DemoSocket] = []
         var nextNumber = 1
     }
@@ -104,6 +106,31 @@ final class DemoState: @unchecked Sendable {
             return ["id": id, "role": "tool", "toolCallId": callId, "toolName": name, "content": content, "metadata": metadata, "createdAt": stamp(secondsAgo)]
         }
         func call(_ id: String, _ name: String, _ arguments: String) -> [String: Any] { ["id": id, "function": ["name": name, "arguments": arguments]] }
+        func ticket(_ id: String, _ sequence: Int, _ title: String, _ status: String, _ priority: String, requester: String, organization: String, secondsAgo: TimeInterval) -> [String: Any] {
+            [
+                "id": id, "sequence": sequence, "title": title, "status": status, "priority": priority, "siteId": "site01", "organizationId": organization,
+                "authorUserId": requester, "requesterUserId": requester, "assigneeUserId": status == "new" ? NSNull() : "user02", "assigneeUserIds": status == "new" ? [] : ["user02"],
+                "isInternal": false, "createdAt": stamp(secondsAgo + 3_600), "modifiedAt": stamp(secondsAgo), "description": "The gripper drops about one box in twenty at pick station 3.",
+                "viewerCapabilities": [],
+            ]
+        }
+        data.tickets = [
+            ticket("ticket01", 1, "Gripper drops boxes at pick station 3", "open", "high", requester: "user01", organization: "organization01", secondsAgo: 7_200),
+            ticket("ticket02", 2, "Network drops on controller02", "pending", "normal", requester: "user03", organization: "organization02", secondsAgo: 20_000),
+            ticket("ticket03", 3, "Label printer jams on the packing line", "new", "normal", requester: "user01", organization: "organization01", secondsAgo: 900),
+            ticket("ticket04", 4, "Camera view is rotated", "solved", "low", requester: "user01", organization: "organization01", secondsAgo: 200_000),
+            ticket("ticket05", 5, "Planner restart request", "closed", "normal", requester: "user03", organization: "organization02", secondsAgo: 900_000),
+        ]
+        data.comments["ticket01"] = [
+            [
+                "id": "comment01", "authorUserId": "user01", "isOriginalRequest": true, "isInternal": false, "createdAt": stamp(10_800),
+                "body": "The gripper drops about one box in twenty at pick station 3.\n\n![Photo 1.jpg](attachment:attachment01)",
+            ],
+            [
+                "id": "comment02", "authorUserId": "user02", "isInternal": false, "createdAt": stamp(7_200),
+                "body": "Thanks Alex. I looked at the last two hours of logs and the suction pressure dips before each drop. Can you check the hose at the gripper?",
+            ],
+        ]
         data.messages["conversation04"] = [
             [
                 "id": "m30", "role": "user", "content": "Show me throughput by site this week.", "createdAt": stamp(1_900),
@@ -230,6 +257,53 @@ struct DemoTransport: HTTPTransport {
             return ["GetConversation": state.withData { $0.conversations.first { ($0["id"] as? String) == conversationId } ?? [:] }]
         case "ListConversationMessages":
             return ["ListConversationMessages": state.withData { $0.messages[conversationId] ?? [] }]
+        case "ListSites":
+            return ["ListSites": ["sites": [["id": "site01", "name": "site01", "organizationId": "organization01", "isArchived": false], ["id": "site02", "name": "site02", "organizationId": "organization01", "isArchived": false]]]]
+        case "ListOrganizations":
+            return ["ListOrganizations": ["organizations": [["id": "organization01", "name": "Example Logistics", "isMujin": false, "isActive": true], ["id": "organization02", "name": "Sample Foods", "isMujin": false, "isActive": true]], "meta": ["totalCount": 2]]]
+        case "GetUser":
+            let names = ["user01": "Alex Example", "user02": "Sam Sample", "user03": "Robin Demo"]
+            let userId = variables["userId"] as? String ?? ""
+            return ["GetUser": ["id": userId, "name": names[userId] ?? "Someone Else", "email": "\(userId)@example.test", "organizationId": "organization01"]]
+        case "ListTickets":
+            return ["ListTickets": ["tickets": state.withData { $0.tickets }, "meta": ["totalCount": 5]]]
+        case "GetTicket":
+            let ticketId = variables["ticketId"] as? String ?? ""
+            return ["GetTicket": state.withData { $0.tickets.first { ($0["id"] as? String) == ticketId } ?? [:] }]
+        case "ListTicketComments":
+            let ticketId = variables["ticketId"] as? String ?? ""
+            let showsInternal = DemoOptions.isStaff
+            return [
+                "ListTicketComments": state.withData { data -> [[String: Any]] in
+                    var rows = data.comments[ticketId] ?? []
+                    if showsInternal && ticketId == "ticket01" {
+                        rows.append(["id": "comment03", "authorUserId": "user02", "isInternal": true, "createdAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-3_600)), "body": "Hose looks fine on the photo. Asking the line owner for the pressure log."])
+                    }
+                    return rows
+                }
+            ]
+        case "CreateTicketComment":
+            let ticketId = variables["ticketId"] as? String ?? ""
+            let comment: [String: Any] = [
+                "id": "demo-comment-\(Int.random(in: 1000...9999))", "authorUserId": "user01", "isInternal": variables["isInternal"] as? Bool ?? false,
+                "createdAt": ISO8601DateFormatter().string(from: Date()), "body": variables["body"] as? String ?? "",
+            ]
+            state.withData { $0.comments[ticketId, default: []].append(comment) }
+            return ["CreateTicketComment": ["ticketComment": comment]]
+        case "CreateTicket":
+            let input = variables["ticket"] as? [String: Any] ?? [:]
+            let created: [String: Any] = state.withData { data in
+                data.nextNumber += 1
+                let row: [String: Any] = [
+                    "id": "ticket-new-\(data.nextNumber)", "sequence": 100 + data.nextNumber, "title": input["title"] as? String ?? "", "status": "new",
+                    "priority": input["priority"] as? String ?? "normal", "siteId": input["siteId"] as? String ?? NSNull(), "organizationId": "organization01",
+                    "requesterUserId": "user01", "authorUserId": "user01", "description": input["description"] as? String ?? "",
+                    "createdAt": ISO8601DateFormatter().string(from: Date()), "modifiedAt": ISO8601DateFormatter().string(from: Date()),
+                ]
+                data.tickets.insert(row, at: 0)
+                return row
+            }
+            return ["CreateTicket": ["ticket": created]]
         case "ListConversationWaiting":
             return [
                 "ListConversationWaiting": state.withData { data -> [[String: Any]] in

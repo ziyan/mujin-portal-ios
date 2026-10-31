@@ -98,7 +98,8 @@ private struct SectionContent: View {
         case .assistant: ConversationListView(account: account)
         case .chats: ChatsView()
         case .more: MoreView(account: account)
-        case .monitoring, .tickets, .site, .customers: PlaceholderView(section: section)
+        case .tickets: TicketsView()
+        case .monitoring, .site, .customers: PlaceholderView(section: section)
         }
     }
 }

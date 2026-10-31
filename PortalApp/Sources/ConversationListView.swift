@@ -145,7 +145,7 @@ private struct WaitingRow: View {
             Button(action: onOpen) {
                 VStack(alignment: .leading, spacing: 4) {
                     Label(
-                        item.isApproval ? "Approval needed" : "Question",
+                        item.isApproval ? LocalizedStringKey("Approval needed") : LocalizedStringKey("Question"),
                         systemImage: item.isApproval ? "checkmark.shield" : "questionmark.bubble"
                     )
                     .font(.footnote.weight(.semibold))
