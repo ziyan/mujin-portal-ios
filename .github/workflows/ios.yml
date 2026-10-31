@@ -15,7 +15,9 @@ on:
         default: false
 
 concurrency:
-  group: ios-${{ github.ref }}
+  # A manual dispatch (the TestFlight upload) has its own group, so a push never
+  # replaces it while it waits for a runner.
+  group: ios-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
