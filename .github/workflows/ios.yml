@@ -159,6 +159,7 @@ jobs:
           shoot chat-info chat-info
           shoot chats-new chats-new
           shoot chats-new-staff chats-new-group staff
+          shoot chats-staff chats staff
           shoot site site
           shoot incident incident
           shoot controller controller

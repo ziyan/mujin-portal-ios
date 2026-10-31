@@ -144,7 +144,7 @@ private struct ChatRow: View {
             Image(systemName: room.isGroup ? "person.3.fill" : "person.crop.circle.fill")
                 .font(.title2)
                 .foregroundStyle(.secondary)
-                .frame(width: 36)
+                .frame(width: 44)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {

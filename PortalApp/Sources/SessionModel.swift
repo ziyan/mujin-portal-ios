@@ -25,6 +25,8 @@ final class SessionModel {
     var selectedSection = AppSection.assistant
     /// A conversation the Assistant tab should open as soon as it can.
     var conversationToOpen: String?
+    /// For Mujin users, which half of the Assistant tab is in front.
+    var assistantPart = AssistantPart.conversations
     /// A chat's conversation the Chats tab should open, from a notification.
     var chatToOpen: String?
     /// Unread messages across the person's chats.
@@ -167,6 +169,13 @@ final class SessionModel {
             if profile == nil { phase = .failed(error.userMessage) }
         }
     }
+}
+
+/// AssistantPart is a half of the Assistant tab for Mujin users, who have no Chats tab.
+enum AssistantPart: String, CaseIterable, Identifiable {
+    case conversations
+    case chats
+    var id: String { rawValue }
 }
 
 /// DemoOptions are the choices a screenshot run makes through the environment.

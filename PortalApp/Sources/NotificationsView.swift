@@ -177,7 +177,8 @@ struct NotificationsView: View {
             session.selectedSection = session.isStaff ? .monitoring : .site
         case .chat(let conversationId):
             session.chatToOpen = conversationId
-            session.selectedSection = .chats
+            session.assistantPart = .chats
+            session.selectedSection = session.isStaff ? .assistant : .chats
         case .automations:
             session.automationsRequested = true
             session.selectedSection = .more

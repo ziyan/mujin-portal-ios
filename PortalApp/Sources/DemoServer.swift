@@ -138,7 +138,7 @@ final class DemoState: @unchecked Sendable {
                 member("user01", "Alex Example", "organization01", "Example Logistics", read: "c8"),
                 member("user02", "Sam Sample", "organization00", "Support", staff: true, read: "c8"),
             ]),
-            chatRow("chatconv02", "chat02", "group", "Pick station team", "Robin Demo: Shift change at 14:00.", "Robin Demo", unread: 0, secondsAgo: 7_200, members: [
+            chatRow("chatconv02", "chat02", "group", "Pick station team", "Shift change at 14:00.", "Robin Demo", unread: 0, secondsAgo: 7_200, members: [
                 member("user01", "Alex Example", "organization01", "Example Logistics", admin: true),
                 member("user03", "Robin Demo", "organization01", "Example Logistics"),
                 member("user04", "Jordan Placeholder", "organization01", "Example Logistics"),

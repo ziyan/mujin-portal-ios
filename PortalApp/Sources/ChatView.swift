@@ -18,6 +18,7 @@ struct ChatView: View {
     @State private var emojiTarget: ConversationView.EmojiTarget?
     @State private var messageToDelete: ChatMessage?
     @State private var isShowingInfo = DemoOptions.screen == "chat-info"
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Group {
@@ -193,6 +194,8 @@ struct ChatView: View {
                 }
                 GlassEffectContainer {
                     HStack(alignment: .bottom, spacing: 8) {
+                        // At the accessibility sizes the field needs the room; the mention can be typed.
+                        if !dynamicTypeSize.isAccessibilitySize {
                         Button {
                             draft += (draft.isEmpty || draft.hasSuffix(" ") ? "" : " ") + "@assistant "
                         } label: {
@@ -201,6 +204,7 @@ struct ChatView: View {
                         .buttonStyle(.glass)
                         .buttonBorderShape(.circle)
                         .accessibilityLabel("Mention the assistant")
+                        }
                         TextField("Message", text: $draft, axis: .vertical)
                             .lineLimit(1...6)
                             .padding(.horizontal, 14)

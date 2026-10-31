@@ -62,7 +62,21 @@ struct MainTabsView: View {
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             session = newSession
             await newSession.load()
-            newSession.selectedSection = DemoOptions.section ?? Navigation.home(for: newSession.persona)
+            var start = DemoOptions.section ?? Navigation.home(for: newSession.persona)
+            // Mujin users have no Chats tab: chats are the other half of Assistant.
+            if start == .chats && newSession.isStaff {
+                start = .assistant
+                newSession.assistantPart = .chats
+            }
+            newSession.selectedSection = start
+        }
+    }
+
+    private func badge(for section: AppSection, _ session: SessionModel) -> Int {
+        switch section {
+        case .assistant: session.waiting.count + (session.isStaff ? session.chatUnreadCount : 0)
+        case .chats: session.chatUnreadCount
+        default: 0
         }
     }
 
@@ -72,7 +86,7 @@ struct MainTabsView: View {
                 Tab(section.titleKey, systemImage: section.symbol, value: section) {
                     SectionContent(section: section, account: account)
                 }
-                .badge(section == .assistant ? session.waiting.count : (section == .chats ? session.chatUnreadCount : 0))
+                .badge(badge(for: section, session))
             }
         }
         .tabViewStyle(.sidebarAdaptable)
@@ -99,13 +113,40 @@ private struct SectionContent: View {
 
     var body: some View {
         switch section {
-        case .assistant: ConversationListView(account: account)
+        case .assistant: AssistantContainer(account: account)
         case .chats: ChatsView(account: account)
         case .more: MoreView(account: account)
         case .tickets: TicketsView()
         case .site: SiteView()
         case .monitoring: MonitoringView()
         case .customers: CustomersView()
+        }
+    }
+}
+
+/// AssistantContainer is the Assistant tab. A Mujin user has no Chats tab, so
+/// chats are the other half of this one, chosen by a control at the top.
+private struct AssistantContainer: View {
+    @Environment(SessionModel.self) private var session
+    let account: Account
+
+    var body: some View {
+        if session.isStaff && session.capabilities.offersChats {
+            VStack(spacing: 0) {
+                Picker("Show", selection: Binding(get: { session.assistantPart }, set: { session.assistantPart = $0 })) {
+                    Text("Conversations").tag(AssistantPart.conversations)
+                    Text(session.chatUnreadCount > 0 ? LocalizedStringKey("Chats (\(session.chatUnreadCount))") : LocalizedStringKey("Chats")).tag(AssistantPart.chats)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                switch session.assistantPart {
+                case .conversations: ConversationListView(account: account)
+                case .chats: ChatsView(account: account)
+                }
+            }
+        } else {
+            ConversationListView(account: account)
         }
     }
 }
