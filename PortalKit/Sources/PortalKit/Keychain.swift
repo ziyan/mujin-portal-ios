@@ -9,12 +9,44 @@
     public enum Keychain {
         static let service = "com.ziyan.mujinportal.accounts"
 
-        static func query(_ name: String) -> [String: Any] {
-            [
+        /// The access group the app and its extensions share: the full
+        /// `<team prefix>.com.ziyan.mujinportal.shared`, which the build puts in
+        /// the Info.plist of each of them. Nil where there is no plist entry
+        /// (tests, a build that is not signed).
+        public static var sharedGroup: String? {
+            let group = Bundle.main.object(forInfoDictionaryKey: "PortalKeychainGroup") as? String
+            return group?.isEmpty == false ? group : nil
+        }
+
+        /// The group an item went in before the shared one was named: the
+        /// app's own, which is the shared group without its ".shared" suffix.
+        static var legacyGroup: String? {
+            guard let group = sharedGroup, group.hasSuffix(".shared") else { return nil }
+            return String(group.dropLast(".shared".count))
+        }
+
+        static func query(_ name: String, group: String? = Keychain.sharedGroup) -> [String: Any] {
+            var query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: service,
                 kSecAttrAccount as String: name,
             ]
+            if let group { query[kSecAttrAccessGroup as String] = group }
+            return query
+        }
+
+        /// Moves an item kept in the app's own group into the shared one, so
+        /// the extensions can read it. Does nothing when there is no shared
+        /// group or nothing to move.
+        public static func migrateToSharedGroup(_ name: String) throws {
+            guard sharedGroup != nil, let legacy = legacyGroup else { return }
+            var reading = query(name, group: legacy)
+            reading[kSecReturnData as String] = true
+            reading[kSecMatchLimit as String] = kSecMatchLimitOne
+            var item: CFTypeRef?
+            guard SecItemCopyMatching(reading as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return }
+            try write(data, as: name)
+            SecItemDelete(query(name, group: legacy) as CFDictionary)
         }
 
         public static func read(_ name: String) throws -> Data? {
@@ -59,6 +91,7 @@
         public init() {}
 
         public func loadRing() throws -> AccountRing {
+            if try Keychain.read(Self.name) == nil { try Keychain.migrateToSharedGroup(Self.name) }
             guard let data = try Keychain.read(Self.name) else { return AccountRing() }
             return try JSONDecoder().decode(AccountRing.self, from: data)
         }

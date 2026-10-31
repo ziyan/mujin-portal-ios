@@ -118,3 +118,59 @@ extension Connection {
             Documents.archiveConversation, variables: ["conversationId": .string(id), "archived": .bool(true)], as: JSONValue.self)
     }
 }
+
+/// A site a ticket can be opened for.
+public struct SiteSummary: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let name: String?
+    public let organizationId: String?
+    public let isArchived: Bool?
+
+    public init(id: String, name: String?, organizationId: String? = nil, isArchived: Bool? = nil) {
+        self.id = id
+        self.name = name
+        self.organizationId = organizationId
+        self.isArchived = isArchived
+    }
+}
+
+extension Connection {
+    /// The sites the person can open tickets for, by name.
+    public func sites() async throws -> [SiteSummary] {
+        struct Answer: Decodable, Sendable {
+            struct List: Decodable, Sendable { let sites: [SiteSummary]? }
+            let ListSites: List
+        }
+        let rows = try await execute(Documents.listSites, as: Answer.self).ListSites.sites ?? []
+        return rows.filter { $0.isArchived != true }.sorted { ($0.name ?? "").localizedCompare($1.name ?? "") == .orderedAscending }
+    }
+
+    /// Opens a ticket and returns its id. `priority` is one of low, normal, high, urgent.
+    public func createTicket(title: String, description: String, siteId: String?, priority: String) async throws -> String {
+        struct Answer: Decodable, Sendable {
+            struct Created: Decodable, Sendable {
+                struct Row: Decodable, Sendable { let id: String }
+                let ticket: Row
+            }
+            let CreateTicket: Created
+        }
+        var ticket: [String: JSONValue] = ["title": .string(title), "description": .string(description), "priority": .string(priority)]
+        if let siteId, !siteId.isEmpty { ticket["siteId"] = .string(siteId) }
+        return try await execute(Documents.createTicket, variables: ["ticket": .object(ticket)], as: Answer.self).CreateTicket.ticket.id
+    }
+
+    /// Whether the server offers a mutation, so the app can use a feature only
+    /// once the server has it. Names are compared ignoring the first letter's case.
+    public func offersMutation(_ name: String) async -> Bool {
+        struct Answer: Decodable, Sendable {
+            struct TypeInfo: Decodable, Sendable {
+                struct Field: Decodable, Sendable { let name: String }
+                let fields: [Field]?
+            }
+            let __type: TypeInfo?
+        }
+        guard let answer = try? await execute(Documents.mutationNames, as: Answer.self) else { return false }
+        let wanted = name.prefix(1).lowercased() + name.dropFirst()
+        return (answer.__type?.fields ?? []).contains { $0.name.prefix(1).lowercased() + $0.name.dropFirst() == wanted }
+    }
+}

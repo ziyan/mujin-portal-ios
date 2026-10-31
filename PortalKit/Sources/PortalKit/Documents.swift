@@ -89,6 +89,21 @@ public enum Documents {
         }
         """
 
+    public static let listSites = """
+        query ListSites { ListSites { sites { id name organizationId isArchived } } }
+        """
+
+    public static let createTicket = """
+        mutation CreateTicket($ticket: TicketInput!) {
+          CreateTicket(ticket: $ticket) { ticket { id sequence title } }
+        }
+        """
+
+    /// Which mutations the server offers, for features that depend on a newer Portal.
+    public static let mutationNames = """
+        query MutationNames { __type(name: "RootMutation") { fields { name } } }
+        """
+
     public static let onConversationEvent = """
         subscription OnConversationEvent($conversationId: String!) {
           OnConversationEvent(conversationId: $conversationId) {
@@ -109,6 +124,6 @@ public enum Documents {
     public static let all: [String] = [
         me, mainAgent, listConversations, getConversation, listMessages, listQuestions, listApprovals,
         createConversation, sendMessage, cancelRun, answerQuestion, resolveToolApproval, archiveConversation,
-        onConversationEvent,
+        listSites, createTicket, onConversationEvent,
     ]
 }
