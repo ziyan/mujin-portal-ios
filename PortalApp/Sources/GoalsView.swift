@@ -185,6 +185,20 @@ struct GoalDetailView: View {
     @State private var isBusy = false
 
     var body: some View {
+        // The composer sits below the list, so the last item is never under it.
+        VStack(spacing: 0) {
+            listView
+            if goal?.isOpen == true {
+                ComposerCard(
+                    placeholder: goal?.state == .waiting ? LocalizedStringKey("Your answer") : LocalizedStringKey("Tell the assistant"), text: $note,
+                    canSend: !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isBusy, isSending: isBusy,
+                    fieldIdentifier: "goalField", sendIdentifier: "goalSendButton", onSend: { Task { await tell() } })
+            }
+        }
+        .background(Color.portalPage)
+    }
+
+    private var listView: some View {
         List {
             PortalRows {
                 if let goal {
@@ -255,13 +269,6 @@ struct GoalDetailView: View {
         .portalList()
         .navigationTitle(goal?.title ?? "")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if goal?.isOpen == true {
-                ComposerCard(
-                    placeholder: goal?.state == .waiting ? LocalizedStringKey("Your answer") : LocalizedStringKey("Tell the assistant"), text: $note,
-                    canSend: !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isBusy, isSending: isBusy,
-                    fieldIdentifier: "goalField", sendIdentifier: "goalSendButton", onSend: { Task { await tell() } })
-            }
         }
         .confirmationDialog("Stop this goal?", isPresented: $isConfirmingStop, titleVisibility: .visible) {
             Button("Stop this goal", role: .destructive) { Task { await change { try await $0.stopGoal(id: goalId) } } }

@@ -206,8 +206,8 @@ struct SiteView: View {
         if let telemetry = model.telemetry, telemetry.machinesTotal > 0 {
             Section {
                 tileGrid {
-                    StatTile(label: "Picked parts", value: telemetry.pickedParts.formatted(), detail: "\(telemetry.pickOperations.formatted()) pick operations", symbol: "shippingbox")
-                    StatTile(label: "Error rate", value: telemetry.errorRateText, detail: "\(telemetry.interventions.formatted()) interventions of \(telemetry.pickedParts.formatted()) picks", symbol: "exclamationmark.arrow.triangle.2.circlepath")
+                    StatTile(label: "Picked parts", value: telemetry.pickedParts.formatted(), detail: "\(telemetry.pickOperations) pick operations", symbol: "shippingbox")
+                    StatTile(label: "Error rate", value: telemetry.errorRateText, detail: "\(telemetry.interventions) of \(telemetry.pickedParts) picks needed a person", symbol: "exclamationmark.arrow.triangle.2.circlepath")
                     StatTile(label: "Robot throughput", value: telemetry.throughputText, detail: "parts per hour", symbol: "speedometer")
                     StatTile(label: "Machines", value: telemetry.machinesTotal.formatted(), detail: "\(telemetry.machinesReporting) reporting", symbol: "server.rack")
                 }
@@ -244,6 +244,7 @@ struct SiteView: View {
             tileGrid {
                 NavigationLink(value: SiteListKind.controllers) { StatTile(label: "Controllers", value: model.controllers.count.formatted(), symbol: "server.rack") }
                     .buttonStyle(.plain)
+                    .navigationLinkIndicatorVisibility(.hidden)
                 if model.virtualControllerCount > 0 {
                     NavigationLink(value: SiteListKind.virtualControllers) { StatTile(label: "Virtual controllers", value: model.virtualControllerCount.formatted(), symbol: "square.stack.3d.up") }
                         .buttonStyle(.plain)
@@ -254,6 +255,7 @@ struct SiteView: View {
                     .buttonStyle(.plain)
                 NavigationLink(value: SiteListKind.tickets) { StatTile(label: "Open tickets", value: model.openTickets.count.formatted(), symbol: "tray.full") }
                     .buttonStyle(.plain)
+                    .navigationLinkIndicatorVisibility(.hidden)
             }
         }
     }
@@ -278,6 +280,7 @@ struct SiteView: View {
 
     private func tileGrid<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         StatGrid { content() }
+            .navigationLinkIndicatorVisibility(.hidden)
             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
             .listRowBackground(Color.clear)
     }
@@ -762,8 +765,8 @@ struct SiteTelemetryView: View {
 
     private func tiles(_ telemetry: SiteTelemetry) -> some View {
         StatGrid {
-            StatTile(label: "Picked parts", value: telemetry.pickedParts.formatted(), detail: "\(telemetry.pickOperations.formatted()) pick operations", symbol: "shippingbox")
-            StatTile(label: "Error rate", value: telemetry.errorRateText, detail: "\(telemetry.interventions.formatted()) interventions of \(telemetry.pickedParts.formatted()) picks", symbol: "exclamationmark.arrow.triangle.2.circlepath")
+            StatTile(label: "Picked parts", value: telemetry.pickedParts.formatted(), detail: "\(telemetry.pickOperations) pick operations", symbol: "shippingbox")
+            StatTile(label: "Error rate", value: telemetry.errorRateText, detail: "\(telemetry.interventions) of \(telemetry.pickedParts) picks needed a person", symbol: "exclamationmark.arrow.triangle.2.circlepath")
             StatTile(label: "Robot throughput", value: telemetry.throughputText, detail: "parts per hour", symbol: "speedometer")
             StatTile(label: "Machines", value: telemetry.machinesTotal.formatted(), detail: "\(telemetry.machinesReporting) reporting", symbol: "server.rack")
         }

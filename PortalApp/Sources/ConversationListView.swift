@@ -132,6 +132,8 @@ struct ConversationListView: View {
                             NavigationLink(value: conversation.id) {
                                 ConversationRow(conversation: conversation, waitingCount: session.waitingCounts[conversation.id] ?? 0)
                             }
+                            // The row is plainly tappable: no chevron takes width from the title.
+                            .navigationLinkIndicatorVisibility(.hidden)
                             .swipeActions {
                                 Button("Archive", role: .destructive) { Task { await model.archive(conversation) } }
                             }
@@ -233,50 +235,59 @@ private struct ConversationRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        // At the accessibility sizes the date goes under the title instead of
-        // beside it, which would leave the title no room in a narrow sidebar.
-        let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
-        HStack(alignment: .center, spacing: 12) {
-        PersonAvatar(name: conversation.chat?.title ?? "", size: 44, isAssistant: conversation.conversationKind != "chat")
-        layout {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(rowTitle)
-                    .font(.headline)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-                if !preview.isEmpty {
-                    Text(preview)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+        // The title takes the width: the time is small at the top right of its line, and the one signal
+        // (Needs you, an unread dot or a spinner) sits at the right of the preview line.
+        let isLarge = dynamicTypeSize.isAccessibilitySize
+        HStack(alignment: .top, spacing: 12) {
+            PersonAvatar(name: conversation.chat?.title ?? "", size: 44, isAssistant: conversation.conversationKind != "chat")
+            VStack(alignment: .leading, spacing: 3) {
+                let titleLine = AnyLayout(isLarge ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8)))
+                titleLine {
+                    Text(rowTitle)
+                        .font(.headline)
+                        .lineLimit(isLarge ? 3 : 1)
+                    if !isLarge { Spacer(minLength: 4) }
+                    if let date = conversation.chat?.lastActivity ?? conversation.lastActivity {
+                        Text(date, format: .relative(presentation: .named))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                HStack(alignment: .center, spacing: 8) {
+                    if !preview.isEmpty {
+                        Text(preview)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(isLarge ? 3 : 1)
+                    }
+                    Spacer(minLength: 4)
+                    signal
                 }
             }
-            Spacer(minLength: 8)
-            VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 4) {
-                if let date = conversation.lastActivity {
-                    Text(date, format: .relative(presentation: .named))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                // One signal per row: it needs the person, or there is something unread, or it is working.
-                if waitingCount > 0 {
-                    Text("Needs you")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.statusWarning.opacity(0.18), in: Capsule())
-                        .foregroundStyle(Color.statusWarning)
-                } else if (conversation.chat?.unreadCount ?? 0) > 0 {
-                    Circle().fill(Color.accentColor).frame(width: 10, height: 10)
-                        .accessibilityLabel(Text("\(conversation.chat?.unreadCount ?? 0) unread"))
-                } else if conversation.isRunning || conversation.hasRunningBackgroundWork == true {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel("Working")
-                }
-            }
-        }
         }
         .padding(.vertical, 2)
+    }
+
+    /// One signal per row: it needs the person, or there is something unread, or it is working.
+    @ViewBuilder
+    private var signal: some View {
+        if waitingCount > 0 {
+            Text("Needs you")
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(Color.statusWarning.opacity(0.18), in: Capsule())
+                .foregroundStyle(Color.statusWarning)
+                .fixedSize()
+        } else if (conversation.chat?.unreadCount ?? 0) > 0 {
+            Circle().fill(Color.accentColor).frame(width: 10, height: 10)
+                .accessibilityLabel(Text("\(conversation.chat?.unreadCount ?? 0) unread"))
+        } else if conversation.isRunning || conversation.hasRunningBackgroundWork == true {
+            ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel("Working")
+        }
     }
 
     private var rowTitle: String {

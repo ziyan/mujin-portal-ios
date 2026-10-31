@@ -589,22 +589,26 @@ public struct Transcript: Equatable, Sendable {
     public var displayEntries: [TranscriptEntry] {
         var result: [TranscriptEntry] = []
         var group: [ToolActivity] = []
+        // Every answer has one "What it did", however many stretches of tool calls it took.
+        var turnGroupIndex: Int?
         func flush() {
             guard !group.isEmpty else { return }
-            result.append(.toolGroup(id: group[0].id, tools: group))
+            if let index = turnGroupIndex, case .toolGroup(let id, let earlier) = result[index] {
+                result[index] = .toolGroup(id: id, tools: earlier + group)
+            } else {
+                result.append(.toolGroup(id: group[0].id, tools: group))
+                turnGroupIndex = result.count - 1
+            }
             for item in group.flatMap(\.producedItems) { result.append(.produced(item)) }
             group = []
         }
         for entry in entries {
             if case .tool(let activity) = entry {
-                if activity.isThinkingHarder {
-                    flush()
-                    result.append(entry)
-                } else {
-                    group.append(activity)
-                }
+                // Handing the turn to the main model is no line of its own, while it runs or after.
+                if !activity.isThinkingHarder { group.append(activity) }
             } else {
                 flush()
+                if case .user = entry { turnGroupIndex = nil }
                 result.append(entry)
             }
         }

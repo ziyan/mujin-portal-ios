@@ -161,23 +161,38 @@ import Testing
             ConversationMessage(id: "t3", role: "tool", content: .string("c"), toolCallId: "c3", toolName: "sites"),
         ])
         let shown = transcript.displayEntries
-        #expect(shown.count == 4)
+        // One row for the whole turn: the user's message, the row, the answer.
+        #expect(shown.count == 3)
         guard case .toolGroup(_, let tools) = shown[1] else { Issue.record("no group"); return }
-        #expect(tools.map(\.name) == ["sites", "controllers"])
-        guard case .toolGroup(_, let later) = shown[3] else { Issue.record("no second group"); return }
-        #expect(later.count == 1)
+        #expect(tools.map(\.name) == ["sites", "controllers", "sites"])
     }
 
-    @Test func thinkingHarderBreaksAGroupAndStaysALineOfItsOwn() {
+    @Test func thinkingHarderIsNoLineAndDoesNotSplitTheGroup() {
         let transcript = load([
             ConversationMessage(id: "t1", role: "tool", content: .string("a"), toolCallId: "c1", toolName: "sites"),
             ConversationMessage(id: "t2", role: "tool", content: .string(""), toolCallId: "c2", toolName: "think_harder"),
             ConversationMessage(id: "t3", role: "tool", content: .string("c"), toolCallId: "c3", toolName: "sites"),
         ])
         let shown = transcript.displayEntries
-        #expect(shown.count == 3)
-        guard case .tool(let line) = shown[1] else { Issue.record("no line"); return }
-        #expect(line.isThinkingHarder)
+        #expect(shown.count == 1)
+        guard case .toolGroup(_, let tools) = shown[0] else { Issue.record("no group"); return }
+        #expect(tools.map(\.id) == ["c1", "c3"])
+    }
+
+    @Test func oneAnswerHasOneWhatItDidEvenWhenTextSitsBetweenToolCalls() {
+        let transcript = load([
+            ConversationMessage(id: "u1", role: "user", content: .string("Compare the sites")),
+            ConversationMessage(id: "t1", role: "tool", content: .string("a"), toolCallId: "c1", toolName: "sites"),
+            ConversationMessage(id: "a1", role: "assistant", content: .string("Let me look closer.")),
+            ConversationMessage(id: "t2", role: "tool", content: .string("b"), toolCallId: "c2", toolName: "metrics"),
+            ConversationMessage(id: "u2", role: "user", content: .string("And site two?")),
+            ConversationMessage(id: "t3", role: "tool", content: .string("c"), toolCallId: "c3", toolName: "sites"),
+        ])
+        let groups = transcript.displayEntries.compactMap { entry -> [String]? in
+            if case .toolGroup(_, let tools) = entry { return tools.map(\.id) }
+            return nil
+        }
+        #expect(groups == [["c1", "c2"], ["c3"]])
     }
 
     // MARK: artifacts and files
