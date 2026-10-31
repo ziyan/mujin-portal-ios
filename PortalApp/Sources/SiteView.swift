@@ -171,6 +171,8 @@ struct SiteView: View {
             if appModel.isDemo {
                 if DemoOptions.screen == "incident", let incident = siteModel.incidents.first { path.append(incident) }
                 if DemoOptions.screen == "controller" || DemoOptions.screen == "controller-screen", let controller = siteModel.controllers.first { path.append(controller) }
+                if DemoOptions.screen == "site-orchestrators" { path.append(SiteListKind.orchestrators) }
+                if DemoOptions.screen == "site-members" { path.append(SiteListKind.members) }
             }
         }
         .task(id: model?.selectedSiteId) {

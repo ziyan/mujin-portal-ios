@@ -170,6 +170,8 @@ jobs:
           shoot incident incident
           shoot controller controller
           shoot controller-screen controller-screen
+          shoot site-orchestrators site-orchestrators
+          shoot site-members site-members
           shoot notifications notifications
           shoot about about
           shoot monitoring-staff section:monitoring staff
