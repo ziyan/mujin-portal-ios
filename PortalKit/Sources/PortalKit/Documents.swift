@@ -99,7 +99,7 @@ public enum Documents {
         """
 
     public static let listSites = """
-        query ListSites { ListSites { sites { id name organizationId isArchived } } }
+        query ListSites($organizationId: String) { ListSites(organizationId: $organizationId) { sites { id name organizationId isArchived } } }
         """
 
     public static let createTicket = """
@@ -148,6 +148,6 @@ public enum Documents {
             me, organization, mainAgent, listConversations, getConversation, listMessages, listQuestions, listApprovals,
             createConversation, sendMessage, cancelRun, answerQuestion, resolveToolApproval, archiveConversation,
             listSites, createTicket, onConversationEvent,
-        ] + assistantDocuments + automationDocuments + ticketDocuments
+        ] + assistantDocuments + automationDocuments + ticketDocuments + siteDocuments
     }
 }

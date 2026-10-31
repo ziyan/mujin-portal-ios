@@ -265,6 +265,56 @@ struct DemoTransport: HTTPTransport {
             let names = ["user01": "Alex Example", "user02": "Sam Sample", "user03": "Robin Demo"]
             let userId = variables["userId"] as? String ?? ""
             return ["GetUser": ["id": userId, "name": names[userId] ?? "Someone Else", "email": "\(userId)@example.test", "organizationId": "organization01"]]
+        case "ListSiteActiveAlarms":
+            let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
+            return [
+                "ListSiteActiveAlarms": [
+                    [
+                        "controllerId": "controller01", "isAvailable": true,
+                        "alarms": ["alarms": [
+                            ["alarmLevel": "error", "alarmMessage": "Gripper suction pressure is low", "alarmStatus": "active", "occurredAt": stamp(1_200), "originLabel": "controller01"],
+                            ["alarmLevel": "warning", "alarmMessage": "Conveyor 2 is running slowly", "alarmStatus": "active", "occurredAt": stamp(5_400), "originLabel": "controller01"],
+                        ]],
+                    ],
+                    ["controllerId": "controller02", "isAvailable": false, "alarms": NSNull()],
+                ]
+            ]
+        case "ListSiteMobileRobots":
+            return [
+                "ListSiteMobileRobots": [
+                    [
+                        "controllerId": "controller01", "isAvailable": true,
+                        "mobileRobots": ["robots": [
+                            ["name": "robot_1", "isOnline": true, "hasError": false, "powerLevel": 0.82, "isCharging": false],
+                            ["name": "robot_2", "isOnline": true, "hasError": true, "error": "Lost localization near aisle 4", "powerLevel": 0.4, "isCharging": false],
+                            ["name": "robot_3", "isOnline": false, "hasError": false, "powerLevel": 0.1, "isCharging": true],
+                        ]],
+                    ]
+                ]
+            ]
+        case "ListControllers":
+            return [
+                "ListControllers": [
+                    "controllers": [
+                        ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
+                        ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
+                    ], "meta": ["totalCount": 2],
+                ]
+            ]
+        case "ListIncidents":
+            let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
+            return [
+                "ListIncidents": [
+                    "incidents": [
+                        ["id": "incident01", "title": "Person near the conveyor", "description": "A person stood inside the marked zone while the conveyor ran.", "kind": "safety", "siteId": "site01", "controllerId": "controller01", "organizationId": "organization01", "reviewStatus": "new", "activityStatus": "active", "detectedAt": stamp(2_400), "confidence": 0.87],
+                        ["id": "incident02", "title": "Pallet left in aisle", "kind": "obstruction", "siteId": "site01", "organizationId": "organization01", "reviewStatus": "confirmed", "activityStatus": "cleared", "detectedAt": stamp(90_000), "confidence": 0.74],
+                    ], "meta": ["totalCount": 2],
+                ]
+            ]
+        case "ListIncidentEvidence":
+            return ["ListIncidentEvidence": ["incidentEvidence": [["attachmentId": "attachment10", "contentType": "image/jpeg", "filename": "frame-001.jpg", "role": "frame"]]]]
+        case "TransitionIncident":
+            return ["TransitionIncident": ["incident": ["id": variables["incidentId"] as? String ?? "", "reviewStatus": variables["reviewStatus"] as? String ?? ""]]]
         case "ListTickets":
             return ["ListTickets": ["tickets": state.withData { $0.tickets }, "meta": ["totalCount": 5]]]
         case "GetTicket":

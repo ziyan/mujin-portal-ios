@@ -99,7 +99,8 @@ private struct SectionContent: View {
         case .chats: ChatsView()
         case .more: MoreView(account: account)
         case .tickets: TicketsView()
-        case .monitoring, .site, .customers: PlaceholderView(section: section)
+        case .site: SiteView()
+        case .monitoring, .customers: PlaceholderView(section: section)
         }
     }
 }

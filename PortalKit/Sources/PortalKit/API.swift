@@ -161,12 +161,14 @@ public struct SiteSummary: Codable, Equatable, Identifiable, Sendable {
 
 extension Connection {
     /// The sites the person can open tickets for, by name.
-    public func sites() async throws -> [SiteSummary] {
+    public func sites(organizationId: String? = nil) async throws -> [SiteSummary] {
         struct Answer: Decodable, Sendable {
             struct List: Decodable, Sendable { let sites: [SiteSummary]? }
             let ListSites: List
         }
-        let rows = try await execute(Documents.listSites, as: Answer.self).ListSites.sites ?? []
+        var variables: [String: JSONValue] = [:]
+        if let organizationId { variables["organizationId"] = .string(organizationId) }
+        let rows = try await execute(Documents.listSites, variables: variables, as: Answer.self).ListSites.sites ?? []
         return rows.filter { $0.isArchived != true }.sorted { ($0.name ?? "").localizedCompare($1.name ?? "") == .orderedAscending }
     }
 

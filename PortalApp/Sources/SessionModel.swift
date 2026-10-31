@@ -161,6 +161,7 @@ enum DemoOptions {
         // Screens that live under More.
         if ["automations", "notifications", "about", "settings"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") { return .tickets }
+        if screen.hasPrefix("site") || screen.hasPrefix("incident") { return .site }
         return nil
     }
 
