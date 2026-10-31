@@ -24,11 +24,20 @@ permissions:
   contents: read
 
 jobs:
+  # First: nothing internal may reach this public repository.
+  hygiene:
+    name: Public content
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - run: scripts/check-public-content.sh
+
   # Whether a pull request touches the app. A required check that never
   # reports holds a pull request forever, so the workflow runs on every one
   # and the builds are skipped, which counts as passing, when nothing changed.
   changes:
     name: App changes
+    needs: hygiene
     runs-on: ubuntu-latest
     outputs:
       app: ${{ steps.diff.outputs.app }}
