@@ -246,8 +246,8 @@ struct SiteView: View {
             ForEach(model.controllers) { controller in
                 NavigationLink(value: controller) {
                     HStack(spacing: 10) {
-                        Image(systemName: controller.isOnline ? "checkmark.circle.fill" : "circle.slash")
-                            .foregroundStyle(controller.isOnline ? Color.green : Color.secondary)
+                        Image(systemName: controller.isOnline ? "checkmark.circle" : "circle.slash")
+                            .foregroundStyle(.secondary)
                             .accessibilityLabel(controller.isOnline ? Text("Online") : Text("Offline"))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(controller.comment?.isEmpty == false ? controller.comment! : controller.id)
@@ -304,8 +304,8 @@ struct ControllerDetailView: View {
         List {
             Section {
                 LabeledContent("Status") {
-                    Label(controller.isOnline ? "Online" : "Offline", systemImage: controller.isOnline ? "checkmark.circle.fill" : "circle.slash")
-                        .foregroundStyle(controller.isOnline ? Color.green : Color.secondary)
+                    Label(controller.isOnline ? "Online" : "Offline", systemImage: controller.isOnline ? "checkmark.circle" : "circle.slash")
+                        .foregroundStyle(.secondary)
                 }
                 if let version = controller.version {
                     LabeledContent("Version") { Text(version).font(.body.monospaced()) }

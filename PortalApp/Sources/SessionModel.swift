@@ -25,6 +25,10 @@ final class SessionModel {
     var selectedSection = AppSection.assistant
     /// A conversation the Assistant tab should open as soon as it can.
     var conversationToOpen: String?
+    /// A chat's conversation the Chats tab should open, from a notification.
+    var chatToOpen: String?
+    /// Unread messages across the person's chats.
+    private(set) var chatUnreadCount = 0
     /// A ticket the Tickets tab should open, from a notification.
     var ticketToOpen: String?
     /// Set when a notification asks More to show the Automations screen.
@@ -89,12 +93,18 @@ final class SessionModel {
     }
 
     /// Reads what waits for the person. The web app asks every 30 seconds too.
+    func refreshChatUnread() async {
+        guard capabilities.offersChats, let chats = try? await connection.chats() else { return }
+        chatUnreadCount = chats.reduce(0) { $0 + ($1.chat?.unreadCount ?? 0) }
+    }
+
     func refreshUnreadCount() async {
         if let count = try? await connection.unreadNotificationCount() { unreadCount = count }
     }
 
     func refreshWaiting() async {
         await refreshUnreadCount()
+        await refreshChatUnread()
         do {
             waiting = try await connection.waiting()
         } catch {
@@ -173,6 +183,7 @@ enum DemoOptions {
         // Screens that live under More.
         if ["automations", "notifications", "about", "settings"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") { return .tickets }
+        if screen.hasPrefix("chat") { return .chats }
         if screen.hasPrefix("site") || screen.hasPrefix("incident") { return .site }
         return nil
     }

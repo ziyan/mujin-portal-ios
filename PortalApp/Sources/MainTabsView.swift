@@ -72,7 +72,7 @@ struct MainTabsView: View {
                 Tab(section.titleKey, systemImage: section.symbol, value: section) {
                     SectionContent(section: section, account: account)
                 }
-                .badge(section == .assistant ? session.waiting.count : 0)
+                .badge(section == .assistant ? session.waiting.count : (section == .chats ? session.chatUnreadCount : 0))
             }
         }
         .tabViewStyle(.sidebarAdaptable)
@@ -100,7 +100,7 @@ private struct SectionContent: View {
     var body: some View {
         switch section {
         case .assistant: ConversationListView(account: account)
-        case .chats: ChatsView()
+        case .chats: ChatsView(account: account)
         case .more: MoreView(account: account)
         case .tickets: TicketsView()
         case .site: SiteView()

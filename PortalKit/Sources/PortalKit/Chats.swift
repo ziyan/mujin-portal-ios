@@ -289,6 +289,12 @@ public struct ChatTimeline: Equatable, Sendable {
         foldedReactions[messageId] = reactions
     }
 
+    /// Adds or replaces a message the person just sent, before its event arrives.
+    public mutating func upsert(_ row: ConversationMessage) {
+        let message = ChatMessage(row)
+        if let index = messages.firstIndex(where: { $0.id == message.id }) { messages[index] = message } else { messages.append(message) }
+    }
+
     public mutating func setReadMarks(_ marks: [String: String]) { readMarks = marks }
 
     /// How many other people have read up to and including a message.

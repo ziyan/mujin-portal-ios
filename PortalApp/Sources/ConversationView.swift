@@ -276,7 +276,7 @@ private struct ViewingChip: View {
 
 /// ReactionStrip shows the emoji on a message with how many chose each. It
 /// is tapped to take the person's own back or to join in, when `onTap` is given.
-private struct ReactionStrip: View {
+struct ReactionStrip: View {
     let reactions: [Reaction]
     let currentUserId: String
     let onTap: ((String) -> Void)?
@@ -309,7 +309,7 @@ private struct ReactionStrip: View {
 }
 
 /// EmojiEntryView takes any emoji from the system keyboard.
-private struct EmojiEntryView: View {
+struct EmojiEntryView: View {
     @Environment(\.dismiss) private var dismiss
     let onChoose: (String) -> Void
     @State private var text = ""
@@ -537,10 +537,10 @@ private struct BackgroundWorkBanner: View {
     }
 }
 
-private struct QuestionCardView: View {
+struct QuestionCardView: View {
     let card: QuestionCard
     let onAnswer: (String) -> Void
-    let onChatInstead: () -> Void
+    let onChatInstead: (() -> Void)?
     @State private var otherAnswer = ""
 
     var body: some View {
@@ -569,13 +569,15 @@ private struct QuestionCardView: View {
                         .disabled(otherAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
-            Button(action: onChatInstead) {
-                Label("Chat about it instead", systemImage: "bubble.left")
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            if let onChatInstead {
+                Button(action: onChatInstead) {
+                    Label("Chat about it instead", systemImage: "bubble.left")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .font(.subheadline)
+                .foregroundStyle(.tint)
             }
-            .buttonStyle(.plain)
-            .font(.subheadline)
-            .foregroundStyle(.tint)
         }
         .padding(14)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -589,7 +591,7 @@ private struct QuestionCardView: View {
     }
 }
 
-private struct ApprovalCardView: View {
+struct ApprovalCardView: View {
     let card: ApprovalCard
     let onDecide: (Bool) -> Void
     @State private var isShowingArguments = false

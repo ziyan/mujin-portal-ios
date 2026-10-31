@@ -175,6 +175,9 @@ struct NotificationsView: View {
             session.selectedSection = .tickets
         case .incident, .site:
             session.selectedSection = session.isStaff ? .monitoring : .site
+        case .chat(let conversationId):
+            session.chatToOpen = conversationId
+            session.selectedSection = .chats
         case .automations:
             session.automationsRequested = true
             session.selectedSection = .more
@@ -221,6 +224,7 @@ private struct NotificationRow: View {
         case "ticket_activity": Text("Activity on \(item.subject)")
         case "incident": Text("Incident: \(item.subject)")
         case "alarm": Text("Alarm: \(item.subject)")
+        case "chat_message": Text(item.subject)
         case "budget_alert": Text("Your budget needs attention")
         case "agent_job_failed":
             if item.isAgentJobPaused == true {
@@ -304,6 +308,7 @@ struct NotificationPreferencesView: View {
         case "alarm": "Alarms"
         case "budget_alert": "Budget alerts"
         case "agent_job_failed": "Failed assistant jobs"
+        case "chat_message": "Chat messages"
         default: LocalizedStringKey(kind)
         }
     }

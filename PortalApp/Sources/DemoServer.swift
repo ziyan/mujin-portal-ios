@@ -32,6 +32,7 @@ final class DemoState: @unchecked Sendable {
         var messages: [String: [[String: Any]]] = [:]
         var questions: [String: [[String: Any]]] = [:]
         var approvals: [String: [[String: Any]]] = [:]
+        var chats: [[String: Any]] = []
         var tickets: [[String: Any]] = []
         var comments: [String: [[String: Any]]] = [:]
         var sockets: [DemoSocket] = []
@@ -114,6 +115,60 @@ final class DemoState: @unchecked Sendable {
                 "viewerCapabilities": [],
             ]
         }
+        func member(_ id: String, _ name: String, _ organizationId: String, _ organizationName: String, staff: Bool = false, admin: Bool = false, read: String? = nil) -> [String: Any] {
+            [
+                "id": "member-\(id)", "userId": id, "userName": name, "organizationId": organizationId, "organizationName": organizationName, "isMujinUser": staff,
+                "isAdmin": admin, "lastReadMessageId": read ?? NSNull(), "leftAt": NSNull(), "notificationLevel": "all",
+            ]
+        }
+        func chatRow(_ conversationId: String, _ chatId: String, _ kind: String, _ name: String, _ excerpt: String, _ author: String, unread: Int, secondsAgo: TimeInterval, members: [[String: Any]]) -> [String: Any] {
+            [
+                "id": conversationId, "chatId": chatId, "conversationKind": "chat", "title": name, "summary": NSNull(), "lastMessageAt": stamp(secondsAgo), "activeRunId": NSNull(),
+                "archivedAt": NSNull(), "createdAt": stamp(secondsAgo + 5_000), "modifiedAt": stamp(secondsAgo), "isTitleCustom": false, "agentId": NSNull(),
+                "chat": [
+                    "id": chatId, "organizationId": "organization01", "chatKind": kind, "name": kind == "group" ? name : NSNull(), "displayName": name, "isMemoryFilingEnabled": false,
+                    "lastMessageAt": stamp(secondsAgo), "readerConversationId": conversationId, "readerNotificationLevel": "all", "isReaderAdmin": kind == "group",
+                    "isReaderMember": true, "readerUnreadMessageCount": unread, "readerLastReadMessageId": NSNull(), "lastMessageExcerpt": excerpt, "lastMessageAuthorName": author,
+                    "members": members,
+                ] as [String: Any],
+            ]
+        }
+        data.chats = [
+            chatRow("chatconv01", "chat01", "direct", "Sam Sample", "Thanks! Also see the checklist.", "Sam Sample", unread: 2, secondsAgo: 600, members: [
+                member("user01", "Alex Example", "organization01", "Example Logistics", read: "c8"),
+                member("user02", "Sam Sample", "organization00", "Support", staff: true, read: "c8"),
+            ]),
+            chatRow("chatconv02", "chat02", "group", "Pick station team", "Robin Demo: Shift change at 14:00.", "Robin Demo", unread: 0, secondsAgo: 7_200, members: [
+                member("user01", "Alex Example", "organization01", "Example Logistics", admin: true),
+                member("user03", "Robin Demo", "organization01", "Example Logistics"),
+                member("user04", "Jordan Placeholder", "organization01", "Example Logistics"),
+            ]),
+        ]
+        func said(_ id: String, _ author: String, _ name: String, _ text: String, _ secondsAgo: TimeInterval, role: String = "user", extra: [String: Any] = [:]) -> [String: Any] {
+            var row: [String: Any] = [
+                "id": id, "role": role, "content": text, "createdAt": stamp(secondsAgo), "isChatMessage": true, "authorUserId": author, "authorName": name,
+                "authorOrganizationName": author == "user02" ? "Support" : "Example Logistics", "authorOrganizationId": author == "user02" ? "organization00" : "organization01",
+            ]
+            for (key, value) in extra { row[key] = value }
+            return row
+        }
+        data.messages["chatconv01"] = [
+            said("c1", "user02", "Sam Sample", "Hi Alex, I saw the gripper ticket. Can you send the pressure log?", 3_000),
+            said("c2", "user01", "Alex Example", "Sure. It is on the ticket now: /ticket/1", 2_900),
+            said("c3", "user02", "Sam Sample", "Got it. The checklist is here: https://example.test/docs/suction", 2_800, extra: [
+                "replyToMessageId": "c2", "replyToExcerpt": "Sure. It is on the ticket now", "replyToAuthorName": "Alex Example",
+                "reactions": [["id": "rc3", "messageId": "c3", "reactorKind": "user", "reactorUserId": "user01", "emoji": "\u{1F44D}", "isAcknowledgment": false]],
+            ]),
+            said("c4", "user01", "Alex Example", "@assistant summarize the pressure readings from the ticket", 1_000, extra: ["isAddressingAssistant": true]),
+            said("c5", "assistant", "Assistant", "Suction pressure dipped below 40 kPa four times in two hours, each time just before a drop.", 950, role: "assistant", extra: ["authorUserId": NSNull(), "onBehalfOfUserId": "user01", "onBehalfOfUserName": "Alex Example", "replyToMessageId": "c4", "replyToExcerpt": "@assistant summarize the pressure readings", "replyToAuthorName": "Alex Example"]),
+            said("c6", "user02", "Sam Sample", "", 900, extra: ["deletedAt": stamp(880)]),
+            said("c7", "user02", "Sam Sample", "That matches what I saw. I will schedule a hose replacement.", 700, extra: ["editedAt": stamp(650)]),
+            said("c8", "user01", "Alex Example", "Thanks, please do.", 620),
+        ]
+        data.messages["chatconv02"] = [
+            said("d1", "user03", "Robin Demo", "Shift change at 14:00.", 7_200),
+            said("d2", "user04", "Jordan Placeholder", "I can take the pick station.", 7_100),
+        ]
         data.tickets = [
             ticket("ticket01", 1, "Gripper drops boxes at pick station 3", "open", "high", requester: "user01", organization: "organization01", secondsAgo: 7_200),
             ticket("ticket02", 2, "Network drops on controller02", "pending", "normal", requester: "user03", organization: "organization02", secondsAgo: 20_000),
@@ -244,17 +299,56 @@ struct DemoTransport: HTTPTransport {
         case "ServerCapabilities":
             return [
                 "__schema": [
-                    "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"]]],
-                    "mutationType": ["fields": [["name": "sendMessage"], ["name": "registerPushDevice"]]],
+                    "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"]]],
+                    "mutationType": ["fields": [["name": "sendMessage"], ["name": "registerPushDevice"], ["name": "startDirectChat"]]],
                     "subscriptionType": ["fields": [["name": "onConversationEvent"]]],
                 ]
             ]
         case "GetMainAgent":
             return ["GetMainAgent": ["id": "agent01", "name": "Assistant", "isMain": true]]
         case "ListConversations":
+            if variables["conversationKind"] as? String == "chat" {
+                return ["ListConversations": ["conversations": state.withData { $0.chats }, "meta": ["totalCount": 2]]]
+            }
             return ["ListConversations": ["conversations": state.withData { $0.conversations }, "meta": ["totalCount": 3]]]
         case "GetConversation":
-            return ["GetConversation": state.withData { $0.conversations.first { ($0["id"] as? String) == conversationId } ?? [:] }]
+            return ["GetConversation": state.withData { data in (data.conversations + data.chats).first { ($0["id"] as? String) == conversationId } ?? [:] }]
+        case "GetChat":
+            let chatId = variables["chatId"] as? String ?? ""
+            return ["GetChat": state.withData { data in data.chats.compactMap { $0["chat"] as? [String: Any] }.first { ($0["id"] as? String) == chatId } ?? [:] }]
+        case "ListChatCandidates":
+            let staff = DemoOptions.isStaff
+            let rows: [[String: Any]] = staff
+                ? [
+                    ["userId": "user03", "userName": "Robin Demo", "email": "robin@example.test", "organizationId": "organization01", "organizationName": "Example Logistics", "isMujinUser": false],
+                    ["userId": "user04", "userName": "Jordan Placeholder", "email": "jordan@example.test", "organizationId": "organization02", "organizationName": "Sample Foods", "isMujinUser": false],
+                    ["userId": "user05", "userName": "Ana Support", "email": "ana@example.test", "organizationId": "organization00", "organizationName": "Support", "isMujinUser": true],
+                ]
+                : [
+                    ["userId": "user03", "userName": "Robin Demo", "email": "robin@example.test", "organizationId": "organization01", "organizationName": "Example Logistics", "isMujinUser": false],
+                    ["userId": "user04", "userName": "Jordan Placeholder", "email": "jordan@example.test", "organizationId": "organization01", "organizationName": "Example Logistics", "isMujinUser": false],
+                    ["userId": "user02", "userName": "Sam Sample", "email": "sam@example.test", "organizationId": "organization00", "organizationName": "Support", "isMujinUser": true],
+                ]
+            return ["ListChatCandidates": rows]
+        case "StartDirectChat":
+            return ["StartDirectChat": ["chat": ["id": "chat01"], "conversation": ["id": "chatconv01"]]]
+        case "CreateGroupChat":
+            return ["CreateGroupChat": ["chat": ["id": "chat02"], "conversation": ["id": "chatconv02"]]]
+        case "ListMessageLinkPreviews":
+            let ids = variables["messageIds"] as? [String] ?? []
+            return [
+                "ListMessageLinkPreviews": ids.compactMap { id -> [String: Any]? in
+                    switch id {
+                    case "c2":
+                        return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash01", "linkKind": "ticket", "resourceId": "ticket01", "title": "#1 Gripper drops boxes at pick station 3", "description": "Open, high priority", "siteName": "Ticket", "statusText": "Open", "path": "/ticket/1"]]]
+                    case "c3":
+                        return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash02", "linkKind": "external", "url": "https://example.test/docs/suction", "title": "Suction cup checklist", "description": "Steps to check hoses, seals and pressure before a shift.", "siteName": "example.test"]]]
+                    default: return nil
+                    }
+                }
+            ]
+        case "SetChatTyping", "MarkChatRead", "EditChatMessage", "DeleteChatMessage", "RemoveMessageLinkPreviews":
+            return [operation: NSNull()]
         case "ListConversationMessages":
             return ["ListConversationMessages": state.withData { $0.messages[conversationId] ?? [] }]
         case "ListSites":
@@ -484,6 +578,14 @@ struct DemoTransport: HTTPTransport {
                 return row
             }
             return ["CreateConversation": ["conversation": created]]
+        case "SendMessage" where conversationId.hasPrefix("chatconv"):
+            let message = variables["message"] as? String ?? ""
+            let row: [String: Any] = [
+                "id": "demo-chat-\(Int.random(in: 1000...9999))", "role": "user", "content": message, "createdAt": ISO8601DateFormatter().string(from: Date()), "isChatMessage": true,
+                "authorUserId": "user01", "authorName": "Alex Example", "replyToMessageId": variables["replyToMessageId"] ?? NSNull(),
+            ]
+            state.withData { $0.messages[conversationId, default: []].append(row) }
+            return ["SendMessage": ["runId": "", "message": row]]
         case "SendMessage":
             let message = variables["message"] as? String ?? ""
             state.withData { data in

@@ -153,6 +153,12 @@ jobs:
           shoot tickets-solved tickets-solved
           shoot tickets-staff tickets-everyone staff
           shoot ticket-staff ticket staff
+          shoot chats chats
+          shoot chat chat:chatconv01
+          shoot chat-group chat:chatconv02
+          shoot chat-info chat-info
+          shoot chats-new chats-new
+          shoot chats-new-staff chats-new-group staff
           shoot site site
           shoot incident incident
           shoot controller controller
@@ -172,6 +178,8 @@ jobs:
           shoot ticket-dark ticket
           shoot tickets-dark tickets
           shoot site-dark site
+          shoot chat-dark chat:chatconv01
+          shoot chats-dark chats
           shoot notifications-dark notifications
           shoot monitoring-staff-dark section:monitoring staff
           xcrun simctl ui "${DEVICE}" appearance light
@@ -182,6 +190,7 @@ jobs:
           shoot large-text-tickets tickets
           shoot large-text-ticket ticket
           shoot large-text-site site
+          shoot large-text-chat chat:chatconv01
           shoot large-text-monitoring section:monitoring staff
 
       - name: Keep the screenshots
