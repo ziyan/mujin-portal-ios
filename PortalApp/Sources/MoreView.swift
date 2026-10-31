@@ -6,6 +6,13 @@ enum MoreDestination: Hashable {
     case automations
     case notificationSettings
     case about
+    case goals
+    case goal(String)
+    case ideas
+    case knowledge
+    case memoryPage(MemoryPageReference)
+    case dreams
+    case assistantSettings
 }
 
 /// MoreView is the last tab: the account, and what does not need a tab of its own.
@@ -16,7 +23,7 @@ struct MoreView: View {
 
     @State private var isShowingAccounts = false
     @State private var isConfirmingSignOut = false
-    @State private var path: [MoreDestination] = DemoOptions.screen?.hasPrefix("automations") == true ? [.automations] : (DemoOptions.screen == "about" ? [.about] : [])
+    @State private var path: [MoreDestination] = DemoOptions.morePath
     @AppStorage("toolDetailsSetting") private var toolDetailsSetting = ""
 
     var body: some View {
@@ -54,8 +61,28 @@ struct MoreView: View {
                     }
                 }
                 Section("Assistant") {
+                    NavigationLink(value: MoreDestination.goals) {
+                        Label("Goals", systemImage: "scope")
+                            .foregroundStyle(.primary)
+                    }
+                    NavigationLink(value: MoreDestination.ideas) {
+                        Label("Ideas", systemImage: "lightbulb")
+                            .foregroundStyle(.primary)
+                    }
+                    NavigationLink(value: MoreDestination.knowledge) {
+                        Label("What it knows", systemImage: "brain.head.profile")
+                            .foregroundStyle(.primary)
+                    }
                     NavigationLink(value: MoreDestination.automations) {
                         Label("Automations", systemImage: "clock.arrow.2.circlepath")
+                            .foregroundStyle(.primary)
+                    }
+                    NavigationLink(value: MoreDestination.dreams) {
+                        Label("Tidying up", systemImage: "moon.stars")
+                            .foregroundStyle(.primary)
+                    }
+                    NavigationLink(value: MoreDestination.assistantSettings) {
+                        Label("Assistant settings", systemImage: "slider.horizontal.3")
                             .foregroundStyle(.primary)
                     }
                     Toggle(
@@ -89,6 +116,13 @@ struct MoreView: View {
                 case .automations: AutomationsView()
                 case .notificationSettings: NotificationPreferencesView()
                 case .about: AboutView()
+                case .goals: GoalsView()
+                case .goal(let id): GoalDetailView(goalId: id)
+                case .ideas: IdeasView()
+                case .knowledge: KnowledgeView()
+                case .memoryPage(let reference): MemoryPageView(reference: reference)
+                case .dreams: DreamsView()
+                case .assistantSettings: AssistantSettingsView()
                 }
             }
             .sheet(isPresented: $isShowingAccounts) {
@@ -98,6 +132,11 @@ struct MoreView: View {
                 guard isRequested else { return }
                 session.automationsRequested = false
                 path = [.automations]
+            }
+            .onChange(of: session.goalToOpen, initial: true) { _, goalId in
+                guard let goalId else { return }
+                session.goalToOpen = nil
+                path = [.goals, .goal(goalId)]
             }
         }
     }

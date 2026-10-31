@@ -232,6 +232,27 @@ final class SessionModel {
         }
     }
 
+    /// Starts a conversation with `text` waiting in the composer. Nothing is sent.
+    func beginDraft(_ text: String) async {
+        do {
+            let agent = try await connection.mainAgent()
+            let conversation = try await connection.createConversation(agentId: agent.id)
+            pendingDraft = PendingDraft(conversationId: conversation.id, text: text)
+            conversationToOpen = conversation.id
+            assistantPart = .conversations
+            selectedSection = .assistant
+        } catch {
+            onError(error)
+        }
+    }
+
+    struct PendingDraft {
+        let conversationId: String
+        let text: String
+    }
+
+    var pendingDraft: PendingDraft?
+
     func load() async {
         do {
             async let loadedProfile = connection.profile()
@@ -268,11 +289,27 @@ enum DemoOptions {
         guard let screen else { return nil }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         // Screens that live under More.
-        if ["automations", "notifications", "about", "settings"].contains(where: { screen.hasPrefix($0) }) { return .more }
+        if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
         if screen.hasPrefix("site") || screen.hasPrefix("incident") { return .site }
         return nil
+    }
+
+    /// The screen under More a demo run opens on.
+    static var morePath: [MoreDestination] {
+        switch screen ?? "" {
+        case let name where name.hasPrefix("automations"): [.automations]
+        case "about": [.about]
+        case "goals": [.goals]
+        case "goal": [.goals, .goal("goal01")]
+        case "ideas": [.ideas]
+        case "knowledge": [.knowledge]
+        case "memory-page": [.knowledge, .memoryPage(MemoryPageReference(pageId: "page01", factNumber: 2))]
+        case "dreams": [.dreams]
+        case "assistant-settings": [.assistantSettings]
+        default: []
+        }
     }
 
     /// Whether the demo person works for the administrator organization.

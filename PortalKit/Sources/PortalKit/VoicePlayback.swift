@@ -5,6 +5,12 @@ import Foundation
 /// was cancelled. It holds the audio of a later piece until the earlier ones
 /// are done.
 public struct VoicePlaybackQueue: Sendable {
+    /// A chunk of audio that may play now, and the piece it belongs to.
+    public struct Chunk: Equatable, Sendable {
+        public let answerSegmentId: String
+        public let pcm: Data
+    }
+
     private struct Segment {
         let id: String
         var heldChunks: [Data] = []
@@ -28,21 +34,21 @@ public struct VoicePlaybackQueue: Sendable {
     public var openIds: [String] { segments.map(\.id) }
 
     /// A chunk of audio arrived. Returns what may play now, in order.
-    public mutating func received(_ pcm: Data, for id: String) -> [Data] {
+    public mutating func received(_ pcm: Data, for id: String) -> [Chunk] {
         guard !cancelled.contains(id), let index = segments.firstIndex(where: { $0.id == id }) else { return [] }
         segments[index].heldChunks.append(pcm)
         return release()
     }
 
     /// The piece's audio is complete.
-    public mutating func audioDone(_ id: String) -> [Data] {
+    public mutating func audioDone(_ id: String) -> [Chunk] {
         guard let index = segments.firstIndex(where: { $0.id == id }) else { return [] }
         segments[index].isAudioDone = true
         return release()
     }
 
     /// The piece could not be spoken; the next piece goes on.
-    public mutating func audioFailed(_ id: String) -> [Data] {
+    public mutating func audioFailed(_ id: String) -> [Chunk] {
         guard let index = segments.firstIndex(where: { $0.id == id }) else { return [] }
         segments[index].isAudioDone = true
         segments[index].didFail = true
@@ -62,10 +68,10 @@ public struct VoicePlaybackQueue: Sendable {
     }
 
     /// Releases the chunks of the first piece, and of the next ones once it is done.
-    private mutating func release() -> [Data] {
-        var out: [Data] = []
+    private mutating func release() -> [Chunk] {
+        var out: [Chunk] = []
         while !segments.isEmpty {
-            out.append(contentsOf: segments[0].heldChunks)
+            out.append(contentsOf: segments[0].heldChunks.map { Chunk(answerSegmentId: segments[0].id, pcm: $0) })
             segments[0].releasedChunkCount += segments[0].heldChunks.count
             segments[0].heldChunks = []
             if segments[0].isAudioDone {

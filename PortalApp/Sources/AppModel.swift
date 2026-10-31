@@ -22,6 +22,8 @@ final class AppModel {
     var isSigningIn = false
     /// Where a tapped notification or the assistant speaking first asks the app to go.
     var pendingRoute: PendingRoute?
+    /// The memory page a citation in an answer points at, shown over whatever is open.
+    var openedCitation: MemoryCitation?
     /// Said once at the top of the screen, such as a sign-in the server ended.
     var notice: String?
 
@@ -77,6 +79,11 @@ final class AppModel {
     /// built-in browser, other web addresses in Safari's view, anything else
     /// (mail, phone) in the system.
     func handleLink(_ url: URL) -> OpenURLAction.Result {
+        // A memory citation in an answer opens the page it cites.
+        if let citation = MemoryCitation(url: url) {
+            openedCitation = citation
+            return .handled
+        }
         guard let account = activeAccount else { return .systemAction }
         switch LinkClassifier.classify(url, server: account.server) {
         case .portal, .controller:

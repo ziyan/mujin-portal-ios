@@ -40,8 +40,17 @@ final class ConversationModel {
     private(set) var ownerUserId: String?
     /// What happened after "Not now" or "Stop these", in a line that replaces the buttons.
     private(set) var speakFirstOutcome: String?
+    /// Told the assistant's answer as it streams in, for reading it aloud in a call.
+    var onAssistantText: (@MainActor (_ messageId: String, _ text: String, _ isFinal: Bool) -> Void)?
+    private var streamingAnswer: (id: String, text: String)?
 
     var isOwnConversation: Bool { ownerUserId == nil || ownerUserId == currentUserId }
+
+    /// The latest pass that filed this conversation into memory and still has facts.
+    private(set) var filingNote: MemoryFiling?
+    private(set) var isRemembering = false
+    /// Whether remembering is on for this person and organization, when the server said.
+    private(set) var memorySetting: AgentMemorySetting?
 
     private var feedTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
@@ -76,10 +85,15 @@ final class ConversationModel {
         // Work in the background reports through the conversation's own
         // stream only when the assistant wakes, so progress is polled.
         pollTask = Task { [weak self] in
+            var round = 0
+            await self?.refreshFiling()
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
                 guard let self, !Task.isCancelled else { return }
                 if !self.backgroundWork.isEmpty { await self.refreshBackgroundWork() }
+                // Filing has no event: the note is read again about every 20 seconds.
+                round += 1
+                if round % 4 == 0 { await self.refreshFiling() }
             }
         }
     }
@@ -103,6 +117,7 @@ final class ConversationModel {
             await reload()
         case .event(let event):
             transcript.apply(event)
+            noteSpeech(event)
             switch event.kind {
             case .runComplete, .runError: await reload(isRunFinished: true)
             case .pendingQuestion, .pendingApproval: await reload()
@@ -113,6 +128,43 @@ final class ConversationModel {
         case .signedOut:
             isFeedLive = false
             onError(PortalError.signedOut)
+        }
+    }
+
+    /// Passes the answer being written to a call that reads it aloud. A tool
+    /// call, a card or the end of the turn ends the text written so far.
+    private func noteSpeech(_ event: ConversationEvent) {
+        guard let onAssistantText else { return }
+        switch event.kind {
+        case .textDelta:
+            guard let id = event.textDelta?.messageId,
+                case .assistant(_, let text, _)? = transcript.entries.first(where: { $0.id == "assistant:\(id)" })
+            else { return }
+            streamingAnswer = (id, text)
+            onAssistantText(id, Transcript.visibleText(text), false)
+        case .toolCall, .pendingQuestion, .pendingApproval, .runComplete, .runError:
+            if let streamingAnswer { onAssistantText(streamingAnswer.id, Transcript.visibleText(streamingAnswer.text), true) }
+            streamingAnswer = nil
+        default:
+            break
+        }
+    }
+
+    /// Sends what was said in a call: an ordinary message marked as spoken,
+    /// with what the person heard when they talked over the last answer.
+    func sendVoice(_ text: String, interruptedAnswer: InterruptedAnswer?) async {
+        actionError = nil
+        if let question = activeQuestion {
+            await answer(question, with: text)
+            return
+        }
+        transcript.appendPendingUser(text, viewing: nil)
+        do {
+            try await connection.sendMessage(conversationId: conversationId, text: text, isVoice: true, interruptedAnswer: interruptedAnswer)
+        } catch {
+            transcript.removePendingUser(text)
+            actionError = error.userMessage
+            onError(error)
         }
     }
 
@@ -276,6 +328,44 @@ final class ConversationModel {
         do {
             try await connection.stopSpeakingFirst(reason: reason)
             speakFirstOutcome = String(localized: "The assistant will not start conversations like this again. You can change it in More.")
+        } catch {
+            actionError = error.userMessage
+            onError(error)
+        }
+    }
+
+    // MARK: memory filing
+
+    func refreshFiling() async {
+        if memorySetting == nil { memorySetting = try? await connection.memorySetting() }
+        if let filings = try? await connection.memoryFilings(conversationId: conversationId) {
+            filingNote = MemoryFilingNote.latestWithFacts(filings)
+        }
+    }
+
+    /// Files the conversation into memory now, in the background, and reads the note when it is done.
+    func rememberNow() async {
+        guard !isRemembering else { return }
+        let started = Date()
+        isRemembering = true
+        defer { isRemembering = false }
+        do {
+            try await connection.rememberConversation(id: conversationId)
+            for _ in 0..<20 {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                if let latest = (try? await connection.memoryFilings(conversationId: conversationId, limit: 1))?.first, (latest.date ?? .distantPast) > started { break }
+            }
+            await refreshFiling()
+        } catch {
+            actionError = error.userMessage
+            onError(error)
+        }
+    }
+
+    func forgetFiledFact(_ fact: MemoryFact, in filing: MemoryFiling) async {
+        do {
+            try await connection.forgetFiledFact(filingId: filing.id, factId: fact.id)
+            await refreshFiling()
         } catch {
             actionError = error.userMessage
             onError(error)

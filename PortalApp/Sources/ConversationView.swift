@@ -11,11 +11,13 @@ struct ConversationView: View {
     let title: String?
 
     @State private var model: ConversationModel?
+    @State private var voice: VoiceCallController?
     @State private var draft = ""
     @State private var isRenaming = false
     @State private var renameDraft = ""
     @State private var emojiTarget: EmojiTarget?
     @State private var fullArtifact: ArtifactReference?
+    @State private var isShowingArtifacts = false
     @AppStorage("toolDetailsSetting") private var toolDetailsSetting = ""
 
     struct EmojiTarget: Identifiable {
@@ -41,6 +43,19 @@ struct ConversationView: View {
                     } label: {
                         Label("Rename", systemImage: "pencil")
                     }
+                    Button {
+                        isShowingArtifacts = true
+                    } label: {
+                        Label("Pages and files it made", systemImage: "doc.richtext")
+                    }
+                    if let model, model.memorySetting?.isFilingActive != false {
+                        Button {
+                            Task { await model.rememberNow() }
+                        } label: {
+                            Label("Remember this now", systemImage: "brain.head.profile")
+                        }
+                        .disabled(model.isRemembering)
+                    }
                 } label: {
                     Label("Conversation options", systemImage: "ellipsis.circle")
                 }
@@ -56,6 +71,15 @@ struct ConversationView: View {
                 Task { await model?.react(messageId: target.id, emoji: emoji) }
             }
         }
+        .sheet(isPresented: $isShowingArtifacts) {
+            ArtifactListSheet(conversationId: conversationId, connection: appModel.connection(for: account)) { artifact in
+                isShowingArtifacts = false
+                Task {
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                    fullArtifact = artifact
+                }
+            }
+        }
         .fullScreenCover(item: $fullArtifact) { artifact in
             ArtifactFullView(artifact: artifact, connection: appModel.connection(for: account))
         }
@@ -68,7 +92,14 @@ struct ConversationView: View {
                 conversationModel.viewingReference = (pending.viewing, pending.subject)
                 session.pendingReference = nil
             }
+            if let draftToStart = session.pendingDraft, draftToStart.conversationId == conversationId {
+                draft = draftToStart.text
+                session.pendingDraft = nil
+            }
             model = conversationModel
+            voice?.end()
+            voice = VoiceCallController(
+                model: conversationModel, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
             conversationModel.start()
             if appModel.isDemo, DemoOptions.screen == "conversation-reply" {
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -77,7 +108,10 @@ struct ConversationView: View {
             }
         }
         .onAppear { model?.start() }
-        .onDisappear { model?.stop() }
+        .onDisappear {
+            model?.stop()
+            voice?.end()
+        }
     }
 
     private var shownTitle: String {
@@ -106,7 +140,7 @@ struct ConversationView: View {
         case .loaded:
             transcript(model)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    ComposerBar(model: model, draft: $draft)
+                    ComposerBar(model: model, voice: voice, draft: $draft)
                 }
         }
     }
@@ -145,6 +179,9 @@ struct ConversationView: View {
                         ProgressView()
                             .padding(.leading, 4)
                             .accessibilityLabel("Working")
+                    }
+                    if let note = model.filingNote {
+                        FilingNoteView(model: model, filing: note)
                     }
                     ForEach(model.backgroundWork) { work in
                         BackgroundWorkBanner(work: work) { Task { await model.stopBackgroundWork(work) } }
@@ -701,6 +738,7 @@ struct ApprovalCardView: View {
 
 private struct ComposerBar: View {
     let model: ConversationModel
+    let voice: VoiceCallController?
     @Binding var draft: String
     @FocusState private var isFocused: Bool
 
@@ -728,6 +766,10 @@ private struct ComposerBar: View {
                     }
                 }
                 .padding(.horizontal, 12)
+            }
+            if let voice, voice.isActive || voice.phase != .idle {
+                VoiceCallBar(voice: voice)
+                    .padding(.horizontal, 12)
             }
             if model.activeQuestion != nil {
                 Label("Your message answers the question above.", systemImage: "questionmark.bubble")
@@ -771,6 +813,18 @@ private struct ComposerBar: View {
                         .buttonStyle(.glass)
                         .buttonBorderShape(.circle)
                         .accessibilityLabel("Stop")
+                    }
+                    if isDraftEmpty, let voice, !voice.isActive {
+                        Button {
+                            Task { await voice.start() }
+                        } label: {
+                            Image(systemName: "waveform")
+                                .frame(width: 24, height: 24)
+                        }
+                        .buttonStyle(.glass)
+                        .buttonBorderShape(.circle)
+                        .accessibilityLabel("Talk to the assistant")
+                        .accessibilityIdentifier("voiceButton")
                     }
                     Button {
                         send()
@@ -855,6 +909,186 @@ private struct SpeakFirstChoicesView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+        }
+    }
+}
+
+/// VoiceCallBar is the call in progress: what is heard, whether the answer is
+/// being read, and the buttons to mute and end it.
+private struct VoiceCallBar: View {
+    let voice: VoiceCallController
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .symbolEffect(.variableColor.iterative, isActive: voice.phase == .listening && !voice.isMuted)
+                .foregroundStyle(voice.isMuted ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(status)
+                    .font(.subheadline.weight(.semibold))
+                if !voice.caption.isEmpty {
+                    Text(voice.caption).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                } else if let notice = voice.notice {
+                    Text(notice).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                } else if voice.isUsingOlderPath, voice.isActive {
+                    Text("Speak, then pause. Talking over the answer is not available on this server.")
+                        .font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                }
+            }
+            Spacer(minLength: 8)
+            if voice.isActive {
+                Button {
+                    voice.toggleMute()
+                } label: {
+                    Image(systemName: voice.isMuted ? "mic.slash.fill" : "mic.fill")
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .accessibilityLabel(voice.isMuted ? "Unmute" : "Mute")
+            }
+            Button {
+                voice.end()
+            } label: {
+                Image(systemName: voice.isActive ? "phone.down.fill" : "xmark")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .tint(voice.isActive ? Color.statusError : nil)
+            .accessibilityLabel(voice.isActive ? "End the call" : "Close")
+        }
+        .padding(12)
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .contain)
+    }
+
+    private var icon: String {
+        switch voice.phase {
+        case .speaking: "speaker.wave.2.fill"
+        case .failed: "exclamationmark.triangle.fill"
+        default: "waveform"
+        }
+    }
+
+    private var status: LocalizedStringKey {
+        switch voice.phase {
+        case .idle: ""
+        case .connecting: "Connecting…"
+        case .listening: voice.isMuted ? "Muted" : "Listening"
+        case .speaking: "Speaking"
+        case .failed(let message): LocalizedStringKey(message)
+        }
+    }
+}
+
+/// FilingNoteView says what the assistant remembered from this conversation,
+/// with each fact opening its page and a way to forget it.
+private struct FilingNoteView: View {
+    @Environment(AppModel.self) private var appModel
+    let model: ConversationModel
+    let filing: MemoryFiling
+    @State private var isExpanded = false
+    @State private var forgetting: MemoryFact?
+
+    var body: some View {
+        let facts = filing.facts ?? []
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(facts) { fact in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(fact.sentence ?? "").font(.footnote)
+                        HStack(spacing: 10) {
+                            if fact.isInferred == true {
+                                Text("Inferred").font(.caption2.weight(.semibold)).foregroundStyle(Color.statusWarning)
+                            }
+                            if let path = fact.pagePath, let number = fact.number {
+                                Button("Open") { appModel.openedCitation = MemoryCitation(path: path, number: number) }
+                                    .font(.caption)
+                            }
+                            Button("Forget", role: .destructive) { forgetting = fact }
+                                .font(.caption)
+                        }
+                    }
+                }
+            }
+            .padding(.top, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            Group {
+                if facts.count == 1 {
+                    Label("Remembered 1 thing", systemImage: "brain.head.profile")
+                } else {
+                    Label("Remembered \(facts.count) things", systemImage: "brain.head.profile")
+                }
+            }
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
+        .tint(Color.portalSecondary)
+        .confirmationDialog("Forget this?", isPresented: Binding(get: { forgetting != nil }, set: { if !$0 { forgetting = nil } }), titleVisibility: .visible) {
+            Button("Forget it", role: .destructive) {
+                if let fact = forgetting { Task { await model.forgetFiledFact(fact, in: filing) } }
+            }
+        } message: {
+            Text("The assistant stops knowing it. This cannot be undone.")
+        }
+    }
+}
+
+/// ArtifactListSheet lists the pages, drawings and documents the assistant
+/// made in a conversation; one opens full size.
+private struct ArtifactListSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let conversationId: String
+    let connection: Connection
+    let onOpen: (ArtifactReference) -> Void
+
+    @State private var artifacts: [ArtifactReference] = []
+    @State private var phase = LoadPhase.loading
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch phase {
+                case .loading: ProgressView()
+                case .failed(let message):
+                    ContentUnavailableView("Could not load this", systemImage: "wifi.exclamationmark", description: Text(message))
+                case .loaded:
+                    if artifacts.isEmpty {
+                        ContentUnavailableView("Nothing made yet", systemImage: "doc.richtext", description: Text("Pages and charts the assistant makes in this conversation show up here."))
+                    } else {
+                        List(artifacts) { artifact in
+                            Button { onOpen(artifact) } label: {
+                                HStack {
+                                    Image(systemName: artifact.kind == .markdown ? "doc.text" : artifact.kind == .svg ? "scribble" : "chart.bar.doc.horizontal")
+                                        .foregroundStyle(.secondary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(artifact.title.isEmpty ? String(localized: "Untitled") : artifact.title).foregroundStyle(.primary)
+                                        if let size = artifact.sizeBytes {
+                                            Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)).font(.caption).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                            }
+                            .listRowBackground(Color.portalCard)
+                        }
+                        .portalList()
+                    }
+                }
+            }
+            .navigationTitle("Pages and files it made")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+        }
+        .task {
+            do {
+                artifacts = try await connection.conversationArtifacts(conversationId: conversationId)
+                phase = .loaded
+            } catch {
+                phase = .failed(error.userMessage)
+            }
         }
     }
 }

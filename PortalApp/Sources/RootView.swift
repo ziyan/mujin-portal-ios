@@ -34,6 +34,10 @@ struct RootView: View {
         .fullScreenCover(item: $model.presentedWeb) { session in
             WebBrowserView(session: session) { model.presentedWeb = nil }
         }
+        .sheet(item: Binding(get: { model.openedCitation.map(IdentifiableCitation.init) }, set: { model.openedCitation = $0?.citation })) { item in
+            MemoryCitationSheet(citation: item.citation)
+                .environment(model)
+        }
         .fullScreenCover(item: $model.safariPage) { page in
             SafariView(url: page.url).ignoresSafeArea()
         }
@@ -89,4 +93,10 @@ struct TouchActivityProbe: UIViewRepresentable {
             state = .failed
         }
     }
+}
+
+/// IdentifiableCitation lets a citation be the item of a sheet.
+struct IdentifiableCitation: Identifiable {
+    let citation: MemoryCitation
+    var id: String { citation.label }
 }

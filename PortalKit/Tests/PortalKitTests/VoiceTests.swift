@@ -100,8 +100,8 @@ import Testing
         queue.asked("a-0")
         queue.asked("a-1")
         #expect(queue.received(Data([1]), for: "a-1").isEmpty)
-        #expect(queue.received(Data([2]), for: "a-0") == [Data([2])])
-        #expect(queue.audioDone("a-0") == [Data([1])])
+        #expect(queue.received(Data([2]), for: "a-0") == [.init(answerSegmentId: "a-0", pcm: Data([2]))])
+        #expect(queue.audioDone("a-0") == [.init(answerSegmentId: "a-1", pcm: Data([1]))])
         #expect(queue.openIds == ["a-1"])
         #expect(queue.audioDone("a-1").isEmpty)
         #expect(queue.openIds.isEmpty)
@@ -123,7 +123,7 @@ import Testing
         queue.asked("a-0")
         queue.asked("a-1")
         _ = queue.received(Data([5]), for: "a-1")
-        #expect(queue.audioFailed("a-0") == [Data([5])])
+        #expect(queue.audioFailed("a-0") == [.init(answerSegmentId: "a-1", pcm: Data([5]))])
     }
 
     @Test func aCompletePieceIsHeardWholeAndACutOneOnlyUpToItsLastWholeWord() {

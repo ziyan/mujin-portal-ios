@@ -251,6 +251,11 @@ private struct ConversationRow: View {
                     ProgressView()
                         .controlSize(.small)
                         .accessibilityLabel("Working")
+                } else if conversation.hasRunningBackgroundWork == true {
+                    Image(systemName: "clock.arrow.2.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Working in the background")
                 }
             }
         }

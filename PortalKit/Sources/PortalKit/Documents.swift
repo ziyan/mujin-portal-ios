@@ -173,6 +173,11 @@ public enum Documents {
         documents += pushDocuments
         documents += presenceDocuments
         documents += voiceDocuments
+        documents += goalDocuments
+        documents += knowledgeDocuments
+        documents += dreamDocuments
+        documents += artifactDocuments
+        documents += memoryFilingDocuments
         return documents
     }
 }
