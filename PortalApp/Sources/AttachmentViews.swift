@@ -5,7 +5,7 @@ import SwiftUI
 
 /// AttachmentImageCache keeps the pictures a session has loaded, so scrolling back shows one at once.
 enum AttachmentImageCache {
-    static let images: NSCache<NSString, UIImage> = {
+    nonisolated(unsafe) static let images: NSCache<NSString, UIImage> = {
         let cache = NSCache<NSString, UIImage>()
         cache.countLimit = 120
         return cache
