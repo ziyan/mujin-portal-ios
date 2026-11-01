@@ -159,7 +159,7 @@ struct GroupDetailView: View {
             }
         }
         .sheet(item: $editing) { kind in
-            if let group { sheet(kind, group: group) }
+            if let group { editorSheet(kind, group: group) }
         }
         .task { await load() }
         .failureAlert(actions)
@@ -266,7 +266,7 @@ struct GroupDetailView: View {
     }
 
     @ViewBuilder
-    private func sheet(_ kind: Editing, group: AccessGroup) -> some View {
+    private func editorSheet(_ kind: Editing, group: AccessGroup) -> some View {
         switch kind {
         case .details:
             NameFormSheet(
