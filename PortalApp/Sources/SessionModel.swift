@@ -337,7 +337,7 @@ enum DemoOptions {
         guard let screen else { return nil }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         // Screens that live under More.
-        if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image"].contains(where: { screen.hasPrefix($0) }) { return .more }
+        if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image", "accounts"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") || screen == "attachment-viewer" { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
         if screen.hasPrefix("site-staff") || screen == "sites-staff" { return .site }

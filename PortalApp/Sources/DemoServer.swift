@@ -14,7 +14,7 @@ import UIKit
 enum DemoServer {
     static let server = try! ServerAddress("https://demo.example.test")
 
-    static func makeModel(isSignedIn: Bool = ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] != "welcome") -> AppModel {
+    static func makeModel(isSignedIn: Bool = !["welcome", "demo-entered"].contains(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] ?? "")) -> AppModel {
         let account = Account(
             server: server, clientId: PortalClient.builtInClientId, userId: "user01", displayName: "Alex Example", email: "alex@example.test",
             accessToken: "demo-access", refreshToken: "demo-refresh", accessTokenExpiresAt: Date().addingTimeInterval(365 * 24 * 3600))

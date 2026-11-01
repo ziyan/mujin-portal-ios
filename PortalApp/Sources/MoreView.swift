@@ -25,7 +25,7 @@ struct MoreView: View {
     @Environment(SessionModel.self) private var session
     let account: Account
 
-    @State private var isShowingAccounts = false
+    @State private var isShowingAccounts = DemoOptions.screen == "accounts"
     @State private var isConfirmingSignOut = false
     // Screens under More push their own kinds of value (a release opens controllers), so the path holds any of them.
     @State private var path = NavigationPath(DemoOptions.morePath)

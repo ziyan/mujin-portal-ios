@@ -172,6 +172,7 @@ jobs:
           shoot chat-mention chat-mention
           shoot conversation-reply conversation-reply
           shoot welcome welcome
+          shoot accounts accounts
           shoot demo-entered demo-entered
           shoot side-chat-links side-chat-links
           shoot ask ask
@@ -216,7 +217,7 @@ jobs:
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
           shoot demo-entered-dark demo-entered
-          shoot accounts-dark more
+          shoot accounts-dark accounts
           shoot ask-site-dark ask-site
           shoot main-chat-dark main-chat
           shoot side-chat-links-dark side-chat-links
