@@ -336,6 +336,7 @@ enum DemoOptions {
     static var section: AppSection? {
         guard let screen else { return nil }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
+        if AccountDemo.owns(screen) { return .more }
         // Screens that live under More.
         if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image", "accounts"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") || screen == "attachment-viewer" { return .tickets }
@@ -361,7 +362,7 @@ enum DemoOptions {
         case "releases", "release-tap": [.releases]
         case "release": [.releases, .release("release01")]
         case "release-image": [.releases, .release("release01"), .releaseImage("image01")]
-        default: []
+        default: AccountDemo.morePath(screen ?? "")
         }
     }
 

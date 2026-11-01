@@ -227,6 +227,28 @@ jobs:
           shoot memory-page memory-page
           shoot dreams dreams
           shoot assistant-settings assistant-settings
+          shoot account-more section:more
+          shoot account-profile account-profile
+          shoot account-sessions account-sessions
+          shoot account-sessions-detail account-sessions-detail
+          shoot account-passkeys account-passkeys
+          shoot account-tokens account-tokens
+          shoot account-apps account-apps
+          shoot account-apps-detail account-apps-detail
+          shoot account-vpn account-vpn
+          shoot account-ssh account-ssh
+          shoot account-ssh-detail account-ssh-detail
+          shoot people-hub people-hub
+          shoot people-members people-members
+          shoot people-user people-user
+          shoot people-user-deactivated people-user-deactivated
+          shoot people-groups people-groups
+          shoot people-group people-group
+          shoot people-roles people-roles
+          shoot people-role people-role
+          shoot people-limited people-limited
+          shoot people-organizations people-organizations staff
+          shoot people-staff-members people-staff-members staff
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
           shoot virtual-controller-dark virtual-controller
@@ -266,6 +288,20 @@ jobs:
           shoot notifications-dark notifications
           shoot sites-staff-dark sites-staff staff
           shoot incidents-staff incidents staff
+          shoot account-profile-dark account-profile
+          shoot account-sessions-dark account-sessions
+          shoot account-passkeys-dark account-passkeys
+          shoot account-tokens-dark account-tokens
+          shoot account-apps-detail-dark account-apps-detail
+          shoot account-vpn-dark account-vpn
+          shoot account-ssh-detail-dark account-ssh-detail
+          shoot people-members-dark people-members
+          shoot people-user-dark people-user
+          shoot people-groups-dark people-groups
+          shoot people-group-dark people-group
+          shoot people-roles-dark people-roles
+          shoot people-role-dark people-role
+          shoot people-organizations-dark people-organizations staff
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
@@ -287,6 +323,16 @@ jobs:
           shoot large-text-speaks-first conversation:conversation06
           shoot large-text-goals goals
           shoot large-text-sites-staff sites-staff staff
+          shoot large-text-account-more section:more
+          shoot large-text-account-profile account-profile
+          shoot large-text-account-sessions account-sessions
+          shoot large-text-account-tokens account-tokens
+          shoot large-text-account-apps-detail account-apps-detail
+          shoot large-text-people-members people-members
+          shoot large-text-people-user people-user
+          shoot large-text-people-group people-group
+          shoot large-text-people-role people-role
+          shoot large-text-sites-staff-people sites-staff staff
 
       - name: Keep the screenshots
         if: always()

@@ -17,6 +17,8 @@ struct StaffSitesView: View {
     @State private var searchText = ""
     @State private var path: [PortalRoute] = []
     @State private var isLinking = false
+    /// The organization whose people are shown in a sheet, from a section header.
+    @State private var peopleOrganization: PeopleOrganization?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -35,6 +37,9 @@ struct StaffSitesView: View {
             }
             .sheet(isPresented: $isLinking) { LinkControllerView() }
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search sites")
+            .sheet(item: $peopleOrganization) { organization in
+                PeopleSheet(organizationId: organization.id)
+            }
             .task {
                 await load()
                 await openDemoScreen()
@@ -101,10 +106,26 @@ struct StaffSitesView: View {
                         }
                     }
                     ForEach(groups) { group in
-                        Section(group.organizationName ?? String(localized: "Unknown organization")) {
+                        Section {
                             ForEach(group.sites) { site in
                                 NavigationLink(value: PortalRoute.site(id: site.id, organizationId: group.organizationId)) {
                                     Label(site.name ?? site.id, systemImage: "building.2").foregroundStyle(.primary)
+                                }
+                            }
+                        } header: {
+                            HStack {
+                                Text(group.organizationName ?? String(localized: "Unknown organization"))
+                                Spacer()
+                                // The organization's people, for whoever may manage them.
+                                if session.peopleAccess.hasPeopleScreens(in: group.organizationId) {
+                                    Button {
+                                        peopleOrganization = PeopleOrganization(id: group.organizationId)
+                                    } label: {
+                                        Label("People", systemImage: "person.2")
+                                            .font(.footnote)
+                                            .foregroundStyle(Color.secondary)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
