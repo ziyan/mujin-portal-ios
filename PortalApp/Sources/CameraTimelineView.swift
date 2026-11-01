@@ -47,7 +47,6 @@ struct CameraTimelineView: View {
 
     @State private var dragOriginMS: Double?
     @State private var pinchOriginSpanMS: Double?
-    @ScaledMetric(relativeTo: .caption2) private var height: CGFloat = 64
 
     var body: some View {
         GeometryReader { geometry in
@@ -85,7 +84,9 @@ struct CameraTimelineView: View {
                     .onEnded { _ in pinchOriginSpanMS = nil }
             )
         }
-        .frame(height: height)
+        // The ruler's labels sit on a fixed grid, so the strip does not grow with the text size.
+        .dynamicTypeSize(...DynamicTypeSize.large)
+        .frame(height: 64)
         .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement()
@@ -118,6 +119,7 @@ enum CameraTimelineDrawing {
         }
         let step = CameraTimeline.tickStepMS(forSpanMS: window.spanMS)
         let showsSeconds = step < CameraTimeline.minuteMS
+        var lastLabelX: CGFloat = -1_000
         for tick in CameraTimeline.ticks(in: window) {
             let x = CGFloat(CameraTimeline.fraction(forTimeMS: tick, in: window)) * size.width
             let isMidnight = clock.secondsSinceMidnight(atMS: tick) == 0
@@ -126,6 +128,9 @@ enum CameraTimelineDrawing {
             line.move(to: CGPoint(x: x, y: size.height))
             line.addLine(to: CGPoint(x: x, y: size.height - tickHeight))
             context.stroke(line, with: .color(Color.secondary.opacity(0.7)), lineWidth: 1)
+            // A label is drawn only where there is room for it, so none overlaps another at any width.
+            guard x - lastLabelX >= 84 else { continue }
+            lastLabelX = x
             let label = isMidnight ? CameraText.day(tick, clock: clock) : CameraText.time(tick, clock: clock, showsSeconds: showsSeconds)
             context.draw(Text(label).font(.caption2).foregroundStyle(.secondary), at: CGPoint(x: x, y: 6), anchor: .top)
         }

@@ -125,7 +125,7 @@ struct CameraDetailView: View {
             created.updateClock(CameraClock(identifier: identifier))
         }
         if appModel.isDemo {
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
             if DemoOptions.screen == "camera-jump" { isShowingJump = true }
             if DemoOptions.screen == "camera-share" { isShowingShare = true }
         }
@@ -376,6 +376,7 @@ struct StreamChip: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(Color.black.opacity(0.6), in: Capsule())
+        .dynamicTypeSize(...DynamicTypeSize.xLarge)
         .accessibilityElement(children: .combine)
     }
 
