@@ -113,19 +113,16 @@ struct StaffSitesView: View {
                                 }
                             }
                         } header: {
-                            HStack {
-                                Text(group.organizationName ?? String(localized: "Unknown organization"))
-                                Spacer()
-                                // The organization's people, for whoever may manage them.
-                                if session.peopleAccess.hasPeopleScreens(in: group.organizationId) {
-                                    Button {
-                                        peopleOrganization = PeopleOrganization(id: group.organizationId)
-                                    } label: {
-                                        Label("People", systemImage: "person.2")
-                                            .font(.footnote)
-                                            .foregroundStyle(Color.secondary)
-                                    }
-                                    .buttonStyle(.plain)
+                            // Beside the name when it fits; under it at the largest text sizes.
+                            ViewThatFits(in: .horizontal) {
+                                HStack {
+                                    headerName(group)
+                                    Spacer()
+                                    peopleButton(group)
+                                }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    headerName(group)
+                                    peopleButton(group)
                                 }
                             }
                         }
@@ -143,6 +140,25 @@ struct StaffSitesView: View {
                 }
             }
             .refreshable { await load(force: true) }
+        }
+    }
+
+    private func headerName(_ group: SiteGroup) -> some View {
+        Text(group.organizationName ?? String(localized: "Unknown organization"))
+    }
+
+    /// The organization's people, for whoever may manage them.
+    @ViewBuilder
+    private func peopleButton(_ group: SiteGroup) -> some View {
+        if session.peopleAccess.hasPeopleScreens(in: group.organizationId) {
+            Button {
+                peopleOrganization = PeopleOrganization(id: group.organizationId)
+            } label: {
+                Label("People", systemImage: "person.2")
+                    .font(.footnote)
+                    .foregroundStyle(Color.secondary)
+            }
+            .buttonStyle(.plain)
         }
     }
 }
