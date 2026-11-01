@@ -8,7 +8,7 @@ import PortalKit
 @Observable
 final class LinkPreviewLoader {
     private(set) var previews: [String: [LinkPreviewCard]] = [:]
-    @ObservationIgnored private var askedIds: Set<String> = []
+    private var askedIds: Set<String> = []
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private let connection: Connection
     @ObservationIgnored private let conversationId: String
@@ -17,6 +17,9 @@ final class LinkPreviewLoader {
         self.connection = connection
         self.conversationId = conversationId
     }
+
+    /// Whether the server was asked about this message and has not answered yet.
+    func isAwaiting(_ id: String) -> Bool { askedIds.contains(id) && previews[id] == nil }
 
     /// Asks about the messages whose text may hold a link and that were not asked about yet (or all of them when `force` is set).
     func load(_ messages: [(id: String, text: String)], force: Bool = false) async {

@@ -81,52 +81,69 @@ private struct AttachmentImage: View {
         case unavailable
     }
 
-    @State private var phase = Phase.loading
+    /// The box every picture gets, whatever its own shape, so a row's height is the same before the picture arrives,
+    /// after it, and when the row is scrolled away and back. The picture is fitted inside it.
+    static let boxAspect: CGFloat = 4 / 3
+
+    @State private var phase: Phase
     @State private var isShowingViewer = false
 
+    init(attachmentId: String, name: String, connection: Connection) {
+        self.attachmentId = attachmentId
+        self.name = name
+        self.connection = connection
+        // A picture already decoded is there from the first frame: no placeholder, no change.
+        if let held = AttachmentImageCache.images.object(forKey: AttachmentImageCache.key(connection, attachmentId)) {
+            _phase = State(initialValue: .loaded(held))
+        } else {
+            _phase = State(initialValue: .loading)
+        }
+    }
+
     var body: some View {
-        Group {
-            switch phase {
-            case .loading:
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(.tertiarySystemFill))
-                    .aspectRatio(4 / 3, contentMode: .fit)
-                    .overlay { ProgressView() }
-            case .loaded(let image):
-                Button { isShowingViewer = true } label: {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        Color(.tertiarySystemFill)
+            .aspectRatio(Self.boxAspect, contentMode: .fit)
+            .overlay {
+                switch phase {
+                case .loading:
+                    ProgressView()
+                case .loaded(let image):
+                    Button { isShowingViewer = true } label: {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(name.isEmpty ? String(localized: "Picture") : name))
+                    .accessibilityHint(Text("Opens the picture"))
+                    .fullScreenCover(isPresented: $isShowingViewer) { ImageViewer(image: image, name: name) }
+                case .unavailable:
+                    Label("Attachment unavailable", systemImage: "exclamationmark.triangle")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text(name.isEmpty ? String(localized: "Picture") : name))
-                .accessibilityHint(Text("Opens the picture"))
-                .fullScreenCover(isPresented: $isShowingViewer) { ImageViewer(image: image, name: name) }
-            case .unavailable:
-                UnavailableAttachmentRow()
             }
-        }
-        .frame(maxWidth: 420, alignment: .leading)
-        .task(id: attachmentId) {
-            let key = AttachmentImageCache.key(connection, attachmentId)
-            if let held = AttachmentImageCache.images.object(forKey: key) {
-                phase = .loaded(held)
-                return
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(maxWidth: 420, alignment: .leading)
+            .task(id: attachmentId) {
+                let key = AttachmentImageCache.key(connection, attachmentId)
+                if let held = AttachmentImageCache.images.object(forKey: key) {
+                    phase = .loaded(held)
+                    return
+                }
+                guard let data = try? await connection.fetch(path: "/api/v1/attachment/\(attachmentId)"), let image = UIImage(data: data) else {
+                    phase = .unavailable
+                    return
+                }
+                AttachmentImageCache.images.setObject(image, forKey: key)
+                phase = .loaded(image)
+                // The screenshot run opens the viewer, since a tap cannot be scripted there.
+                if DemoOptions.screen == "attachment-viewer" {
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    isShowingViewer = true
+                }
             }
-            guard let data = try? await connection.fetch(path: "/api/v1/attachment/\(attachmentId)"), let image = UIImage(data: data) else {
-                phase = .unavailable
-                return
-            }
-            AttachmentImageCache.images.setObject(image, forKey: key)
-            phase = .loaded(image)
-            // The screenshot run opens the viewer, since a tap cannot be scripted there.
-            if DemoOptions.screen == "attachment-viewer" {
-                try? await Task.sleep(nanoseconds: 600_000_000)
-                isShowingViewer = true
-            }
-        }
     }
 }
 
@@ -225,19 +242,22 @@ private struct AttachmentVideo: View {
                 UnavailableAttachmentRow()
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    ZStack {
-                        Color.black
-                        if let player {
-                            VideoPlayer(player: player)
-                        } else {
-                            if let poster { Image(uiImage: poster).resizable().scaledToFill() }
-                            Image(systemName: "play.circle.fill")
-                                .font(.system(size: 52))
-                                .foregroundStyle(.white.opacity(0.9))
-                                .shadow(radius: 6)
+                    // A fixed 16:9 box: the poster arriving or the player replacing it never changes the row's height.
+                    Color.black
+                        .aspectRatio(16 / 9, contentMode: .fit)
+                        .overlay {
+                            if let player {
+                                VideoPlayer(player: player)
+                            } else {
+                                ZStack {
+                                    if let poster { Image(uiImage: poster).resizable().scaledToFill().frame(maxWidth: .infinity, maxHeight: .infinity).clipped() }
+                                    Image(systemName: "play.circle.fill")
+                                        .font(.system(size: 52))
+                                        .foregroundStyle(.white.opacity(0.9))
+                                        .shadow(radius: 6)
+                                }
+                            }
                         }
-                    }
-                    .aspectRatio(16 / 9, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .contentShape(Rectangle())
                     .onTapGesture { if player == nil { Task { await play() } } }

@@ -175,6 +175,7 @@ jobs:
           shoot side-chat-links side-chat-links
           shoot ask ask
           shoot ask-site ask-site
+          shoot photo-chat photo-chat
           shoot main-chat main-chat
           shoot chat-info chat-info
           shoot chats-new chats-new

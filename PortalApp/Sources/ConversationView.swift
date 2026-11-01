@@ -261,6 +261,10 @@ private struct TranscriptRow: View {
     /// The cards under a message that holds a link, as under a message in a people chat.
     @ViewBuilder
     private func linkCards(for id: String) -> some View {
+        // While the server is still asked about a link, its card's space is held, so the row does not grow later.
+        if model.linkPreviews.isAwaiting(id) {
+            Color.clear.frame(height: 88)
+        }
         ForEach(model.linkPreviews.previews[id] ?? []) { card in
             LinkPreviewCardView(card: card, connection: model.connection)
                 .frame(maxWidth: 320)

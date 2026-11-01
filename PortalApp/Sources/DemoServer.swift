@@ -60,7 +60,22 @@ final class DemoState: @unchecked Sendable {
             conversation("conversation04", "Throughput by site", "Site01 leads this week.", 1_800),
             conversation("conversation05", "Overnight checks", "No alarms overnight.", 7_200),
             conversation("conversation06", "A thought about dock doors", "The assistant started this conversation.", 600),
+            conversation("conversation-photos", "Line photos", "Twelve photos from the pick line.", 40_000),
             conversation("conversation-main", "Stored title that is never shown", "Dock door 4 is slow again; I filed a ticket.", 300, isMain: true),
+        ]
+        data.messages["conversation-photos"] = [
+            ["id": "ph01", "role": "user", "content": "Photo 1 from the line: ![camera-01.jpg](/api/v1/attachment/imagedemo02)", "createdAt": stamp(39400)],
+            ["id": "ph02", "role": "assistant", "content": "Photo 2 from the line: ![camera-02.jpg](/api/v1/attachment/imagedemo01)", "createdAt": stamp(38800)],
+            ["id": "ph03", "role": "assistant", "content": "Photo 3 from the line: ![camera-03.jpg](/api/v1/attachment/imagedemo02)", "createdAt": stamp(38200)],
+            ["id": "ph04", "role": "user", "content": "Photo 4 from the line: ![camera-04.jpg](/api/v1/attachment/imagedemo01)", "createdAt": stamp(37600)],
+            ["id": "ph05", "role": "assistant", "content": "Photo 5 from the line: ![camera-05.jpg](/api/v1/attachment/imagedemo02)", "createdAt": stamp(37000)],
+            ["id": "ph06", "role": "assistant", "content": "Photo 6 from the line: ![camera-06.jpg](/api/v1/attachment/imagedemo01)", "createdAt": stamp(36400)],
+            ["id": "ph07", "role": "user", "content": "Photo 7 from the line: ![camera-07.jpg](/api/v1/attachment/imagedemo02)", "createdAt": stamp(35800)],
+            ["id": "ph08", "role": "assistant", "content": "Photo 8 from the line: ![camera-08.jpg](/api/v1/attachment/imagedemo01)", "createdAt": stamp(35200)],
+            ["id": "ph09", "role": "assistant", "content": "Photo 9 from the line: ![camera-09.jpg](/api/v1/attachment/imagedemo02)", "createdAt": stamp(34600)],
+            ["id": "ph10", "role": "user", "content": "Photo 10 from the line: ![camera-10.jpg](/api/v1/attachment/imagedemo01)", "createdAt": stamp(34000)],
+            ["id": "ph11", "role": "assistant", "content": "Photo 11 from the line: ![camera-11.jpg](/api/v1/attachment/imagedemo02)", "createdAt": stamp(33400)],
+            ["id": "ph12", "role": "assistant", "content": "Photo 12 from the line: ![camera-12.jpg](/api/v1/attachment/imagedemo01)", "createdAt": stamp(32800)],
         ]
         data.messages["conversation-main"] = [
             ["id": "mm01", "role": "user", "content": "What changed overnight?", "createdAt": stamp(7_300)],
