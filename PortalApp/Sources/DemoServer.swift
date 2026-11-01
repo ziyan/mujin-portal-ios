@@ -62,7 +62,7 @@ final class DemoState: @unchecked Sendable {
             conversation("conversation06", "A thought about dock doors", "The assistant started this conversation.", 600),
             conversation("conversation-main", "Stored title that is never shown", "Dock door 4 is slow again; I filed a ticket.", 300, isMain: true),
         ]
-        data.messages["conversation03"] = [
+        data.messages["conversation05"] = [
             ["id": "sc1", "role": "user", "content": "Is this checklist still right? https://example.test/docs/suction and the ticket /ticket/1", "createdAt": stamp(90_100)],
             ["id": "sc2", "role": "assistant", "content": "Yes. The checklist matches what the ticket describes: check the hose first, then the seals.", "createdAt": stamp(90_000)],
         ]
