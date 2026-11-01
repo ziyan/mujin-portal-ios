@@ -48,3 +48,31 @@ import Testing
         #expect(sent[1]["variables"]?["virtualController"]?["comment"] == nil)
     }
 }
+
+@Suite struct VirtualControllerSnapshotTests {
+    @Test func everyPageOfSnapshotsIsReadAndTheNewestComesFirst() async throws {
+        let calls = Guarded<[Int]>([])
+        let transport = ScriptedTransport { request in
+            let body = try JSONDecoder().decode(JSONValue.self, from: request.httpBody!)
+            let after = Int(body["variables"]?["options"]?["after"]?.numberValue ?? 0)
+            calls.withValue { $0.append(after) }
+            let all = (0..<5).map { ["id": "s\($0)", "comment": "Snapshot \($0)", "status": "ready", "createdAt": "2026-10-0\($0 + 1)T08:00:00Z"] as [String: Any] }
+            let page = Array(all[after..<min(after + 2, all.count)])
+            return (200, ScriptedTransport.json(["data": ["ListVirtualControllerSnapshots": ["snapshots": page, "meta": ["totalCount": 5]]]]))
+        }
+        let account = Account(
+            server: try ServerAddress("https://portal.example.test"), clientId: "client01", userId: "user01", displayName: "Alex", email: "alex@example.test",
+            accessToken: "token", refreshToken: "refresh", accessTokenExpiresAt: Date().addingTimeInterval(3600))
+        let connection = Connection(account: account, transport: transport)
+        let snapshots = try await connection.snapshots(virtualControllerId: "vc01", pageSize: 2)
+        #expect(snapshots.map(\.id) == ["s4", "s3", "s2", "s1", "s0"])
+        #expect(calls.withValue { $0 } == [0, 2, 4])
+    }
+
+    @Test func onlyAReadySnapshotCanBeRestored() {
+        #expect(VirtualControllerSnapshot(id: "s1", status: "ready").canRestore)
+        #expect(!VirtualControllerSnapshot(id: "s2", status: "restoring").canRestore)
+        #expect(VirtualControllerSnapshot(id: "s3", comment: "Before the update").shownName == "Before the update")
+        #expect(VirtualControllerSnapshot(id: "s4", comment: "").shownName == "s4")
+    }
+}

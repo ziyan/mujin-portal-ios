@@ -281,7 +281,10 @@ struct SiteView: View {
             if appModel.isDemo {
                 if DemoOptions.screen == "incident", let incident = siteModel.incidents.first { path.append(.incident(incident)) }
                 if DemoOptions.screen == "controller" || DemoOptions.screen == "controller-screen", let controller = siteModel.controllers.first { path.append(.controller(controller)) }
-                if DemoOptions.screen == "virtual-controller", let virtual = siteModel.virtualControllers.first { path.append(.virtualController(virtual)) }
+                if DemoOptions.screen == "virtual-controller" || DemoOptions.screen == "virtual-controller-snapshots", let virtual = siteModel.virtualControllers.first {
+                    path.append(.virtualController(virtual))
+                    if DemoOptions.screen == "virtual-controller-snapshots" { path.append(.virtualControllerSnapshots(virtual)) }
+                }
                 if DemoOptions.screen == "site-orchestrators" { path.append(.siteList(.orchestrators, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "site-members" { path.append(.siteList(.members, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "site-back" {
@@ -938,6 +941,9 @@ struct VirtualControllerDetailView: View {
             if virtual.canModify || virtual.canDestroy {
                 Section {
                     VirtualControllerManageRows(virtual: virtual, onChange: { current = $0 }, onDestroyed: { dismiss() })
+                    NavigationLink(value: PortalRoute.virtualControllerSnapshots(virtual)) {
+                        Label("Snapshots", systemImage: "clock.arrow.circlepath").foregroundStyle(.primary)
+                    }
                 }
             }
             Section {

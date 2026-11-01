@@ -191,6 +191,7 @@ public enum Documents {
         documents += releaseDocuments
         documents += cameraDocuments
         documents += virtualControllerManagementDocuments
+        documents += snapshotDocuments
         return documents
     }
 }

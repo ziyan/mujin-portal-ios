@@ -17,6 +17,7 @@ enum PortalRoute: Hashable {
     case release(id: String)
     case releaseUsers(id: String, kind: ReleaseUsageKind)
     case releaseImage(id: String)
+    case virtualControllerSnapshots(VirtualControllerSummary)
     /// A camera, live or at a moment of its recording.
     case camera(CameraTarget)
 }
@@ -59,6 +60,8 @@ private struct PortalDestinations: ViewModifier {
                 ReleaseUsersView(releaseId: id, kind: kind)
             case .releaseImage(let id):
                 ReleaseImageView(imageId: id)
+            case .virtualControllerSnapshots(let virtual):
+                VirtualControllerSnapshotsView(virtual: virtual)
             case .camera(let target):
                 CameraDetailView(target: target)
             }

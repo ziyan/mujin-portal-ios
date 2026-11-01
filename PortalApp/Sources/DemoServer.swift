@@ -556,6 +556,13 @@ struct DemoTransport: HTTPTransport {
             return ["GetReleaseImage": ["id": "image01", "releaseId": "release01", "registry": "registry.example.test", "repository": "controller/base", "tag": "2026.10.2", "digest": "sha256:0123abcd", "labelVersion": "2026.10.2", "labelProject": "appcontroller", "labelPreset": "standard", "labelHardwares": ["hw-a", "hw-b"], "labelBuild": "1042", "createdAt": "2026-10-20T09:00:00Z"]]
         case "ListControllersUsingRelease":
             return ["ListControllersUsingRelease": [["id": "controller01", "comment": "Pick station controller", "releaseId": "release01", "releaseImageId": "image01"], ["id": "controller02", "releaseId": "release01"]]]
+        case "ListVirtualControllerSnapshots":
+            return ["ListVirtualControllerSnapshots": ["snapshots": [
+                ["id": "snapshot01", "virtualControllerId": "virtual01", "comment": "Before the planner update", "status": "ready", "createdAt": "2026-10-28T08:00:00Z"],
+                ["id": "snapshot02", "virtualControllerId": "virtual01", "comment": "Clean install", "status": "ready", "createdAt": "2026-10-20T08:00:00Z"],
+            ], "meta": ["totalCount": 2]]]
+        case "CreateVirtualControllerSnapshot", "RestoreVirtualControllerSnapshot", "ModifyVirtualControllerSnapshot", "DestroyVirtualControllerSnapshot":
+            return [operation: ["virtualControllerSnapshot": ["id": "snapshot03", "status": "ready"]]]
         case "ListSiteVirtualControllers":
             let rows = state.withData { data -> [[String: Any]] in data.isVirtualControllerDestroyed ? [] : [Self.virtualControllerRow(data)] }
             return ["ListVirtualControllers": ["virtualControllers": rows]]
