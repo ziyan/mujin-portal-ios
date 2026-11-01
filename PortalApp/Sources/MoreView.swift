@@ -16,6 +16,7 @@ enum MoreDestination: Hashable {
     case incidents
     case releases
     case release(String)
+    case releaseImage(String)
 }
 
 /// MoreView is the last tab: the account, and what does not need a tab of its own.
@@ -121,11 +122,11 @@ struct MoreView: View {
                             Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                                 .foregroundStyle(Color.statusError)
                         }
-                    }
-                    .confirmationDialog("Sign out of this account?", isPresented: $isConfirmingSignOut, titleVisibility: .visible) {
-                        Button("Sign out of \(account.displayName)", role: .destructive) { Task { await appModel.remove(account) } }
-                    } message: {
-                        Text("\(account.displayName) on \(account.server.displayHost) will be removed from this phone.")
+                        .confirmationDialog("Sign out of this account?", isPresented: $isConfirmingSignOut, titleVisibility: .visible) {
+                            Button("Sign out of \(account.displayName)", role: .destructive) { Task { await appModel.remove(account) } }
+                        } message: {
+                            Text("\(account.displayName) on \(account.server.displayHost) will be removed from this phone.")
+                        }
                     }
                 }
             } }
@@ -149,6 +150,7 @@ struct MoreView: View {
                 case .incidents: IncidentsView()
                 case .releases: ReleasesView()
                 case .release(let id): ReleaseDetailView(releaseId: id)
+                case .releaseImage(let id): ReleaseImageView(imageId: id)
                 }
                 }
                 .toolbarVisibility(.hidden, for: .tabBar)

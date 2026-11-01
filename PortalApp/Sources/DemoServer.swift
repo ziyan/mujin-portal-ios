@@ -533,6 +533,10 @@ struct DemoTransport: HTTPTransport {
                     ], "meta": ["totalCount": 3],
                 ]
             ]
+        case "ListTicketsUsingRelease":
+            return ["ListTicketsUsingRelease": [["id": "ticket01", "sequence": 1, "title": "Gripper drops boxes at pick station 3", "status": "open", "priority": "high", "siteId": "site01", "organizationId": "organization01", "authorUserId": "user01", "requesterUserId": "user01", "assigneeUserIds": []]]]
+        case "GetReleaseImage":
+            return ["GetReleaseImage": ["id": "image01", "releaseId": "release01", "registry": "registry.example.test", "repository": "controller/base", "tag": "2026.10.2", "digest": "sha256:0123abcd", "labelVersion": "2026.10.2", "labelProject": "appcontroller", "labelPreset": "standard", "labelHardwares": ["hw-a", "hw-b"], "labelBuild": "1042", "createdAt": "2026-10-20T09:00:00Z"]]
         case "ListControllersUsingRelease":
             return ["ListControllersUsingRelease": [["id": "controller01", "comment": "Pick station controller", "releaseId": "release01", "releaseImageId": "image01"], ["id": "controller02", "releaseId": "release01"]]]
         case "ListVirtualControllersUsingRelease":

@@ -188,10 +188,124 @@ extension Documents {
         }
         """
 
-    static var releaseDocuments: [String] { [listReleases, getRelease, listControllersUsingRelease, listVirtualControllersUsingRelease] }
+    public static let listTicketsUsingRelease = """
+        query ListTicketsUsingRelease($releaseId: String) {
+          ListTicketsUsingRelease(releaseId: $releaseId) { \(ticketFields) }
+        }
+        """
+
+    public static let getReleaseImage = """
+        query GetReleaseImage($releaseImageId: String) {
+          GetReleaseImage(releaseImageId: $releaseImageId) {
+            id releaseId registry repository tag digest labelVersion labelHead labelProject labelPreset labelHardwares labelBuild labelBuildTool
+            labelBuildDatetime labelModules labelModuleSet labelProducts createdAt
+          }
+        }
+        """
+
+    static var releaseDocuments: [String] {
+        [listReleases, getRelease, listControllersUsingRelease, listVirtualControllersUsingRelease, listTicketsUsingRelease, getReleaseImage]
+    }
+}
+
+/// ReleaseImageDetail is one published image of a release, with the labels the release linker matches a controller on.
+public struct ReleaseImageDetail: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let releaseId: String?
+    public let registry: String?
+    public let repository: String?
+    public let tag: String?
+    public let digest: String?
+    public let labelVersion: String?
+    public let labelHead: String?
+    public let labelProject: String?
+    public let labelPreset: String?
+    public let labelHardwares: [String]?
+    public let labelBuild: String?
+    public let labelBuildTool: String?
+    public let labelBuildDatetime: String?
+    public let labelModules: [String]?
+    public let labelModuleSet: String?
+    public let labelProducts: [String]?
+    public let createdAt: String?
+
+    /// The labels that have a value, as name and value pairs in a readable order.
+    public var labelRows: [(name: String, value: String)] {
+        var rows: [(String, String)] = []
+        func add(_ name: String, _ value: String?) { if let value, !value.isEmpty { rows.append((name, value)) } }
+        func addList(_ name: String, _ values: [String]?) { if let values, !values.isEmpty { rows.append((name, values.joined(separator: ", "))) } }
+        add("Version", labelVersion)
+        add("Project", labelProject)
+        add("Preset", labelPreset)
+        addList("Hardware", labelHardwares)
+        add("Build", labelBuild)
+        add("Build tool", labelBuildTool)
+        add("Built", labelBuildDatetime)
+        add("Head", labelHead)
+        add("Module set", labelModuleSet)
+        addList("Modules", labelModules)
+        addList("Products", labelProducts)
+        return rows
+    }
+}
+
+/// ReleaseFilter narrows the releases list the way the web's feed does: by application, by channel, and whether withdrawn
+/// releases are shown. Drafts are shown, since the server only returns them to those who may see them.
+public struct ReleaseFilter: Equatable, Sendable {
+    public var application: String?
+    public var channel: String?
+    public var showsWithdrawn = false
+    public var query = ""
+
+    public init(application: String? = nil, channel: String? = nil, showsWithdrawn: Bool = false, query: String = "") {
+        self.application = application
+        self.channel = channel
+        self.showsWithdrawn = showsWithdrawn
+        self.query = query
+    }
+
+    public var isFiltering: Bool { application != nil || channel != nil || showsWithdrawn }
+
+    public func apply(_ releases: [Release]) -> [Release] {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return releases.filter { release in
+            if let application, release.application != application { return false }
+            if let channel, release.channel != channel { return false }
+            if !showsWithdrawn, release.status == "withdrawn" { return false }
+            if !text.isEmpty {
+                return release.displayName.localizedCaseInsensitiveContains(text) || (release.versionString ?? "").localizedCaseInsensitiveContains(text)
+            }
+            return true
+        }
+    }
+
+    /// The distinct applications and channels among the releases, sorted, for the pickers.
+    public static func applications(in releases: [Release]) -> [String] {
+        Array(Set(releases.compactMap(\.application).filter { !$0.isEmpty })).sorted()
+    }
+
+    public static func channels(in releases: [Release]) -> [String] {
+        Array(Set(releases.compactMap(\.channel).filter { !$0.isEmpty })).sorted()
+    }
+
+    /// The release newer and the one older than `id` in a list that is newest first, within what is shown.
+    public static func neighbors(of id: String, in releases: [Release]) -> (newer: Release?, older: Release?) {
+        guard let index = releases.firstIndex(where: { $0.id == id }) else { return (nil, nil) }
+        return (index > 0 ? releases[index - 1] : nil, index + 1 < releases.count ? releases[index + 1] : nil)
+    }
 }
 
 extension Connection {
+    public func releaseImage(id: String) async throws -> ReleaseImageDetail {
+        struct Answer: Decodable, Sendable { let GetReleaseImage: ReleaseImageDetail }
+        return try await execute(Documents.getReleaseImage, variables: ["releaseImageId": .string(id)], as: Answer.self).GetReleaseImage
+    }
+
+    public func tickets(usingRelease id: String) async throws -> [Ticket] {
+        struct Answer: Decodable, Sendable { let ListTicketsUsingRelease: [Ticket]? }
+        return try await execute(Documents.listTicketsUsingRelease, variables: ["releaseId": .string(id)], as: Answer.self).ListTicketsUsingRelease ?? []
+    }
+
     /// The releases the person may see, newest first. A custom channel's releases come only where the server returns them.
     public func releases(first: Int = 100) async throws -> [Release] {
         struct Answer: Decodable, Sendable {

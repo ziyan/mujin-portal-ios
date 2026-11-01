@@ -15,6 +15,16 @@ enum PortalRoute: Hashable {
     /// One specific site of an organization, which never changes to another site.
     case site(id: String, organizationId: String)
     case release(id: String)
+    case releaseUsers(id: String, kind: ReleaseUsageKind)
+    case releaseImage(id: String)
+}
+
+/// ReleaseUsageKind is what a release's "See all" lists.
+enum ReleaseUsageKind: Hashable {
+    case controllers
+    case virtualControllers
+    case tickets
+    case images
 }
 
 private struct PortalDestinations: ViewModifier {
@@ -39,6 +49,10 @@ private struct PortalDestinations: ViewModifier {
                 SiteView(organizationId: organizationId, siteId: id, embedsNavigation: false)
             case .release(let id):
                 ReleaseDetailView(releaseId: id)
+            case .releaseUsers(let id, let kind):
+                ReleaseUsersView(releaseId: id, kind: kind)
+            case .releaseImage(let id):
+                ReleaseImageView(imageId: id)
             }
         }
     }

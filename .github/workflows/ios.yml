@@ -187,6 +187,7 @@ jobs:
           shoot controller controller
           shoot controller-screen controller-screen
           shoot release release
+          shoot release-image release-image
           shoot releases releases
           shoot release-tap release-tap
           shoot voice voice

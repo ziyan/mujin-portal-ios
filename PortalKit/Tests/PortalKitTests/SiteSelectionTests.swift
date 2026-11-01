@@ -168,3 +168,41 @@ private final class CountingPictureTransport: HTTPTransport, @unchecked Sendable
         #expect(Release.newestFirst(rows).map(\.id) == ["new", "old", "older-day"])
     }
 }
+
+@Suite struct ReleaseFilterTests {
+    private let releases = [
+        Release(id: "r4", name: "Newest", application: "controller", channel: "stable", status: "published", versionString: "0.50.0", createdAt: "2026-10-30T10:00:00Z"),
+        Release(id: "r3", name: "Old withdrawn", application: "controller", channel: "stable", status: "withdrawn", versionString: "0.49.0", createdAt: "2026-10-20T10:00:00Z"),
+        Release(id: "r2", name: "Preview", application: "controller", channel: "preview", status: "draft", versionString: "0.51.0-rc1", createdAt: "2026-10-10T10:00:00Z"),
+        Release(id: "r1", name: "Tool", application: "tool", channel: "stable", status: "published", versionString: "1.2.0", createdAt: "2026-10-01T10:00:00Z"),
+    ]
+
+    @Test func withdrawnReleasesAreHiddenUntilAsked() {
+        #expect(ReleaseFilter().apply(releases).map(\.id) == ["r4", "r2", "r1"])
+        #expect(ReleaseFilter(showsWithdrawn: true).apply(releases).count == 4)
+    }
+
+    @Test func applicationChannelAndSearchNarrowTheList() {
+        #expect(ReleaseFilter(application: "tool").apply(releases).map(\.id) == ["r1"])
+        #expect(ReleaseFilter(channel: "preview").apply(releases).map(\.id) == ["r2"])
+        #expect(ReleaseFilter(query: "0.50").apply(releases).map(\.id) == ["r4"])
+        #expect(ReleaseFilter.applications(in: releases) == ["controller", "tool"])
+        #expect(ReleaseFilter.channels(in: releases) == ["preview", "stable"])
+    }
+
+    @Test func aReleaseKnowsItsNewerAndOlderNeighbors() {
+        let shown = ReleaseFilter().apply(releases)
+        let neighbors = ReleaseFilter.neighbors(of: "r2", in: shown)
+        #expect(neighbors.newer?.id == "r4")
+        #expect(neighbors.older?.id == "r1")
+        #expect(ReleaseFilter.neighbors(of: "r4", in: shown).newer == nil)
+    }
+
+    @Test func imageLabelsListOnlyWhatHasAValue() {
+        let image = ReleaseImageDetail(
+            id: "i1", releaseId: "r4", registry: nil, repository: nil, tag: "0.50.0", digest: nil, labelVersion: "0.50.0", labelHead: nil, labelProject: "appcontroller",
+            labelPreset: "", labelHardwares: ["hw1", "hw2"], labelBuild: nil, labelBuildTool: nil, labelBuildDatetime: nil, labelModules: nil, labelModuleSet: nil,
+            labelProducts: nil, createdAt: nil)
+        #expect(image.labelRows.map(\.name) == ["Version", "Project", "Hardware"])
+    }
+}
