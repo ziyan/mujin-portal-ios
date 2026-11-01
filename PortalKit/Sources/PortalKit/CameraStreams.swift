@@ -246,10 +246,16 @@ public struct CameraPlaybackWindows: Equatable, Sendable {
     public static let windowMS: Double = 60_000
     /// Silence this long after a frame means the window has been delivered.
     public static let idleSeconds: TimeInterval = 2.5
-    /// No window in sight of a frame for this long means there is no recording at that moment.
-    public static let firstFrameTimeout: TimeInterval = 10
+    /// A window that has sent no frame by now is empty: there is no recording in it.
+    public static let firstFrameTimeout: TimeInterval = 6
     /// Footage kept ahead of the playhead, in seconds of recording at 1x. Faster playback eats it faster, so it scales with the speed.
     public static let leadSeconds: Double = 20
+
+    /// A window that sent nothing before the idle time ran out is a gap in the recording. The next one is asked for twice as long (up to
+    /// this) so a gap is crossed quickly; the NVR only sends what exists, so a longer window costs nothing where there is no footage.
+    public static let maximumGrowthMS: Double = 15 * 60_000
+    /// After this many empty windows in a row there is no footage to be found ahead.
+    public static let maximumEmptyWindows = 8
 
     public enum Plan: Equatable, Sendable {
         /// Ask the NVR for this window, in epoch milliseconds.
@@ -258,9 +264,12 @@ public struct CameraPlaybackWindows: Equatable, Sendable {
         case wait
         /// Everything up to the end has been asked for.
         case finished
+        /// Several windows in a row held nothing: there is no recording here.
+        case noRecording
     }
 
     public private(set) var nextStartMS: Double
+    public private(set) var consecutiveEmptyWindows = 0
     public let endMS: Double
 
     /// `startMS` is where to begin; `endMS` is the end of what may be watched (now, or the end of a clip).
@@ -269,14 +278,26 @@ public struct CameraPlaybackWindows: Equatable, Sendable {
         self.endMS = endMS
     }
 
+    /// Records how a window ended: with frames, or with none.
+    public mutating func windowEnded(didDeliverFrames: Bool) {
+        consecutiveEmptyWindows = didDeliverFrames ? 0 : consecutiveEmptyWindows + 1
+    }
+
+    /// The length of the next window: a minute, longer after empty windows.
+    public var nextWindowMS: Double {
+        min(Self.windowMS * pow(2, Double(consecutiveEmptyWindows)), Self.maximumGrowthMS)
+    }
+
     /// `bufferedEndMS` is the recording moment up to which frames have arrived; `playheadMS` is where the picture is; `speed` is the playback rate.
     public mutating func plan(bufferedEndMS: Double, playheadMS: Double, speed: Double, isWindowOpen: Bool) -> Plan {
         if isWindowOpen { return .wait }
+        if consecutiveEmptyWindows >= Self.maximumEmptyWindows { return .noRecording }
         if nextStartMS >= endMS - 250 { return .finished }
+        // After an empty window there is nothing buffered to wait on: go on at once.
         let neededLeadMS = Self.leadSeconds * 1000 * max(1, speed)
-        if bufferedEndMS - playheadMS >= neededLeadMS { return .wait }
+        if consecutiveEmptyWindows == 0, bufferedEndMS - playheadMS >= neededLeadMS { return .wait }
         let windowStart = nextStartMS
-        let windowEnd = min(windowStart + Self.windowMS, endMS)
+        let windowEnd = min(windowStart + nextWindowMS, endMS)
         nextStartMS = windowEnd
         return .open(startMS: windowStart, endMS: windowEnd)
     }

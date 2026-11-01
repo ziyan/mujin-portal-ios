@@ -229,4 +229,33 @@ private func fragment(baseTime: UInt64, count: Int = 3, duration: UInt32 = 3000,
         #expect(windows.plan(bufferedEndMS: 0, playheadMS: 0, speed: 1, isWindowOpen: false) == .open(startMS: 100_000, endMS: 130_000))
         #expect(windows.plan(bufferedEndMS: 0, playheadMS: 0, speed: 1, isWindowOpen: false) == .finished)
     }
+
+    @Test func emptyWindowsDoubleTheNextOneUntilFifteenMinutes() {
+        var windows = CameraPlaybackWindows(startMS: 0, endMS: 100_000_000)
+        var lengths: [Double] = []
+        for _ in 0..<6 {
+            guard case .open(let start, let end) = windows.plan(bufferedEndMS: 0, playheadMS: 0, speed: 1, isWindowOpen: false) else {
+                Issue.record("expected a window")
+                return
+            }
+            lengths.append(end - start)
+            windows.windowEnded(didDeliverFrames: false)
+        }
+        #expect(lengths == [60_000, 120_000, 240_000, 480_000, 900_000, 900_000])
+    }
+
+    @Test func aWindowWithFramesStartsTheGrowthOver() {
+        var windows = CameraPlaybackWindows(startMS: 0, endMS: 100_000_000)
+        windows.windowEnded(didDeliverFrames: false)
+        windows.windowEnded(didDeliverFrames: false)
+        #expect(windows.nextWindowMS == 240_000)
+        windows.windowEnded(didDeliverFrames: true)
+        #expect(windows.nextWindowMS == 60_000)
+    }
+
+    @Test func eightEmptyWindowsInARowMeanThereIsNoRecording() {
+        var windows = CameraPlaybackWindows(startMS: 0, endMS: 100_000_000)
+        for _ in 0..<8 { windows.windowEnded(didDeliverFrames: false) }
+        #expect(windows.plan(bufferedEndMS: 0, playheadMS: 0, speed: 1, isWindowOpen: false) == .noRecording)
+    }
 }
