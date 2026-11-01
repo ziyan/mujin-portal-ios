@@ -40,6 +40,8 @@ targets:
         # a build run from Xcode, production for TestFlight and the App Store.
         PortalPushEnvironment: $(MUJINPORTAL_PUSH_ENVIRONMENT)
         UIBackgroundModes: [remote-notification]
+        # Apple requires one of these for the communication notifications entitlement.
+        NSUserActivityTypes: [INSendMessageIntent]
         CFBundleURLTypes:
           - CFBundleURLName: $(MUJINPORTAL_BUNDLE_IDENTIFIER)
             CFBundleURLSchemes:

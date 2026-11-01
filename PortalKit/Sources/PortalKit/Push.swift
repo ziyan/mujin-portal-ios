@@ -68,12 +68,15 @@ public struct PushPayload: Equatable, Sendable {
     public let isAnswered: Bool
     /// The notification's thread, so one conversation's notifications stack.
     public let threadId: String?
+    /// The values the alert's text is built from: for a chat message the author, the chat's name and the excerpt.
+    public let alertArguments: [String]
 
     public init(
         userId: String, organizationId: String? = nil, kind: String, notificationId: String? = nil, conversationId: String? = nil,
         interactionId: String? = nil, waitingKind: String? = nil, chatId: String? = nil, goalId: String? = nil, jobId: String? = nil,
-        choices: [String] = [], isAnswered: Bool = false, threadId: String? = nil
+        choices: [String] = [], isAnswered: Bool = false, threadId: String? = nil, alertArguments: [String] = []
     ) {
+        self.alertArguments = alertArguments
         self.userId = userId
         self.organizationId = organizationId
         self.kind = kind
@@ -112,7 +115,8 @@ public struct PushPayload: Equatable, Sendable {
             conversationId: text("conversationId"), interactionId: text("interactionId"), waitingKind: text("waitingKind"),
             chatId: text("chatId"), goalId: text("goalId"), jobId: text("jobId"),
             choices: Self.buttonChoices(choices), isAnswered: text("isAnswered") == "true" || (portal["isAnswered"] as? Bool) == true,
-            threadId: ((userInfo["aps"] as? [String: Any])?["thread-id"] as? String))
+            threadId: ((userInfo["aps"] as? [String: Any])?["thread-id"] as? String),
+            alertArguments: (((userInfo["aps"] as? [String: Any])?["alert"] as? [String: Any])?["loc-args"] as? [String]) ?? [])
     }
 
     /// The choices that become buttons: non-empty, clipped, at most four.
