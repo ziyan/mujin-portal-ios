@@ -62,10 +62,6 @@ final class DemoState: @unchecked Sendable {
             conversation("conversation06", "A thought about dock doors", "The assistant started this conversation.", 600),
             conversation("conversation-main", "Stored title that is never shown", "Dock door 4 is slow again; I filed a ticket.", 300, isMain: true),
         ]
-        data.messages["conversation05"] = [
-            ["id": "sc1", "role": "user", "content": "Is this checklist still right? https://example.test/docs/suction and the ticket /ticket/1", "createdAt": stamp(90_100)],
-            ["id": "sc2", "role": "assistant", "content": "Yes. The checklist matches what the ticket describes: check the hose first, then the seals.", "createdAt": stamp(90_000)],
-        ]
         data.messages["conversation-main"] = [
             ["id": "mm01", "role": "user", "content": "What changed overnight?", "createdAt": stamp(7_300)],
             ["id": "mm02", "role": "assistant", "content": "Nothing urgent. One idea for you: dock door 4 has been slow three days in a row.", "createdAt": stamp(7_250)],
@@ -264,6 +260,10 @@ final class DemoState: @unchecked Sendable {
         data.messages["conversation03"] = [
             ["id": "m20", "role": "user", "content": "How many pallets did site01 move?", "createdAt": stamp(90_100)],
             ["id": "m21", "role": "assistant", "content": "About 1,200 pallets, matching the last shift.", "createdAt": stamp(90_050)],
+        ]
+        data.messages["conversation05"] = [
+            ["id": "sc1", "role": "user", "content": "Is this checklist still right? https://example.test/docs/suction and the ticket /ticket/1", "createdAt": stamp(90_100)],
+            ["id": "sc2", "role": "assistant", "content": "Yes. The checklist matches what the ticket describes: check the hose first, then the seals.", "createdAt": stamp(90_000)],
         ]
     }
 
