@@ -341,7 +341,7 @@ enum DemoOptions {
         if screen.hasPrefix("ticket") || screen == "attachment-viewer" { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
         if screen.hasPrefix("site-staff") || screen == "sites-staff" { return .site }
-        if screen.hasPrefix("site") || screen.hasPrefix("incident") || screen.hasPrefix("controller") { return .site }
+        if screen.hasPrefix("site") || screen.hasPrefix("incident") || screen.hasPrefix("controller") || screen.hasPrefix("camera") { return .site }
         return nil
     }
 

@@ -17,6 +17,8 @@ enum PortalRoute: Hashable {
     case release(id: String)
     case releaseUsers(id: String, kind: ReleaseUsageKind)
     case releaseImage(id: String)
+    /// A camera, live or at a moment of its recording.
+    case camera(CameraTarget)
 }
 
 /// ReleaseUsageKind is what a release's "See all" lists.
@@ -37,7 +39,11 @@ private struct PortalDestinations: ViewModifier {
                 TicketDetailView(ticketId: id)
             case .siteList(let kind, let organizationKey):
                 if let model = session.existingSiteModel(key: organizationKey) {
-                    if kind == .telemetry { SiteTelemetryView(model: model) } else { SiteListScreen(kind: kind, model: model) }
+                    switch kind {
+                    case .telemetry: SiteTelemetryView(model: model)
+                    case .cameras: CameraGridView(model: model)
+                    default: SiteListScreen(kind: kind, model: model)
+                    }
                 }
             case .controller(let controller):
                 ControllerDetailView(controller: controller)
@@ -53,6 +59,8 @@ private struct PortalDestinations: ViewModifier {
                 ReleaseUsersView(releaseId: id, kind: kind)
             case .releaseImage(let id):
                 ReleaseImageView(imageId: id)
+            case .camera(let target):
+                CameraDetailView(target: target)
             }
         }
     }

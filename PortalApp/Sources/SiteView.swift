@@ -37,6 +37,7 @@ final class SiteModel {
     private(set) var telemetry: SiteTelemetry?
     private(set) var cells: [SiteCell] = []
     private(set) var openTickets: [Ticket] = []
+    private(set) var cameras: [Camera] = []
     /// Whether the stats are still being read, and whether they ever were: tiles are placeholders until the first time.
     private(set) var isLoadingStats = true
     private(set) var hasLoadedStats = false
@@ -89,6 +90,7 @@ final class SiteModel {
         var telemetry: SiteTelemetry?
         var cells: [SiteCell] = []
         var openTickets: [Ticket] = []
+        var cameras: [Camera] = []
         var virtualControllers: [VirtualControllerSummary] = []
         var orchestrators: [SiteOrchestrators] = []
         var members: [SiteMember] = []
@@ -103,6 +105,7 @@ final class SiteModel {
         telemetry = snapshot.telemetry
         cells = snapshot.cells
         openTickets = snapshot.openTickets
+        cameras = snapshot.cameras
         virtualControllers = snapshot.virtualControllers
         orchestrators = snapshot.orchestrators
         members = snapshot.members
@@ -175,6 +178,8 @@ final class SiteModel {
         async let cellRows = try? connection.cells(siteId: siteId)
         async let ticketRows = try? connection.tickets(organizationId: scopeId, siteId: siteId)
         async let virtualRows = try? connection.virtualControllers(siteId: siteId, organizationId: scopeId)
+        async let cameraRows = try? connection.cameras(siteId: siteId)
+        snapshot.cameras = await cameraRows ?? []
         snapshot.cells = await cellRows ?? []
         snapshot.openTickets = (await ticketRows ?? []).filter { $0.siteId == siteId && $0.isOpenForWork }
         snapshot.virtualControllers = await virtualRows ?? []
@@ -287,6 +292,12 @@ struct SiteView: View {
                     path.removeAll()
                 }
                 if DemoOptions.screen == "site-controllers" { path.append(.siteList(.controllers, organizationKey: siteModel.sessionKey)) }
+                if DemoOptions.screen == "cameras" { path.append(.siteList(.cameras, organizationKey: siteModel.sessionKey)) }
+                if let camera = siteModel.cameras.first,
+                    let target = DemoCameraScreens.target(for: DemoOptions.screen, camera: camera, incidentDetectedAt: siteModel.incidents.first?.detectedDate)
+                {
+                    path.append(.camera(target))
+                }
             }
         }
         .task(id: model?.selectedSiteId) {
@@ -320,6 +331,7 @@ struct SiteView: View {
                     cellsSection(model)
                     tilesSection(model)
                     resourcesSection(model)
+                    cameraSection(model)
                     alarmSection(model)
                     incidentSection(model)
                     ticketSection(model)
@@ -478,6 +490,19 @@ struct SiteView: View {
     }
 
 
+    /// The site's cameras: the first few with a picture, and all of them on a page of their own.
+    @ViewBuilder
+    private func cameraSection(_ model: SiteModel) -> some View {
+        if !model.cameras.isEmpty {
+            Section("Cameras") {
+                ForEach(SiteSections.top(model.cameras)) { camera in
+                    NavigationLink(value: PortalRoute.camera(CameraTarget(camera: camera))) { CameraRow(camera: camera) }
+                }
+                showAll(.cameras, model: model, count: model.cameras.count, isShown: SiteSections.hasMore(model.cameras))
+            }
+        }
+    }
+
     @ViewBuilder
     private func incidentSection(_ model: SiteModel) -> some View {
         if !model.incidents.isEmpty {
@@ -518,6 +543,7 @@ enum SiteListKind: Hashable {
     case orchestrators
     case members
     case telemetry
+    case cameras
 
     var title: LocalizedStringKey {
         switch self {
@@ -530,6 +556,7 @@ enum SiteListKind: Hashable {
         case .tickets: "Tickets"
         case .cells: "Cells"
         case .controllers: "Controllers"
+        case .cameras: "Cameras"
         }
     }
 }
@@ -722,6 +749,7 @@ struct IncidentDetailView: View {
     let incident: IncidentSummary
 
     @State private var evidence: [IncidentEvidence] = []
+    @State private var cameraTargets: [IncidentCameraTarget] = []
     @State private var reviewStatus: String?
     @State private var errorText: String?
 
@@ -750,6 +778,19 @@ struct IncidentDetailView: View {
                     }
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
+                }
+            }
+            if !cameraTargets.isEmpty {
+                Section {
+                    ForEach(cameraTargets, id: \.camera.id) { target in
+                        NavigationLink(value: PortalRoute.camera(CameraTarget(camera: target.camera, startAtMS: recordingStartMS(target), markerMS: incident.detectedDate.map { $0.timeIntervalSince1970 * 1000 }))) {
+                            Label(target.camera.displayName, systemImage: "play.rectangle")
+                        }
+                    }
+                } header: {
+                    Text("Recording")
+                } footer: {
+                    Text("Plays the camera's recording from just before the incident was detected.")
                 }
             }
             if (reviewStatus ?? incident.reviewStatus ?? "new") == "new" {
@@ -781,7 +822,14 @@ struct IncidentDetailView: View {
         }
         .task {
             evidence = (try? await connection.incidentEvidence(incidentId: incident.id)) ?? []
+            cameraTargets = (try? await connection.incidentCameraTargets(incidentId: incident.id)) ?? []
         }
+    }
+
+    /// Ten seconds before the incident was detected, so the cause is in the picture; the stored clip's start when no time is known.
+    private func recordingStartMS(_ target: IncidentCameraTarget) -> Double? {
+        if let detected = incident.detectedDate { return detected.timeIntervalSince1970 * 1000 - 10_000 }
+        return target.clipStartedAt.map { $0.timeIntervalSince1970 * 1000 }
     }
 
     private var reviewText: String {
@@ -996,7 +1044,7 @@ struct SiteListScreen: View {
                 ForEach(model.openTickets) { ticket in NavigationLink(value: PortalRoute.ticket(id: ticket.id)) { TicketRow(ticket: ticket) } }
             case .cells:
                 ForEach(model.cells) { SiteRows.cell($0) }
-            case .telemetry:
+            case .telemetry, .cameras:
                 EmptyView()
             case .orchestrators:
                 ForEach(model.orchestrators) { row in

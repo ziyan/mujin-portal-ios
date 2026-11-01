@@ -15,6 +15,10 @@ final class AppModel {
     let store: any AccountStore
     let transport: any HTTPTransport
     let socketFactory: FeedSocketFactory
+    /// Opens the websockets of camera streams: the real network, or the demo's recording.
+    let cameraSocketFactory: CameraSocketFactory
+    /// Which controllers serve recorded footage over a websocket, learned once per launch.
+    let cameraTransports = CameraTransportMemory()
     let isDemo: Bool
 
     /// The demo a person entered from the welcome screen, with its own fake server: nothing in it reaches a network host,
@@ -59,10 +63,14 @@ final class AppModel {
     /// The one model of the process. Notification taps reach it before any view exists.
     static let shared = AppModel.make()
 
-    init(store: any AccountStore, transport: any HTTPTransport, socketFactory: @escaping FeedSocketFactory, isDemo: Bool = false) {
+    init(
+        store: any AccountStore, transport: any HTTPTransport, socketFactory: @escaping FeedSocketFactory, cameraSocketFactory: @escaping CameraSocketFactory,
+        isDemo: Bool = false
+    ) {
         self.store = store
         self.transport = transport
         self.socketFactory = socketFactory
+        self.cameraSocketFactory = cameraSocketFactory
         self.isDemo = isDemo
         self.ring = (try? store.loadRing()) ?? AccountRing()
         removeStoredWebData()
@@ -87,7 +95,9 @@ final class AppModel {
         if ProcessInfo.processInfo.arguments.contains("-demo") {
             return DemoServer.makeModel()
         }
-        return AppModel(store: KeychainAccountStore(), transport: URLSessionTransport(), socketFactory: URLSessionFeedSocket.factory)
+        return AppModel(
+            store: KeychainAccountStore(), transport: URLSessionTransport(), socketFactory: URLSessionFeedSocket.factory,
+            cameraSocketFactory: URLSessionCameraSocket.factory)
     }
 
     var activeAccount: Account? { ring.active }
