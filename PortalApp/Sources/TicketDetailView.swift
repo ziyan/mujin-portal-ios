@@ -187,7 +187,7 @@ struct TicketDetailView: View {
             .frame(maxWidth: .infinity)
         }
         .refreshable { await model.load() }
-        .scrollDismissesKeyboard(.interactively)
+        .scrollDismissesKeyboard(.immediately)
         .background(Color.portalPage)
     }
 

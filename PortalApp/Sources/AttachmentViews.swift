@@ -285,6 +285,11 @@ private struct AttachmentVideo: View {
     }
 
     private func loadPoster() async {
+        // The demo server has no real video: its stand-in is a picture, used as the poster.
+        if DemoOptions.screen != nil {
+            if let data = try? await connection.fetch(path: "/api/v1/attachment/\(attachmentId)"), let image = UIImage(data: data) { poster = image }
+            return
+        }
         guard let asset = await asset() else { return }
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true

@@ -174,7 +174,7 @@ struct ChatView: View {
                 .frame(maxWidth: ConversationView.readableWidth)
                 .frame(maxWidth: .infinity)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .background(Color.portalPage)
             .defaultScrollAnchor(.bottom)
             .onChange(of: model.timeline.messages.last?.id) { _, _ in

@@ -66,6 +66,10 @@ final class DemoState: @unchecked Sendable {
             ["id": "mm01", "role": "user", "content": "What changed overnight?", "createdAt": stamp(7_300)],
             ["id": "mm02", "role": "assistant", "content": "Nothing urgent. One idea for you: dock door 4 has been slow three days in a row.", "createdAt": stamp(7_250)],
             ["id": "mm03", "role": "assistant", "content": "Dock door 4 is slow again; I filed a ticket.", "createdAt": stamp(300)],
+            [
+                "id": "mm04", "role": "assistant", "createdAt": stamp(120),
+                "content": "Here are the two stations and a short clip.\n\n**Station 3 (c123)**: ![camera-a1b2c3.jpg](/api/v1/attachment/imagedemo01)\n\n**Station 4 (c124)**: ![camera-d4e5f6.jpg](/api/v1/attachment/imagedemo02)\n\n[station-walkthrough.mp4](/api/v1/attachment/videodemo01)",
+            ],
         ]
         data.messages["conversation01"] = [
             ["id": "m01", "role": "user", "content": "Give me a status summary for this week.", "createdAt": stamp(3_700)],
@@ -929,7 +933,7 @@ enum DemoPictures {
         case "/api/v1/user/user02/avatar": return render(ground: .systemTeal, figure: .white, isLogo: false)
         case "/api/v1/user/user03/avatar": return render(ground: .systemOrange, figure: .white, isLogo: false)
         case "/api/v1/organization/organization01/logo": return render(ground: .systemIndigo, figure: .white, isLogo: true)
-        case "/api/v1/attachment/imagedemo01": return camera()
+        case "/api/v1/attachment/imagedemo01", "/api/v1/attachment/imagedemo02", "/api/v1/attachment/videodemo01": return camera()
         case "/api/v1/attachment/pdfdemo01": return pdf()
         default: return nil
         }

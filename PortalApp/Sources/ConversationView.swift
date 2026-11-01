@@ -199,7 +199,7 @@ struct ConversationView: View {
                 .frame(maxWidth: Self.readableWidth)
                 .frame(maxWidth: .infinity)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .background(Color.portalPage)
             // A short thread starts at the top; a long one opens, and follows, at the end.
             .defaultScrollAnchor(.top, for: .alignment)

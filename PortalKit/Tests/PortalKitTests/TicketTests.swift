@@ -85,6 +85,28 @@ import Testing
         #expect(!TicketBody.hasAttachments("no files here"))
     }
 
+    @Test func anAssistantReplyWithRelativeImagesAndAVideoSplitsIntoFiles() {
+        let first = "01HZSAMPLE00000000000000AA"
+        let second = "01HZSAMPLE00000000000000BB"
+        let video = "01HZSAMPLE00000000000000CC"
+        let reply = "**Station 3 (c123)**: ![camera-a1b2c3.jpg](/api/v1/attachment/\(first))\n\n**Station 4 (c124)**: ![camera-d4e5f6.jpg](/api/v1/attachment/\(second)) and a clip [walk.mp4](/api/v1/attachment/\(video)) and [old.webm](/api/v1/attachment/\(video))\n\n<video src=\"/api/v1/attachment/\(video)\"></video>\n\n![remote](https://portal.example.test/api/v1/attachment/\(first))"
+        #expect(
+            TicketBody.parts(reply) == [
+                .text("**Station 3 (c123)**:"),
+                .attachment(id: first, name: "camera-a1b2c3.jpg", kind: .image),
+                .text("**Station 4 (c124)**:"),
+                .attachment(id: second, name: "camera-d4e5f6.jpg", kind: .image),
+                .text("and a clip"),
+                .attachment(id: video, name: "walk.mp4", kind: .video),
+                .text("and"),
+                .attachment(id: video, name: "old.webm", kind: .file),
+                .attachment(id: video, name: "", kind: .video),
+                .attachment(id: first, name: "remote", kind: .image),
+            ])
+        #expect(AttachmentKind.of(name: "clip.MOV", isImageSyntax: true) == .video)
+        #expect(AttachmentKind.of(name: "clip.webm", isImageSyntax: true) == .file)
+    }
+
     @Test func plainTextIsOnePart() {
         #expect(TicketBody.parts("Just words [and a link](https://example.test)") == [.text("Just words [and a link](https://example.test)")])
         #expect(TicketBody.parts("").isEmpty)

@@ -172,7 +172,9 @@ public enum AttachmentKind: Equatable, Sendable {
     case pdf
     case file
 
-    private static let videoExtensions: Set<String> = ["mp4", "webm", "mov", "m4v", "ogv", "ogg", "mkv"]
+    /// Videos the phone can play. Other containers the web's player may handle (webm, ogg, mkv) show as files.
+    private static let playableVideoExtensions: Set<String> = ["mp4", "mov", "m4v"]
+    private static let otherVideoExtensions: Set<String> = ["webm", "ogv", "ogg", "mkv"]
     private static let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "gif", "heic", "webp", "bmp", "tif", "tiff"]
 
     /// The kind of a file from its name, with whether the text wrote it as an image (`![...]`). The extension tells a
@@ -181,7 +183,8 @@ public enum AttachmentKind: Equatable, Sendable {
         var clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if clean.hasPrefix("Attachment:") { clean = String(clean.dropFirst("Attachment:".count)).trimmingCharacters(in: .whitespaces) }
         let fileExtension = clean.split(separator: ".").last.map { $0.lowercased() } ?? ""
-        if videoExtensions.contains(fileExtension) { return .video }
+        if playableVideoExtensions.contains(fileExtension) { return .video }
+        if otherVideoExtensions.contains(fileExtension) { return .file }
         if fileExtension == "pdf" { return .pdf }
         if isImageSyntax || imageExtensions.contains(fileExtension) { return .image }
         return .file
@@ -198,9 +201,9 @@ public enum TicketBody {
     /// The ways the web writes a file into text: `[name](attachment:<id>)`, `![name](attachment:<id>)`, the same with the
     /// download path `/api/v1/attachment/<id>`, and `<video src="attachment:<id>" title="name">` or `<iframe ...>` for a video or a PDF.
     private static let markdownExpression = try? NSRegularExpression(
-        pattern: #"(!?)\[((?:\\.|[^\]\\])*)\]\((?:attachment:|/api/v1/attachment/)([0-9A-Za-z_-]+)(?:[#?][^)\s]*)?\)"#)
+        pattern: #"(!?)\[((?:\\.|[^\]\\])*)\]\((?:attachment:|(?:https?://[^/\s)"]+)?/api/v1/attachment/)([0-9A-Za-z_-]+)(?:[#?][^)\s]*)?\)"#)
     private static let tagExpression = try? NSRegularExpression(
-        pattern: #"<(video|iframe)\b[^>]*?\bsrc="(?:attachment:|/api/v1/attachment/)([0-9A-Za-z_-]+)[^"]*"[^>]*>(?:\s*</\1>)?"#, options: [.caseInsensitive])
+        pattern: #"<(video|iframe)\b[^>]*?\bsrc="(?:attachment:|(?:https?://[^/\s)"]+)?/api/v1/attachment/)([0-9A-Za-z_-]+)[^"]*"[^>]*>(?:\s*</\1>)?"#, options: [.caseInsensitive])
     private static let titleExpression = try? NSRegularExpression(pattern: #"\btitle="([^"]*)""#, options: [.caseInsensitive])
 
     /// Splits text holding file references into words and files, in order.
@@ -227,7 +230,8 @@ public enum TicketBody {
             if let titleMatch = titleExpression?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)), let titleRange = Range(titleMatch.range(at: 1), in: text) {
                 title = String(text[titleRange]).replacingOccurrences(of: "&quot;", with: "\"")
             }
-            let kind: AttachmentKind = body[tag].lowercased() == "video" ? .video : .pdf
+            var kind: AttachmentKind = body[tag].lowercased() == "video" ? .video : .pdf
+            if kind == .video, !title.isEmpty, AttachmentKind.of(name: title, isImageSyntax: false) == .file { kind = .file }
             found.append(Found(range: range, id: String(body[id]), name: title, kind: kind))
         }
         var parts: [BodyPart] = []
