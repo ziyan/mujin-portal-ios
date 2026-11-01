@@ -115,8 +115,8 @@ struct PeopleHubView: View {
     }
 }
 
-/// MemberRow is one person in a list: their picture, name and address.
-struct MemberRow: View {
+/// PersonRow is one person in a list: their picture, name and address.
+struct PersonRow: View {
     let member: OrganizationMember
 
     var body: some View {
@@ -197,7 +197,7 @@ struct MembersView: View {
                         NavigationLink {
                             UserDetailView(userId: member.id, organizationId: organizationId)
                         } label: {
-                            MemberRow(member: member)
+                            PersonRow(member: member)
                         }
                     }
                 } footer: {

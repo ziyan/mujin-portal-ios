@@ -215,7 +215,7 @@ struct GroupDetailView: View {
                             UserDetailView(userId: memberId, organizationId: group.organizationId ?? organizationId)
                         } label: {
                             if let member = memberByIdentifier[memberId] {
-                                MemberRow(member: member)
+                                PersonRow(member: member)
                             } else {
                                 Text("Someone")
                                     .foregroundStyle(Color.primary)
