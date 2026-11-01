@@ -281,6 +281,7 @@ struct SiteView: View {
             if appModel.isDemo {
                 if DemoOptions.screen == "incident", let incident = siteModel.incidents.first { path.append(.incident(incident)) }
                 if DemoOptions.screen == "controller" || DemoOptions.screen == "controller-screen", let controller = siteModel.controllers.first { path.append(.controller(controller)) }
+                if DemoOptions.screen == "virtual-controller-create" { path.append(.siteList(.virtualControllers, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "virtual-controller" || DemoOptions.screen == "virtual-controller-snapshots", let virtual = siteModel.virtualControllers.first {
                     path.append(.virtualController(virtual))
                     if DemoOptions.screen == "virtual-controller-snapshots" { path.append(.virtualControllerSnapshots(virtual)) }
@@ -1128,5 +1129,10 @@ struct SiteListScreen: View {
         .navigationTitle(kind.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)
+        .toolbar {
+            if kind == .virtualControllers {
+                ToolbarItem(placement: .topBarTrailing) { VirtualControllerCreateButton(model: model) }
+            }
+        }
     }
 }

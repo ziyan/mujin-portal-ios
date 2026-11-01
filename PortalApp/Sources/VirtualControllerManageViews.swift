@@ -155,3 +155,99 @@ struct VirtualControllerEditView: View {
         }
     }
 }
+
+/// VirtualControllerCreateView makes a virtual controller at a site, from the sizes, products and regions the server offers.
+struct VirtualControllerCreateView: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(SessionModel.self) private var session
+    @Environment(\.dismiss) private var dismiss
+    let siteId: String
+    let onCreated: (VirtualControllerSummary) -> Void
+
+    @State private var name = ""
+    @State private var comment = ""
+    @State private var size = ""
+    @State private var product = ""
+    @State private var region = ""
+    @State private var options = VirtualControllerOptions()
+    @State private var isSaving = false
+    @State private var errorText: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Name", text: $name)
+                    TextField("Comment", text: $comment, axis: .vertical)
+                }
+                Section {
+                    if !options.sizes.isEmpty {
+                        Picker("Size", selection: $size) { ForEach(options.sizes) { Text($0.shownName).tag($0.name) } }
+                    }
+                    if !options.products.isEmpty {
+                        Picker("Product", selection: $product) { ForEach(options.products) { Text($0.shownName).tag($0.name) } }
+                    }
+                    if !options.regions.isEmpty {
+                        Picker("Region", selection: $region) { ForEach(options.regions) { Text($0.region).tag($0.region) } }
+                    }
+                }
+                if let errorText {
+                    Section { Text(errorText).font(.footnote).foregroundStyle(Color.statusError) }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.portalPage)
+            .navigationTitle("New virtual controller")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") { Task { await create() } }
+                        .disabled(isSaving || name.trimmingCharacters(in: .whitespaces).isEmpty || size.isEmpty)
+                }
+            }
+            .task {
+                guard let loaded = try? await appModel.connection(for: session.account).virtualControllerOptions() else { return }
+                options = loaded
+                if size.isEmpty { size = loaded.sizes.first?.name ?? "" }
+                if product.isEmpty { product = loaded.products.first?.name ?? "" }
+                if region.isEmpty { region = loaded.defaultRegion ?? "" }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func create() async {
+        isSaving = true
+        errorText = nil
+        defer { isSaving = false }
+        do {
+            let created = try await appModel.connection(for: session.account).createVirtualController(
+                siteId: siteId, name: name.trimmingCharacters(in: .whitespaces), comment: comment, size: size, product: product, region: region)
+            session.cache.clear(accountKey: session.account.accountKey)
+            onCreated(created)
+            dismiss()
+        } catch {
+            appModel.handle(error, account: session.account)
+            errorText = error.userMessage
+        }
+    }
+}
+
+/// VirtualControllerCreateButton is the plus in the virtual controllers list, shown to people who may create one.
+struct VirtualControllerCreateButton: View {
+    @Environment(SessionModel.self) private var session
+    let model: SiteModel
+    @State private var isCreating = false
+
+    var body: some View {
+        if VirtualControllerCreateAccess.canOffer(permissions: model.viewerPermissions), let siteId = model.selectedSiteId {
+            Button { isCreating = true } label: { Label("New virtual controller", systemImage: "plus") }
+                .sheet(isPresented: $isCreating) {
+                    VirtualControllerCreateView(siteId: siteId) { _ in
+                        Task { await model.loadDetails(force: true) }
+                    }
+                }
+        }
+    }
+}

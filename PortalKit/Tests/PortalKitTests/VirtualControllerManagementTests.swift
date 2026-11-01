@@ -76,3 +76,18 @@ import Testing
         #expect(VirtualControllerSnapshot(id: "s4", comment: "").shownName == "s4")
     }
 }
+
+@Suite struct VirtualControllerCreateTests {
+    @Test func theCreateButtonFollowsThePermissionsThePersonHolds() {
+        #expect(VirtualControllerCreateAccess.canOffer(permissions: ["virtual_controller:create"]))
+        #expect(VirtualControllerCreateAccess.canOffer(permissions: ["organization:operate-all"]))
+        #expect(!VirtualControllerCreateAccess.canOffer(permissions: ["ticket:read"]))
+    }
+
+    @Test func theLocalRegionIsTheDefault() {
+        var options = VirtualControllerOptions()
+        options.regions = [VirtualControllerRegion(region: "far-1", isLocal: false), VirtualControllerRegion(region: "near-1", isLocal: true)]
+        #expect(options.defaultRegion == "near-1")
+        #expect(VirtualControllerOptions().defaultRegion == nil)
+    }
+}

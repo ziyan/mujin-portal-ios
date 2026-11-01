@@ -98,3 +98,83 @@ extension Connection {
         return try await execute(Documents.listVirtualControllerSizes, as: Answer.self).ListVirtualControllerSizes ?? []
     }
 }
+
+/// VirtualControllerProduct is a kind of virtual controller the server can make.
+public struct VirtualControllerProduct: Decodable, Equatable, Identifiable, Sendable {
+    public let name: String
+    public let displayName: String?
+    public var id: String { name }
+    public var shownName: String { (displayName ?? "").isEmpty ? name : displayName! }
+}
+
+/// VirtualControllerRegion is a region a virtual controller can run in.
+public struct VirtualControllerRegion: Decodable, Equatable, Identifiable, Sendable {
+    public let region: String
+    public let isLocal: Bool?
+    public var id: String { region }
+}
+
+/// VirtualControllerOptions are the choices the create form offers.
+public struct VirtualControllerOptions: Equatable, Sendable {
+    public var sizes: [VirtualControllerSize] = []
+    public var products: [VirtualControllerProduct] = []
+    public var regions: [VirtualControllerRegion] = []
+
+    public init() {}
+
+    /// The region to start on: the one marked local, else the first.
+    public var defaultRegion: String? { (regions.first { $0.isLocal == true } ?? regions.first)?.region }
+}
+
+public enum VirtualControllerCreateAccess {
+    /// Making one needs `virtual_controller:create` at the site; the person's own permissions tell whether it is worth offering.
+    /// An organization's operators and platform administrators may; the server checks again on every create.
+    public static func canOffer(permissions: [String]) -> Bool {
+        permissions.contains("virtual_controller:create") || permissions.contains("organization:operate-all") || permissions.contains("platform:administer")
+    }
+}
+
+extension Documents {
+    public static let listVirtualControllerProducts = """
+        query ListVirtualControllerProducts { ListVirtualControllerProducts { name displayName } }
+        """
+
+    public static let listVirtualControllerRegions = """
+        query ListVirtualControllerRegions { ListVirtualControllerRegions { region isLocal } }
+        """
+
+    public static let createVirtualController = """
+        mutation CreateVirtualController($siteId: String, $virtualController: VirtualControllerInput) {
+          CreateVirtualController(siteId: $siteId, virtualController: $virtualController) { virtualController { \(virtualControllerFields) } }
+        }
+        """
+
+    static var virtualControllerCreateDocuments: [String] { [listVirtualControllerProducts, listVirtualControllerRegions, createVirtualController] }
+}
+
+extension Connection {
+    public func virtualControllerOptions() async throws -> VirtualControllerOptions {
+        struct Products: Decodable, Sendable { let ListVirtualControllerProducts: [VirtualControllerProduct]? }
+        struct Regions: Decodable, Sendable { let ListVirtualControllerRegions: [VirtualControllerRegion]? }
+        var options = VirtualControllerOptions()
+        options.sizes = try await virtualControllerSizes()
+        options.products = try await execute(Documents.listVirtualControllerProducts, as: Products.self).ListVirtualControllerProducts ?? []
+        options.regions = try await execute(Documents.listVirtualControllerRegions, as: Regions.self).ListVirtualControllerRegions ?? []
+        return options
+    }
+
+    public func createVirtualController(
+        siteId: String, name: String, comment: String, size: String, product: String?, region: String?
+    ) async throws -> VirtualControllerSummary {
+        struct Answer: Decodable, Sendable {
+            struct Result: Decodable, Sendable { let virtualController: VirtualControllerSummary }
+            let CreateVirtualController: Result
+        }
+        var input: [String: JSONValue] = ["name": .string(name), "comment": .string(comment), "size": .string(size)]
+        if let product, !product.isEmpty { input["product"] = .string(product) }
+        if let region, !region.isEmpty { input["region"] = .string(region) }
+        return try await execute(
+            Documents.createVirtualController, variables: ["siteId": .string(siteId), "virtualController": .object(input)], as: Answer.self
+        ).CreateVirtualController.virtualController
+    }
+}

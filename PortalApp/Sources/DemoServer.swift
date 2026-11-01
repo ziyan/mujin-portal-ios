@@ -563,6 +563,12 @@ struct DemoTransport: HTTPTransport {
             ], "meta": ["totalCount": 2]]]
         case "CreateVirtualControllerSnapshot", "RestoreVirtualControllerSnapshot", "ModifyVirtualControllerSnapshot", "DestroyVirtualControllerSnapshot":
             return [operation: ["virtualControllerSnapshot": ["id": "snapshot03", "status": "ready"]]]
+        case "ListVirtualControllerProducts":
+            return ["ListVirtualControllerProducts": [["name": "standard", "displayName": "Standard"], ["name": "palletizing", "displayName": "Palletizing"]]]
+        case "ListVirtualControllerRegions":
+            return ["ListVirtualControllerRegions": [["region": "us-1", "isLocal": true], ["region": "jp-1", "isLocal": false]]]
+        case "CreateVirtualController":
+            return ["CreateVirtualController": ["virtualController": Self.virtualControllerRow(DemoState.Data())]]
         case "ListSiteVirtualControllers":
             let rows = state.withData { data -> [[String: Any]] in data.isVirtualControllerDestroyed ? [] : [Self.virtualControllerRow(data)] }
             return ["ListVirtualControllers": ["virtualControllers": rows]]
