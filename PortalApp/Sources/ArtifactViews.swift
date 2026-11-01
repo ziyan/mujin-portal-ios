@@ -22,6 +22,35 @@ struct ArtifactWebView: UIViewRepresentable {
     let isInline: Bool
     @Binding var height: Double
 
+    /// A page without a viewport declaration is laid out at desktop width and scaled down, so its text is tiny and its
+    /// height does not match what is drawn. Declaring the phone's width fixes both; a page that has its own keeps it.
+    static let viewportScript = """
+        (function () {
+          function add() {
+            if (document.querySelector('meta[name=viewport]')) { return; }
+            var meta = document.createElement('meta');
+            meta.name = 'viewport';
+            meta.content = 'width=device-width, initial-scale=1';
+            (document.head || document.documentElement).appendChild(meta);
+          }
+          if (document.head) { add(); return; }
+          new MutationObserver(function (records, observer) {
+            if (document.head) { add(); observer.disconnect(); }
+          }).observe(document.documentElement, { childList: true });
+        })();
+        """
+
+    /// Reports the content's height whenever it changes, for charts that draw late.
+    static let resizeScript = """
+        (function () {
+          function height() { return Math.min(document.documentElement.scrollHeight, Math.ceil(document.body.getBoundingClientRect().bottom + 8)); }
+          function report() { window.webkit.messageHandlers.artifactHeight.postMessage(height()); }
+          new ResizeObserver(report).observe(document.documentElement);
+          new ResizeObserver(report).observe(document.body);
+          report();
+        })();
+        """
+
     func makeCoordinator() -> Coordinator {
         Coordinator(height: $height, isInline: isInline)
     }
@@ -29,6 +58,13 @@ struct ArtifactWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
+        if isInline {
+            // Scripts of the app's own, in a world the page cannot reach: the page has nothing to call and cannot see them.
+            let world = WKContentWorld.world(name: "portal-artifact-measure")
+            configuration.userContentController.addUserScript(WKUserScript(source: Self.viewportScript, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: world))
+            configuration.userContentController.addUserScript(WKUserScript(source: Self.resizeScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: world))
+            configuration.userContentController.add(context.coordinator, contentWorld: world, name: "artifactHeight")
+        }
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.isOpaque = false
         webView.backgroundColor = .clear
@@ -45,7 +81,7 @@ struct ArtifactWebView: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private let height: Binding<Double>
         private let isInline: Bool
         private weak var webView: WKWebView?
@@ -98,6 +134,19 @@ struct ArtifactWebView: UIViewRepresentable {
             webView?.evaluateJavaScript("location.hash = '\(ArtifactSandbox.themeFragment(isDark: isDark))'")
         }
 
+        /// The page's height, from the observer the app injected.
+        func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard let number = message.body as? NSNumber else { return }
+            setHeight(number.doubleValue)
+        }
+
+        private func setHeight(_ measured: Double) {
+            // As tall as the content, up to 70% of the screen; the expand button shows the rest.
+            let limit = max(ArtifactSandbox.inlineHeightRange.lowerBound, UIScreen.main.bounds.height * 0.7)
+            let fitted = min(ArtifactSandbox.clampedHeight(measured), limit)
+            if abs(fitted - height.wrappedValue) > 1 { height.wrappedValue = fitted }
+        }
+
         // MARK: WKNavigationDelegate
 
         /// The page itself loads once; nothing it links to opens in it.
@@ -125,9 +174,7 @@ struct ArtifactWebView: UIViewRepresentable {
         private func measure() async {
             guard let webView else { return }
             let measured = try? await webView.evaluateJavaScript("Math.min(document.documentElement.scrollHeight, Math.ceil(document.body.getBoundingClientRect().bottom + 8))")
-            if let number = measured as? NSNumber {
-                height.wrappedValue = ArtifactSandbox.clampedHeight(number.doubleValue)
-            }
+            if let number = measured as? NSNumber { setHeight(number.doubleValue) }
         }
     }
 }
@@ -141,7 +188,7 @@ struct ArtifactCardView: View {
     let connection: Connection
     let onOpen: () -> Void
 
-    @State private var height = 220.0
+    @State private var height = 160.0
     @State private var markdown: String?
 
     var body: some View {
@@ -386,7 +433,7 @@ enum DemoArtifact {
         let text = isDark ? "#f2f2f7" : "#1c1c1e"
         let bar = isDark ? "#FF7025" : "#e76125"
         return """
-            <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+            <!doctype html><html><head>
             <style>
             body { font-family: -apple-system, sans-serif; margin: 0; padding: 12px; background: \(background); color: \(text); }
             .row { display: flex; align-items: center; margin: 8px 0; font-size: 15px; }

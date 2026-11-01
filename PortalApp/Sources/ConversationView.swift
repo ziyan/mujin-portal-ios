@@ -256,6 +256,15 @@ private struct TranscriptRow: View {
     let openArtifact: (ArtifactReference) -> Void
     let moreEmoji: (String) -> Void
 
+    /// The cards under a message that holds a link, as under a message in a people chat.
+    @ViewBuilder
+    private func linkCards(for id: String) -> some View {
+        ForEach(model.linkPreviews.previews[id] ?? []) { card in
+            LinkPreviewCardView(card: card, connection: model.connection)
+                .frame(maxWidth: 320)
+        }
+    }
+
     var body: some View {
         switch entry {
         case .user(let id, let text, let viewing):
@@ -286,6 +295,7 @@ private struct TranscriptRow: View {
                 if let viewing {
                     ViewingChip(viewing: viewing)
                 }
+                linkCards(for: id)
             }
             .frame(maxWidth: Self.bubbleWidth, alignment: .trailing)
             .frame(maxWidth: .infinity, alignment: .trailing)

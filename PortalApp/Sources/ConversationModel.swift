@@ -20,6 +20,8 @@ final class ConversationModel {
     let onError: @MainActor (Error) -> Void
 
     private(set) var transcript = Transcript()
+    /// The cards under messages that hold a link: asked for and polled the way a people chat does.
+    let linkPreviews: LinkPreviewLoader
     private(set) var window = MessageWindow()
     private(set) var phase = Phase.loading
     private(set) var title: String?
@@ -66,6 +68,7 @@ final class ConversationModel {
         self.connection = connection
         self.socketFactory = socketFactory
         self.onError = onError
+        self.linkPreviews = LinkPreviewLoader(connection: connection, conversationId: conversationId)
     }
 
     var isRunning: Bool { transcript.isRunning }
@@ -114,6 +117,7 @@ final class ConversationModel {
         feedTask = nil
         pollTask?.cancel()
         pollTask = nil
+        linkPreviews.cancel()
     }
 
     private func handle(_ update: FeedUpdate) async {
@@ -197,10 +201,17 @@ final class ConversationModel {
                 isRunning: !isRunFinished && (loadedSummary.isRunning || transcript.hasPendingUser))
             phase = .loaded
             await refreshBackgroundWork()
+            await askForPreviews(window.messages.suffix(30))
         } catch {
             onError(error)
             if phase == .loading { phase = .failed(error.userMessage) }
         }
+    }
+
+    /// Asks the server for the link cards under messages that hold a link, as a people chat does.
+    private func askForPreviews<Messages: Sequence>(_ messages: Messages) async where Messages.Element == ConversationMessage {
+        let candidates = messages.filter { ($0.linkPreviewsRemovedAt ?? "").isEmpty }.map { (id: $0.id, text: $0.content?.stringValue ?? "") }
+        await linkPreviews.load(candidates)
     }
 
     /// Shows the page of messages before the first one held.
@@ -212,6 +223,7 @@ final class ConversationModel {
             let page = try await connection.messages(conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
             window.prepend(page)
             transcript.load(messages: window.messages, questions: cards.questions, approvals: cards.approvals, isRunning: transcript.isRunning)
+            await askForPreviews(page)
         } catch {
             actionError = error.userMessage
             onError(error)

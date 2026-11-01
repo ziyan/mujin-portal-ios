@@ -65,7 +65,9 @@ final class ChatModel {
     private(set) var room: ChatRoom?
     private(set) var timeline = ChatTimeline()
     private(set) var window = MessageWindow()
-    private(set) var previews: [String: [LinkPreviewCard]] = [:]
+    /// The cards under messages, asked for and polled by the loader the assistant conversations share.
+    let linkPreviews: LinkPreviewLoader
+    var previews: [String: [LinkPreviewCard]] { linkPreviews.previews }
     private(set) var isFeedLive = false
     private(set) var isLoadingEarlier = false
     /// The agents the chat's organization may use, the main one first.
@@ -86,10 +88,8 @@ final class ChatModel {
 
     private var feedTask: Task<Void, Never>?
     private var clockTask: Task<Void, Never>?
-    private var previewTask: Task<Void, Never>?
     private var typingThrottle = TypingThrottle()
     private var lastMarkedMessageId: String?
-    private var previewAskedIds: Set<String> = []
 
     init(
         conversationId: String, chatId: String?, currentUserId: String, connection: Connection, socketFactory: @escaping FeedSocketFactory,
@@ -101,6 +101,7 @@ final class ChatModel {
         self.connection = connection
         self.socketFactory = socketFactory
         self.onError = onError
+        self.linkPreviews = LinkPreviewLoader(connection: connection, conversationId: conversationId)
     }
 
     var title: String { room?.title ?? String(localized: "Chat") }
@@ -155,8 +156,7 @@ final class ChatModel {
         feedTask = nil
         clockTask?.cancel()
         clockTask = nil
-        previewTask?.cancel()
-        previewTask = nil
+        linkPreviews.cancel()
     }
 
     private func handle(_ update: FeedUpdate) async {
@@ -347,46 +347,14 @@ final class ChatModel {
 
     // MARK: link previews
 
-    /// Asks for the cards under messages that hold a link; while any link is
-    /// still being fetched it asks again every three seconds, up to 20 times.
     func loadPreviews(_ ids: [String], force: Bool = false) async {
-        let wanted = timeline.messages.filter { message in
-            ids.contains(message.id) && !message.isDeleted && !message.hasPreviewsRemoved && LinkPreviewRules.mayHoldLink(message.text)
-                && (force || !previewAskedIds.contains(message.id))
-        }.map(\.id)
-        guard !wanted.isEmpty else { return }
-        previewAskedIds.formUnion(wanted)
-        let firstPending = await fetchPreviews(wanted)
-        guard !firstPending.isEmpty else { return }
-        previewTask?.cancel()
-        previewTask = Task { [weak self] in
-            var pending = firstPending
-            var attempts = 0
-            while !pending.isEmpty, attempts < LinkPreviewRules.maximumRetries, !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: UInt64(LinkPreviewRules.pendingRetryInterval * 1_000_000_000))
-                if Task.isCancelled { return }
-                attempts += 1
-                guard let self else { return }
-                pending = await self.fetchPreviews(pending)
-            }
-        }
-    }
-
-    /// Reads the previews of messages and returns those still pending.
-    private func fetchPreviews(_ ids: [String]) async -> [String] {
-        guard let rows = try? await connection.linkPreviews(conversationId: conversationId, messageIds: ids) else { return [] }
-        var pending: [String] = []
-        for row in rows {
-            previews[row.messageId] = row.linkPreviews ?? []
-            if row.isPending == true { pending.append(row.messageId) }
-        }
-        return pending
+        let candidates = timeline.messages.filter { ids.contains($0.id) && !$0.isDeleted && !$0.hasPreviewsRemoved }.map { (id: $0.id, text: $0.text) }
+        await linkPreviews.load(candidates, force: force)
     }
 
     func removePreviews(of message: ChatMessage) async {
         do {
-            try await connection.removeLinkPreviews(conversationId: conversationId, messageId: message.id)
-            previews[message.id] = []
+            try await linkPreviews.remove(messageId: message.id)
         } catch {
             actionError = error.userMessage
             onError(error)

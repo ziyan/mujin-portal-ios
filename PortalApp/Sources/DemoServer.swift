@@ -62,6 +62,10 @@ final class DemoState: @unchecked Sendable {
             conversation("conversation06", "A thought about dock doors", "The assistant started this conversation.", 600),
             conversation("conversation-main", "Stored title that is never shown", "Dock door 4 is slow again; I filed a ticket.", 300, isMain: true),
         ]
+        data.messages["conversation03"] = [
+            ["id": "sc1", "role": "user", "content": "Is this checklist still right? https://example.test/docs/suction and the ticket /ticket/1", "createdAt": stamp(90_100)],
+            ["id": "sc2", "role": "assistant", "content": "Yes. The checklist matches what the ticket describes: check the hose first, then the seals.", "createdAt": stamp(90_000)],
+        ]
         data.messages["conversation-main"] = [
             ["id": "mm01", "role": "user", "content": "What changed overnight?", "createdAt": stamp(7_300)],
             ["id": "mm02", "role": "assistant", "content": "Nothing urgent. One idea for you: dock door 4 has been slow three days in a row.", "createdAt": stamp(7_250)],
@@ -388,6 +392,11 @@ struct DemoTransport: HTTPTransport {
                     switch id {
                     case "c2":
                         return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash01", "linkKind": "ticket", "resourceId": "ticket01", "title": "#1 Gripper drops boxes at pick station 3", "description": "Open, high priority", "siteName": "Ticket", "statusText": "Open", "path": "/ticket/1"]]]
+                    case "sc1":
+                        return ["messageId": id, "isPending": false, "linkPreviews": [
+                            ["urlHash": "hash03", "linkKind": "external", "url": "https://example.test/docs/suction", "title": "Suction cup checklist", "description": "Steps to check hoses, seals and pressure before a shift.", "siteName": "example.test"],
+                            ["urlHash": "hash04", "linkKind": "ticket", "resourceId": "ticket01", "title": "#1 Gripper drops boxes at pick station 3", "description": "Open, high priority", "siteName": "Ticket", "statusText": "Open", "path": "/ticket/1"],
+                        ]]
                     case "c3":
                         return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash02", "linkKind": "external", "url": "https://example.test/docs/suction", "title": "Suction cup checklist", "description": "Steps to check hoses, seals and pressure before a shift.", "siteName": "example.test"]]]
                     default: return nil
