@@ -14,21 +14,26 @@ struct SignInView: View {
     @FocusState private var isAddressFocused: Bool
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         let palette = WelcomePalette.palette(for: colorScheme)
         NavigationStack {
             ZStack {
                 WelcomeBackdrop()
-                // The schematic arm sits low and to the left, behind the type.
+                // The schematic arm sits low and to the left, behind the type. On a wide screen it grows to a third of the height.
                 GeometryReader { proxy in
+                    let scale = horizontalSizeClass == .regular ? proxy.size.height * 0.34 / 460 : min(1, proxy.size.width / 420) * 0.95
                     WelcomeArm()
-                        .scaleEffect(min(1, proxy.size.width / 420) * 0.95, anchor: .bottomLeading)
-                        .frame(width: 360, height: 460, alignment: .bottomLeading)
-                        .position(x: 180 * min(1, proxy.size.width / 420) * 0.95 + 8, y: proxy.size.height - 230 * min(1, proxy.size.width / 420) * 0.95 - 24)
+                        .frame(width: 360, height: 460)
+                        .scaleEffect(scale, anchor: .bottomLeading)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                        .padding(.leading, 8)
+                        .padding(.bottom, 24)
                 }
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
+                GeometryReader { viewport in
                 ScrollView {
                     VStack(spacing: 0) {
                         HStack {
@@ -41,6 +46,7 @@ struct SignInView: View {
                         }
                         .padding(.top, 12)
                         Spacer(minLength: 56)
+                        VStack(spacing: 0) {
                         VStack(spacing: 14) {
                             Text("Welcome to")
                                 .font(.system(size: 12, weight: .medium))
@@ -62,15 +68,19 @@ struct SignInView: View {
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: 420)
                         }
-                        Spacer(minLength: 40)
+                        Color.clear.frame(height: 40)
                         actions(palette)
                             .frame(maxWidth: 420)
-                            .padding(.bottom, 24)
+                        }
+                        // On a wide screen the group sits a little above the middle; on a phone it keeps its place near the top.
+                        .padding(.bottom, horizontalSizeClass == .regular ? 96 : 24)
+                        if horizontalSizeClass == .regular { Spacer(minLength: 0) }
                     }
                     .padding(.horizontal, 24)
-                    .frame(maxWidth: .infinity, minHeight: 0)
+                    .frame(maxWidth: .infinity, minHeight: horizontalSizeClass == .regular ? viewport.size.height : 0)
                 }
                 .scrollBounceBehavior(.basedOnSize)
+                }
             }
             .toolbar {
                 if isAddingAccount {
@@ -95,6 +105,10 @@ struct SignInView: View {
                 } label: {
                     Text("Sign in to \(ServerAddress.production.displayHost)")
                         .font(.system(size: 16, weight: .semibold))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
                         .foregroundStyle(palette.ctaText)
                         .frame(maxWidth: .infinity, minHeight: 56)
                         .background(LinearGradient(colors: palette.ctaFill, startPoint: .top, endPoint: .bottom), in: Capsule())
