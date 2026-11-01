@@ -208,7 +208,8 @@ enum DemoCameras {
             return ["ListCameras": ["cameras": isSite ? all : [[String: Any]]()]]
         case "GetCamera":
             let identifier = variables["cameraId"] as? String ?? ""
-            return ["GetCamera": ["camera": all.first { ($0["id"] as? String) == identifier } ?? NSNull()]]
+            if let found = all.first(where: { ($0["id"] as? String) == identifier }) { return ["GetCamera": ["camera": found]] }
+            return ["GetCamera": ["camera": NSNull()]]
         case "ListIncidentCameras":
             let detected = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-2_400 - 10))
             return [
