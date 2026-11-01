@@ -96,3 +96,34 @@ private final class CountingPictureTransport: HTTPTransport, @unchecked Sendable
         #expect(ConversationSummary(id: "c2").isEmptyAssistantConversation == true)
     }
 }
+
+@Suite struct ConversationOrderTests {
+    private func stamp(_ secondsAgo: TimeInterval) -> String {
+        ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo))
+    }
+
+    @Test func aRecentChatSortsAboveOlderAssistantConversationsWhateverTheirCreation() {
+        let chat = ConversationSummary(
+            id: "chatconv", lastMessageAt: nil, createdAt: stamp(90 * 86_400), conversationKind: "chat",
+            chat: ChatRoom(id: "chat01", chatKind: "direct", lastMessageAt: stamp(7_200)))
+        let yesterday = ConversationSummary(id: "yesterday", lastMessageAt: stamp(86_400), createdAt: stamp(10 * 86_400), conversationKind: "assistant")
+        let old = ConversationSummary(id: "old", lastMessageAt: stamp(60 * 86_400), createdAt: stamp(61 * 86_400), conversationKind: "assistant")
+        // The rows arrive the way the held copy stores them: assistant conversations first, chats after.
+        #expect(ConversationOrdering.ordered([yesterday, old, chat]).map(\.id) == ["chatconv", "yesterday", "old"])
+    }
+
+    @Test func theLatestOfTheThreeMomentsIsTheActivity() {
+        let row = ConversationSummary(
+            id: "c1", lastMessageAt: stamp(5_000), createdAt: stamp(999_999), modifiedAt: stamp(100), conversationKind: "chat",
+            chat: ChatRoom(id: "chat01", lastMessageAt: stamp(3_000)))
+        let activity = ConversationOrdering.activity(row)
+        #expect(abs(activity.timeIntervalSinceNow + 100) < 5)
+    }
+
+    @Test func theMainChatThenWhatWaitsThenTheRest() {
+        let main = ConversationSummary(id: "main", lastMessageAt: stamp(900_000), isMain: true)
+        let waiting = ConversationSummary(id: "waiting", lastMessageAt: stamp(800_000))
+        let recent = ConversationSummary(id: "recent", lastMessageAt: stamp(10))
+        #expect(ConversationOrdering.ordered([recent, waiting, main], waitingIds: ["waiting"]).map(\.id) == ["main", "waiting", "recent"])
+    }
+}

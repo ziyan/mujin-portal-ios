@@ -131,7 +131,7 @@ struct ConversationListView: View {
                 List(selection: $selectedConversationId) {
                     PortalRows {
                     Section {
-                        ForEach(ConversationOrdering.pinningMain(model.conversations.sorted { (session.waitingCounts[$0.id] ?? 0) > 0 && (session.waitingCounts[$1.id] ?? 0) == 0 })) { conversation in
+                        ForEach(ConversationOrdering.ordered(model.conversations, waitingIds: Set(model.conversations.map(\.id).filter { (session.waitingCounts[$0] ?? 0) > 0 }))) { conversation in
                             NavigationLink(value: conversation.id) {
                                 ConversationRow(conversation: conversation, waitingCount: session.waitingCounts[conversation.id] ?? 0)
                             }
@@ -256,7 +256,7 @@ private struct ConversationRow: View {
                         .font(.headline)
                         .lineLimit(isLarge ? 3 : 1)
                     if !isLarge { Spacer(minLength: 4) }
-                    if let date = conversation.chat?.lastActivity ?? conversation.lastActivity {
+                    if case let date = ConversationOrdering.activity(conversation), date > .distantPast {
                         Text(date, format: .relative(presentation: .named))
                             .font(.caption)
                             .foregroundStyle(.secondary)

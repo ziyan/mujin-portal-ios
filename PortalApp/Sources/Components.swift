@@ -355,6 +355,31 @@ struct AvatarStack: View {
     }
 }
 
+/// StableBubble draws its content again only when `key` changes. A message bubble is keyed by the message and what is
+/// drawn on it, so an update elsewhere (a presence report, a read marker, another message arriving) does not draw
+/// the pressed bubble again while its menu is open, which is what made it flicker.
+struct StableBubble<Key: Equatable, Content: View>: View, Equatable {
+    let key: Key
+    @ViewBuilder let content: () -> Content
+
+    var body: some View { content() }
+
+    nonisolated static func == (first: StableBubble, second: StableBubble) -> Bool { first.key == second.key }
+}
+
+/// ReactionMenuRow is the six quick reactions in one horizontal row at the top of a message's menu, as in Messages.
+struct ReactionMenuRow: View {
+    let onReact: (String) -> Void
+
+    var body: some View {
+        ControlGroup {
+            ForEach(Reactions.palette, id: \.self) { emoji in
+                Button(emoji) { onReact(emoji) }
+            }
+        }
+    }
+}
+
 /// DayLabel names a day between messages: Today, Yesterday, or the date.
 enum DayLabel {
     static func isNewDay(_ previous: Date?, _ current: Date?) -> Bool {

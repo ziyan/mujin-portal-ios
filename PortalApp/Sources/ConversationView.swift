@@ -244,6 +244,14 @@ struct ConversationView: View {
     }
 }
 
+/// AssistantBubbleKey is everything an assistant bubble draws; it is drawn again only when one of them changes.
+private struct AssistantBubbleKey: Equatable {
+    let id: String
+    let text: String
+    let isStreaming: Bool
+    let reactions: [Reaction]
+}
+
 private struct TranscriptRow: View {
     /// Bubbles stop growing here, so a wide iPad window keeps readable lines.
     static let bubbleWidth: CGFloat = 620
@@ -288,6 +296,7 @@ private struct TranscriptRow: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         case .assistant(let id, let text, let isStreaming):
             HStack {
+                StableBubble(key: AssistantBubbleKey(id: id, text: text, isStreaming: isStreaming, reactions: model.transcript.reactions(for: id))) {
                 MarkdownView(markdown: text)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
@@ -295,19 +304,24 @@ private struct TranscriptRow: View {
                     .reactionCorner(isStreaming ? [] : model.transcript.reactions(for: id), currentUserId: model.currentUserId, isLeading: false) { emoji in
                         Task { await model.react(messageId: id, emoji: emoji) }
                     }
+                }
+                .equatable()
                 Spacer(minLength: 24)
             }
             .frame(maxWidth: Self.bubbleWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contextMenu {
                 if !isStreaming {
+                    ReactionMenuRow { emoji in Task { await model.react(messageId: id, emoji: emoji) } }
                     Button {
                         model.replyTarget = ReplyReference(messageId: id, authorName: String(localized: "Assistant"), excerpt: text)
                     } label: {
                         Label("Reply", systemImage: "arrowshape.turn.up.left")
                     }
-                    ForEach(Reactions.palette, id: \.self) { emoji in
-                        Button(emoji) { Task { await model.react(messageId: id, emoji: emoji) } }
+                    Button {
+                        UIPasteboard.general.string = text
+                    } label: {
+                        Label("Copy", systemImage: "doc.on.doc")
                     }
                     Button {
                         moreEmoji(id)

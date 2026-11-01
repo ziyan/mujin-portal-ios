@@ -41,7 +41,7 @@ final class ConversationListModel {
 
     func load(force: Bool = false) async {
         if let cache, let held = cache.hit(cacheKey, as: [ConversationSummary].self) {
-            conversations = held.value.filter { $0.archivedAt == nil && (!$0.isEmptyAssistantConversation || $0.id == openConversationId) }
+            conversations = ConversationOrdering.ordered(held.value.filter { $0.archivedAt == nil && (!$0.isEmptyAssistantConversation || $0.id == openConversationId) })
             phase = .loaded
             if held.isFresh && !force { return }
         }
@@ -57,7 +57,7 @@ final class ConversationListModel {
             if offersChats { all += (try? await connection.chats(search: searchText)) ?? [] }
             cache?.store(all, for: cacheKey)
             // A conversation nothing was said in is left out, unless it is the one open now.
-            conversations = all.filter { $0.archivedAt == nil && (!$0.isEmptyAssistantConversation || $0.id == openConversationId) }.sorted { Self.activity($0) > Self.activity($1) }
+            conversations = ConversationOrdering.ordered(all.filter { $0.archivedAt == nil && (!$0.isEmptyAssistantConversation || $0.id == openConversationId) })
             phase = .loaded
         } catch {
             onError(error)
@@ -65,9 +65,7 @@ final class ConversationListModel {
         }
     }
 
-    static func activity(_ conversation: ConversationSummary) -> Date {
-        conversation.chat?.lastActivity ?? conversation.lastActivity ?? .distantPast
-    }
+    static func activity(_ conversation: ConversationSummary) -> Date { ConversationOrdering.activity(conversation) }
 
     func conversation(id: String) -> ConversationSummary? { conversations.first { $0.id == id } }
 

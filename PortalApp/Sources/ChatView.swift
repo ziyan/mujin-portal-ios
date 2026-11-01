@@ -336,6 +336,19 @@ struct ChatView: View {
     }
 }
 
+/// BubbleKey is everything a chat bubble draws, so the bubble is drawn again only when one of them changes.
+private struct BubbleKey: Equatable {
+    let message: ChatMessage
+    let reactions: [Reaction]
+    let isMine: Bool
+    let mentionNames: [String]
+    let memberNames: [String]
+    let canWrite: Bool
+    let canEdit: Bool
+    let canDelete: Bool
+    let hasPreviews: Bool
+}
+
 /// MessageRow is one message: the author, a quote when it replies, the words
 /// or a note that it was deleted, reactions, link cards, and who has read it.
 private struct MessageRow: View {
@@ -436,6 +449,11 @@ private struct MessageRow: View {
                 .padding(.vertical, 8)
                 .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
         } else {
+            StableBubble(key: BubbleKey(
+                message: message, reactions: model.timeline.reactions(for: message.id), isMine: isMine,
+                mentionNames: model.mentionNames, memberNames: (model.room?.members ?? []).map(\.shownName), canWrite: model.canWrite,
+                canEdit: model.canEdit(message), canDelete: model.canDelete(message), hasPreviews: !(model.previews[message.id] ?? []).isEmpty)
+            ) {
             VStack(alignment: .leading, spacing: 2) {
                 if message.isAssistant {
                     MarkdownView(markdown: message.text)
@@ -460,6 +478,8 @@ private struct MessageRow: View {
             }
             .contextMenu { menu }
             .accessibilityAction(named: Text("Reply")) { model.replyTarget = message }
+            }
+            .equatable()
         }
     }
 
@@ -477,14 +497,12 @@ private struct MessageRow: View {
 
     @ViewBuilder
     private var menu: some View {
+        ReactionMenuRow { emoji in Task { await model.react(messageId: message.id, emoji: emoji) } }
         if model.canWrite {
             Button { model.replyTarget = message } label: { Label("Reply", systemImage: "arrowshape.turn.up.left") }
         }
-        ForEach(Reactions.palette, id: \.self) { emoji in
-            Button(emoji) { Task { await model.react(messageId: message.id, emoji: emoji) } }
-        }
-        Button { moreEmoji(message.id) } label: { Label("More emoji", systemImage: "face.smiling") }
         Button { UIPasteboard.general.string = message.text } label: { Label("Copy", systemImage: "doc.on.doc") }
+        Button { moreEmoji(message.id) } label: { Label("More emoji", systemImage: "face.smiling") }
         if model.canEdit(message) {
             Button { model.editTarget = message } label: { Label("Edit", systemImage: "pencil") }
         }
