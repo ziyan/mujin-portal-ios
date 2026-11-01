@@ -94,22 +94,17 @@ struct ConversationView: View {
         .fullScreenCover(item: $fullArtifact) { artifact in
             ArtifactFullView(artifact: artifact, connection: appModel.connection(for: account))
         }
-        .onChange(of: session.pendingReference?.conversationId) { _, id in
-            // The main chat may already be open when an Ask button is tapped.
-            guard id == conversationId, let pending = session.pendingReference, let model else { return }
-            model.viewingReference = (pending.viewing, pending.subject)
-            session.pendingReference = nil
-        }
+        // The main chat may already be open when an Ask button is tapped, on a tab that was not showing.
+        .onChange(of: session.referenceHandoff.conversationId) { _, _ in takeReference() }
+        .onChange(of: session.selectedSection) { _, _ in takeReference() }
+        .onAppear { takeReference() }
         .task(id: conversationId) {
             let conversationModel = ConversationModel(
                 conversationId: conversationId, currentUserId: account.userId, connection: appModel.connection(for: account),
                 socketFactory: appModel.socketFactory,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
-            if let pending = session.pendingReference, pending.conversationId == conversationId {
-                conversationModel.viewingReference = (pending.viewing, pending.subject)
-                session.pendingReference = nil
-            }
             model = conversationModel
+            takeReference()
             voice?.end()
             voice = VoiceCallController(
                 model: conversationModel, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
@@ -126,6 +121,13 @@ struct ConversationView: View {
             model?.stop()
             voice?.end()
         }
+    }
+
+    /// Puts the reference an Ask button named into the composer, once the model exists.
+    private func takeReference() {
+        guard let model, let pending = session.referenceHandoff.conversationId == conversationId ? session.referenceHandoff.pending : nil else { return }
+        _ = session.referenceHandoff.take(for: conversationId)
+        model.viewingReference = (pending.viewing, pending.subject)
     }
 
     private var shownTitle: String {
@@ -726,6 +728,19 @@ struct ApprovalCardView: View {
 }
 
 private struct ComposerBar: View {
+    static func kindName(_ kind: String) -> String {
+        switch kind {
+        case "site": String(localized: "Site")
+        case "controller": String(localized: "Controller")
+        case "virtual_controller": String(localized: "Virtual controller")
+        case "ticket": String(localized: "Ticket")
+        case "incident": String(localized: "Incident")
+        case "agent_run": String(localized: "Activity")
+        case "cell": String(localized: "Cell")
+        default: kind.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
     let model: ConversationModel
     let voice: VoiceCallController?
     let drafts: AttachmentDrafts
@@ -752,7 +767,7 @@ private struct ComposerBar: View {
             if model.replyTarget != nil || model.viewingReference != nil {
                 ReferencesBar(reply: model.replyTarget, onCancelReply: { model.replyTarget = nil }) {
                     if let reference = model.viewingReference {
-                        ReferenceChip(systemImage: "scope", text: reference.subject) { model.viewingReference = nil }
+                        ReferenceChip(systemImage: "scope", text: ReferenceHandoff.chipText(kindName: Self.kindName(reference.viewing.kind), subject: reference.subject)) { model.viewingReference = nil }
                     }
                 }
                 .padding(.horizontal, 12)

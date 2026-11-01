@@ -877,6 +877,12 @@ struct VirtualControllerDetailView: View {
             }
         } }
         .portalList()
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                AskAboutButton(viewing: Viewing(kind: "virtual_controller", id: virtual.id), subject: virtual.displayName)
+                    .labelStyle(.iconOnly)
+            }
+        }
         .navigationTitle(virtual.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)

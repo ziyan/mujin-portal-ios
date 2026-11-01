@@ -174,6 +174,7 @@ jobs:
           shoot welcome welcome
           shoot side-chat-links side-chat-links
           shoot ask ask
+          shoot ask-site ask-site
           shoot main-chat main-chat
           shoot chat-info chat-info
           shoot chats-new chats-new
@@ -211,6 +212,7 @@ jobs:
           shoot assistant-settings assistant-settings
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
+          shoot ask-site-dark ask-site
           shoot main-chat-dark main-chat
           shoot side-chat-links-dark side-chat-links
           shoot dark conversation:conversation02

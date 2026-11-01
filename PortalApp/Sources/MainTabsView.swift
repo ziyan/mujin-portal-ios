@@ -71,8 +71,10 @@ struct MainTabsView: View {
             if start == .chats { start = .assistant }
             if !Navigation.sections(for: newSession.persona).contains(start) { start = Navigation.home(for: newSession.persona) }
             newSession.selectedSection = start
-            if appModel.isDemo, DemoOptions.screen == "ask" || DemoOptions.screen == "conversation-reply" || DemoOptions.screen == "main-chat" {
-                if DemoOptions.screen == "ask" {
+            if appModel.isDemo, DemoOptions.screen == "ask" || DemoOptions.screen == "ask-site" || DemoOptions.screen == "conversation-reply" || DemoOptions.screen == "main-chat" {
+                if DemoOptions.screen == "ask-site" {
+                    Task { await newSession.beginAsk(about: Viewing(kind: "site", id: "site01"), subject: "Example Yard") }
+                } else if DemoOptions.screen == "ask" {
                     Task { await newSession.beginAsk(about: Viewing(kind: "ticket", id: "ticket01"), subject: "#1 Gripper drops boxes at pick station 3") }
                 } else if DemoOptions.screen == "main-chat" {
                     newSession.conversationToOpen = "conversation-main"

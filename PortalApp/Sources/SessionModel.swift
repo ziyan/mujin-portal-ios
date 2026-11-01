@@ -241,14 +241,8 @@ final class SessionModel {
         }
     }
 
-    /// A resource the next message in a conversation asks about, kept until the conversation opens.
-    struct PendingReference {
-        let conversationId: String
-        let viewing: Viewing
-        let subject: String
-    }
-
-    var pendingReference: PendingReference?
+    /// The resource an Ask button named, kept until the main chat shows it.
+    var referenceHandoff = ReferenceHandoff()
     /// The id of the main chat once the list or an Ask button has seen it.
     private(set) var knownMainConversationId: String?
 
@@ -278,7 +272,7 @@ final class SessionModel {
         do {
             let main = try await connection.ensureMainConversation()
             knownMainConversationId = main.id
-            if let viewing { pendingReference = PendingReference(conversationId: main.id, viewing: viewing, subject: subject ?? viewing.label ?? viewing.id) }
+            if let viewing { referenceHandoff.set(conversationId: main.id, viewing: viewing, subject: subject ?? viewing.label ?? viewing.id) }
             conversationToOpen = main.id
             selectedSection = .assistant
             return true
