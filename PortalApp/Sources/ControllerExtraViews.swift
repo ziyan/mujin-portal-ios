@@ -83,6 +83,11 @@ struct ControllerExtras: View {
                     }
                 }
             }
+            Section {
+                NavigationLink(value: PortalRoute.alarmSubscriptions(controller)) {
+                    Label("Alarm subscriptions", systemImage: "bell.badge").foregroundStyle(.primary)
+                }
+            }
             if controller.canEdit || controller.canDeleteBackups || canMove {
                 Section {
                     if controller.canEdit {

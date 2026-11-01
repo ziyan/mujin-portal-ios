@@ -580,6 +580,12 @@ struct DemoTransport: HTTPTransport {
             ]]]]
         case "ModifyController", "AssignControllersToSite", "DeleteBackup":
             return [operation: ["controller": ["id": "controller01"], "backupId": "backup01", "controllerIds": ["controller01"]]]
+        case "ListAlarmSubscriptions":
+            return ["ListAlarmSubscriptions": ["alarmSubscriptions": [
+                ["id": "alarm01", "name": "Pick station", "isEnabled": true, "minimumAlarmLevel": "warning", "controllerIds": ["controller01"], "virtualControllerIds": []],
+            ], "meta": ["totalCount": 1]]]
+        case "CreateAlarmSubscription", "ModifyAlarmSubscription", "DeleteAlarmSubscription":
+            return [operation: NSNull()]
         case "ListSiteVirtualControllers":
             let rows = state.withData { data -> [[String: Any]] in data.isVirtualControllerDestroyed ? [] : [Self.virtualControllerRow(data)] }
             return ["ListVirtualControllers": ["virtualControllers": rows]]

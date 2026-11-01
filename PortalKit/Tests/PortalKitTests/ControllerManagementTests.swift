@@ -80,3 +80,31 @@ import Testing
         #expect(ControllerFilter(query: "Line 7", siteId: "site02").apply(all, siteNames: names).count == 1 + 5)
     }
 }
+
+@Suite struct AlarmSubscriptionTests {
+    @Test func aSubscriptionKnowsWhichControllersItCovers() {
+        let subscription = AlarmSubscription(id: "a1", name: "Pick line", controllerIds: ["c1"], virtualControllerIds: ["v1"])
+        #expect(subscription.covers(controllerId: "c1") && !subscription.covers(controllerId: "c2"))
+        #expect(subscription.covers(virtualControllerId: "v1"))
+        #expect(AlarmSubscription.levels == ["notice", "warning", "error", "critical"])
+    }
+
+    @Test func creatingAndSwitchingOnAndOffSendTheRightFields() async throws {
+        let bodies = Guarded<[JSONValue]>([])
+        let transport = ScriptedTransport { request in
+            bodies.withValue { $0.append((try? JSONDecoder().decode(JSONValue.self, from: request.httpBody ?? Data())) ?? .null) }
+            return (200, ScriptedTransport.json(["data": ["CreateAlarmSubscription": NSNull(), "ModifyAlarmSubscription": NSNull()]]))
+        }
+        let account = Account(
+            server: try ServerAddress("https://portal.example.test"), clientId: "client01", userId: "user01", displayName: "Alex", email: "alex@example.test",
+            accessToken: "token", refreshToken: "refresh", accessTokenExpiresAt: Date().addingTimeInterval(3600))
+        let connection = Connection(account: account, transport: transport)
+        try await connection.createAlarmSubscription(name: "Pick line", minimumAlarmLevel: "warning", controllerIds: ["c1"])
+        try await connection.setAlarmSubscription(id: "a1", isEnabled: false)
+        let sent = bodies.withValue { $0 }
+        #expect(sent[0]["variables"]?["minimumAlarmLevel"]?.stringValue == "warning")
+        #expect(sent[0]["variables"]?["controllerIds"] == .array([.string("c1")]))
+        #expect(sent[1]["variables"]?["isEnabled"] == .bool(false))
+        #expect(sent[1]["variables"]?["alarmSubscriptionId"]?.stringValue == "a1")
+    }
+}
