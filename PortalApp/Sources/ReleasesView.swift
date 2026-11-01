@@ -8,6 +8,7 @@ struct ReleaseRow: View {
     @Environment(SessionModel.self) private var session
     let release: ControllerRelease
     @State private var name: String?
+    @State private var versionString: String?
 
     var body: some View {
         switch release {
@@ -18,10 +19,8 @@ struct ReleaseRow: View {
                 LabeledContent("Release") {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(name ?? id).foregroundStyle(.primary)
-                        if case .exact = release {
-                            Text("Exact match").font(.caption).foregroundStyle(.secondary)
-                        } else {
-                            Text("Version only").font(.caption).foregroundStyle(Color.statusWarning)
+                        if let versionString, !versionString.isEmpty {
+                            Text(versionString).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -30,11 +29,13 @@ struct ReleaseRow: View {
                 let key = CacheKey(accountKey: session.account.accountKey, name: "release", variables: id)
                 if let held = session.cache.hit(key, as: Release.self) {
                     name = held.value.displayName
+                    versionString = held.value.versionString
                     if held.isFresh { return }
                 }
                 if let fetched = try? await appModel.connection(for: session.account).release(id: id) {
                     session.cache.store(fetched, for: key)
                     name = fetched.displayName
+                    versionString = fetched.versionString
                 }
             }
         }

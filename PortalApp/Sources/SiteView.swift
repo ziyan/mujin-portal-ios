@@ -654,23 +654,24 @@ struct ControllerScreenView: View {
     let name: String
 
     var body: some View {
-        // The page fills the screen and handles every gesture itself. The close button sits above it, inside the safe area.
-        ZStack(alignment: .topLeading) {
-            WebViewHost(webView: session.webView)
-                .ignoresSafeArea()
-                .zIndex(0)
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.body.weight(.semibold))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Circle())
+        // A thin bar of its own holds the close button, so the page is never drawn under it; the page fills the rest edge to edge.
+        VStack(spacing: 0) {
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .accessibilityLabel("Close")
+                Spacer()
             }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.interactive(), in: .circle)
-            .padding(.leading, 12)
-            .padding(.top, 8)
-            .zIndex(1)
-            .accessibilityLabel("Close")
+            .padding(.horizontal, 12)
+            .frame(height: 52)
+            WebViewHost(webView: session.webView)
+                .ignoresSafeArea(edges: [.horizontal, .bottom])
         }
         .background(Color.black.ignoresSafeArea())
         .statusBarHidden()
