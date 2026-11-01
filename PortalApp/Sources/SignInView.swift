@@ -49,7 +49,7 @@ struct SignInView: View {
                         VStack(spacing: 0) {
                         VStack(spacing: 14) {
                             Text("Welcome to")
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.caption.weight(.medium))
                                 .tracking(6)
                                 .textCase(.uppercase)
                                 .foregroundStyle(WelcomePalette.orange)
@@ -63,7 +63,7 @@ struct SignInView: View {
                                 .foregroundStyle(LinearGradient(colors: palette.wordmark, startPoint: .top, endPoint: .bottom))
                                 .accessibilityAddTraits(.isHeader)
                             Text("Manage your Mujin controllers from anywhere.")
-                                .font(.system(size: 17))
+                                .font(.body)
                                 .foregroundStyle(palette.textMuted)
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: 420)
@@ -91,6 +91,8 @@ struct SignInView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
         }
+        // Everything follows the text size together, up to a limit that keeps the link smaller than the button and off the drawing.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .onChange(of: model.accounts.count) { _, _ in
             if isAddingAccount { dismiss() }
         }
@@ -104,7 +106,7 @@ struct SignInView: View {
                     Task { await model.signIn(to: .production) }
                 } label: {
                     Text("Sign in to \(ServerAddress.production.displayHost)")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.headline)
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)
                         .multilineTextAlignment(.center)
@@ -122,6 +124,7 @@ struct SignInView: View {
                     isAddressFocused = true
                 }
                 .font(.subheadline)
+                .multilineTextAlignment(.center)
                 .foregroundStyle(palette.textMuted)
                 .disabled(model.isSigningIn)
             } else {
@@ -141,7 +144,7 @@ struct SignInView: View {
                     continueWithOtherServer()
                 } label: {
                     Text("Continue")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.headline)
                         .foregroundStyle(palette.ctaText)
                         .frame(maxWidth: .infinity, minHeight: 56)
                         .background(LinearGradient(colors: palette.ctaFill, startPoint: .top, endPoint: .bottom), in: Capsule())
@@ -155,6 +158,7 @@ struct SignInView: View {
                     addressError = nil
                 }
                 .font(.subheadline)
+                .multilineTextAlignment(.center)
                 .foregroundStyle(palette.textMuted)
                 .disabled(model.isSigningIn)
             }
