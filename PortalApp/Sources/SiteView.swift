@@ -281,6 +281,7 @@ struct SiteView: View {
             if appModel.isDemo {
                 if DemoOptions.screen == "incident", let incident = siteModel.incidents.first { path.append(.incident(incident)) }
                 if DemoOptions.screen == "controller" || DemoOptions.screen == "controller-screen", let controller = siteModel.controllers.first { path.append(.controller(controller)) }
+                if DemoOptions.screen == "virtual-controller", let virtual = siteModel.virtualControllers.first { path.append(.virtualController(virtual)) }
                 if DemoOptions.screen == "site-orchestrators" { path.append(.siteList(.orchestrators, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "site-members" { path.append(.siteList(.members, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "site-back" {
@@ -913,8 +914,14 @@ struct VirtualControllerDetailView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
     @Environment(\.openURL) private var openURL
-    let virtual: VirtualControllerSummary
+    let initial: VirtualControllerSummary
+    @State private var current: VirtualControllerSummary?
     @State private var screenSession: WebSession?
+    @Environment(\.dismiss) private var dismiss
+
+    init(virtual: VirtualControllerSummary) { initial = virtual }
+
+    private var virtual: VirtualControllerSummary { current ?? initial }
 
     var body: some View {
         let server = session.account.server
@@ -927,6 +934,11 @@ struct VirtualControllerDetailView: View {
                 if let comment = virtual.comment, !comment.isEmpty { LabeledContent("Comment") { Text(comment) } }
                 ReleaseRow(release: virtual.release)
                 if let region = virtual.region, !region.isEmpty { LabeledContent("Region") { Text(region) } }
+            }
+            if virtual.canModify || virtual.canDestroy {
+                Section {
+                    VirtualControllerManageRows(virtual: virtual, onChange: { current = $0 }, onDestroyed: { dismiss() })
+                }
             }
             Section {
                 row(virtual.webEntry(server: server), title: "Open the web UI", systemImage: "safari") { openURL($0) }

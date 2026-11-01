@@ -38,6 +38,10 @@ final class DemoState: @unchecked Sendable {
         var comments: [String: [[String: Any]]] = [:]
         var sockets: [DemoSocket] = []
         var nextNumber = 1
+        var virtualControllerName = "Training cell"
+        var virtualControllerSize = "medium"
+        var isVirtualControllerPaused = false
+        var isVirtualControllerDestroyed = false
     }
 
     private let lock = NSLock()
@@ -351,6 +355,16 @@ struct DemoTransport: HTTPTransport {
         return (payload, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
     }
 
+    /// The demo's one virtual controller, as the server describes it now.
+    private static func virtualControllerRow(_ data: DemoState.Data) -> [String: Any] {
+        [
+            "id": "virtual01", "name": data.virtualControllerName, "comment": "Used for training", "siteId": "site01", "region": "us-1",
+            "status": data.isVirtualControllerPaused ? "paused" : "running", "pausedAt": data.isVirtualControllerPaused ? "2026-10-30T10:00:00Z" : NSNull(),
+            "size": data.virtualControllerSize, "product": "standard", "releaseId": "release01",
+            "viewerCapabilities": ["virtual_controller:modify", "virtual_controller:destroy", "virtual_controller:connect"],
+        ]
+    }
+
     private func respond(operation: String, variables: [String: Any]) -> [String: Any] {
         let conversationId = variables["conversationId"] as? String ?? ""
         switch operation {
@@ -542,6 +556,27 @@ struct DemoTransport: HTTPTransport {
             return ["GetReleaseImage": ["id": "image01", "releaseId": "release01", "registry": "registry.example.test", "repository": "controller/base", "tag": "2026.10.2", "digest": "sha256:0123abcd", "labelVersion": "2026.10.2", "labelProject": "appcontroller", "labelPreset": "standard", "labelHardwares": ["hw-a", "hw-b"], "labelBuild": "1042", "createdAt": "2026-10-20T09:00:00Z"]]
         case "ListControllersUsingRelease":
             return ["ListControllersUsingRelease": [["id": "controller01", "comment": "Pick station controller", "releaseId": "release01", "releaseImageId": "image01"], ["id": "controller02", "releaseId": "release01"]]]
+        case "ListSiteVirtualControllers":
+            let rows = state.withData { data -> [[String: Any]] in data.isVirtualControllerDestroyed ? [] : [Self.virtualControllerRow(data)] }
+            return ["ListVirtualControllers": ["virtualControllers": rows]]
+        case "GetVirtualController":
+            return ["GetVirtualController": state.withData { Self.virtualControllerRow($0) }]
+        case "SetVirtualControllersPaused":
+            state.withData { $0.isVirtualControllerPaused = variables["paused"] as? Bool ?? false }
+            return ["SetVirtualControllersPaused": ["virtualControllerIds": ["virtual01"]]]
+        case "ModifyVirtualController":
+            let input = variables["virtualController"] as? [String: Any] ?? [:]
+            let row = state.withData { data -> [String: Any] in
+                if let name = input["name"] as? String { data.virtualControllerName = name }
+                if let size = input["size"] as? String { data.virtualControllerSize = size }
+                return Self.virtualControllerRow(data)
+            }
+            return ["ModifyVirtualController": ["virtualController": row]]
+        case "DestroyVirtualController":
+            state.withData { $0.isVirtualControllerDestroyed = true }
+            return ["DestroyVirtualController": ["virtualController": ["id": "virtual01", "status": "destroying"]]]
+        case "ListVirtualControllerSizes":
+            return ["ListVirtualControllerSizes": [["name": "small", "displayName": "Small", "diskCapacityBytes": 20_000_000_000], ["name": "medium", "displayName": "Medium", "diskCapacityBytes": 50_000_000_000], ["name": "large", "displayName": "Large", "diskCapacityBytes": 100_000_000_000]]]
         case "ListVirtualControllersUsingRelease":
             return ["ListVirtualControllersUsingRelease": [["id": "virtual01", "name": "Training cell", "status": "running", "releaseId": "release01"]]]
         case "ListControllerSyncedUserCounts":

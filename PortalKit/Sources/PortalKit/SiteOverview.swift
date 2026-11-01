@@ -135,7 +135,7 @@ extension Documents {
     public static let listSiteVirtualControllers = """
         query ListSiteVirtualControllers($organizationId: String, $options: ListOptionsInput) {
           ListVirtualControllers(organizationId: $organizationId, options: $options) {
-            virtualControllers { id name comment siteId region status statusMessage viewerCapabilities releaseId releaseImageId }
+            virtualControllers { id name comment siteId region status statusMessage viewerCapabilities releaseId releaseImageId pausedAt size product }
           }
         }
         """
@@ -192,8 +192,15 @@ public struct VirtualControllerSummary: Codable, Equatable, Hashable, Identifiab
     public let viewerCapabilities: [String]?
     public let releaseId: String?
     public let releaseImageId: String?
+    /// Set while the virtual controller is meant to be paused, even before its status says so.
+    public let pausedAt: String?
+    public let size: String?
+    public let product: String?
 
-    public init(id: String, name: String? = nil, comment: String? = nil, siteId: String? = nil, region: String? = nil, status: String? = "running", statusMessage: String? = nil, viewerCapabilities: [String]? = nil, releaseId: String? = nil, releaseImageId: String? = nil) {
+    public init(id: String, name: String? = nil, comment: String? = nil, siteId: String? = nil, region: String? = nil, status: String? = "running", statusMessage: String? = nil, viewerCapabilities: [String]? = nil, releaseId: String? = nil, releaseImageId: String? = nil, pausedAt: String? = nil, size: String? = nil, product: String? = nil) {
+        self.pausedAt = pausedAt
+        self.size = size
+        self.product = product
         self.releaseId = releaseId
         self.releaseImageId = releaseImageId
         self.id = id

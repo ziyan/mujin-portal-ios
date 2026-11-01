@@ -190,6 +190,7 @@ public enum Documents {
         documents += siteResourceDocuments
         documents += releaseDocuments
         documents += cameraDocuments
+        documents += virtualControllerManagementDocuments
         return documents
     }
 }
