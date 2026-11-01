@@ -80,12 +80,3 @@ import Testing
         #expect(ServerCapabilities(queryNames: ["ListChatCandidates"], mutationNames: ["StartDirectChat"]).offersChats)
     }
 }
-
-@Suite struct AssistantDisplayTests {
-    @Test func personasDecideUntilThePersonChooses() {
-        #expect(AssistantDisplay.showsToolDetails(setting: "", persona: .staff))
-        #expect(!AssistantDisplay.showsToolDetails(setting: "", persona: .customer))
-        #expect(!AssistantDisplay.showsToolDetails(setting: "0", persona: .staff))
-        #expect(AssistantDisplay.showsToolDetails(setting: "1", persona: .customer))
-    }
-}

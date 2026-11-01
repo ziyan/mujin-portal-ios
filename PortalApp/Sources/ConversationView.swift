@@ -20,7 +20,6 @@ struct ConversationView: View {
     @State private var isShowingArtifacts = false
     @State private var isAddingPeople = false
     @State private var drafts = AttachmentDrafts()
-    @AppStorage("toolDetailsSetting") private var toolDetailsSetting = ""
 
     struct EmojiTarget: Identifiable {
         let id: String
@@ -139,9 +138,6 @@ struct ConversationView: View {
     /// The main chat is named by the app, in the person's language, and cannot be renamed.
     private var isMainChat: Bool { model?.isMain == true || session.knownMainConversationId == conversationId }
 
-    private var showsToolDetails: Bool {
-        AssistantDisplay.showsToolDetails(setting: toolDetailsSetting, persona: session.persona)
-    }
 
     @ViewBuilder
     private func content(_ model: ConversationModel) -> some View {
@@ -183,7 +179,7 @@ struct ConversationView: View {
                     }
                     ForEach(model.transcript.displayEntries.filter(Self.isShown)) { entry in
                         TranscriptRow(
-                            entry: entry, model: model, showsToolDetails: showsToolDetails,
+                            entry: entry, model: model,
                             openArtifact: { fullArtifact = $0 }, moreEmoji: { emojiTarget = EmojiTarget(id: $0) }
                         )
                         .id(entry.id)
@@ -257,7 +253,6 @@ private struct TranscriptRow: View {
     static let bubbleWidth: CGFloat = 620
     let entry: TranscriptEntry
     let model: ConversationModel
-    let showsToolDetails: Bool
     let openArtifact: (ArtifactReference) -> Void
     let moreEmoji: (String) -> Void
 
@@ -334,10 +329,10 @@ private struct TranscriptRow: View {
             if activity.isThinkingHarder {
                 ThinkingHarderLine(activity: activity)
             } else {
-                ToolGroupRow(tools: [activity], showsDetails: showsToolDetails)
+                ToolGroupRow(tools: [activity])
             }
         case .toolGroup(_, let tools):
-            ToolGroupRow(tools: tools, showsDetails: showsToolDetails)
+            ToolGroupRow(tools: tools)
         case .produced(.artifact(let artifact)):
             ArtifactCardView(artifact: artifact, connection: model.connection) { openArtifact(artifact) }
         case .produced(.file(let file)):
@@ -459,14 +454,13 @@ struct EmojiEntryView: View {
 /// shows each call's arguments and result.
 private struct ToolGroupRow: View {
     let tools: [ToolActivity]
-    let showsDetails: Bool
     @State private var isExpanded = false
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(tools) { tool in
-                    ToolLine(tool: tool, showsDetails: showsDetails)
+                    ToolLine(tool: tool)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -495,39 +489,19 @@ private struct ToolGroupRow: View {
     }
 }
 
+/// ToolLine is one working note. The app never shows a tool's arguments or result: only the plain note, as a customer sees on the web.
 private struct ToolLine: View {
     let tool: ToolActivity
-    let showsDetails: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(showsDetails ? tool.displayName : (tool.note ?? tool.displayName))
-                    .font(.footnote)
-                if showsDetails, let note = tool.note {
-                    Text(note)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 4)
-                if let duration = tool.durationText {
-                    Text(duration)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            if showsDetails {
-                if !tool.arguments.isEmpty {
-                    Text(tool.arguments.prefix(1_000))
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                }
-                if let result = tool.result, !result.isEmpty {
-                    Text(result.prefix(2_000))
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(tool.note ?? tool.displayName)
+                .font(.footnote)
+            Spacer(minLength: 4)
+            if let duration = tool.durationText {
+                Text(duration)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
         }
     }

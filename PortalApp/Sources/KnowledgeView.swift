@@ -57,7 +57,7 @@ struct KnowledgeView: View {
         }
         .navigationTitle("What it knows")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $searchText, prompt: "Search what it knows")
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search what it knows")
         .task { await load() }
         .task(id: searchText) {
             if !searchText.isEmpty { try? await Task.sleep(nanoseconds: 300_000_000) }
@@ -81,7 +81,7 @@ struct KnowledgeView: View {
                             NavigationLink(value: MoreDestination.memoryPage(MemoryPageReference(path: fact.pagePath, scope: fact.memoryScope, siteId: fact.siteId, factNumber: fact.number))) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(fact.sentence ?? "").foregroundStyle(.primary)
-                                    Text(fact.pageName ?? fact.pagePath ?? "").font(.caption).foregroundStyle(.secondary)
+                                    Text(fact.shownPageName).font(.caption).foregroundStyle(.secondary)
                                 }
                             }
                         }
@@ -92,13 +92,12 @@ struct KnowledgeView: View {
                         ForEach(group.pages) { page in
                             NavigationLink(value: MoreDestination.memoryPage(MemoryPageReference(pageId: page.id))) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    HStack {
-                                        Text(page.shownName).foregroundStyle(.primary)
-                                        Spacer(minLength: 8)
-                                        Text("\(page.liveFactCount ?? 0)").font(.footnote).foregroundStyle(.secondary)
-                                    }
+                                    Text(page.shownName).foregroundStyle(.primary)
                                     if let summary = page.summary, !summary.isEmpty {
                                         Text(summary).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                                    }
+                                    if let count = page.liveFactCount, count > 0 {
+                                        Text("\(count) facts").font(.caption).foregroundStyle(.tertiary)
                                     }
                                 }
                             }
@@ -269,8 +268,7 @@ struct MemoryPageView: View {
 
     private func linkedName(_ link: MemoryLink, from page: MemoryPage) -> String {
         let isFrom = link.fromMemoryPageId == page.id
-        let name = isFrom ? (link.toPageName ?? link.toPagePath) : (link.fromPageName ?? link.fromPagePath)
-        return name ?? ""
+        return isFrom ? MemoryPageName.shown(name: link.toPageName, path: link.toPagePath) : MemoryPageName.shown(name: link.fromPageName, path: link.fromPagePath)
     }
 
     private func load() async {

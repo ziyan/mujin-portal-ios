@@ -221,19 +221,34 @@ struct SiteView: View {
         .navigationTitle(model?.selectedSite?.name ?? String(localized: "Site"))
         .navigationBarTitleDisplayMode(.inline)
         // The site picker and the bell belong to the Sites tab; a site pushed from a customer has its name and the assistant.
-        .toolbarTitleMenu {
-            if embedsNavigation, let model, model.sites.count > 1 {
-                @Bindable var bindable = model
-                Picker("Site", selection: $bindable.selectedSiteId) {
-                    ForEach(model.sites) { site in
-                        Text(site.name ?? site.id).tag(Optional(site.id))
-                    }
-                }
-            }
-        }
         .toolbar {
             if embedsNavigation {
                 ToolbarItem(placement: .topBarLeading) { NotificationsBell() }
+            }
+            if embedsNavigation, let model, model.sites.count > 1 {
+                // A menu of its own in the title's place: tapping the name or the chevron lists the sites.
+                ToolbarItem(placement: .principal) {
+                    Menu {
+                        ForEach(model.sites) { site in
+                            Button {
+                                model.selectedSiteId = site.id
+                            } label: {
+                                if site.id == model.selectedSiteId {
+                                    Label(site.name ?? site.id, systemImage: "checkmark")
+                                } else {
+                                    Text(site.name ?? site.id)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(model.selectedSite?.name ?? String(localized: "Site")).font(.headline)
+                            Image(systemName: "chevron.down.circle.fill").font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("siteSwitcher")
+                    .accessibilityLabel(Text("Change site"))
+                }
             }
             if let site = model?.selectedSite {
                 ToolbarItem(placement: .topBarTrailing) {

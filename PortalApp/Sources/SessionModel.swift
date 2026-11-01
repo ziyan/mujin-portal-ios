@@ -342,7 +342,7 @@ enum DemoOptions {
         case "memory-page": [.knowledge, .memoryPage(MemoryPageReference(pageId: "page01", factNumber: 2))]
         case "dreams": [.dreams]
         case "assistant-settings": [.assistantSettings]
-        case "releases": [.releases]
+        case "releases", "release-tap": [.releases]
         case "release": [.releases, .release("release01")]
         default: []
         }

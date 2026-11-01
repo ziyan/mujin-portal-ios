@@ -143,3 +143,28 @@ private final class CountingPictureTransport: HTTPTransport, @unchecked Sendable
         #expect(removal.takeAll().isEmpty)
     }
 }
+
+@Suite struct MemoryPageNameTests {
+    @Test func theOwnNameWinsAndAPathIsNeverShown() {
+        #expect(MemoryPageName.shown(name: "Shift pattern", path: "organization/shifts") == "Shift pattern")
+        #expect(MemoryPageName.shown(name: "", path: "people/sample-person/work-habits") == "Work habits")
+        #expect(MemoryPageName.shown(name: "  ", path: "organization/dock_door-rules") == "Dock door rules")
+        #expect(MemoryPageName.shown(name: nil, path: "preferences") == "Preferences")
+        #expect(MemoryPage(id: "p1", path: "user/preferences", name: "").shownName == "Preferences")
+    }
+}
+
+@Suite struct ReleaseOrderTests {
+    private func release(_ id: String, version: String, created: String) -> Release {
+        Release(id: id, versionString: version, createdAt: created)
+    }
+
+    @Test func theNewestDayComesFirstAndTheHigherVersionWithinADay() {
+        let rows = [
+            release("old", version: "0.45.4", created: "2026-10-30T08:00:00Z"),
+            release("older-day", version: "0.50.0", created: "2026-10-01T08:00:00Z"),
+            release("new", version: "0.49.0", created: "2026-10-30T07:00:00Z"),
+        ]
+        #expect(Release.newestFirst(rows).map(\.id) == ["new", "old", "older-day"])
+    }
+}

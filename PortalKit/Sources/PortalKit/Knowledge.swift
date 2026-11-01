@@ -46,8 +46,25 @@ public struct MemoryPage: Codable, Equatable, Identifiable, Sendable {
     }
 
     /// The name to show: the page's own, else its path.
-    public var shownName: String { (name ?? "").isEmpty ? (path ?? "") : (name ?? "") }
+    public var shownName: String { MemoryPageName.shown(name: name, path: path) }
     public var isDormant: Bool { !(dormantAt ?? "").isEmpty }
+}
+
+/// MemoryPageName is how a page is titled for a person: its own name, else the last part of its path in words.
+/// A path is never shown.
+public enum MemoryPageName {
+    public static func shown(name: String?, path: String?) -> String {
+        let trimmed = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+        return readable(path: path ?? "")
+    }
+
+    /// `people/jordan-lee/preferences` becomes `Preferences`; hyphens and underscores become spaces.
+    public static func readable(path: String) -> String {
+        let last = path.split(separator: "/").last.map(String.init) ?? path
+        let words = last.replacingOccurrences(of: "-", with: " ").replacingOccurrences(of: "_", with: " ").trimmingCharacters(in: .whitespaces)
+        return words.prefix(1).uppercased() + words.dropFirst()
+    }
 }
 
 /// MemoryFact is one numbered statement on a page, with where it came from.
@@ -76,6 +93,8 @@ public struct MemoryFact: Codable, Equatable, Identifiable, Sendable {
     public let evidence: [Evidence]?
     public let pagePath: String?
     public let pageName: String?
+    /// What a person reads for the page this fact is on.
+    public var shownPageName: String { MemoryPageName.shown(name: pageName, path: pagePath) }
     public let memoryScope: String?
     public let siteId: String?
 
@@ -162,9 +181,7 @@ public struct MemoryCitation: Equatable, Sendable {
 
     /// The page's name as a person reads it: the last part of its path, in words.
     public var displayName: String {
-        let last = path.split(separator: "/").last.map(String.init) ?? path
-        let words = last.replacingOccurrences(of: "-", with: " ").replacingOccurrences(of: "_", with: " ")
-        return words.prefix(1).uppercased() + words.dropFirst()
+        MemoryPageName.readable(path: path)
     }
 
     private static let expression = try! NSRegularExpression(pattern: #"\[\[([a-z0-9][a-z0-9_-]*(?:/[a-z0-9][a-z0-9_-]*)*)#([0-9]+)\]\]"#)

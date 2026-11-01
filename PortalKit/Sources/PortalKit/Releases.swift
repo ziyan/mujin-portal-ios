@@ -89,9 +89,23 @@ public struct Release: Codable, Equatable, Hashable, Identifiable, Sendable {
     public func descriptionText(preferredLanguages: [String]) -> String? { LocalizedTexts.pick(description, preferredLanguages: preferredLanguages) }
     public func changelogText(preferredLanguages: [String]) -> String? { LocalizedTexts.pick(changelog, preferredLanguages: preferredLanguages) }
 
-    /// Newest first, withdrawn and deleted ones last of equal date.
+    /// The numbers of a version, such as 0.49.0 as [0, 49, 0]. Text without numbers has none.
+    static func versionNumbers(_ version: String?) -> [Int] {
+        (version ?? "").split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
+    }
+
+    /// Newest day first; within one day the higher version first (0.49.0 above 0.45.4), then the later time.
     public static func newestFirst(_ releases: [Release]) -> [Release] {
-        releases.filter { $0.deletedAt == nil }.sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+        func day(_ release: Release) -> Date { calendar.startOfDay(for: release.date ?? .distantPast) }
+        return releases.filter { $0.deletedAt == nil }.sorted { first, second in
+            if day(first) != day(second) { return day(first) > day(second) }
+            let firstNumbers = versionNumbers(first.versionString)
+            let secondNumbers = versionNumbers(second.versionString)
+            if firstNumbers != secondNumbers { return firstNumbers.lexicographicallyPrecedes(secondNumbers) == false }
+            return (first.date ?? .distantPast) > (second.date ?? .distantPast)
+        }
     }
 }
 

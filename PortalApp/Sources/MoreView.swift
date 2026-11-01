@@ -25,8 +25,8 @@ struct MoreView: View {
 
     @State private var isShowingAccounts = false
     @State private var isConfirmingSignOut = false
-    @State private var path: [MoreDestination] = DemoOptions.morePath
-    @AppStorage("toolDetailsSetting") private var toolDetailsSetting = ""
+    // Screens under More push their own kinds of value (a release opens controllers), so the path holds any of them.
+    @State private var path = NavigationPath(DemoOptions.morePath)
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -90,11 +90,6 @@ struct MoreView: View {
                         Label("Assistant settings", systemImage: "slider.horizontal.3")
                             .foregroundStyle(.primary)
                     }
-                    Toggle(
-                        isOn: Binding(
-                            get: { AssistantDisplay.showsToolDetails(setting: toolDetailsSetting, persona: session.persona) },
-                            set: { toolDetailsSetting = $0 ? "1" : "0" })
-                    ) { Label("Show tool details", systemImage: "wrench.and.screwdriver").foregroundStyle(.primary) }
                 }
                 Section {
                     NavigationLink(value: MoreDestination.releases) {
@@ -144,15 +139,22 @@ struct MoreView: View {
             .sheet(isPresented: $isShowingAccounts) {
                 AccountsView()
             }
+            .task {
+                // The demo opens the releases list and taps the first row, as a person does.
+                if appModel.isDemo, DemoOptions.screen == "release-tap" {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    path.append(PortalRoute.release(id: "release01"))
+                }
+            }
             .onChange(of: session.automationsRequested, initial: true) { _, isRequested in
                 guard isRequested else { return }
                 session.automationsRequested = false
-                path = [.automations]
+                path = NavigationPath([MoreDestination.automations])
             }
             .onChange(of: session.goalToOpen, initial: true) { _, goalId in
                 guard let goalId else { return }
                 session.goalToOpen = nil
-                path = [.goals, .goal(goalId)]
+                path = NavigationPath([MoreDestination.goals, MoreDestination.goal(goalId)])
             }
         }
     }

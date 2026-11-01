@@ -78,7 +78,7 @@ struct ReleasesView: View {
         }
         .navigationTitle("Releases")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $searchText, prompt: "Search releases")
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search releases")
         .task { await load() }
     }
 
@@ -116,7 +116,7 @@ private struct ReleaseListRow: View {
             }
             HStack(spacing: 8) {
                 if let version = release.versionString, !version.isEmpty, version != release.displayName { Text(version).font(.subheadline).foregroundStyle(.secondary) }
-                if let channel = release.channel, !channel.isEmpty { ReleaseBadge(text: channel) }
+                if let channel = release.channel, !channel.isEmpty { ReleaseBadge(text: channel, isVerbatim: true) }
                 if release.status != "published" { ReleaseBadge(text: release.status ?? "") }
             }
         }
@@ -126,9 +126,11 @@ private struct ReleaseListRow: View {
 
 struct ReleaseBadge: View {
     let text: String
+    /// A channel is shown as the server names it, as the web does; a status is capitalized.
+    var isVerbatim = false
 
     var body: some View {
-        Text(text.capitalized)
+        Text(isVerbatim ? text : text.capitalized)
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 6)
             .padding(.vertical, 1)

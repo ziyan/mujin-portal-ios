@@ -183,6 +183,7 @@ jobs:
           shoot controller-screen controller-screen
           shoot release release
           shoot releases releases
+          shoot release-tap release-tap
           shoot voice voice
           shoot site-orchestrators site-orchestrators
           shoot site-members site-members
@@ -225,6 +226,8 @@ jobs:
           shoot speaks-first-dark conversation:conversation06
           shoot goals-dark goals
           shoot knowledge-dark memory-page
+          shoot knowledge-list-dark knowledge
+          shoot release-tap-dark release-tap
           shoot notifications-dark notifications
           shoot monitoring-staff-dark section:monitoring staff
           xcrun simctl ui "${DEVICE}" appearance light

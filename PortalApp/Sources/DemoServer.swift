@@ -775,16 +775,17 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListMemoryPages": [
                     "memoryPages": [
-                        ["id": "page01", "path": "user/preferences", "memoryScope": "user", "name": "Your preferences", "summary": "How you like answers written.", "liveFactCount": 3],
+                        ["id": "page01", "path": "people/sample-person/work-habits", "memoryScope": "user", "name": "", "summary": "How you like answers written.", "liveFactCount": 3],
                         ["id": "page02", "path": "site/site01/docks", "memoryScope": "site", "name": "Site01 docks", "summary": "Door timings and known quirks.", "liveFactCount": 5],
                         ["id": "page03", "path": "organization/shifts", "memoryScope": "organization", "name": "Shift pattern", "summary": "Three shifts, handover at 06:00, 14:00 and 22:00.", "liveFactCount": 2],
+                        ["id": "page04", "path": "organization/dock-door-rules", "memoryScope": "organization", "name": "", "liveFactCount": 1],
                     ], "meta": ["totalCount": 3],
                 ]
             ]
         case "GetMemoryPage":
             return [
                 "GetMemoryPage": [
-                    "id": "page01", "path": "user/preferences", "memoryScope": "user", "name": "Your preferences", "summary": "How you like answers written.", "liveFactCount": 3,
+                    "id": "page01", "path": "people/sample-person/work-habits", "memoryScope": "user", "name": "", "summary": "How you like answers written.", "liveFactCount": 3,
                     "isWritableByReader": true, "aliases": [],
                     "facts": [
                         ["id": "fact01", "number": 1, "factKind": "preference", "sentence": "Prefers short answers without tables.", "evidence": [["evidenceKind": "conversation", "quote": "Keep it short, no tables please."]]],
@@ -836,7 +837,7 @@ struct DemoTransport: HTTPTransport {
                         "id": "filing01", "sourceKind": "conversation", "conversationId": "conversation06", "filingTrigger": "automatic", "writtenFactCount": 2,
                         "createdAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-300)),
                         "facts": [
-                            ["id": "fact02", "number": 2, "pagePath": "user/preferences", "sentence": "Reads the summary first and the details only if needed.", "isInferred": true, "memoryScope": "user"],
+                            ["id": "fact02", "number": 2, "pagePath": "people/sample-person/work-habits", "sentence": "Reads the summary first and the details only if needed.", "isInferred": true, "memoryScope": "user"],
                             ["id": "fact05", "number": 5, "pagePath": "site/site01/docks", "sentence": "Dock door 3 opens late on weekday mornings.", "memoryScope": "site"],
                         ],
                     ]
