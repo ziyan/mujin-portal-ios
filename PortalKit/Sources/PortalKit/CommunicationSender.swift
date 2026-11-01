@@ -40,8 +40,8 @@ public struct CommunicationSender: Equatable, Sendable {
             // A direct chat is named for the other person, so a name that differs from the author's means a group.
             let isGroup = !chatName.isEmpty && chatName != author
             self.init(
-                displayName: author, handle: author, groupName: isGroup ? chatName : nil, conversationIdentifier: "chat:" + chatId,
-                messageText: arguments[2])
+                displayName: author, handle: payload.authorUserId ?? author, userId: payload.authorUserId, groupName: isGroup ? chatName : nil,
+                conversationIdentifier: "chat:" + chatId, messageText: arguments[2])
         case "agent_message":
             guard let conversationId = payload.conversationId else { return nil }
             self.init(

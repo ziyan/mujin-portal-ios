@@ -94,7 +94,7 @@ final class NotificationService: UNNotificationServiceExtension {
             picture = assistantPicture()
         } else if let account = ring.accounts.first(where: { $0.userId == payload.userId }) {
             let connection = SharedConnections().connection(for: account.accountKey)
-            if let connection, let chatId = payload.chatId, let room = try? await connection.chat(id: chatId) {
+            if sender.userId == nil, let connection, let chatId = payload.chatId, let room = try? await connection.chat(id: chatId) {
                 sender = sender.resolving(members: room.members ?? [])
             }
             if let connection, let subject = sender.avatarSubject {

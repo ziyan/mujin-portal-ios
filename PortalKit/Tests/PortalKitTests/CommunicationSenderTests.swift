@@ -4,8 +4,9 @@ import Testing
 @testable import PortalKit
 
 @Suite struct CommunicationSenderTests {
-    private func payload(kind: String, arguments: [String], chatId: String? = nil, conversationId: String? = nil) -> PushPayload {
+    private func payload(kind: String, arguments: [String], chatId: String? = nil, conversationId: String? = nil, authorUserId: String? = nil) -> PushPayload {
         var portal: [String: Any] = ["userId": "user01", "kind": kind]
+        if let authorUserId { portal["authorUserId"] = authorUserId }
         if let chatId { portal["chatId"] = chatId }
         if let conversationId { portal["conversationId"] = conversationId }
         return PushPayload(userInfo: ["portal": portal, "aps": ["alert": ["loc-key": "x", "loc-args": arguments]]])!
@@ -44,5 +45,12 @@ import Testing
         #expect(resolved.handle == "user02")
         #expect(resolved.avatarSubject == AvatarSubject(kind: .user, id: "user02"))
         #expect(sender.resolving(members: []).userId == nil)
+    }
+
+    @Test func theAuthorIdInThePushIsUsedDirectly() throws {
+        let sender = try #require(CommunicationSender(payload: payload(kind: "chat_message", arguments: ["Sam Sample", "Night shift", "Hi"], chatId: "chat01", authorUserId: "user02"), assistantName: "Assistant"))
+        #expect(sender.userId == "user02")
+        #expect(sender.handle == "user02")
+        #expect(sender.avatarSubject == AvatarSubject(kind: .user, id: "user02"))
     }
 }
