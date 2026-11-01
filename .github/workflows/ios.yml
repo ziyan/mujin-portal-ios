@@ -187,6 +187,7 @@ jobs:
           shoot incident incident
           shoot controller controller
           shoot virtual-controller virtual-controller
+          shoot controller-backups controller-backups
           shoot virtual-controller-snapshots virtual-controller-snapshots
           shoot virtual-controller-create virtual-controller-create
           shoot controller-screen controller-screen

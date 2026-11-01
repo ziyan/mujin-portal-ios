@@ -489,7 +489,7 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListControllers": [
                     "controllers": [
-                        ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
+                        ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write", "controller:edit", "backup:delete"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
                         ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
                     ], "meta": ["totalCount": 2],
                 ]
@@ -569,6 +569,17 @@ struct DemoTransport: HTTPTransport {
             return ["ListVirtualControllerRegions": [["region": "us-1", "isLocal": true], ["region": "jp-1", "isLocal": false]]]
         case "CreateVirtualController":
             return ["CreateVirtualController": ["virtualController": Self.virtualControllerRow(DemoState.Data())]]
+        case "ListBackups":
+            return ["ListBackups": ["backups": [
+                ["id": "backup01", "controllerId": "controller01", "label": "Nightly", "createdAt": "2026-10-30T02:00:00Z", "sizeBytes": 48_000_000, "sourceVersion": "2026.10.2"],
+                ["id": "backup02", "controllerId": "controller01", "label": "Before the planner update", "createdAt": "2026-10-27T14:30:00Z", "sizeBytes": 47_500_000, "sourceVersion": "2026.9.4"],
+            ], "meta": ["totalCount": 2]]]
+        case "GetControllerSyncProgress":
+            return ["GetControllerSyncProgress": ["retrievedAt": "2026-10-31T09:00:00Z", "syncState": ["reportedAt": "2026-10-31T09:00:00Z", "progress": [
+                ["resourceType": "tickets", "pushedCount": 320, "totalCount": 400], ["resourceType": "pages", "pushedCount": 90, "totalCount": 90],
+            ]]]]
+        case "ModifyController", "AssignControllersToSite", "DeleteBackup":
+            return [operation: ["controller": ["id": "controller01"], "backupId": "backup01", "controllerIds": ["controller01"]]]
         case "ListSiteVirtualControllers":
             let rows = state.withData { data -> [[String: Any]] in data.isVirtualControllerDestroyed ? [] : [Self.virtualControllerRow(data)] }
             return ["ListVirtualControllers": ["virtualControllers": rows]]

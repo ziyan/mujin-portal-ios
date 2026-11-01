@@ -281,6 +281,10 @@ struct SiteView: View {
             if appModel.isDemo {
                 if DemoOptions.screen == "incident", let incident = siteModel.incidents.first { path.append(.incident(incident)) }
                 if DemoOptions.screen == "controller" || DemoOptions.screen == "controller-screen", let controller = siteModel.controllers.first { path.append(.controller(controller)) }
+                if DemoOptions.screen == "controller-backups", let controller = siteModel.controllers.first {
+                    path.append(.controller(controller))
+                    path.append(.controllerBackups(controller))
+                }
                 if DemoOptions.screen == "virtual-controller-create" { path.append(.siteList(.virtualControllers, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "virtual-controller" || DemoOptions.screen == "virtual-controller-snapshots", let virtual = siteModel.virtualControllers.first {
                     path.append(.virtualController(virtual))
@@ -621,6 +625,7 @@ struct ControllerDetailView: View {
 
     @State private var syncedUsers: SyncedUserCount?
     @State private var screenSession: WebSession?
+    @State private var editedComment: String?
 
     var body: some View {
         let server = session.account.server
@@ -632,7 +637,7 @@ struct ControllerDetailView: View {
                     Label(controller.isOnline ? "Online" : "Offline", systemImage: controller.isOnline ? "checkmark.circle" : "circle.slash")
                         .foregroundStyle(.secondary)
                 }
-                if let detail = controller.detail {
+                if let detail = editedComment ?? controller.detail {
                     LabeledContent("Comment") { Text(detail) }
                 }
                 // The release is what the controller runs; the hypervisor's version is a secondary row for staff.
@@ -651,6 +656,7 @@ struct ControllerDetailView: View {
                     screenSession = appModel.makeScreenSession(for: session.account, url: url)
                 }
             }
+            ControllerExtras(controller: controller, editedComment: $editedComment)
         } }
         .portalList()
         .navigationTitle(controller.displayName)
