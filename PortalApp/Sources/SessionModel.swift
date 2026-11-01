@@ -43,6 +43,8 @@ final class SessionModel {
     private var notificationFeedTask: Task<Void, Never>?
     /// A goal to show in More, from a notification.
     var goalToOpen: String?
+    /// Set when a notification about an incident asks More to show the incidents.
+    var incidentsRequested = false
     let onError: @MainActor (Error) -> Void
     /// What this account's screens loaded, so going back to one shows it at once. It goes with the session at sign-out or when another account takes over.
     let cache = ResponseCache()
@@ -101,6 +103,8 @@ final class SessionModel {
     private(set) var personNames: [String: String] = [:]
     private var requestedPeople: Set<String> = []
     private(set) var organizationNames: [String: String] = [:]
+    /// Every site a Mujin user can see, with the organizations' names, for the Sites tab and the site switcher.
+    private(set) var staffSites = StaffSitesSnapshot()
     private(set) var siteNames: [String: String] = [:]
 
     /// How a person is named beside a comment or a ticket.
@@ -135,6 +139,23 @@ final class SessionModel {
         } else if let id = organizationId, let name = profile?.organizationName {
             organizationNames[id] = name
         }
+    }
+
+    /// Loads every visible site (Mujin users only), showing what was held at once and reading again when it is old or `force` is set.
+    func loadStaffSites(force: Bool = false) async throws {
+        guard isStaff else { return }
+        let key = CacheKey(accountKey: account.accountKey, name: "staffSites")
+        try await cache.load(key, force: force, show: { (held: StaffSitesSnapshot) in
+            staffSites = held
+        }, fetch: { [connection] in
+            async let sites = connection.allSites()
+            async let organizations = connection.organizations()
+            var loaded = StaffSitesSnapshot()
+            loaded.sites = try await sites
+            loaded.organizationNames = Dictionary(
+                ((try? await organizations) ?? []).map { ($0.id, $0.name ?? "") }, uniquingKeysWith: { first, _ in first })
+            return loaded
+        })
     }
 
     /// Reads what waits for the person. The web app asks every 30 seconds too.
@@ -316,10 +337,10 @@ enum DemoOptions {
         guard let screen else { return nil }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         // Screens that live under More.
-        if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release"].contains(where: { screen.hasPrefix($0) }) { return .more }
+        if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") || screen == "attachment-viewer" { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
-        if screen.hasPrefix("site-staff") { return .customers }
+        if screen.hasPrefix("site-staff") || screen == "sites-staff" { return .site }
         if screen.hasPrefix("site") || screen.hasPrefix("incident") || screen.hasPrefix("controller") { return .site }
         return nil
     }
@@ -335,6 +356,7 @@ enum DemoOptions {
         case "knowledge": [.knowledge]
         case "memory-page": [.knowledge, .memoryPage(MemoryPageReference(pageId: "page01", factNumber: 2))]
         case "dreams": [.dreams]
+        case "incidents": [.incidents]
         case "assistant-settings": [.assistantSettings]
         case "releases", "release-tap": [.releases]
         case "release": [.releases, .release("release01")]

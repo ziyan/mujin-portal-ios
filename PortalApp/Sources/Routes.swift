@@ -12,7 +12,6 @@ enum PortalRoute: Hashable {
     case controller(ControllerSummary)
     case virtualController(VirtualControllerSummary)
     case incident(IncidentSummary)
-    case organization(OrganizationSummary)
     /// One specific site of an organization, which never changes to another site.
     case site(id: String, organizationId: String)
     case release(id: String)
@@ -36,8 +35,6 @@ private struct PortalDestinations: ViewModifier {
                 VirtualControllerDetailView(virtual: virtual)
             case .incident(let incident):
                 IncidentDetailView(incident: incident)
-            case .organization(let organization):
-                OrganizationDetailView(organization: organization)
             case .site(let id, let organizationId):
                 SiteView(organizationId: organizationId, siteId: id, embedsNavigation: false)
             case .release(let id):

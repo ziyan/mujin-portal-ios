@@ -13,6 +13,7 @@ enum MoreDestination: Hashable {
     case memoryPage(MemoryPageReference)
     case dreams
     case assistantSettings
+    case incidents
     case releases
     case release(String)
 }
@@ -38,11 +39,14 @@ struct MoreView: View {
                         HStack(spacing: 12) {
                             UserAvatar(userId: account.userId, name: account.displayName, hasAvatar: session.profile?.me.hasAvatar, modifiedAt: session.profile?.me.modifiedAt, size: 40)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(account.displayName).foregroundStyle(.primary)
-                                Text(account.server.displayHost).font(.footnote).foregroundStyle(.secondary)
+                                Text(account.displayName).foregroundStyle(Color.primary)
+                                Text(account.server.displayHost).font(.footnote).foregroundStyle(Color.secondary)
                             }
                         }
+                        .contentShape(Rectangle())
                     }
+                    // A row that opens something reads as a navigation row: plain text, not the accent a Button takes in a list.
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("accountsButton")
                 }
                 Section {
@@ -51,15 +55,17 @@ struct MoreView: View {
                     } label: {
                         HStack {
                             Label("Notifications", systemImage: "bell")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.primary)
                             Spacer()
                             if session.unreadCount > 0 {
                                 Text("\(session.unreadCount)")
                                     .font(.footnote.weight(.semibold))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.secondary)
                             }
                         }
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     NavigationLink(value: MoreDestination.notificationSettings) {
                         Label("Notification settings", systemImage: "gearshape")
                             .foregroundStyle(.primary)
@@ -92,6 +98,12 @@ struct MoreView: View {
                     }
                 }
                 Section {
+                    if session.isStaff {
+                        NavigationLink(value: MoreDestination.incidents) {
+                            Label("Incidents", systemImage: "exclamationmark.shield")
+                                .foregroundStyle(.primary)
+                        }
+                    }
                     NavigationLink(value: MoreDestination.releases) {
                         Label("Releases", systemImage: "shippingbox")
                             .foregroundStyle(.primary)
@@ -100,11 +112,15 @@ struct MoreView: View {
                         Label("About", systemImage: "info.circle")
                             .foregroundStyle(.primary)
                     }
-                    Button(role: .destructive) {
-                        isConfirmingSignOut = true
-                    } label: {
-                        Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                            .foregroundStyle(Color.statusError)
+                    if let exit = appModel.exitDemo {
+                        Button("Exit demo", action: exit)
+                    } else {
+                        Button(role: .destructive) {
+                            isConfirmingSignOut = true
+                        } label: {
+                            Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                                .foregroundStyle(Color.statusError)
+                        }
                     }
                     .confirmationDialog("Sign out of this account?", isPresented: $isConfirmingSignOut, titleVisibility: .visible) {
                         Button("Sign out of \(account.displayName)", role: .destructive) { Task { await appModel.remove(account) } }
@@ -130,6 +146,7 @@ struct MoreView: View {
                 case .memoryPage(let reference): MemoryPageView(reference: reference)
                 case .dreams: DreamsView()
                 case .assistantSettings: AssistantSettingsView()
+                case .incidents: IncidentsView()
                 case .releases: ReleasesView()
                 case .release(let id): ReleaseDetailView(releaseId: id)
                 }
@@ -150,6 +167,11 @@ struct MoreView: View {
                 guard isRequested else { return }
                 session.automationsRequested = false
                 path = NavigationPath([MoreDestination.automations])
+            }
+            .onChange(of: session.incidentsRequested, initial: true) { _, isRequested in
+                guard isRequested else { return }
+                session.incidentsRequested = false
+                path = NavigationPath([MoreDestination.incidents])
             }
             .onChange(of: session.goalToOpen, initial: true) { _, goalId in
                 guard let goalId else { return }

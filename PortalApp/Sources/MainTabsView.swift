@@ -4,24 +4,20 @@ import SwiftUI
 extension AppSection {
     var titleKey: LocalizedStringKey {
         switch self {
-        case .monitoring: "Monitoring"
         case .assistant: "Messages"
         case .chats: "Chats"
         case .tickets: "Tickets"
         case .site: "Sites"
-        case .customers: "Customers"
         case .more: "More"
         }
     }
 
     var symbol: String {
         switch self {
-        case .monitoring: "waveform.path.ecg"
         case .assistant: "sparkles"
         case .chats: "bubble.left.and.bubble.right"
         case .tickets: "tray.full"
         case .site: "building.2"
-        case .customers: "person.2"
         case .more: "ellipsis"
         }
     }
@@ -104,6 +100,26 @@ struct MainTabsView: View {
         }
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            // A demo entered from the welcome screen says so on every screen, with the way out.
+            if let exit = appModel.exitDemo {
+                HStack(spacing: 8) {
+                    Text("Demo")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.2), in: Capsule())
+                    Text("Nothing here is real.").font(.caption).foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Button("Exit demo", action: exit)
+                        .font(.caption.weight(.semibold))
+                        .accessibilityIdentifier("exitDemoButton")
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
+                .background(.bar)
+            }
+        }
         .environment(session)
         .sheet(isPresented: Binding(get: { session.isShowingNotifications }, set: { session.isShowingNotifications = $0 })) {
             NotificationsView()
@@ -126,6 +142,7 @@ struct MainTabsView: View {
 
 /// SectionContent is what one tab shows.
 private struct SectionContent: View {
+    @Environment(SessionModel.self) private var session
     let section: AppSection
     let account: Account
 
@@ -135,9 +152,7 @@ private struct SectionContent: View {
         case .chats: ConversationListView(account: account)
         case .more: MoreView(account: account)
         case .tickets: TicketsView()
-        case .site: SiteView()
-        case .monitoring: MonitoringView()
-        case .customers: CustomersView()
+        case .site: session.persona == .staff ? AnyView(StaffSitesView()) : AnyView(SiteView())
         }
     }
 }

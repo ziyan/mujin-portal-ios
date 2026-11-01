@@ -200,8 +200,16 @@ struct NotificationsView: View {
         case .ticket(let id):
             session.ticketToOpen = id
             session.selectedSection = .tickets
-        case .incident, .site:
-            session.selectedSection = session.isStaff ? .monitoring : .site
+        case .incident:
+            // Staff read incidents under More; customers see them on their site's page.
+            if session.isStaff {
+                session.incidentsRequested = true
+                session.selectedSection = .more
+            } else {
+                session.selectedSection = .site
+            }
+        case .site:
+            session.selectedSection = .site
         case .chat(let conversationId):
             session.chatToOpen = conversationId
             session.selectedSection = .assistant

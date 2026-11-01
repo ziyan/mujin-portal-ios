@@ -17,6 +17,18 @@ final class AppModel {
     let socketFactory: FeedSocketFactory
     let isDemo: Bool
 
+    /// The demo a person entered from the welcome screen, with its own fake server: nothing in it reaches a network host,
+    /// registers a push token or is kept as an account. While set, the app shows it in place of the real one.
+    var demoModel: AppModel?
+    /// Set on a demo entered at runtime: leaves it for the welcome screen.
+    var exitDemo: (() -> Void)?
+
+    func startDemo() {
+        let demo = DemoServer.makeModel(isSignedIn: true)
+        demo.exitDemo = { [weak self] in self?.demoModel = nil }
+        demoModel = demo
+    }
+
     private(set) var ring: AccountRing
     /// Why the last sign-in did not happen, in words for the person.
     var signInError: String?

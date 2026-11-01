@@ -96,6 +96,10 @@ struct SignInView: View {
         .onChange(of: model.accounts.count) { _, _ in
             if isAddingAccount { dismiss() }
         }
+        .task {
+            // The screenshot run enters the demo as a person does with a tap, which cannot be scripted there.
+            if model.isDemo, DemoOptions.screen == "demo-entered", !isAddingAccount { model.startDemo() }
+        }
     }
 
     @ViewBuilder
@@ -127,6 +131,13 @@ struct SignInView: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(palette.textMuted)
                 .disabled(model.isSigningIn)
+                if !isAddingAccount {
+                    Button("Try the demo") { model.startDemo() }
+                        .font(.subheadline)
+                        .foregroundStyle(palette.textMuted)
+                        .disabled(model.isSigningIn)
+                        .accessibilityIdentifier("tryDemoButton")
+                }
             } else {
                 TextField("https://portal.example.com", text: $serverText)
                     .textFieldStyle(.plain)

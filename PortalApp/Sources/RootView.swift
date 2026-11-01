@@ -2,6 +2,21 @@ import PortalKit
 import SwiftUI
 import UIKit
 
+/// AppRoot shows the real app, or the demo a person entered from the welcome screen in its place.
+struct AppRoot: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        if let demo = model.demoModel {
+            RootView()
+                .environment(demo)
+                .id(ObjectIdentifier(demo))
+        } else {
+            RootView()
+        }
+    }
+}
+
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase

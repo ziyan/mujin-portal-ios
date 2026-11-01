@@ -172,6 +172,7 @@ jobs:
           shoot chat-mention chat-mention
           shoot conversation-reply conversation-reply
           shoot welcome welcome
+          shoot demo-entered demo-entered
           shoot side-chat-links side-chat-links
           shoot ask ask
           shoot ask-site ask-site
@@ -198,7 +199,7 @@ jobs:
           shoot site-loading site-loading
           shoot notifications notifications
           shoot about about
-          shoot monitoring-staff section:monitoring staff
+          shoot sites-staff sites-staff staff
           shoot customers-staff section:customers staff
           shoot automations automations
           shoot automations-activity automations-activity
@@ -213,6 +214,8 @@ jobs:
           shoot assistant-settings assistant-settings
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
+          shoot demo-entered-dark demo-entered
+          shoot accounts-dark more
           shoot ask-site-dark ask-site
           shoot main-chat-dark main-chat
           shoot side-chat-links-dark side-chat-links
@@ -237,7 +240,8 @@ jobs:
           shoot knowledge-list-dark knowledge
           shoot release-tap-dark release-tap
           shoot notifications-dark notifications
-          shoot monitoring-staff-dark section:monitoring staff
+          shoot sites-staff-dark sites-staff staff
+          shoot incidents-staff incidents staff
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
@@ -250,7 +254,7 @@ jobs:
           shoot large-text-chat chat:chatconv01
           shoot large-text-speaks-first conversation:conversation06
           shoot large-text-goals goals
-          shoot large-text-monitoring section:monitoring staff
+          shoot large-text-sites-staff sites-staff staff
 
       - name: Keep the screenshots
         if: always()

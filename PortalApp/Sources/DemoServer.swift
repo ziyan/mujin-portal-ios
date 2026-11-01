@@ -423,9 +423,20 @@ struct DemoTransport: HTTPTransport {
         case "ListConversationMessages":
             return ["ListConversationMessages": state.withData { $0.messages[conversationId] ?? [] }]
         case "ListSites":
-            return ["ListSites": ["sites": [["id": "site01", "name": "site01", "organizationId": "organization01", "isArchived": false], ["id": "site02", "name": "site02", "organizationId": "organization01", "isArchived": false]]]]
+            let all: [[String: Any]] = [
+                ["id": "site01", "name": "site01", "organizationId": "organization01", "isArchived": false],
+                ["id": "site02", "name": "site02", "organizationId": "organization01", "isArchived": false],
+                ["id": "site03", "name": "Bakery line", "organizationId": "organization02", "isArchived": false],
+                ["id": "site04", "name": "Cold store", "organizationId": "organization02", "isArchived": false],
+                ["id": "site05", "name": "Lab cell", "organizationId": "organization00", "isArchived": false],
+                ["id": "site06", "name": "Retired yard", "organizationId": "organization02", "isArchived": true],
+            ]
+            // A customer sees its own organization's sites; a Mujin user sees them all, or one organization's when asked.
+            let scope = variables["organizationId"] as? String ?? (DemoOptions.isStaff ? nil : "organization01")
+            let shown = all.filter { scope == nil || ($0["organizationId"] as? String) == scope }
+            return ["ListSites": ["sites": shown, "meta": ["totalCount": shown.count]]]
         case "ListOrganizations":
-            return ["ListOrganizations": ["organizations": [["id": "organization01", "name": "Example Logistics", "isMujin": false, "isActive": true, "hasLogo": true, "modifiedAt": "2026-01-01T00:00:00Z"], ["id": "organization02", "name": "Sample Foods", "isMujin": false, "isActive": true]], "meta": ["totalCount": 2]]]
+            return ["ListOrganizations": ["organizations": [["id": "organization01", "name": "Example Logistics", "isMujin": false, "isActive": true, "hasLogo": true, "modifiedAt": "2026-01-01T00:00:00Z"], ["id": "organization02", "name": "Sample Foods", "isMujin": false, "isActive": true], ["id": "organization00", "name": "Support", "isMujin": true, "isActive": true]], "meta": ["totalCount": 2]]]
         case "GetUser":
             let names = ["user01": "Alex Example", "user02": "Sam Sample", "user03": "Robin Demo"]
             let userId = variables["userId"] as? String ?? ""

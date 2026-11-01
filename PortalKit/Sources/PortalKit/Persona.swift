@@ -18,12 +18,10 @@ public enum Persona: String, Equatable, Sendable {
 
 /// AppSection is one of the app's top-level places.
 public enum AppSection: String, CaseIterable, Identifiable, Sendable {
-    case monitoring
     case assistant
     case chats
     case tickets
     case site
-    case customers
     case more
 
     public var id: String { rawValue }
@@ -35,7 +33,7 @@ public enum Navigation {
     public static func sections(for persona: Persona) -> [AppSection] {
         switch persona {
         case .customer: [.assistant, .site, .tickets, .more]
-        case .staff: [.monitoring, .assistant, .tickets, .customers, .more]
+        case .staff: [.assistant, .tickets, .site, .more]
         }
     }
 

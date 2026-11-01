@@ -219,6 +219,7 @@ private struct ScheduleRow: View {
         }
         if let conversationId = occurrence.conversationId, !conversationId.isEmpty {
             Button { open(conversationId) } label: { content }
+                .buttonStyle(.plain)
         } else {
             content
         }

@@ -9,9 +9,9 @@ import Testing
         #expect(Navigation.home(for: .customer) == .assistant)
     }
 
-    @Test func mujinUsersGetMonitoringFirstAndCustomersInPlaceOfSite() {
-        #expect(Navigation.sections(for: .staff) == [.monitoring, .assistant, .tickets, .customers, .more])
-        #expect(Navigation.home(for: .staff) == .monitoring)
+    @Test func mujinUsersGetMessagesTicketsAllSitesAndMore() {
+        #expect(Navigation.sections(for: .staff) == [.assistant, .tickets, .site, .more])
+        #expect(Navigation.home(for: .staff) == .assistant)
     }
 
     @Test func noPersonaHasMoreThanFiveTabs() {

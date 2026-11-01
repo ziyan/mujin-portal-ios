@@ -115,7 +115,9 @@ public enum Documents {
         """
 
     public static let listSites = """
-        query ListSites($organizationId: String) { ListSites(organizationId: $organizationId) { sites { id name organizationId isArchived } } }
+        query ListSites($organizationId: String, $options: ListOptionsInput) {
+          ListSites(organizationId: $organizationId, options: $options) { sites { id name organizationId isArchived } meta { totalCount } }
+        }
         """
 
     public static let createTicket = """

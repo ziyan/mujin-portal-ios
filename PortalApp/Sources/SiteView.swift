@@ -194,11 +194,21 @@ struct SiteView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
     /// Limits the sites to one organization, for a Mujin user looking at a customer.
-    var organizationId: String?
-    /// A specific site, for a screen opened for that site: it never shows another.
-    var siteId: String?
-    var embedsNavigation = true
+    let organizationId: String?
+    /// A specific site, for a screen opened for that site. The switcher replaces it in place.
+    let siteId: String?
+    let embedsNavigation: Bool
 
+    init(organizationId: String? = nil, siteId: String? = nil, embedsNavigation: Bool = true) {
+        self.organizationId = organizationId
+        self.siteId = siteId
+        self.embedsNavigation = embedsNavigation
+        _activeOrganizationId = State(initialValue: organizationId)
+        _activeSiteId = State(initialValue: siteId)
+    }
+
+    @State private var activeOrganizationId: String?
+    @State private var activeSiteId: String?
     @State private var model: SiteModel?
     @State private var path: [PortalRoute] = []
 
@@ -210,6 +220,14 @@ struct SiteView: View {
         }
     }
 
+    /// The sites the switcher offers: every visible one for a Mujin user, the person's own organization's otherwise.
+    private func switcherGroups(_ model: SiteModel) -> [SiteGroup] {
+        if session.isStaff, !session.staffSites.sites.isEmpty {
+            return SiteGroups.group(session.staffSites.sites, organizationNames: session.staffSites.organizationNames)
+        }
+        return SiteGroups.group(model.sites, organizationNames: session.organizationNames)
+    }
+
     private var screen: some View {
         Group {
             if let model {
@@ -219,35 +237,27 @@ struct SiteView: View {
             }
         }
         .navigationTitle(model?.selectedSite?.name ?? String(localized: "Site"))
+        .navigationSubtitle(embedsNavigation ? "" : (session.organizationNames[activeOrganizationId ?? ""] ?? ""))
         .navigationBarTitleDisplayMode(.inline)
         // The site picker and the bell belong to the Sites tab; a site pushed from a customer has its name and the assistant.
         .toolbar {
             if embedsNavigation {
                 ToolbarItem(placement: .topBarLeading) { NotificationsBell() }
             }
-            if embedsNavigation, let model, model.sites.count > 1 {
-                // A menu of its own in the title's place: tapping the name or the chevron lists the sites.
+            if let model, switcherGroups(model).reduce(0, { $0 + $1.sites.count }) > 1 {
+                // The same switcher everywhere the site shows: tapping the name or the chevron lists the sites to switch to.
                 ToolbarItem(placement: .principal) {
-                    Menu {
-                        ForEach(model.sites) { site in
-                            Button {
-                                model.selectedSiteId = site.id
-                            } label: {
-                                if site.id == model.selectedSiteId {
-                                    Label(site.name ?? site.id, systemImage: "checkmark")
-                                } else {
-                                    Text(site.name ?? site.id)
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(model.selectedSite?.name ?? String(localized: "Site")).font(.headline)
-                            Image(systemName: "chevron.down.circle.fill").font(.footnote).foregroundStyle(.secondary)
+                    SiteSwitcher(
+                        title: model.selectedSite?.name ?? String(localized: "Site"), groups: switcherGroups(model), selectedSiteId: model.selectedSiteId
+                    ) { site in
+                        if siteId == nil {
+                            model.selectedSiteId = site.id
+                        } else {
+                            // A site opened for itself is replaced in place, without another screen on the stack.
+                            activeOrganizationId = site.organizationId
+                            activeSiteId = site.id
                         }
                     }
-                    .accessibilityIdentifier("siteSwitcher")
-                    .accessibilityLabel(Text("Change site"))
                 }
             }
             if let site = model?.selectedSite {
@@ -257,9 +267,10 @@ struct SiteView: View {
                 }
             }
         }
-        .task(id: [organizationId ?? "", siteId ?? ""]) {
+        .task(id: [activeOrganizationId ?? "", activeSiteId ?? ""]) {
             // The model is the session's, so it keeps what it loaded across a push and a pop or a switch of tabs.
-            let siteModel = session.siteModel(for: organizationId, siteId: siteId)
+            let siteModel = session.siteModel(for: activeOrganizationId, siteId: activeSiteId)
+            if session.isStaff { try? await session.loadStaffSites() }
             model = siteModel
             await siteModel.loadSites()
             if appModel.isDemo {

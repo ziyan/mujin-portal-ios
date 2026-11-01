@@ -205,14 +205,33 @@ public struct SiteSummary: Codable, Equatable, Identifiable, Sendable {
 extension Connection {
     /// The sites the person can open tickets for, by name.
     public func sites(organizationId: String? = nil) async throws -> [SiteSummary] {
+        let rows = try await allSites(organizationId: organizationId)
+        return rows.filter { $0.isArchived != true }.sorted { ($0.name ?? "").localizedCompare($1.name ?? "") == .orderedAscending }
+    }
+
+    /// Every site the person can see, archived ones included. The server answers in pages (50 by default, 200 at most), so
+    /// this asks page after page until the total it reports is reached or a page comes back empty.
+    public func allSites(organizationId: String? = nil, pageSize: Int = 200) async throws -> [SiteSummary] {
         struct Answer: Decodable, Sendable {
-            struct List: Decodable, Sendable { let sites: [SiteSummary]? }
+            struct Meta: Decodable, Sendable { let totalCount: Int? }
+            struct List: Decodable, Sendable {
+                let sites: [SiteSummary]?
+                let meta: Meta?
+            }
             let ListSites: List
         }
-        var variables: [String: JSONValue] = [:]
-        if let organizationId { variables["organizationId"] = .string(organizationId) }
-        let rows = try await execute(Documents.listSites, variables: variables, as: Answer.self).ListSites.sites ?? []
-        return rows.filter { $0.isArchived != true }.sorted { ($0.name ?? "").localizedCompare($1.name ?? "") == .orderedAscending }
+        var collected: [SiteSummary] = []
+        while true {
+            var variables: [String: JSONValue] = ["options": .object(["first": .number(Double(pageSize)), "after": .number(Double(collected.count))])]
+            if let organizationId { variables["organizationId"] = .string(organizationId) }
+            let list = try await execute(Documents.listSites, variables: variables, as: Answer.self).ListSites
+            let page = list.sites ?? []
+            collected += page
+            if page.isEmpty { break }
+            if let total = list.meta?.totalCount, collected.count >= total { break }
+            if page.count < pageSize, list.meta?.totalCount == nil { break }
+        }
+        return collected
     }
 
     /// Opens a ticket and returns its id. `priority` is one of low, normal, high, urgent.

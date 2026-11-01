@@ -20,17 +20,20 @@ struct AccountsView: View {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: account.accountKey == model.activeAccount?.accountKey ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(account.accountKey == model.activeAccount?.accountKey ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                                    .foregroundStyle(account.accountKey == model.activeAccount?.accountKey ? Color.accentColor : Color.secondary)
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(account.displayName)
-                                        .foregroundStyle(.primary)
+                                        .foregroundStyle(Color.primary)
                                     Text(account.server.displayHost)
                                         .font(.footnote)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.secondary)
                                 }
+                                Spacer(minLength: 0)
                             }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                         .accessibilityAddTraits(account.accountKey == model.activeAccount?.accountKey ? .isSelected : [])
                         .swipeActions {
                             Button("Sign out", role: .destructive) { accountToRemove = account }
@@ -38,10 +41,17 @@ struct AccountsView: View {
                     }
                 }
                 Section {
-                    Button {
-                        isAdding = true
-                    } label: {
-                        Label("Add account", systemImage: "plus.circle")
+                    if let exit = model.exitDemo {
+                        Button("Exit demo") {
+                            dismiss()
+                            exit()
+                        }
+                    } else {
+                        Button {
+                            isAdding = true
+                        } label: {
+                            Label("Add account", systemImage: "plus.circle")
+                        }
                     }
                 }
             } }

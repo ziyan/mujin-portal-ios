@@ -8,7 +8,7 @@ struct PortalApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            AppRoot()
                 .environment(model)
         }
     }
