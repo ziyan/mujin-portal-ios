@@ -22,7 +22,7 @@ enum DemoServer {
         let state = DemoState()
         return AppModel(
             store: store, transport: DemoTransport(state: state),
-            socketFactory: { _, _ in DemoSocket(state: state) }, isDemo: true)
+            socketFactory: { _, _ in DemoSocket(state: state) }, cameraSocketFactory: { url, _ in DemoCameraSocket(url: url) }, isDemo: true)
     }
 }
 
@@ -327,6 +327,9 @@ struct DemoTransport: HTTPTransport {
     let state: DemoState
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        if let path = request.url?.path, path.hasPrefix("/api/v1/unifiprotect/") {
+            return DemoCameraPaths.respond(to: request)
+        }
         if let path = request.url?.path, path.hasPrefix("/api/v1/user/") || path.hasPrefix("/api/v1/organization/") || path.hasPrefix("/api/v1/attachment/") {
             // Two demo people and one organization have a picture; everyone else gets a 404 and keeps their initials.
             let image = DemoPictures.jpeg(forPath: path)
@@ -553,6 +556,8 @@ struct DemoTransport: HTTPTransport {
                     ], "meta": ["totalCount": 2],
                 ]
             ]
+        case "ListCameras", "GetCamera", "ListIncidentCameras":
+            return DemoCameras.respond(operation: operation, variables: variables) ?? [:]
         case "ListIncidentEvidence":
             return ["ListIncidentEvidence": ["incidentEvidence": [["attachmentId": "attachment10", "contentType": "image/jpeg", "filename": "frame-001.jpg", "role": "frame"]]]]
         case "TransitionIncident":
@@ -978,19 +983,25 @@ enum DemoPictures {
         }
     }
 
+    /// The still picture of one of the demo site's cameras: the same invented pick station with the boxes in another color and the gripper
+    /// in another place for each.
+    static func cameraFrame(variant: Int) -> Data { camera(variant: variant) }
+
     /// A camera frame of a pick station, drawn from shapes: a belt, boxes and a gripper.
-    private static func camera() -> Data {
+    private static func camera(variant: Int = 0) -> Data {
+        let boxColors: [UIColor] = [.systemOrange, .systemTeal, .systemYellow, .systemPink]
         let size = CGSize(width: 800, height: 520)
         return UIGraphicsImageRenderer(size: size).jpegData(withCompressionQuality: 0.85) { _ in
             UIColor(red: 0.16, green: 0.2, blue: 0.26, alpha: 1).setFill()
             UIBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
             UIColor(red: 0.28, green: 0.32, blue: 0.38, alpha: 1).setFill()
             UIBezierPath(rect: CGRect(x: 0, y: 360, width: 800, height: 160)).fill()
-            UIColor.systemOrange.setFill()
+            boxColors[variant % boxColors.count].setFill()
             for index in 0..<4 { UIBezierPath(roundedRect: CGRect(x: 60 + CGFloat(index) * 180, y: 300, width: 120, height: 90), cornerRadius: 6).fill() }
             UIColor(white: 0.85, alpha: 1).setFill()
-            UIBezierPath(rect: CGRect(x: 380, y: 0, width: 30, height: 190)).fill()
-            UIBezierPath(roundedRect: CGRect(x: 350, y: 180, width: 90, height: 40), cornerRadius: 8).fill()
+            let shift = CGFloat(variant % 4) * 70 - 100
+            UIBezierPath(rect: CGRect(x: 380 + shift, y: 0, width: 30, height: 190)).fill()
+            UIBezierPath(roundedRect: CGRect(x: 350 + shift, y: 180, width: 90, height: 40), cornerRadius: 8).fill()
             UIColor.systemTeal.setStroke()
             let frame = UIBezierPath(rect: CGRect(x: 20, y: 20, width: 760, height: 480))
             frame.lineWidth = 3

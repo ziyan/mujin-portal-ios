@@ -19,7 +19,7 @@ flag (falling back to the permissions):
 | Assistant | Assistant | Conversations, search, "Waiting for you", reactions, artifacts, automations under More |
 | Chats | | Placeholder until the server lists chat operations |
 | Tickets | Tickets | List by status, thread, replies with photos and files, create |
-| Site | | Alarms, robots, controllers, incidents with evidence |
+| Site | | Alarms, robots, controllers, cameras, incidents with evidence and recording |
 | | Monitoring | Ticket queue across organizations and recent incidents |
 | | Customers | Organization picker, then its sites and tickets |
 | More | More | Notifications, settings, automations, about, sign out |
@@ -27,6 +27,17 @@ flag (falling back to the permissions):
 On a wide iPad window the tabs become a sidebar. Features that depend on a
 newer server are built against its contract and shown only when the server
 offers the operation (`ServerCapabilities` reads the schema once per sign-in).
+
+## Cameras
+
+A site with cameras lists them on the Site tab; each opens live video, and an incident plays the
+recording from just before it was detected. Video is decoded by the system, not a web view: the
+camera's fragmented MP4 stream (H.264 or H.265) is cut into frames by PortalKit and shown by an
+`AVSampleBufferDisplayLayer`, whose clock gives pause and speed. The timeline, the date jump and
+shared clips use the NVR's own clock and say so. Recorded playback uses the controller's playback
+websocket when it has one (found with a probe that expects a 400) and downloads clips from
+`video/export` when it does not. The demo server plays a generated test pattern
+(`PortalApp/Resources/DemoCamera.mp4`, made with a software encoder; nothing recorded by a camera).
 
 ## Layout
 

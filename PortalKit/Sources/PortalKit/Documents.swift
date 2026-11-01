@@ -189,6 +189,7 @@ public enum Documents {
         documents += siteOverviewDocuments
         documents += siteResourceDocuments
         documents += releaseDocuments
+        documents += cameraDocuments
         return documents
     }
 }
