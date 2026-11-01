@@ -181,3 +181,46 @@ public enum ControllerLive {
         incidents.filter { $0.controllerId == controllerId }
     }
 }
+
+public enum ControllerLinkAccess {
+    /// The server lets a holder of `controller:link` over the caller's organization approve a link (an administrator holds it), and
+    /// choosing a site needs `site:assign` as well.
+    public static func canOffer(permissions: [String]) -> Bool {
+        permissions.contains("controller:link") || permissions.contains("organization:operate-all") || permissions.contains("platform:administer")
+    }
+
+    /// A code a person types: the spaces dropped, upper case, so it matches what the controller shows.
+    public static func normalized(_ code: String) -> String {
+        code.filter { !$0.isWhitespace }.uppercased()
+    }
+}
+
+extension Documents {
+    public static let retrieveControllerLink = """
+        query RetrieveControllerLink($code: String) {
+          RetrieveControllerLink(code: $code) { id comment siteId organizationId region releaseId releaseImageId viewerCapabilities }
+        }
+        """
+
+    public static let approveControllerLink = """
+        mutation ApproveControllerLink($code: String, $siteId: String) {
+          ApproveControllerLink(code: $code, siteId: $siteId) { controller { id comment siteId organizationId } }
+        }
+        """
+
+    static var controllerLinkDocuments: [String] { [retrieveControllerLink, approveControllerLink] }
+}
+
+extension Connection {
+    /// The controller waiting behind a link code, or nil when no controller is waiting for it.
+    public func controllerLink(code: String) async throws -> ControllerSummary? {
+        struct Answer: Decodable, Sendable { let RetrieveControllerLink: ControllerSummary? }
+        return try await execute(Documents.retrieveControllerLink, variables: ["code": .string(ControllerLinkAccess.normalized(code))], as: Answer.self).RetrieveControllerLink
+    }
+
+    public func approveControllerLink(code: String, siteId: String?) async throws {
+        var variables: [String: JSONValue] = ["code": .string(ControllerLinkAccess.normalized(code))]
+        if let siteId, !siteId.isEmpty { variables["siteId"] = .string(siteId) }
+        _ = try await execute(Documents.approveControllerLink, variables: variables, as: JSONValue.self)
+    }
+}

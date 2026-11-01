@@ -16,6 +16,7 @@ struct StaffSitesView: View {
     @State private var phase = LoadPhase.loading
     @State private var searchText = ""
     @State private var path: [PortalRoute] = []
+    @State private var isLinking = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -25,6 +26,14 @@ struct StaffSitesView: View {
             .navigationTitle("Sites")
             .portalDestinations()
             .notificationsBell()
+            .toolbar {
+                if ControllerLinkAccess.canOffer(permissions: session.profile?.me.permissions ?? []) {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { isLinking = true } label: { Label("Link a controller", systemImage: "link.badge.plus") }
+                    }
+                }
+            }
+            .sheet(isPresented: $isLinking) { LinkControllerView() }
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search sites")
             .task {
                 await load()

@@ -111,3 +111,26 @@ import Testing
         #expect(sent[1]["variables"]?["alarmSubscriptionId"]?.stringValue == "a1")
     }
 }
+
+@Suite struct ControllerLinkApprovalTests {
+    @Test func theCodeIsNormalizedAndTheOfferFollowsThePermissions() {
+        #expect(ControllerLinkAccess.normalized(" ab12 cd34 ") == "AB12CD34")
+        #expect(ControllerLinkAccess.canOffer(permissions: ["controller:link"]))
+        #expect(!ControllerLinkAccess.canOffer(permissions: ["site:assign"]))
+    }
+
+    @Test func approvingSendsTheCodeAndTheSite() async throws {
+        let bodies = Guarded<[JSONValue]>([])
+        let transport = ScriptedTransport { request in
+            bodies.withValue { $0.append((try? JSONDecoder().decode(JSONValue.self, from: request.httpBody ?? Data())) ?? .null) }
+            return (200, ScriptedTransport.json(["data": ["ApproveControllerLink": ["controller": ["id": "c1"]]]]))
+        }
+        let account = Account(
+            server: try ServerAddress("https://portal.example.test"), clientId: "client01", userId: "user01", displayName: "Alex", email: "alex@example.test",
+            accessToken: "token", refreshToken: "refresh", accessTokenExpiresAt: Date().addingTimeInterval(3600))
+        try await Connection(account: account, transport: transport).approveControllerLink(code: "ab12 cd34", siteId: "site01")
+        let sent = bodies.withValue { $0 }
+        #expect(sent[0]["variables"]?["code"]?.stringValue == "AB12CD34")
+        #expect(sent[0]["variables"]?["siteId"]?.stringValue == "site01")
+    }
+}

@@ -196,6 +196,7 @@ public enum Documents {
         documents += controllerManagementDocuments
         documents += alarmSubscriptionDocuments
         documents += virtualControllerListDocuments
+        documents += controllerLinkDocuments
         return documents
     }
 }
