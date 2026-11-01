@@ -391,11 +391,11 @@ struct DemoTransport: HTTPTransport {
                 "ListMessageLinkPreviews": ids.compactMap { id -> [String: Any]? in
                     switch id {
                     case "c2":
-                        return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash01", "linkKind": "ticket", "resourceId": "ticket01", "title": "#1 Gripper drops boxes at pick station 3", "description": "Open, high priority", "siteName": "Ticket", "statusText": "Open", "path": "/ticket/1"]]]
+                        return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash01", "linkKind": "ticket", "resourceId": "ticket01", "title": "Gripper drops boxes at pick station 3", "description": "Ticket #1", "statusText": "open", "path": "/ticket/1"]]]
                     case "sc1":
                         return ["messageId": id, "isPending": false, "linkPreviews": [
                             ["urlHash": "hash03", "linkKind": "external", "url": "https://example.test/docs/suction", "title": "Suction cup checklist", "description": "Steps to check hoses, seals and pressure before a shift.", "siteName": "example.test"],
-                            ["urlHash": "hash04", "linkKind": "ticket", "resourceId": "ticket01", "title": "#1 Gripper drops boxes at pick station 3", "description": "Open, high priority", "siteName": "Ticket", "statusText": "Open", "path": "/ticket/1"],
+                            ["urlHash": "hash04", "linkKind": "ticket", "resourceId": "ticket01", "title": "Gripper drops boxes at pick station 3", "description": "Ticket #1", "statusText": "open", "path": "/ticket/1"],
                         ]]
                     case "c3":
                         return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash02", "linkKind": "external", "url": "https://example.test/docs/suction", "title": "Suction cup checklist", "description": "Steps to check hoses, seals and pressure before a shift.", "siteName": "example.test"]]]

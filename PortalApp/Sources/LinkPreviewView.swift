@@ -25,18 +25,20 @@ struct LinkPreviewCardView: View {
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 3) {
-                Text(card.siteName ?? hostText)
+                Text(labelText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 if let title = card.title, !title.isEmpty {
                     Text(title).font(.subheadline.weight(.semibold)).lineLimit(2)
                 }
-                if let description = card.description, !description.isEmpty {
+                if card.isExternal, let description = card.description, !description.isEmpty {
                     Text(description).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
                 }
-                if let status = card.statusText, !status.isEmpty {
-                    Text(status).font(.caption).foregroundStyle(.secondary)
+                if !card.isExternal, let status = card.statusText, !status.isEmpty {
+                    Text(card.linkKind == "ticket" ? TicketText.status(status) : status)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -59,6 +61,14 @@ struct LinkPreviewCardView: View {
             guard !appModel.isDemo, let path = card.imageUrl, path.hasPrefix("/api/") else { return }
             imageData = try? await connection.fetch(path: path)
         }
+    }
+
+    /// labelText is the small line above the title: the site an outside page
+    /// came from, or for a Portal link what it is ("Ticket #12"), the same as
+    /// the web card.
+    private var labelText: String {
+        if card.isExternal { return card.siteName ?? hostText }
+        return card.description ?? ""
     }
 
     private var hostText: String {
