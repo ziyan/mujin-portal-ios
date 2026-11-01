@@ -593,6 +593,10 @@ struct DemoTransport: HTTPTransport {
             return ["RetrieveControllerLink": ["id": "controller09", "comment": "New pick station", "viewerCapabilities": []]]
         case "ApproveControllerLink":
             return ["ApproveControllerLink": ["controller": ["id": "controller09"]]]
+        case "GetControllerSettings":
+            return ["GetController": ["id": "controller01", "isSyncEnabled": true, "syncIntervalSeconds": 3_600, "isBackupEnabled": true, "backupIntervalSeconds": 86_400]]
+        case "SetControllerSyncSettings", "SetControllerBackupSettings":
+            return [operation: ["controller": ["id": "controller01"]]]
         case "ListSiteVirtualControllers":
             let rows = state.withData { data -> [[String: Any]] in data.isVirtualControllerDestroyed ? [] : [Self.virtualControllerRow(data)] }
             return ["ListVirtualControllers": ["virtualControllers": rows]]

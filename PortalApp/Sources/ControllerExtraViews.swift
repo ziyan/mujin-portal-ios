@@ -96,6 +96,11 @@ struct ControllerExtras: View {
                     if canMove {
                         Button { isMoving = true } label: { Label("Move to another site", systemImage: "arrow.right.square") }
                     }
+                    if controller.canEdit {
+                        NavigationLink(value: PortalRoute.controllerSettings(controller)) {
+                            Label("Controller settings", systemImage: "gearshape").foregroundStyle(.primary)
+                        }
+                    }
                     if controller.canEdit || controller.canDeleteBackups {
                         NavigationLink(value: PortalRoute.controllerBackups(controller)) {
                             Label("Backups", systemImage: "externaldrive").foregroundStyle(.primary)

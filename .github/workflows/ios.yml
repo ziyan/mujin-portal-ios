@@ -188,6 +188,7 @@ jobs:
           shoot controller controller
           shoot virtual-controller virtual-controller
           shoot controller-backups controller-backups
+          shoot controller-settings controller-settings
           shoot virtual-controller-snapshots virtual-controller-snapshots
           shoot virtual-controller-create virtual-controller-create
           shoot controller-screen controller-screen

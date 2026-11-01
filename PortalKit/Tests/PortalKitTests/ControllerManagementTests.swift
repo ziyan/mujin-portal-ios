@@ -134,3 +134,11 @@ import Testing
         #expect(sent[0]["variables"]?["siteId"]?.stringValue == "site01")
     }
 }
+
+@Suite struct ControllerSettingsTests {
+    @Test func aValueTheServerHoldsShowsAsTheNearestChoice() {
+        #expect(ControllerSettings.nearestChoice(to: 3_000) == 3_600)
+        #expect(ControllerSettings.nearestChoice(to: 400_000) == 604_800)
+        #expect(ControllerSettings.nearestChoice(to: nil) == 3_600)
+    }
+}

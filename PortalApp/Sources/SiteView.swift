@@ -281,6 +281,10 @@ struct SiteView: View {
             if appModel.isDemo {
                 if DemoOptions.screen == "incident", let incident = siteModel.incidents.first { path.append(.incident(incident)) }
                 if DemoOptions.screen == "controller" || DemoOptions.screen == "controller-screen", let controller = siteModel.controllers.first { path.append(.controller(controller)) }
+                if DemoOptions.screen == "controller-settings", let controller = siteModel.controllers.first {
+                    path.append(.controller(controller))
+                    path.append(.controllerSettings(controller))
+                }
                 if DemoOptions.screen == "controller-backups", let controller = siteModel.controllers.first {
                     path.append(.controller(controller))
                     path.append(.controllerBackups(controller))

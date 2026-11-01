@@ -224,3 +224,68 @@ extension Connection {
         _ = try await execute(Documents.approveControllerLink, variables: variables, as: JSONValue.self)
     }
 }
+
+/// ControllerSettings is how a controller is copied to Portal and backed up.
+public struct ControllerSettings: Decodable, Equatable, Sendable {
+    public var isSyncEnabled: Bool?
+    public var syncIntervalSeconds: Int64?
+    public var isBackupEnabled: Bool?
+    public var backupIntervalSeconds: Int64?
+
+    public init(isSyncEnabled: Bool? = nil, syncIntervalSeconds: Int64? = nil, isBackupEnabled: Bool? = nil, backupIntervalSeconds: Int64? = nil) {
+        self.isSyncEnabled = isSyncEnabled
+        self.syncIntervalSeconds = syncIntervalSeconds
+        self.isBackupEnabled = isBackupEnabled
+        self.backupIntervalSeconds = backupIntervalSeconds
+    }
+
+    /// The intervals the pickers offer, in seconds: five minutes, an hour, six hours, a day, a week.
+    public static let intervalChoices: [Int64] = [300, 3_600, 21_600, 86_400, 604_800]
+
+    /// The nearest offered interval, so a value the server holds that the pickers do not list still shows as chosen.
+    public static func nearestChoice(to seconds: Int64?) -> Int64 {
+        guard let seconds else { return intervalChoices[1] }
+        return intervalChoices.min { abs($0 - seconds) < abs($1 - seconds) } ?? intervalChoices[1]
+    }
+}
+
+extension Documents {
+    public static let getControllerSettings = """
+        query GetControllerSettings($controllerId: String) {
+          GetController(controllerId: $controllerId) { id isSyncEnabled syncIntervalSeconds isBackupEnabled backupIntervalSeconds }
+        }
+        """
+
+    public static let setControllerSyncSettings = """
+        mutation SetControllerSyncSettings($controllerId: String, $isSyncEnabled: Boolean, $syncIntervalSeconds: Int64) {
+          SetControllerSyncSettings(controllerId: $controllerId, isSyncEnabled: $isSyncEnabled, syncIntervalSeconds: $syncIntervalSeconds) { controller { id isSyncEnabled syncIntervalSeconds } }
+        }
+        """
+
+    public static let setControllerBackupSettings = """
+        mutation SetControllerBackupSettings($controllerId: String, $isBackupEnabled: Boolean, $backupIntervalSeconds: Int64) {
+          SetControllerBackupSettings(controllerId: $controllerId, isBackupEnabled: $isBackupEnabled, backupIntervalSeconds: $backupIntervalSeconds) { controller { id isBackupEnabled backupIntervalSeconds } }
+        }
+        """
+
+    static var controllerSettingsDocuments: [String] { [getControllerSettings, setControllerSyncSettings, setControllerBackupSettings] }
+}
+
+extension Connection {
+    public func controllerSettings(id: String) async throws -> ControllerSettings {
+        struct Answer: Decodable, Sendable { let GetController: ControllerSettings? }
+        return try await execute(Documents.getControllerSettings, variables: ["controllerId": .string(id)], as: Answer.self).GetController ?? ControllerSettings()
+    }
+
+    public func setSyncSettings(id: String, isEnabled: Bool, intervalSeconds: Int64) async throws {
+        _ = try await execute(
+            Documents.setControllerSyncSettings,
+            variables: ["controllerId": .string(id), "isSyncEnabled": .bool(isEnabled), "syncIntervalSeconds": .number(Double(intervalSeconds))], as: JSONValue.self)
+    }
+
+    public func setBackupSettings(id: String, isEnabled: Bool, intervalSeconds: Int64) async throws {
+        _ = try await execute(
+            Documents.setControllerBackupSettings,
+            variables: ["controllerId": .string(id), "isBackupEnabled": .bool(isEnabled), "backupIntervalSeconds": .number(Double(intervalSeconds))], as: JSONValue.self)
+    }
+}

@@ -197,6 +197,7 @@ public enum Documents {
         documents += alarmSubscriptionDocuments
         documents += virtualControllerListDocuments
         documents += controllerLinkDocuments
+        documents += controllerSettingsDocuments
         return documents
     }
 }
