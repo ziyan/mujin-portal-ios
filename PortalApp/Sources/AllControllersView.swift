@@ -8,6 +8,8 @@ struct AllControllersView: View {
     @State private var controllers: [ControllerSummary] = []
     @State private var phase = LoadPhase.loading
     @State private var filter = ControllerFilter()
+    @State private var cells: [SiteCell] = []
+    @State private var cellId: String?
 
     private var siteNames: [String: String] {
         Dictionary(session.staffSites.sites.map { ($0.id, $0.name ?? $0.id) }, uniquingKeysWith: { first, _ in first })
@@ -55,6 +57,12 @@ struct AllControllersView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    if !cells.isEmpty {
+                        Picker("Cell", selection: $cellId) {
+                            Text("All cells").tag(String?.none)
+                            ForEach(cells) { cell in Text(cell.name ?? cell.id).tag(Optional(cell.id)) }
+                        }
+                    }
                     Picker("Site", selection: $filter.siteId) {
                         Text("All sites").tag(String?.none)
                         ForEach(session.staffSites.sites.filter { $0.isArchived != true }.sorted { ($0.name ?? $0.id) < ($1.name ?? $1.id) }) { site in
@@ -69,6 +77,16 @@ struct AllControllersView: View {
         .task {
             try? await session.loadStaffSites()
             await load()
+        }
+        // The cells of the chosen site narrow the list further.
+        .task(id: filter.siteId) {
+            cellId = nil
+            filter.cellControllerIds = nil
+            guard let siteId = filter.siteId else { cells = []; return }
+            cells = (try? await appModel.connection(for: session.account).cells(siteId: siteId)) ?? []
+        }
+        .onChange(of: cellId) { _, id in
+            filter.cellControllerIds = id.flatMap { id in cells.first { $0.id == id } }.map { Set($0.controllerIds ?? []) }
         }
     }
 

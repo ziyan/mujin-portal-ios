@@ -13,6 +13,7 @@ struct ControllerExtras: View {
     @State private var orchestrators: SiteOrchestrators?
     @State private var robots: [SiteRobots.Robot] = []
     @State private var incidents: [IncidentSummary] = []
+    @State private var tickets: [Ticket] = []
     @State private var telemetry: SiteTelemetry?
     @State private var syncProgress: [ControllerSyncProgress] = []
     @State private var isEditingComment = false
@@ -64,6 +65,13 @@ struct ControllerExtras: View {
                 Section("Incidents") {
                     ForEach(incidents.prefix(5)) { incident in
                         NavigationLink(value: PortalRoute.incident(incident)) { SiteRows.incident(incident) }
+                    }
+                }
+            }
+            if !tickets.isEmpty {
+                Section("Tickets") {
+                    ForEach(tickets.prefix(5)) { ticket in
+                        NavigationLink(value: PortalRoute.ticket(id: ticket.id)) { TicketRow(ticket: ticket) }
                     }
                 }
             }
@@ -132,6 +140,7 @@ struct ControllerExtras: View {
         }
         if let all = try? await connection.incidents(organizationId: controller.organizationId) { incidents = ControllerLive.incidents(all, controllerId: controller.id) }
         telemetry = try? await connection.siteTelemetry(controllerIds: [controller.id])
+        tickets = (try? await connection.tickets(controllerId: controller.id, first: 20)) ?? []
         syncProgress = (try? await connection.syncProgress(controllerId: controller.id)) ?? []
     }
 

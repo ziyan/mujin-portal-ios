@@ -5,7 +5,28 @@ import SwiftUI
 struct AlarmSubscriptionsView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
-    let controller: ControllerSummary
+    /// The controller or virtual controller the page is for; exactly one is set.
+    let controllerId: String?
+    let virtualControllerId: String?
+    let name: String
+
+    init(controller: ControllerSummary) {
+        controllerId = controller.id
+        virtualControllerId = nil
+        name = controller.displayName
+    }
+
+    init(virtual: VirtualControllerSummary) {
+        controllerId = nil
+        virtualControllerId = virtual.id
+        name = virtual.displayName
+    }
+
+    private func covers(_ subscription: AlarmSubscription) -> Bool {
+        if let controllerId { return subscription.covers(controllerId: controllerId) }
+        if let virtualControllerId { return subscription.covers(virtualControllerId: virtualControllerId) }
+        return false
+    }
     @State private var subscriptions: [AlarmSubscription] = []
     @State private var phase = LoadPhase.loading
     @State private var errorText: String?
@@ -36,7 +57,7 @@ struct AlarmSubscriptionsView: View {
                                     Text(subscription.shownName).foregroundStyle(.primary)
                                     HStack(spacing: 6) {
                                         Text(LocalizedStringKey((subscription.minimumAlarmLevel ?? "error").capitalized))
-                                        if subscription.covers(controllerId: controller.id) { Text("This controller") }
+                                        if covers(subscription) { Text("This one") }
                                     }
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
@@ -46,7 +67,7 @@ struct AlarmSubscriptionsView: View {
                         }
                     }
                     Section {
-                        Button { isCreating = true } label: { Label("Subscribe to this controller", systemImage: "bell.badge") }
+                        Button { isCreating = true } label: { Label("Subscribe to alarms here", systemImage: "bell.badge") }
                     }
                 } }
                 .portalList()
@@ -56,7 +77,7 @@ struct AlarmSubscriptionsView: View {
         .navigationTitle("Alarm subscriptions")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)
-        .confirmationDialog("Notify me about this controller from", isPresented: $isCreating, titleVisibility: .visible) {
+        .confirmationDialog("Notify me about alarms from", isPresented: $isCreating, titleVisibility: .visible) {
             ForEach(AlarmSubscription.levels, id: \.self) { level in
                 Button(level.capitalized) { Task { await create(level: level) } }
             }
@@ -78,7 +99,7 @@ struct AlarmSubscriptionsView: View {
     }
 
     private func create(level: String) async {
-        await run { try await $0.createAlarmSubscription(name: controller.displayName, minimumAlarmLevel: level, controllerIds: [controller.id]) }
+        await run { try await $0.createAlarmSubscription(name: name, minimumAlarmLevel: level, controllerIds: controllerId.map { [$0] } ?? [], virtualControllerIds: virtualControllerId.map { [$0] } ?? []) }
     }
 
     private func set(_ subscription: AlarmSubscription, isEnabled: Bool) async {

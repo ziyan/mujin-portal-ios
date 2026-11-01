@@ -81,6 +81,7 @@ import Testing
         let names = ["site01": "Riverside depot", "site02": "Hillcrest hub"]
         #expect(ControllerFilter(query: "hillcrest").apply(all, siteNames: names).count == 225)
         #expect(ControllerFilter(query: "Line 7", siteId: "site02").apply(all, siteNames: names).count == 1 + 5)
+        #expect(ControllerFilter(cellControllerIds: ["controller1", "controller2"]).apply(all, siteNames: names).map(\.id) == ["controller1", "controller2"])
     }
 }
 

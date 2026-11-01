@@ -106,3 +106,27 @@ import Testing
         #expect(VirtualControllerFilter(siteId: "s1").apply(rows, siteNames: names).map(\.id) == ["v1"])
     }
 }
+
+@Suite struct VirtualControllerLiveTests {
+    @Test func alarmsComeWorstFirstAndTicketsAreAskedForByVirtualController() async throws {
+        let bodies = Guarded<[JSONValue]>([])
+        let transport = ScriptedTransport { request in
+            let body = (try? JSONDecoder().decode(JSONValue.self, from: request.httpBody ?? Data())) ?? .null
+            bodies.withValue { $0.append(body) }
+            if body["query"]?.stringValue?.contains("ListControllerActiveAlarms") == true {
+                return (200, ScriptedTransport.json(["data": ["ListControllerActiveAlarms": ["alarms": [
+                    ["alarmLevel": "warning", "alarmMessage": "Slow", "alarmStatus": "active"], ["alarmLevel": "critical", "alarmMessage": "Stopped", "alarmStatus": "active"],
+                ]]]]))
+            }
+            return (200, ScriptedTransport.json(["data": ["ListTickets": ["tickets": [], "meta": ["totalCount": 0]]]]))
+        }
+        let account = Account(
+            server: try ServerAddress("https://portal.example.test"), clientId: "client01", userId: "user01", displayName: "Alex", email: "alex@example.test",
+            accessToken: "token", refreshToken: "refresh", accessTokenExpiresAt: Date().addingTimeInterval(3600))
+        let connection = Connection(account: account, transport: transport)
+        let alarms = try await connection.virtualControllerAlarms(id: "vc01")
+        #expect(alarms.map(\.message) == ["Stopped", "Slow"])
+        _ = try await connection.tickets(virtualControllerId: "vc01")
+        #expect(bodies.withValue { $0.last }?["variables"]?["virtualControllerId"]?.stringValue == "vc01")
+    }
+}

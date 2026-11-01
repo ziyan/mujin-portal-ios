@@ -23,6 +23,7 @@ enum PortalRoute: Hashable {
     case allVirtualControllers
     case alarmSubscriptions(ControllerSummary)
     case controllerSettings(ControllerSummary)
+    case virtualAlarmSubscriptions(VirtualControllerSummary)
     /// A camera, live or at a moment of its recording.
     case camera(CameraTarget)
 }
@@ -77,6 +78,8 @@ private struct PortalDestinations: ViewModifier {
                 AlarmSubscriptionsView(controller: controller)
             case .controllerSettings(let controller):
                 ControllerSettingsView(controller: controller)
+            case .virtualAlarmSubscriptions(let virtual):
+                AlarmSubscriptionsView(virtual: virtual)
             case .camera(let target):
                 CameraDetailView(target: target)
             }

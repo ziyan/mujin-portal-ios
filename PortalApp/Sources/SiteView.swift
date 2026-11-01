@@ -957,6 +957,7 @@ struct VirtualControllerDetailView: View {
                     }
                 }
             }
+            VirtualControllerLive(virtual: virtual)
             Section {
                 row(virtual.webEntry(server: server), title: "Open the web UI", systemImage: "safari") { openURL($0) }
                 row(virtual.screenEntry(server: server), title: "Screen", systemImage: "display") { url in

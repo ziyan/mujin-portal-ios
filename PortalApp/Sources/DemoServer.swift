@@ -597,6 +597,8 @@ struct DemoTransport: HTTPTransport {
             return ["GetController": ["id": "controller01", "isSyncEnabled": true, "syncIntervalSeconds": 3_600, "isBackupEnabled": true, "backupIntervalSeconds": 86_400]]
         case "SetControllerSyncSettings", "SetControllerBackupSettings":
             return [operation: ["controller": ["id": "controller01"]]]
+        case "ListVirtualControllerAlarms":
+            return ["ListControllerActiveAlarms": ["alarms": [["alarmLevel": "warning", "alarmMessage": "Disk usage above 80 percent", "alarmStatus": "active", "occurredAt": "2026-10-31T08:00:00Z"]]]]
         case "ListSiteVirtualControllers":
             let rows = state.withData { data -> [[String: Any]] in data.isVirtualControllerDestroyed ? [] : [Self.virtualControllerRow(data)] }
             return ["ListVirtualControllers": ["virtualControllers": rows]]
