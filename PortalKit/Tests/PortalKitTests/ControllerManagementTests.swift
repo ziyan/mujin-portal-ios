@@ -16,6 +16,9 @@ import Testing
         let reader = ControllerSummary(id: "c2", viewerCapabilities: ["controller:connect"])
         #expect(!reader.canEdit && !reader.canDeleteBackups)
         #expect(ControllerMoveAccess.canOffer(permissions: ["organization:operate-all"]))
+        #expect(ControllerMoveAccess.canOffer(permissions: ["site:assign"]))
+        let sites = [SiteSummary(id: "s1", name: "A", organizationId: "o1"), SiteSummary(id: "s2", name: "B", organizationId: "o2"), SiteSummary(id: "s3", name: "C", organizationId: "o1", isArchived: true)]
+        #expect(ControllerMoveAccess.destinations(sites, controller: ControllerSummary(id: "c1", organizationId: "o1")).map(\.id) == ["s1"])
         #expect(!ControllerMoveAccess.canOffer(permissions: ["ticket:read"]))
     }
 

@@ -127,11 +127,11 @@ public struct VirtualControllerOptions: Equatable, Sendable {
 }
 
 public enum VirtualControllerCreateAccess {
-    /// Making one needs `virtual_controller:create` at the site; the person's own permissions tell whether it is worth offering.
-    /// An organization's operators and platform administrators may; the server checks again on every create.
-    public static func canOffer(permissions: [String]) -> Bool {
-        permissions.contains("virtual_controller:create") || permissions.contains("organization:operate-all") || permissions.contains("platform:administer")
-    }
+    public static let verb = "virtual_controller:create"
+
+    /// The server lets an organization administrator or a holder of `virtual_controller:create` at the site make one, and reports
+    /// the verbs held at the site in its `viewerCapabilities`: offer the button when that list has the verb.
+    public static func canOffer(site: SiteSummary?) -> Bool { site?.can(verb) ?? false }
 }
 
 extension Documents {

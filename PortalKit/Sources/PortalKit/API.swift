@@ -193,13 +193,18 @@ public struct SiteSummary: Codable, Equatable, Identifiable, Sendable {
     public let name: String?
     public let organizationId: String?
     public let isArchived: Bool?
+    /// What the viewer may do at this site, such as `virtual_controller:create`.
+    public let viewerCapabilities: [String]?
 
-    public init(id: String, name: String?, organizationId: String? = nil, isArchived: Bool? = nil) {
+    public init(id: String, name: String?, organizationId: String? = nil, isArchived: Bool? = nil, viewerCapabilities: [String]? = nil) {
+        self.viewerCapabilities = viewerCapabilities
         self.id = id
         self.name = name
         self.organizationId = organizationId
         self.isArchived = isArchived
     }
+
+    public func can(_ capability: String) -> Bool { viewerCapabilities?.contains(capability) ?? false }
 }
 
 extension Connection {

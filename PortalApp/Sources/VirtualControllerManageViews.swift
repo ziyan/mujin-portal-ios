@@ -241,7 +241,7 @@ struct VirtualControllerCreateButton: View {
     @State private var isCreating = false
 
     var body: some View {
-        if VirtualControllerCreateAccess.canOffer(permissions: model.viewerPermissions), let siteId = model.selectedSiteId {
+        if VirtualControllerCreateAccess.canOffer(site: model.selectedSite), let siteId = model.selectedSiteId {
             Button { isCreating = true } label: { Label("New virtual controller", systemImage: "plus") }
                 .sheet(isPresented: $isCreating) {
                     VirtualControllerCreateView(siteId: siteId) { _ in

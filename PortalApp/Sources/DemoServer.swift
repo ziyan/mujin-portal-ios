@@ -441,7 +441,7 @@ struct DemoTransport: HTTPTransport {
             return ["ListConversationMessages": state.withData { $0.messages[conversationId] ?? [] }]
         case "ListSites":
             let all: [[String: Any]] = [
-                ["id": "site01", "name": "site01", "organizationId": "organization01", "isArchived": false],
+                ["id": "site01", "name": "site01", "organizationId": "organization01", "isArchived": false, "viewerCapabilities": ["virtual_controller:create"]],
                 ["id": "site02", "name": "site02", "organizationId": "organization01", "isArchived": false],
                 ["id": "site03", "name": "Bakery line", "organizationId": "organization02", "isArchived": false],
                 ["id": "site04", "name": "Cold store", "organizationId": "organization02", "isArchived": false],

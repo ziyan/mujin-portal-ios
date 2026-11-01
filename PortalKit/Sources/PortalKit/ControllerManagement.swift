@@ -62,9 +62,15 @@ extension ControllerSummary {
 }
 
 public enum ControllerMoveAccess {
-    /// Moving a controller to another site is for an organization's operators and platform administrators; the server checks again.
+    /// The server lets a holder of `site:assign` over the controller's organization (an administrator holds it) move a controller,
+    /// and only to a site of the same organization. The person's permissions tell whether to offer it.
     public static func canOffer(permissions: [String]) -> Bool {
-        permissions.contains("organization:operate-all") || permissions.contains("platform:administer")
+        permissions.contains("site:assign") || permissions.contains("organization:operate-all") || permissions.contains("platform:administer")
+    }
+
+    /// The sites a controller may be moved to: those of its own organization.
+    public static func destinations(_ sites: [SiteSummary], controller: ControllerSummary) -> [SiteSummary] {
+        sites.filter { $0.organizationId == controller.organizationId && $0.isArchived != true }
     }
 }
 

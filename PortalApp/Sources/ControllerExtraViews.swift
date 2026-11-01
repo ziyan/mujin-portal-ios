@@ -185,7 +185,7 @@ struct MoveControllerView: View {
             }
             .task {
                 let connection = appModel.connection(for: session.account)
-                sites = (try? await connection.allSites()) ?? []
+                sites = ControllerMoveAccess.destinations((try? await connection.allSites()) ?? [], controller: controller)
                 organizationNames = session.isStaff ? session.staffSites.organizationNames : session.organizationNames
             }
         }

@@ -79,9 +79,9 @@ import Testing
 
 @Suite struct VirtualControllerCreateTests {
     @Test func theCreateButtonFollowsThePermissionsThePersonHolds() {
-        #expect(VirtualControllerCreateAccess.canOffer(permissions: ["virtual_controller:create"]))
-        #expect(VirtualControllerCreateAccess.canOffer(permissions: ["organization:operate-all"]))
-        #expect(!VirtualControllerCreateAccess.canOffer(permissions: ["ticket:read"]))
+        #expect(VirtualControllerCreateAccess.canOffer(site: SiteSummary(id: "s1", name: "Depot", viewerCapabilities: ["virtual_controller:create"])))
+        #expect(!VirtualControllerCreateAccess.canOffer(site: SiteSummary(id: "s2", name: "Hub", viewerCapabilities: ["site:modify"])))
+        #expect(!VirtualControllerCreateAccess.canOffer(site: nil))
     }
 
     @Test func theLocalRegionIsTheDefault() {
