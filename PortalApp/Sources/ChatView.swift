@@ -701,7 +701,7 @@ private struct AddPeopleView: View {
                 }
             } }
 .portalList()
-            .searchable(text: $searchText, prompt: "Search people")
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search people")
             .navigationTitle("Add people")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

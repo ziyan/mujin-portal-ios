@@ -265,7 +265,7 @@ struct NewChatView: View {
             .overlay {
                 if candidates.isEmpty { ContentUnavailableView.search(text: searchText) }
             }
-            .searchable(text: $searchText, prompt: "Search people")
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search people")
             .navigationTitle(mode == .direct ? "New chat" : "New group")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
