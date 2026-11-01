@@ -100,26 +100,6 @@ struct MainTabsView: View {
         }
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            // A demo entered from the welcome screen says so on every screen, with the way out.
-            if let exit = appModel.exitDemo {
-                HStack(spacing: 8) {
-                    Text("Demo")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.2), in: Capsule())
-                    Text("Nothing here is real.").font(.caption).foregroundStyle(.secondary)
-                    Spacer(minLength: 8)
-                    Button("Exit demo", action: exit)
-                        .font(.caption.weight(.semibold))
-                        .accessibilityIdentifier("exitDemoButton")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 4)
-                .background(.bar)
-            }
-        }
         .environment(session)
         .sheet(isPresented: Binding(get: { session.isShowingNotifications }, set: { session.isShowingNotifications = $0 })) {
             NotificationsView()

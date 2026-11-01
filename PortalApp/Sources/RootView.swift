@@ -8,12 +8,42 @@ struct AppRoot: View {
 
     var body: some View {
         if let demo = model.demoModel {
-            RootView()
-                .environment(demo)
-                .id(ObjectIdentifier(demo))
+            // The strip takes its own space above the whole app, so every screen's navigation bar starts below it.
+            VStack(spacing: 0) {
+                DemoBanner(exit: demo.exitDemo)
+                RootView()
+                    .environment(demo)
+                    .id(ObjectIdentifier(demo))
+            }
         } else {
             RootView()
         }
+    }
+}
+
+/// DemoBanner marks a demo entered from the welcome screen and offers the way out.
+struct DemoBanner: View {
+    let exit: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("Demo")
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(Color.accentColor.opacity(0.2), in: Capsule())
+            Text("Nothing here is real.").font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            if let exit {
+                Button("Exit demo", action: exit)
+                    .font(.caption.weight(.semibold))
+                    .accessibilityIdentifier("exitDemoButton")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .background(.bar, ignoresSafeAreaEdges: .top)
     }
 }
 
