@@ -292,7 +292,7 @@ private struct TranscriptRow: View {
         case .assistant(let id, let text, let isStreaming):
             HStack {
                 StableBubble(key: AssistantBubbleKey(id: id, text: text, isStreaming: isStreaming, reactions: model.transcript.reactions(for: id))) {
-                MarkdownView(markdown: text)
+                RichBodyView(markdown: text, connection: model.connection)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))

@@ -61,10 +61,28 @@ import Testing
         #expect(
             TicketBody.parts(body) == [
                 .text("The gripper dropped a box."),
-                .attachment(id: "att01", name: "photo[1].jpg", isImage: true),
-                .attachment(id: "att02", name: "log.txt", isImage: false),
+                .attachment(id: "att01", name: "photo[1].jpg", kind: .image),
+                .attachment(id: "att02", name: "log.txt", kind: .file),
                 .text("Thanks."),
             ])
+    }
+
+    @Test func theWebsOtherFormsAreFilesToo() {
+        let ulid = "01HZX3K9Q8W2M5N7P4R6T8V0AB"
+        let body = "Photo:\n\n![frame_008.jpg](attachment:\(ulid))\n\n[clip.mp4](attachment:\(ulid))\n\n<video src=\"attachment:\(ulid)\" controls preload=\"metadata\" width=\"100%\" title=\"walk.mov\"></video>\n\n<iframe src=\"attachment:\(ulid)#page=2\" width=\"100%\" height=\"600\" title=\"report &quot;v2&quot;.pdf\"></iframe>\n\n![shot](/api/v1/attachment/\(ulid))"
+        #expect(
+            TicketBody.parts(body) == [
+                .text("Photo:"),
+                .attachment(id: ulid, name: "frame_008.jpg", kind: .image),
+                .attachment(id: ulid, name: "clip.mp4", kind: .video),
+                .attachment(id: ulid, name: "walk.mov", kind: .video),
+                .attachment(id: ulid, name: "report \"v2\".pdf", kind: .pdf),
+                .attachment(id: ulid, name: "shot", kind: .image),
+            ])
+        #expect(AttachmentKind.of(name: "Attachment: notes.txt", isImageSyntax: false) == .file)
+        #expect(AttachmentKind.of(name: "scan.PNG", isImageSyntax: false) == .image)
+        #expect(TicketBody.hasAttachments(body))
+        #expect(!TicketBody.hasAttachments("no files here"))
     }
 
     @Test func plainTextIsOnePart() {

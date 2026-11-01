@@ -456,7 +456,12 @@ private struct MessageRow: View {
             ) {
             VStack(alignment: .leading, spacing: 2) {
                 if message.isAssistant {
-                    MarkdownView(markdown: message.text)
+                    RichBodyView(markdown: message.text, connection: model.connection)
+                } else if TicketBody.hasAttachments(message.text) {
+                    RichBodyView(markdown: message.text, connection: model.connection) { words in
+                        Text(Self.attributed(MentionText.rendered(words, members: model.room?.members ?? [], agents: model.agents), mentionNames: model.mentionNames, onAccent: isMine))
+                            .textSelection(.enabled)
+                    }
                 } else {
                     Text(Self.attributed(MentionText.rendered(message.text, members: model.room?.members ?? [], agents: model.agents), mentionNames: model.mentionNames, onAccent: isMine))
                         .textSelection(.enabled)

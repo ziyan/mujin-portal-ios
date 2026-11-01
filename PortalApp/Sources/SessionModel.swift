@@ -323,7 +323,7 @@ enum DemoOptions {
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         // Screens that live under More.
         if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release"].contains(where: { screen.hasPrefix($0) }) { return .more }
-        if screen.hasPrefix("ticket") { return .tickets }
+        if screen.hasPrefix("ticket") || screen == "attachment-viewer" { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
         if screen.hasPrefix("site-staff") { return .customers }
         if screen.hasPrefix("site") || screen.hasPrefix("incident") || screen.hasPrefix("controller") { return .site }

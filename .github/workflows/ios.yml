@@ -161,6 +161,7 @@ jobs:
           shoot notes conversation:conversation05
           shoot tickets tickets
           shoot ticket ticket
+          shoot attachment-viewer attachment-viewer
           shoot tickets-solved tickets-solved
           shoot tickets-staff tickets-everyone staff
           shoot ticket-staff ticket staff
@@ -215,6 +216,7 @@ jobs:
           shoot automations-activity-dark automations-activity
           shoot list-dark list
           shoot ticket-dark ticket
+          shoot attachment-viewer-dark attachment-viewer
           shoot tickets-dark tickets
           shoot site-dark site
           shoot site-staff-dark site-staff staff

@@ -63,7 +63,7 @@ struct TicketsView: View {
     @State private var model: TicketsModel?
     @State private var scope = TicketScope.mine
     @State private var tab = TicketTab.open
-    @State private var path: [PortalRoute] = DemoOptions.screen == "ticket" ? [.ticket(id: "ticket01")] : []
+    @State private var path: [PortalRoute] = ["ticket", "attachment-viewer"].contains(DemoOptions.screen ?? "") ? [.ticket(id: "ticket01")] : []
     @State private var isCreating = false
 
     var body: some View {

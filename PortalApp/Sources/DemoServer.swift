@@ -188,7 +188,7 @@ final class DemoState: @unchecked Sendable {
         data.comments["ticket01"] = [
             [
                 "id": "comment01", "authorUserId": "user01", "isOriginalRequest": true, "isInternal": false, "createdAt": stamp(10_800),
-                "body": "The gripper drops about one box in twenty at pick station 3.\n\n![Photo 1.jpg](attachment:attachment01)",
+                "body": "The gripper drops about one box in twenty at pick station 3. A frame from the camera, the walkthrough and the pressure log are attached.\n\n![frame_008.jpg](attachment:imagedemo01)\n\n<video src=\"attachment:videodemo01\" controls preload=\"metadata\" width=\"100%\" title=\"station-walkthrough.mp4\"></video>\n\n<iframe src=\"attachment:pdfdemo01\" width=\"100%\" height=\"600\" title=\"pressure-log.pdf\"></iframe>\n\n![removed.png](attachment:missingdemo01)",
             ],
             [
                 "id": "comment02", "authorUserId": "user02", "isInternal": false, "createdAt": stamp(7_200),
@@ -304,10 +304,10 @@ struct DemoTransport: HTTPTransport {
     let state: DemoState
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        if let path = request.url?.path, path.hasPrefix("/api/v1/user/") || path.hasPrefix("/api/v1/organization/") {
+        if let path = request.url?.path, path.hasPrefix("/api/v1/user/") || path.hasPrefix("/api/v1/organization/") || path.hasPrefix("/api/v1/attachment/") {
             // Two demo people and one organization have a picture; everyone else gets a 404 and keeps their initials.
             let image = DemoPictures.jpeg(forPath: path)
-            let response = HTTPURLResponse(url: request.url!, statusCode: image == nil ? 404 : 200, httpVersion: nil, headerFields: ["Content-Type": "image/jpeg"])!
+            let response = HTTPURLResponse(url: request.url!, statusCode: image == nil ? 404 : 200, httpVersion: nil, headerFields: ["Content-Type": path.hasSuffix("pdfdemo01") ? "application/pdf" : "image/jpeg"])!
             return (image ?? Data(), response)
         }
         let body = request.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
@@ -929,7 +929,39 @@ enum DemoPictures {
         case "/api/v1/user/user02/avatar": return render(ground: .systemTeal, figure: .white, isLogo: false)
         case "/api/v1/user/user03/avatar": return render(ground: .systemOrange, figure: .white, isLogo: false)
         case "/api/v1/organization/organization01/logo": return render(ground: .systemIndigo, figure: .white, isLogo: true)
+        case "/api/v1/attachment/imagedemo01": return camera()
+        case "/api/v1/attachment/pdfdemo01": return pdf()
         default: return nil
+        }
+    }
+
+    /// A camera frame of a pick station, drawn from shapes: a belt, boxes and a gripper.
+    private static func camera() -> Data {
+        let size = CGSize(width: 800, height: 520)
+        return UIGraphicsImageRenderer(size: size).jpegData(withCompressionQuality: 0.85) { _ in
+            UIColor(red: 0.16, green: 0.2, blue: 0.26, alpha: 1).setFill()
+            UIBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
+            UIColor(red: 0.28, green: 0.32, blue: 0.38, alpha: 1).setFill()
+            UIBezierPath(rect: CGRect(x: 0, y: 360, width: 800, height: 160)).fill()
+            UIColor.systemOrange.setFill()
+            for index in 0..<4 { UIBezierPath(roundedRect: CGRect(x: 60 + CGFloat(index) * 180, y: 300, width: 120, height: 90), cornerRadius: 6).fill() }
+            UIColor(white: 0.85, alpha: 1).setFill()
+            UIBezierPath(rect: CGRect(x: 380, y: 0, width: 30, height: 190)).fill()
+            UIBezierPath(roundedRect: CGRect(x: 350, y: 180, width: 90, height: 40), cornerRadius: 8).fill()
+            UIColor.systemTeal.setStroke()
+            let frame = UIBezierPath(rect: CGRect(x: 20, y: 20, width: 760, height: 480))
+            frame.lineWidth = 3
+            frame.stroke()
+        }
+    }
+
+    private static func pdf() -> Data {
+        let bounds = CGRect(x: 0, y: 0, width: 612, height: 792)
+        return UIGraphicsPDFRenderer(bounds: bounds).pdfData { context in
+            context.beginPage()
+            let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 28, weight: .bold)]
+            "Pressure log".draw(at: CGPoint(x: 56, y: 56), withAttributes: attributes)
+            "Suction pressure dips before each drop at the pick station.".draw(at: CGPoint(x: 56, y: 110), withAttributes: [.font: UIFont.systemFont(ofSize: 15)])
         }
     }
 

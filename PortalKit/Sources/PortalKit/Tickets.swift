@@ -165,28 +165,78 @@ public enum TicketQueue {
     }
 }
 
-/// BodyPart is a piece of a ticket's text: words, or a file the text holds.
+/// AttachmentKind is how a file in a text is shown: a picture inline, a video as a card, a PDF or any other file as a row.
+public enum AttachmentKind: Equatable, Sendable {
+    case image
+    case video
+    case pdf
+    case file
+
+    private static let videoExtensions: Set<String> = ["mp4", "webm", "mov", "m4v", "ogv", "ogg", "mkv"]
+    private static let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "gif", "heic", "webp", "bmp", "tif", "tiff"]
+
+    /// The kind of a file from its name, with whether the text wrote it as an image (`![...]`). The extension tells a
+    /// video from a picture, as the web does, since a reference carries a name and not always a content type.
+    public static func of(name: String, isImageSyntax: Bool) -> AttachmentKind {
+        var clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clean.hasPrefix("Attachment:") { clean = String(clean.dropFirst("Attachment:".count)).trimmingCharacters(in: .whitespaces) }
+        let fileExtension = clean.split(separator: ".").last.map { $0.lowercased() } ?? ""
+        if videoExtensions.contains(fileExtension) { return .video }
+        if fileExtension == "pdf" { return .pdf }
+        if isImageSyntax || imageExtensions.contains(fileExtension) { return .image }
+        return .file
+    }
+}
+
+/// BodyPart is a piece of text: words, or a file the text holds.
 public enum BodyPart: Equatable, Sendable {
     case text(String)
-    case attachment(id: String, name: String, isImage: Bool)
+    case attachment(id: String, name: String, kind: AttachmentKind)
 }
 
 public enum TicketBody {
-    /// Splits text with `[name](attachment:<id>)` and `![name](attachment:<id>)`
-    /// tokens into words and files, in order.
+    /// The ways the web writes a file into text: `[name](attachment:<id>)`, `![name](attachment:<id>)`, the same with the
+    /// download path `/api/v1/attachment/<id>`, and `<video src="attachment:<id>" title="name">` or `<iframe ...>` for a video or a PDF.
+    private static let markdownExpression = try? NSRegularExpression(
+        pattern: #"(!?)\[((?:\\.|[^\]\\])*)\]\((?:attachment:|/api/v1/attachment/)([0-9A-Za-z_-]+)(?:[#?][^)\s]*)?\)"#)
+    private static let tagExpression = try? NSRegularExpression(
+        pattern: #"<(video|iframe)\b[^>]*?\bsrc="(?:attachment:|/api/v1/attachment/)([0-9A-Za-z_-]+)[^"]*"[^>]*>(?:\s*</\1>)?"#, options: [.caseInsensitive])
+    private static let titleExpression = try? NSRegularExpression(pattern: #"\btitle="([^"]*)""#, options: [.caseInsensitive])
+
+    /// Splits text holding file references into words and files, in order.
     public static func parts(_ body: String) -> [BodyPart] {
-        guard let expression = try? NSRegularExpression(pattern: #"(!?)\[((?:\\.|[^\]\\])*)\]\(attachment:([A-Za-z0-9_-]+)\)"#) else { return [.text(body)] }
         let whole = NSRange(body.startIndex..., in: body)
-        var parts: [BodyPart] = []
-        var cursor = body.startIndex
-        for match in expression.matches(in: body, range: whole) {
+        struct Found {
+            let range: Range<String.Index>
+            let id: String
+            let name: String
+            let kind: AttachmentKind
+        }
+        var found: [Found] = []
+        for match in markdownExpression?.matches(in: body, range: whole) ?? [] {
             guard let range = Range(match.range, in: body), let bang = Range(match.range(at: 1), in: body),
                 let name = Range(match.range(at: 2), in: body), let id = Range(match.range(at: 3), in: body)
             else { continue }
-            let before = String(body[cursor..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let fileName = unescape(String(body[name]))
+            found.append(Found(range: range, id: String(body[id]), name: fileName, kind: .of(name: fileName, isImageSyntax: !body[bang].isEmpty)))
+        }
+        for match in tagExpression?.matches(in: body, range: whole) ?? [] {
+            guard let range = Range(match.range, in: body), let tag = Range(match.range(at: 1), in: body), let id = Range(match.range(at: 2), in: body) else { continue }
+            let text = String(body[range])
+            var title = ""
+            if let titleMatch = titleExpression?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)), let titleRange = Range(titleMatch.range(at: 1), in: text) {
+                title = String(text[titleRange]).replacingOccurrences(of: "&quot;", with: "\"")
+            }
+            let kind: AttachmentKind = body[tag].lowercased() == "video" ? .video : .pdf
+            found.append(Found(range: range, id: String(body[id]), name: title, kind: kind))
+        }
+        var parts: [BodyPart] = []
+        var cursor = body.startIndex
+        for item in found.sorted(by: { $0.range.lowerBound < $1.range.lowerBound }) where item.range.lowerBound >= cursor {
+            let before = String(body[cursor..<item.range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
             if !before.isEmpty { parts.append(.text(before)) }
-            parts.append(.attachment(id: String(body[id]), name: unescape(String(body[name])), isImage: !body[bang].isEmpty))
-            cursor = range.upperBound
+            parts.append(.attachment(id: item.id, name: item.name, kind: item.kind))
+            cursor = item.range.upperBound
         }
         let rest = String(body[cursor...]).trimmingCharacters(in: .whitespacesAndNewlines)
         if !rest.isEmpty { parts.append(.text(rest)) }
@@ -207,6 +257,11 @@ public enum TicketBody {
             }
         }
         return result
+    }
+
+    /// True when the text holds at least one file reference.
+    public static func hasAttachments(_ body: String) -> Bool {
+        parts(body).contains { if case .attachment = $0 { true } else { false } }
     }
 }
 

@@ -283,16 +283,7 @@ private struct CommentView: View {
     let connection: Connection
 
     var bodyView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(TicketBody.parts(text).enumerated()), id: \.offset) { _, part in
-                switch part {
-                case .text(let text):
-                    MarkdownView(markdown: text)
-                case .attachment(let id, let name, let isImage):
-                    ProducedFileRow(file: ProducedFile(attachmentId: id, name: name, contentType: isImage ? "image/jpeg" : "application/octet-stream"), connection: connection)
-                }
-            }
-        }
+        RichBodyView(markdown: text, connection: connection)
     }
 
     var body: some View {
