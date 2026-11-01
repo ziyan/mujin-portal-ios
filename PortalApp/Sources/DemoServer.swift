@@ -586,6 +586,9 @@ struct DemoTransport: HTTPTransport {
             ], "meta": ["totalCount": 1]]]
         case "CreateAlarmSubscription", "ModifyAlarmSubscription", "DeleteAlarmSubscription":
             return [operation: NSNull()]
+        case "ListAllVirtualControllers":
+            let rows = state.withData { data -> [[String: Any]] in data.isVirtualControllerDestroyed ? [] : [Self.virtualControllerRow(data)] }
+            return ["ListVirtualControllers": ["virtualControllers": rows, "meta": ["totalCount": rows.count]]]
         case "ListSiteVirtualControllers":
             let rows = state.withData { data -> [[String: Any]] in data.isVirtualControllerDestroyed ? [] : [Self.virtualControllerRow(data)] }
             return ["ListVirtualControllers": ["virtualControllers": rows]]

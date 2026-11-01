@@ -91,3 +91,18 @@ import Testing
         #expect(VirtualControllerOptions().defaultRegion == nil)
     }
 }
+
+@Suite struct VirtualControllerListTests {
+    @Test func theFilterMatchesNameCommentOrSiteAndSkipsDestroyedOnes() {
+        let rows = [
+            VirtualControllerSummary(id: "v1", name: "Training cell", comment: "For new staff", siteId: "s1"),
+            VirtualControllerSummary(id: "v2", name: "Palletizing test", siteId: "s2"),
+            VirtualControllerSummary(id: "v3", name: "Old", siteId: "s1", status: "destroyed"),
+        ]
+        let names = ["s1": "Riverside depot", "s2": "Hillcrest hub"]
+        #expect(VirtualControllerFilter().apply(rows, siteNames: names).map(\.id) == ["v1", "v2"])
+        #expect(VirtualControllerFilter(query: "hillcrest").apply(rows, siteNames: names).map(\.id) == ["v2"])
+        #expect(VirtualControllerFilter(query: "new staff").apply(rows, siteNames: names).map(\.id) == ["v1"])
+        #expect(VirtualControllerFilter(siteId: "s1").apply(rows, siteNames: names).map(\.id) == ["v1"])
+    }
+}

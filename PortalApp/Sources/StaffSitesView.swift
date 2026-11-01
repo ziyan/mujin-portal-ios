@@ -45,12 +45,16 @@ struct StaffSitesView: View {
     }
 
     private func openDemoScreen() async {
-        guard appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("site-staff") || screen == "controllers-staff", path.isEmpty,
+        guard appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("site-staff") || screen == "controllers-staff" || screen == "virtual-controllers-staff", path.isEmpty,
             let first = SiteGroups.group(session.staffSites.sites, organizationNames: session.staffSites.organizationNames).first?.sites.first,
             let organizationId = first.organizationId
         else { return }
         if screen == "controllers-staff" {
             path.append(.allControllers)
+            return
+        }
+        if screen == "virtual-controllers-staff" {
+            path.append(.allVirtualControllers)
             return
         }
         path.append(.site(id: first.id, organizationId: organizationId))
@@ -81,6 +85,9 @@ struct StaffSitesView: View {
                         Section {
                             NavigationLink(value: PortalRoute.allControllers) {
                                 Label("All controllers", systemImage: "server.rack").foregroundStyle(.primary)
+                            }
+                            NavigationLink(value: PortalRoute.allVirtualControllers) {
+                                Label("All virtual controllers", systemImage: "square.stack.3d.up").foregroundStyle(.primary)
                             }
                         }
                     }

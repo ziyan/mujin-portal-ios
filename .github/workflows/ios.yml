@@ -213,6 +213,7 @@ jobs:
           shoot about about
           shoot sites-staff sites-staff staff
           shoot controllers-staff controllers-staff staff
+          shoot virtual-controllers-staff virtual-controllers-staff staff
           shoot customers-staff section:customers staff
           shoot automations automations
           shoot automations-activity automations-activity
