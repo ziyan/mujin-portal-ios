@@ -412,12 +412,25 @@ extension Connection {
 
     public func controllers(organizationId: String? = nil) async throws -> [ControllerSummary] {
         struct Answer: Decodable, Sendable {
-            struct List: Decodable, Sendable { let controllers: [ControllerSummary]? }
+            struct Meta: Decodable, Sendable { let totalCount: Int? }
+            struct List: Decodable, Sendable {
+                let controllers: [ControllerSummary]?
+                let meta: Meta?
+            }
             let ListControllers: List?
         }
-        var variables: [String: JSONValue] = ["options": .object(["first": .number(500)])]
-        if let organizationId { variables["organizationId"] = .string(organizationId) }
-        let rows = try await execute(Documents.listControllers, variables: variables, as: Answer.self).ListControllers?.controllers ?? []
+        // The server answers in pages of 200 at most: ask page after page until the total it reports.
+        var rows: [ControllerSummary] = []
+        while true {
+            var variables: [String: JSONValue] = ["options": .object(["first": .number(200), "after": .number(Double(rows.count))])]
+            if let organizationId { variables["organizationId"] = .string(organizationId) }
+            let list = try await execute(Documents.listControllers, variables: variables, as: Answer.self).ListControllers
+            let page = list?.controllers ?? []
+            rows += page
+            if page.isEmpty { break }
+            if let total = list?.meta?.totalCount, rows.count >= total { break }
+            if page.count < 200, list?.meta?.totalCount == nil { break }
+        }
         return rows.sorted { ($0.comment ?? $0.id).localizedCaseInsensitiveCompare($1.comment ?? $1.id) == .orderedAscending }
     }
 

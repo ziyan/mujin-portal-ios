@@ -45,10 +45,14 @@ struct StaffSitesView: View {
     }
 
     private func openDemoScreen() async {
-        guard appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("site-staff"), path.isEmpty,
+        guard appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("site-staff") || screen == "controllers-staff", path.isEmpty,
             let first = SiteGroups.group(session.staffSites.sites, organizationNames: session.staffSites.organizationNames).first?.sites.first,
             let organizationId = first.organizationId
         else { return }
+        if screen == "controllers-staff" {
+            path.append(.allControllers)
+            return
+        }
         path.append(.site(id: first.id, organizationId: organizationId))
         if screen == "site-staff-controllers" {
             try? await Task.sleep(nanoseconds: 2_500_000_000)
@@ -73,6 +77,13 @@ struct StaffSitesView: View {
             let groups = SiteGroups.group(session.staffSites.sites, organizationNames: session.staffSites.organizationNames, query: searchText)
             List {
                 PortalRows {
+                    if searchText.isEmpty {
+                        Section {
+                            NavigationLink(value: PortalRoute.allControllers) {
+                                Label("All controllers", systemImage: "server.rack").foregroundStyle(.primary)
+                            }
+                        }
+                    }
                     ForEach(groups) { group in
                         Section(group.organizationName ?? String(localized: "Unknown organization")) {
                             ForEach(group.sites) { site in

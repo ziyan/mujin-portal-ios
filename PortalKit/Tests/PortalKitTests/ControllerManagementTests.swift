@@ -57,3 +57,26 @@ import Testing
         #expect(ControllerLive.incidents(incidents, controllerId: "c1").map(\.id) == ["i1"])
     }
 }
+
+@Suite struct ControllerListTests {
+    @Test func theListIsPagedPastTwoHundredAndFilteredByTextAndSite() async throws {
+        let calls = Guarded<[Int]>([])
+        let transport = ScriptedTransport { request in
+            let body = try JSONDecoder().decode(JSONValue.self, from: request.httpBody!)
+            let after = Int(body["variables"]?["options"]?["after"]?.numberValue ?? 0)
+            calls.withValue { $0.append(after) }
+            let total = 450
+            let rows = (after..<min(after + 200, total)).map { ["id": "controller\($0)", "comment": "Line \($0)", "siteId": $0 % 2 == 0 ? "site01" : "site02"] as [String: Any] }
+            return (200, ScriptedTransport.json(["data": ["ListControllers": ["controllers": rows, "meta": ["totalCount": total]]]]))
+        }
+        let account = Account(
+            server: try ServerAddress("https://portal.example.test"), clientId: "client01", userId: "user01", displayName: "Alex", email: "alex@example.test",
+            accessToken: "token", refreshToken: "refresh", accessTokenExpiresAt: Date().addingTimeInterval(3600))
+        let all = try await Connection(account: account, transport: transport).controllers()
+        #expect(all.count == 450)
+        #expect(calls.withValue { $0 } == [0, 200, 400])
+        let names = ["site01": "Riverside depot", "site02": "Hillcrest hub"]
+        #expect(ControllerFilter(query: "hillcrest").apply(all, siteNames: names).count == 225)
+        #expect(ControllerFilter(query: "Line 7", siteId: "site02").apply(all, siteNames: names).count == 1 + 5)
+    }
+}
