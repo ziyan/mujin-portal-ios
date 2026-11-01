@@ -63,10 +63,8 @@ public actor Connection {
         if account.accessToken != refused {
             return account.accessToken
         }
-        guard !account.refreshToken.isEmpty else {
-            isSignedOut = true
-            throw PortalError.signedOut
-        }
+        // Without a refresh token there is nothing to renew with, but only the server refusing one ends a sign-in.
+        guard !account.refreshToken.isEmpty else { throw PortalError.notPermitted }
         return try await renew(now: now).accessToken
     }
 
@@ -115,8 +113,9 @@ public actor Connection {
         request.setValue("Bearer \(freshToken)", forHTTPHeaderField: "Authorization")
         let (retriedData, retriedResponse) = try await transport.send(request)
         if retriedResponse.statusCode == 401 {
-            isSignedOut = true
-            throw PortalError.signedOut
+            // A fresh token was refused too. That says something about this request, not about the sign-in:
+            // the account stays, and only the refresh token being refused (invalid_grant) ends it.
+            throw PortalError.notPermitted
         }
         return (retriedData, retriedResponse)
     }

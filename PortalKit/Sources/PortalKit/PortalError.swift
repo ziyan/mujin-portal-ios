@@ -5,6 +5,8 @@ public enum PortalError: Error, Equatable, Sendable, LocalizedError {
     /// The server ended this sign-in: it refused the refresh token, or refused
     /// a request again with a freshly renewed token.
     case signedOut
+    /// The server refused one request even with a fresh token. The sign-in is intact: only the sign-in's own refusal (`invalid_grant`) ends it.
+    case notPermitted
     /// The server said no, in its own words.
     case refused(String)
     /// The server answered with something the app cannot read.
@@ -22,6 +24,7 @@ public enum PortalError: Error, Equatable, Sendable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .signedOut: "This sign-in has ended. Sign in again."
+        case .notPermitted: "The server did not allow that."
         case .refused(let message): message
         case .unreadableAnswer: "The server sent an answer the app cannot read."
         case .invalidServerAddress: "Enter a server address that starts with https://."

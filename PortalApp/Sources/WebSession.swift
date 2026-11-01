@@ -96,6 +96,15 @@ final class WebSession: NSObject, Identifiable, WKNavigationDelegate, WKUIDelega
         webView.loadHTMLString(html, baseURL: nil)
     }
 
+    /// Stops the page and lets go of the web view, before the account's data store is deleted.
+    func tearDown() {
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+        webView.uiDelegate = nil
+        webView.removeFromSuperview()
+        observations = []
+    }
+
     func goBack() { webView.goBack() }
     func goForward() { webView.goForward() }
     func reload() { webView.reload() }

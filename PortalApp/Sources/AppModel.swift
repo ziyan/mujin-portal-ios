@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 import SwiftUI
 import PortalKit
 import UIKit
@@ -52,6 +53,20 @@ final class AppModel {
         self.socketFactory = socketFactory
         self.isDemo = isDemo
         self.ring = (try? store.loadRing()) ?? AccountRing()
+        removeStoredWebData()
+    }
+
+    private static let accountLog = Logger(subsystem: "com.ziyan.mujinportal", category: "accounts")
+
+    /// Deletes the cookies of accounts removed earlier. It runs at launch, before any web view exists: WebKit crashes
+    /// when a data store is removed while a web view still uses it.
+    private func removeStoredWebData() {
+        guard !isDemo else { return }
+        let identifiers = WebDataRemoval().takeAll()
+        guard !identifiers.isEmpty else { return }
+        Task { @MainActor in
+            for identifier in identifiers { try? await WKWebsiteDataStore.remove(forIdentifier: identifier) }
+        }
     }
 
     /// The model for this launch: the real network, or the demo server when
@@ -163,9 +178,11 @@ final class AppModel {
     /// Forgets an account's browser and deletes the cookies it kept.
     private func removeWebData(of account: Account) async {
         if presentedWeb?.accountKey == account.accountKey { presentedWeb = nil }
-        webSessions[account.accountKey] = nil
+        // Stop and let go of the account's browser first. The data store is not removed now, since a web view
+        // (this one, or a controller screen still on its way out) may still be using it: it is removed at the next launch.
+        webSessions.removeValue(forKey: account.accountKey)?.tearDown()
         if let directory = SessionModel.avatarDirectory(accountKey: account.accountKey) { try? FileManager.default.removeItem(at: directory) }
-        if !isDemo { try? await WKWebsiteDataStore.remove(forIdentifier: account.webDataStoreId) }
+        if !isDemo { WebDataRemoval().record(account.webDataStoreId) }
     }
 
     func reloadRing() {
@@ -179,6 +196,7 @@ final class AppModel {
 
     /// Signs out of one account on this phone.
     func remove(_ account: Account) async {
+        Self.accountLog.notice("Removing \(account.displayName, privacy: .private) on \(account.server.displayHost, privacy: .public): the person signed out")
         // This account stops receiving pushes on this phone first, while the
         // other accounts on it keep theirs; revoking the grant ends them anyway.
         if !isDemo, let token = PushDeviceToken.stored() {
@@ -195,6 +213,8 @@ final class AppModel {
     /// has ended removes the account, since nothing more can be done with it.
     func handle(_ error: Error, account: Account) {
         guard error as? PortalError == .signedOut else { return }
+        // Only the server refusing the refresh token (invalid_grant) says this; a refused request does not.
+        Self.accountLog.notice("Removing \(account.displayName, privacy: .private) on \(account.server.displayHost, privacy: .public): the server refused the refresh token")
         try? store.remove(account.accountKey)
         connections[account.accountKey] = nil
         Task { await removeWebData(of: account) }

@@ -97,7 +97,7 @@ import Testing
         #expect(graphQLRequests[1].value(forHTTPHeaderField: "Authorization") == "Bearer access-2")
     }
 
-    @Test func aSecondRefusalEndsTheSignIn() async throws {
+    @Test func aSecondRefusalKeepsTheSignIn() async throws {
         let transport = ScriptedTransport { request in
             switch request.url?.path {
             case "/.well-known/openid-configuration": return (200, Self.discovery)
@@ -106,8 +106,33 @@ import Testing
             }
         }
         let connection = Connection(account: makeAccount(), transport: transport)
-        await #expect(throws: PortalError.signedOut) { _ = try await connection.me() }
-        #expect(await connection.isSignedOut)
+        await #expect(throws: PortalError.notPermitted) { _ = try await connection.me() }
+        #expect(await connection.isSignedOut == false)
+        // The next request still goes out with the account's token.
+        await #expect(throws: PortalError.notPermitted) { _ = try await connection.me() }
+    }
+
+    @Test func aForbiddenPictureKeepsTheSignInAndShowsNoPicture() async throws {
+        let transport = ScriptedTransport { request in
+            switch request.url?.path {
+            case "/.well-known/openid-configuration": return (200, Self.discovery)
+            default: return (403, Data())
+            }
+        }
+        let connection = Connection(account: makeAccount(), transport: transport)
+        let store = AvatarStore(connection: connection, directory: nil)
+        #expect(await store.data(for: AvatarSubject(kind: .user, id: "user02")) == nil)
+        #expect(await connection.isSignedOut == false)
+    }
+
+    @Test func aRefusedPictureTokenIsRenewedOnceAndTheAccountKept() async throws {
+        let server = FakeServer()
+        server.state.withValue { $0.accepted = "access-other" }
+        let (connection, _, _) = connection(server: server, account: makeAccount())
+        // The picture is refused with the old token and with the renewed one: no picture, the account stays.
+        let store = AvatarStore(connection: connection, directory: nil)
+        _ = await store.data(for: AvatarSubject(kind: .user, id: "user02"))
+        #expect(await connection.isSignedOut == false)
     }
 
     @Test func aRefusedRefreshTokenEndsTheSignIn() async throws {
@@ -146,5 +171,17 @@ import Testing
         let body = try JSONDecoder().decode(JSONValue.self, from: transport.requests[0].httpBody!)
         #expect(body["variables"]?["verdict"]?.stringValue == "rejected")
         #expect(body["variables"]?["reason"]?.stringValue == "not now")
+    }
+
+    @Test func aNetworkFailureWhileRenewingKeepsTheSignIn() async throws {
+        let transport = ScriptedTransport { request in
+            switch request.url?.path {
+            case "/.well-known/openid-configuration": return (200, Self.discovery)
+            default: return (500, Data())
+            }
+        }
+        let connection = Connection(account: makeAccount(expiresAt: Date().addingTimeInterval(1)), transport: transport)
+        await #expect(throws: (any Error).self) { _ = try await connection.me() }
+        #expect(await connection.isSignedOut == false)
     }
 }

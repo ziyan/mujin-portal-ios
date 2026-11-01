@@ -127,3 +127,19 @@ private final class CountingPictureTransport: HTTPTransport, @unchecked Sendable
         #expect(ConversationOrdering.ordered([recent, waiting, main], waitingIds: ["waiting"]).map(\.id) == ["main", "waiting", "recent"])
     }
 }
+
+@Suite struct WebDataRemovalTests {
+    @Test func aStoreIsHandedOverOnceAfterItWasRecorded() throws {
+        let suite = "web-data-removal-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let removal = WebDataRemoval(defaults: defaults)
+        let first = UUID()
+        let second = UUID()
+        removal.record(first)
+        removal.record(second)
+        removal.record(first)
+        #expect(removal.takeAll() == [first, second])
+        #expect(removal.takeAll().isEmpty)
+    }
+}
