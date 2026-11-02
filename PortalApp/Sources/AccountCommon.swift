@@ -67,7 +67,7 @@ struct AccountMoreSections: View {
     var body: some View {
         Section("Account") {
             link(.profile, "Profile and preferences", "person.crop.circle")
-            link(.sessions, "Sessions", "laptopcomputer.and.iphone")
+            link(.sessions, "Sessions", "iphone")
             link(.passkeys, "Passkeys", "person.badge.key")
             link(.tokens, "API tokens", "key")
             link(.authorizedApps, "Authorized apps", "app.badge.checkmark")
