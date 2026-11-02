@@ -190,6 +190,12 @@ public enum Documents {
         documents += siteResourceDocuments
         documents += releaseDocuments
         documents += cameraDocuments
+        documents += platformAccessDocuments
+        documents += auditDocuments
+        documents += usageDocuments
+        documents += billingDocuments
+        documents += aiDocuments
+        documents += platformAdminDocuments
         documents += virtualControllerManagementDocuments
         documents += snapshotDocuments
         documents += virtualControllerCreateDocuments
