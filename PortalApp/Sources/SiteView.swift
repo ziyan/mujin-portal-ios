@@ -280,7 +280,7 @@ struct SiteView: View {
             await siteModel.loadSites()
             if appModel.isDemo {
                 if DemoOptions.screen == "incident", let incident = siteModel.incidents.first { path.append(.incident(incident)) }
-                if DemoOptions.screen == "controller" || DemoOptions.screen == "controller-screen", let controller = siteModel.controllers.first { path.append(.controller(controller)) }
+                if DemoOptions.screen == "controller" || DemoOptions.screen == "controller-screen" || DemoOptions.screen == "controller-menu", let controller = siteModel.controllers.first { path.append(.controller(controller)) }
                 if DemoOptions.screen == "controller-settings", let controller = siteModel.controllers.first {
                     path.append(.controller(controller))
                     path.append(.controllerSettings(controller))
@@ -290,7 +290,7 @@ struct SiteView: View {
                     path.append(.controllerBackups(controller))
                 }
                 if DemoOptions.screen == "virtual-controller-create" { path.append(.siteList(.virtualControllers, organizationKey: siteModel.sessionKey)) }
-                if DemoOptions.screen == "virtual-controller" || DemoOptions.screen == "virtual-controller-snapshots", let virtual = siteModel.virtualControllers.first {
+                if DemoOptions.screen == "virtual-controller" || DemoOptions.screen == "virtual-controller-menu" || DemoOptions.screen == "virtual-controller-snapshots", let virtual = siteModel.virtualControllers.first {
                     path.append(.virtualController(virtual))
                     if DemoOptions.screen == "virtual-controller-snapshots" { path.append(.virtualControllerSnapshots(virtual)) }
                 }
@@ -649,6 +649,7 @@ struct ControllerDetailView: View {
     @State var commentDraft = ""
     @State var isMoving = false
     @State var errorText: String?
+    @State private var isLinkCopied = false
 
     var body: some View {
         let server = session.account.server
@@ -687,6 +688,37 @@ struct ControllerDetailView: View {
                 AskAboutButton(viewing: Viewing(kind: "controller", id: controller.id), subject: controller.displayName)
                     .labelStyle(.iconOnly)
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                DetailMenu(demoScreen: "controller-menu") {
+                    Section { LinkMenuItems(link: .controller(id: controller.id), isCopied: $isLinkCopied) }
+                    if controller.canEdit || canMove {
+                        Section {
+                            if controller.canEdit {
+                                Button {
+                                    commentDraft = editedComment ?? controller.detail ?? ""
+                                    isEditingComment = true
+                                } label: { Label("Edit comment", systemImage: "pencil") }
+                            }
+                            if canMove {
+                                Button { isMoving = true } label: { Label("Move to another site", systemImage: "arrow.right.square") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .linkCopiedToast($isLinkCopied)
+        .demoMenuHost(screen: "controller-menu")
+        .alert("Edit comment", isPresented: $isEditingComment) {
+            TextField("Comment", text: $commentDraft)
+            Button("Save") { Task { await saveComment() } }
+            Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $isMoving) { MoveControllerView(controller: controller) }
+        .alert("Could not save", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorText ?? "")
         }
         .fullScreenCover(item: $screenSession) { screen in
             ControllerScreenView(session: screen, name: controller.displayName)
@@ -952,6 +984,7 @@ struct VirtualControllerDetailView: View {
     @State var liveTelemetry: SiteTelemetry?
     @State var liveAlarms: [SiteAlarm] = []
     @State var liveTickets: [Ticket] = []
+    @State private var isLinkCopied = false
 
     init(virtual: VirtualControllerSummary) { initial = virtual }
 
@@ -970,7 +1003,6 @@ struct VirtualControllerDetailView: View {
             }
             if virtual.canModify || virtual.canDestroy {
                 Section {
-                    VirtualControllerManageRows(virtual: virtual, onChange: { current = $0 }, onDestroyed: { dismiss() })
                     NavigationLink(value: PortalRoute.virtualControllerSnapshots(virtual)) {
                         Label("Snapshots", systemImage: "clock.arrow.circlepath").foregroundStyle(.primary)
                     }
@@ -991,7 +1023,12 @@ struct VirtualControllerDetailView: View {
                 AskAboutButton(viewing: Viewing(kind: "virtual_controller", id: virtual.id), subject: virtual.displayName)
                     .labelStyle(.iconOnly)
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                VirtualControllerMenu(virtual: virtual, isLinkCopied: $isLinkCopied, onChange: { current = $0 }, onDestroyed: { dismiss() })
+            }
         }
+        .linkCopiedToast($isLinkCopied)
+        .demoMenuHost(screen: "virtual-controller-menu")
         .navigationTitle(virtual.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)

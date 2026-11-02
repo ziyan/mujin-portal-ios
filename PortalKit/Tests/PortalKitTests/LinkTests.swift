@@ -258,3 +258,117 @@ import Testing
         #expect(sentVariables(try #require(transport.requests.last))["releaseId"] as? String == "r1")
     }
 }
+
+@Suite struct PortalLinkTests {
+    let server = try! ServerAddress("https://portal.example.test")
+
+    func link(_ text: String, server: ServerAddress? = nil) -> PortalLink? {
+        PortalLink(url: URL(string: text)!, server: server ?? self.server)
+    }
+
+    @Test func eachPageOfTheAppIsRead() {
+        #expect(link("https://portal.example.test/ticket/12") == .ticket(sequence: 12))
+        #expect(link("https://portal.example.test/controller/controller01") == .controller(id: "controller01"))
+        #expect(link("https://portal.example.test/virtualcontroller/virtual01") == .virtualController(id: "virtual01"))
+        #expect(link("https://portal.example.test/release/release-01_a") == .release(id: "release-01_a"))
+    }
+
+    @Test func aTrailingSlashAQueryAndAFragmentAreIgnored() {
+        #expect(link("https://portal.example.test/ticket/12/") == .ticket(sequence: 12))
+        #expect(link("https://portal.example.test/controller/controller01/?tab=alarms") == .controller(id: "controller01"))
+        #expect(link("https://portal.example.test/release/release01?x=1#top") == .release(id: "release01"))
+        #expect(link("https://portal.example.test//virtualcontroller//virtual01") == .virtualController(id: "virtual01"))
+    }
+
+    @Test func aPageBelowTheOneOpensTheOne() {
+        #expect(link("https://portal.example.test/controller/controller01/backups") == .controller(id: "controller01"))
+        #expect(link("https://portal.example.test/virtualcontroller/virtual01/snapshots/") == .virtualController(id: "virtual01"))
+        #expect(link("https://portal.example.test/release/release01/images") == .release(id: "release01"))
+        #expect(link("https://portal.example.test/ticket/12/comments") == nil)
+    }
+
+    @Test func percentEncodingIsUndone() {
+        #expect(link("https://portal.example.test/controller/controller%2D01") == .controller(id: "controller-01"))
+        #expect(link("https://portal.example.test/ticket/%31%32") == .ticket(sequence: 12))
+        #expect(link("https://portal.example.test/%63ontroller/controller01") == .controller(id: "controller01"))
+    }
+
+    @Test func anEncodedSlashOrOtherCharacterIsNotAnIdentifier() {
+        #expect(link("https://portal.example.test/controller/a%2Fb") == nil)
+        #expect(link("https://portal.example.test/controller/a%20b") == nil)
+        #expect(link("https://portal.example.test/controller/%E3%82%B3") == nil)
+        #expect(link("https://portal.example.test/controller/%zz") == nil)
+    }
+
+    @Test func aTicketNeedsItsNumber() {
+        #expect(link("https://portal.example.test/ticket/abc") == nil)
+        #expect(link("https://portal.example.test/ticket/0") == nil)
+        #expect(link("https://portal.example.test/ticket/-3") == nil)
+        #expect(link("https://portal.example.test/ticket/12abc") == nil)
+        #expect(link("https://portal.example.test/ticket/99999999999999999999") == nil)
+        #expect(link("https://portal.example.test/ticket") == nil)
+    }
+
+    @Test func aHostThatIsNotTheServerIsNotRead() {
+        #expect(link("https://other.example.test/ticket/12") == nil)
+        #expect(link("https://portal.example.test.evil.test/ticket/12") == nil)
+        #expect(link("https://evil.portal.example.test/ticket/12") == nil)
+        #expect(link("https://controller01-live.portal.example.test/controller/controller01") == nil)
+    }
+
+    @Test func theHostIsComparedWithoutCaseAndTheSchemeMayBeHttp() {
+        #expect(link("https://PORTAL.Example.test/ticket/12") == .ticket(sequence: 12))
+        #expect(link("http://portal.example.test/ticket/12") == .ticket(sequence: 12))
+        #expect(link("ftp://portal.example.test/ticket/12") == nil)
+        #expect(link("mailto:someone@example.test") == nil)
+    }
+
+    @Test func aPathWithNoPageIsNotRead() {
+        #expect(link("https://portal.example.test") == nil)
+        #expect(link("https://portal.example.test/") == nil)
+        #expect(link("https://portal.example.test/controller") == nil)
+        #expect(link("https://portal.example.test/settings/tokens") == nil)
+        #expect(link("https://portal.example.test/site/site01") == nil)
+    }
+
+    @Test func theCopiedAddressIsTheWebAppsAddress() {
+        #expect(PortalLink.ticket(sequence: 12).url(server: server).absoluteString == "https://portal.example.test/ticket/12")
+        #expect(PortalLink.controller(id: "controller01").url(server: server).absoluteString == "https://portal.example.test/controller/controller01")
+        #expect(PortalLink.virtualController(id: "virtual01").url(server: server).absoluteString == "https://portal.example.test/virtualcontroller/virtual01")
+        #expect(PortalLink.release(id: "release01").url(server: server).absoluteString == "https://portal.example.test/release/release01")
+    }
+
+    @Test func aCopiedAddressReadsBackAsTheSamePage() {
+        for page in [PortalLink.ticket(sequence: 7), .controller(id: "c-1_x"), .virtualController(id: "v2"), .release(id: "r3")] {
+            #expect(PortalLink(url: page.url(server: server), server: server) == page)
+        }
+    }
+
+    @Test func aServerWithAPortKeepsItsHostForTheComparison() throws {
+        let local = try ServerAddress("http://localhost:8080")
+        #expect(link("http://localhost:8080/ticket/3", server: local) == .ticket(sequence: 3))
+        #expect(PortalLink.ticket(sequence: 3).url(server: local).absoluteString == "http://localhost:8080/ticket/3")
+    }
+
+    @Test func aTicketIsLookedUpBySequence() async throws {
+        let (connection, transport) = scriptedConnection { operation, variables in
+            #expect(operation == "GetTicketBySequence")
+            #expect((variables["sequence"] as? NSNumber)?.int64Value == 12)
+            return ["GetTicketBySequence": ["id": "ticket-id-01", "sequence": 12, "title": "A title"]]
+        }
+        let ticket = try await connection.ticket(sequence: 12)
+        #expect(ticket.id == "ticket-id-01")
+        #expect(transport.requests.count == 1)
+    }
+
+    @Test func aControllerIsLookedUpById() async throws {
+        let (connection, _) = scriptedConnection { operation, variables in
+            #expect(operation == "GetController")
+            #expect(variables["controllerId"] as? String == "controller01")
+            return ["GetController": ["id": "controller01", "comment": "Pick station", "siteId": "site01"]]
+        }
+        let controller = try await connection.controller(id: "controller01")
+        #expect(controller.id == "controller01")
+        #expect(controller.comment == "Pick station")
+    }
+}

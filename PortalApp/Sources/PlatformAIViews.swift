@@ -217,38 +217,38 @@ private struct ProviderDetail: View {
                     LabeledContent("Key") {
                         Text(provider.hasAPIKey ? (provider.apiKeyFingerprint ?? "") : String(localized: "Not set")).foregroundStyle(Color.secondary)
                     }
-                }
-                Section {
-                    rowButton("Edit", symbol: "pencil") { isEditing = true }
-                    rowButton(provider.hasAPIKey ? "Replace the key" : "Set the key", symbol: "key") { isSettingKey = true }
                 } footer: {
                     Text("A key is stored sealed and is never shown again.")
-                }
-                Section {
-                    Button(role: .destructive) {
-                        isConfirmingDelete = true
-                    } label: {
-                        Text("Delete provider")
-                            .foregroundStyle(Color.statusError)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .confirmationDialog("Delete this provider?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
-                        Button("Delete \(provider.shownName)", role: .destructive) {
-                            Task {
-                                if await change({ try await $0.deleteAIProvider(id: provider.id) }) { dismiss() }
-                            }
-                        }
-                    } message: {
-                        Text("Agents and organizations that use it lose it.")
-                    }
                 }
             }
         }
         .portalList()
         .navigationTitle(provider.shownName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                DetailMenu {
+                    Section {
+                        Button { isEditing = true } label: { Label("Edit", systemImage: "pencil") }
+                        Button { isSettingKey = true } label: {
+                            Label(provider.hasAPIKey ? "Replace the key" : "Set the key", systemImage: "key")
+                        }
+                    }
+                    Section {
+                        Button(role: .destructive) { isConfirmingDelete = true } label: { Label("Delete provider", systemImage: "trash") }
+                    }
+                }
+                .confirmationDialog("Delete this provider?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                    Button("Delete \(provider.shownName)", role: .destructive) {
+                        Task {
+                            if await change({ try await $0.deleteAIProvider(id: provider.id) }) { dismiss() }
+                        }
+                    }
+                } message: {
+                    Text("Agents and organizations that use it lose it.")
+                }
+            }
+        }
         .refreshable { await reload() }
         .sheet(isPresented: $isEditing) { ProviderFormSheet(provider: provider) { await reload() } }
         .sheet(isPresented: $isSettingKey) {
@@ -258,16 +258,6 @@ private struct ProviderDetail: View {
             }
         }
         .failureAlert(actions)
-    }
-
-    private func rowButton(_ title: LocalizedStringKey, symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                .foregroundStyle(Color.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     @discardableResult
@@ -505,44 +495,34 @@ private struct AgentDetail: View {
                             .textSelection(.enabled)
                     }
                 }
-                Section {
-                    Button {
-                        isEditing = true
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
-                            .foregroundStyle(Color.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                if agent.isMain != true {
-                    Section {
-                        Button(role: .destructive) {
-                            isConfirmingDelete = true
-                        } label: {
-                            Text("Delete agent")
-                                .foregroundStyle(Color.statusError)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .confirmationDialog("Delete this agent?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
-                            Button("Delete \(agent.shownName)", role: .destructive) {
-                                Task {
-                                    if await change({ try await $0.deleteAIAgent(id: agent.id) }) { dismiss() }
-                                }
-                            }
-                        } message: {
-                            Text("Its conversations stay, but nobody can start a new one with it.")
-                        }
-                    }
-                }
             }
         }
         .portalList()
         .navigationTitle(agent.shownName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                DetailMenu {
+                    Section {
+                        Button { isEditing = true } label: { Label("Edit", systemImage: "pencil") }
+                    }
+                    if agent.isMain != true {
+                        Section {
+                            Button(role: .destructive) { isConfirmingDelete = true } label: { Label("Delete agent", systemImage: "trash") }
+                        }
+                    }
+                }
+                .confirmationDialog("Delete this agent?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                    Button("Delete \(agent.shownName)", role: .destructive) {
+                        Task {
+                            if await change({ try await $0.deleteAIAgent(id: agent.id) }) { dismiss() }
+                        }
+                    }
+                } message: {
+                    Text("Its conversations stay, but nobody can start a new one with it.")
+                }
+            }
+        }
         .refreshable { await reload() }
         .sheet(isPresented: $isEditing) { AgentFormSheet(agent: agent, providers: providers) { await reload() } }
         .failureAlert(actions)

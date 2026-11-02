@@ -39,54 +39,63 @@ enum ReleaseUsageKind: Hashable {
 }
 
 private struct PortalDestinations: ViewModifier {
-    @Environment(SessionModel.self) private var session
-
     func body(content: Content) -> some View {
         content.navigationDestination(for: PortalRoute.self) { route in
-            switch route {
-            case .ticket(let id):
-                TicketDetailView(ticketId: id)
-            case .siteList(let kind, let organizationKey):
-                if let model = session.existingSiteModel(key: organizationKey) {
-                    switch kind {
-                    case .telemetry: SiteTelemetryView(model: model)
-                    case .cameras: CameraGridView(model: model)
-                    default: SiteListScreen(kind: kind, model: model)
-                    }
+            PortalRouteView(route: route)
+        }
+    }
+}
+
+/// PortalRouteView is the screen a route stands for. A list pushes it through `portalDestinations()`; a tapped link shows it
+/// at the root of a sheet.
+struct PortalRouteView: View {
+    @Environment(SessionModel.self) private var session
+    let route: PortalRoute
+
+    var body: some View {
+        switch route {
+        case .ticket(let id):
+            TicketDetailView(ticketId: id)
+        case .siteList(let kind, let organizationKey):
+            if let model = session.existingSiteModel(key: organizationKey) {
+                switch kind {
+                case .telemetry: SiteTelemetryView(model: model)
+                case .cameras: CameraGridView(model: model)
+                default: SiteListScreen(kind: kind, model: model)
                 }
-            case .controller(let controller):
-                ControllerDetailView(controller: controller)
-            case .virtualController(let virtual):
-                VirtualControllerDetailView(virtual: virtual)
-            case .incident(let incident):
-                IncidentDetailView(incident: incident)
-            case .site(let id, let organizationId):
-                SiteView(organizationId: organizationId, siteId: id, embedsNavigation: false)
-            case .release(let id):
-                ReleaseDetailView(releaseId: id)
-            case .releaseUsers(let id, let kind):
-                ReleaseUsersView(releaseId: id, kind: kind)
-            case .releaseImage(let id):
-                ReleaseImageView(imageId: id)
-            case .virtualControllerSnapshots(let virtual):
-                VirtualControllerSnapshotsView(virtual: virtual)
-            case .controllerBackups(let controller):
-                ControllerBackupsView(controller: controller)
-            case .allControllers:
-                AllControllersView()
-            case .allVirtualControllers:
-                AllVirtualControllersView()
-            case .alarmSubscriptions(let controller):
-                AlarmSubscriptionsView(controller: controller)
-            case .controllerSettings(let controller):
-                ControllerSettingsView(controller: controller)
-            case .virtualAlarmSubscriptions(let virtual):
-                AlarmSubscriptionsView(virtual: virtual)
-            case .camera(let target):
-                CameraDetailView(target: target)
-            case .surveillance:
-                SurveillanceView()
             }
+        case .controller(let controller):
+            ControllerDetailView(controller: controller)
+        case .virtualController(let virtual):
+            VirtualControllerDetailView(virtual: virtual)
+        case .incident(let incident):
+            IncidentDetailView(incident: incident)
+        case .site(let id, let organizationId):
+            SiteView(organizationId: organizationId, siteId: id, embedsNavigation: false)
+        case .release(let id):
+            ReleaseDetailView(releaseId: id)
+        case .releaseUsers(let id, let kind):
+            ReleaseUsersView(releaseId: id, kind: kind)
+        case .releaseImage(let id):
+            ReleaseImageView(imageId: id)
+        case .virtualControllerSnapshots(let virtual):
+            VirtualControllerSnapshotsView(virtual: virtual)
+        case .controllerBackups(let controller):
+            ControllerBackupsView(controller: controller)
+        case .allControllers:
+            AllControllersView()
+        case .allVirtualControllers:
+            AllVirtualControllersView()
+        case .alarmSubscriptions(let controller):
+            AlarmSubscriptionsView(controller: controller)
+        case .controllerSettings(let controller):
+            ControllerSettingsView(controller: controller)
+        case .virtualAlarmSubscriptions(let virtual):
+            AlarmSubscriptionsView(virtual: virtual)
+        case .camera(let target):
+            CameraDetailView(target: target)
+        case .surveillance:
+            SurveillanceView()
         }
     }
 }
