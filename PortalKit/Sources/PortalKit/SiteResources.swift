@@ -16,12 +16,14 @@ public struct SiteOrchestrators: Decodable, Equatable, Identifiable, Sendable {
         public let hasError: Bool?
         public let isProcessingCommand: Bool?
         public let statusMessage: String?
+        /// The orchestrator's own verbatim state, from which the line's own status is read.
+        public let state: JSONValue?
 
         public var id: String { orchestratorId ?? orchestratorType ?? "" }
 
         public init(
             orchestratorId: String? = nil, orchestratorType: String? = nil, processStatus: String? = nil, runStatus: String? = nil, hasError: Bool? = nil,
-            isProcessingCommand: Bool? = nil, statusMessage: String? = nil
+            isProcessingCommand: Bool? = nil, statusMessage: String? = nil, state: JSONValue? = nil
         ) {
             self.orchestratorId = orchestratorId
             self.orchestratorType = orchestratorType
@@ -30,9 +32,37 @@ public struct SiteOrchestrators: Decodable, Equatable, Identifiable, Sendable {
             self.hasError = hasError
             self.isProcessingCommand = isProcessingCommand
             self.statusMessage = statusMessage
+            self.state = state
         }
 
-        public var isRunning: Bool { (runStatus ?? "").lowercased().contains("run") }
+        /// Where each orchestrator type keeps its own status inside the verbatim state, as the web's
+        /// `ownStatusPaths` does. A type absent here has no own status.
+        static let ownStatusPaths: [String: [String]] = [
+            "productioncycle": ["productionCycleStatus"],
+            "warehouseexecution": ["warehouseExecutionState", "warehouseExecutionStatus"],
+            "fleet": ["fleetManagementState", "fleetManagementStatus"],
+        ]
+
+        /// The line's own status (Running, Paused, Stopped and so on), or nil for a type that has none
+        /// or a state that does not carry it. This is not `runStatus`, which only says whether the
+        /// orchestrator is executing a command right now (Idle, Active or Working).
+        public var ownStatus: String? {
+            guard let path = Self.ownStatusPaths[orchestratorType ?? ""], var current = state else { return nil }
+            if let object = current.objectValue { current = .object(object) }
+            for key in path {
+                guard let next = current[key] else { return nil }
+                current = next
+            }
+            guard let text = current.stringValue, !text.isEmpty else { return nil }
+            return text
+        }
+
+        /// True only when the line itself is running. Paused, Stopping and the other in-between
+        /// statuses are not running.
+        public var isRunning: Bool { ownStatus == "Running" }
+
+        /// The line is changing or held: Paused, Pausing, Stopping, Starting or Resuming.
+        public var isInTransition: Bool { ["Paused", "Pausing", "Stopping", "Starting", "Resuming"].contains(ownStatus ?? "") }
     }
 
     public let controllerId: String?
@@ -50,17 +80,21 @@ public struct SiteOrchestrators: Decodable, Equatable, Identifiable, Sendable {
     public var list: [Orchestrator] { orchestrators?.orchestrators ?? [] }
 }
 
-/// SiteOrchestratorSummary is what the site page's row says: how many run, and whether any has an error.
+/// SiteOrchestratorSummary is what the site page's row says: how many lines run, and whether any has an error.
+/// An orchestrator whose type reports no own status cannot be said to run or not, so it is left out of
+/// `totalCount` and counted in `withoutOwnStatusCount` instead.
 public struct SiteOrchestratorSummary: Equatable, Sendable {
     public let runningCount: Int
     public let totalCount: Int
+    public let withoutOwnStatusCount: Int
     public let hasError: Bool
     public let unreachableControllerCount: Int
 
     public init(_ rows: [SiteOrchestrators]) {
         let all = rows.flatMap(\.list)
         runningCount = all.filter(\.isRunning).count
-        totalCount = all.count
+        totalCount = all.filter { $0.ownStatus != nil }.count
+        withoutOwnStatusCount = all.count - totalCount
         hasError = all.contains { $0.hasError == true }
         unreachableControllerCount = rows.filter { $0.isAvailable == false }.count
     }
@@ -101,7 +135,7 @@ extension Documents {
             controllerId isAvailable
             orchestrators {
               observedAt activeRunModeName
-              orchestrators { orchestratorId orchestratorType processStatus runStatus hasError isProcessingCommand statusMessage }
+              orchestrators { orchestratorId orchestratorType processStatus runStatus hasError isProcessingCommand statusMessage state }
             }
           }
         }
@@ -117,7 +151,7 @@ extension Documents {
         }
         """
 
-    static var siteResourceDocuments: [String] { [listSiteOrchestrators, listSiteUserIDs, listOrganizationUsers] }
+    static var siteResourceDocuments: [String] { [listSiteOrchestrators, listSiteUserIDs, listOrganizationUsers, getAlarmDetail] }
 }
 
 extension Connection {

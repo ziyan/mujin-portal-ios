@@ -295,6 +295,11 @@ struct SiteView: View {
                     if DemoOptions.screen == "virtual-controller-snapshots" { path.append(.virtualControllerSnapshots(virtual)) }
                 }
                 if DemoOptions.screen == "site-orchestrators" { path.append(.siteList(.orchestrators, organizationKey: siteModel.sessionKey)) }
+                if DemoOptions.screen == "site-mobile-robots" { path.append(.siteList(.mobileRobots, organizationKey: siteModel.sessionKey)) }
+                if DemoOptions.screen == "site-alarms" { path.append(.siteList(.alarms, organizationKey: siteModel.sessionKey)) }
+                if DemoOptions.screen == "site-alarm-detail", let alarm = siteModel.alarms.first {
+                    path.append(.alarm(alarm, controller: siteModel.controllers.first { $0.id == alarm.controllerId }))
+                }
                 if DemoOptions.screen == "site-members" { path.append(.siteList(.members, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "site-back" {
                     // Choose the second site, push a list, and come back: the page must still show the second site.
@@ -444,11 +449,11 @@ struct SiteView: View {
             NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.sessionKey)) {
                 LabeledContent("Controllers") { Text(model.controllers.count.formatted()).monospacedDigit() }
             }
-            LabeledContent("Mobile robots") {
-                if model.robots.robotCount == 0 {
-                    Text("None reported").foregroundStyle(.secondary)
-                } else {
-                    Text("\(model.robots.onlineCount) of \(model.robots.robotCount) online").monospacedDigit()
+            if model.robots.robotCount == 0 {
+                LabeledContent("Mobile robots") { Text("None reported").foregroundStyle(.secondary) }
+            } else {
+                NavigationLink(value: PortalRoute.siteList(.mobileRobots, organizationKey: model.sessionKey)) {
+                    LabeledContent("Mobile robots") { Text("\(model.robots.onlineCount) of \(model.robots.robotCount) online").monospacedDigit() }
                 }
             }
             NavigationLink(value: PortalRoute.siteList(.orchestrators, organizationKey: model.sessionKey)) {
@@ -456,8 +461,10 @@ struct SiteView: View {
                     let summary = SiteOrchestratorSummary(model.orchestrators)
                     HStack(spacing: 6) {
                         if summary.hasError { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.statusError).accessibilityLabel(Text("Has an error")) }
-                        if summary.totalCount == 0 {
+                        if summary.totalCount == 0 && summary.withoutOwnStatusCount == 0 {
                             Text("None reported").foregroundStyle(.secondary)
+                        } else if summary.totalCount == 0 {
+                            Text("\(summary.withoutOwnStatusCount) without a line status").foregroundStyle(.secondary)
                         } else {
                             Text("\(summary.runningCount) of \(summary.totalCount) running").monospacedDigit()
                         }
@@ -504,7 +511,7 @@ struct SiteView: View {
     private func alarmSection(_ model: SiteModel) -> some View {
         if !model.alarms.isEmpty {
             Section("Alarms") {
-                ForEach(SiteSections.top(model.alarms)) { alarm in SiteRows.alarm(alarm) }
+                ForEach(SiteSections.top(model.alarms)) { alarm in SiteRows.alarmLink(alarm, controllers: model.controllers) }
                 showAll(.alarms, model: model, count: model.alarms.count, isShown: SiteSections.hasMore(model.alarms))
             }
         }
@@ -562,6 +569,7 @@ enum SiteListKind: Hashable {
     case controllers
     case virtualControllers
     case orchestrators
+    case mobileRobots
     case members
     case telemetry
     case cameras
@@ -571,6 +579,7 @@ enum SiteListKind: Hashable {
         case .telemetry: "Last 24 hours"
         case .virtualControllers: "Virtual controllers"
         case .orchestrators: "Orchestrators"
+        case .mobileRobots: "Mobile robots"
         case .members: "Members"
         case .alarms: "Alarms"
         case .incidents: "Incidents"
@@ -1036,17 +1045,22 @@ enum SiteRows {
                 Image(systemName: alarm.severityRank <= 1 ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
                     .foregroundStyle(alarm.severityRank <= 1 ? Color.statusError : Color.statusWarning)
             }
-            // At the accessibility text sizes the two parts go on separate lines.
+            // The controller is named on every row. At the accessibility text sizes the parts go on separate lines.
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 6) {
-                    Text(alarm.originLabel ?? alarm.controllerId)
+                    Text(alarm.controllerId)
+                    if let label = alarm.originLabel, !label.isEmpty, label != alarm.controllerId {
+                        Text("\u{00B7}")
+                        Text(label)
+                    }
                     if let date = alarm.occurredDate {
                         Text("\u{00B7}")
                         Text(date, format: .relative(presentation: .named))
                     }
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(alarm.originLabel ?? alarm.controllerId)
+                    Text(alarm.controllerId)
+                    if let label = alarm.originLabel, !label.isEmpty, label != alarm.controllerId { Text(label) }
                     if let date = alarm.occurredDate {
                         Text(date, format: .relative(presentation: .named))
                     }
@@ -1054,6 +1068,16 @@ enum SiteRows {
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
+        }
+    }
+
+    /// An alarm row that opens the alarm in full when the controller reported an id to fetch it by.
+    @ViewBuilder
+    static func alarmLink(_ alarm: SiteAlarm, controllers: [ControllerSummary]) -> some View {
+        if let logEntryId = alarm.logEntryId, !logEntryId.isEmpty {
+            NavigationLink(value: PortalRoute.alarm(alarm, controller: controllers.first { $0.id == alarm.controllerId })) { Self.alarm(alarm) }
+        } else {
+            Self.alarm(alarm)
         }
     }
 
@@ -1087,7 +1111,7 @@ struct SiteListScreen: View {
         List { PortalRows {
             switch kind {
             case .alarms:
-                ForEach(model.alarms) { SiteRows.alarm($0) }
+                ForEach(model.alarms) { SiteRows.alarmLink($0, controllers: model.controllers) }
             case .incidents:
                 ForEach(model.incidents) { incident in NavigationLink(value: PortalRoute.incident(incident)) { SiteRows.incident(incident) } }
             case .tickets:
@@ -1096,6 +1120,8 @@ struct SiteListScreen: View {
                 ForEach(model.cells) { SiteRows.cell($0) }
             case .telemetry, .cameras:
                 EmptyView()
+            case .mobileRobots:
+                ForEach(model.robots.robots) { RobotRow(robot: $0) }
             case .orchestrators:
                 ForEach(model.orchestrators) { row in
                     Section(row.controllerId ?? "") {
@@ -1104,21 +1130,7 @@ struct SiteListScreen: View {
                         } else if row.list.isEmpty {
                             Text("None reported").foregroundStyle(.secondary)
                         }
-                        ForEach(row.list) { orchestrator in
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack {
-                                    Text((orchestrator.orchestratorType ?? orchestrator.id).replacingOccurrences(of: "_", with: " ").capitalized)
-                                    Spacer(minLength: 8)
-                                    if orchestrator.hasError == true {
-                                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.statusError).accessibilityLabel(Text("Has an error"))
-                                    }
-                                    Text(orchestrator.runStatus ?? "").font(.footnote).foregroundStyle(.secondary)
-                                }
-                                if orchestrator.hasError == true, let message = orchestrator.statusMessage, !message.isEmpty {
-                                    Text(message).font(.footnote).foregroundStyle(Color.statusError)
-                                }
-                            }
-                        }
+                        ForEach(row.list) { orchestrator in OrchestratorRow(orchestrator: orchestrator) }
                     }
                 }
             case .members:
