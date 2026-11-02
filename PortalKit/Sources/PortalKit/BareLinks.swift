@@ -36,26 +36,42 @@ public enum BareLinks {
         return found
     }
 
-    /// The text with each bare address a link, except where it is already a
-    /// link or sits in a code span.
-    public static func linked(_ text: AttributedString) -> AttributedString {
+    /// The Markdown with each bare address written as an autolink (`<address>`),
+    /// which the system's parser turns into a link. Addresses in code spans,
+    /// in the text or the destination of a Markdown link, or already in angle
+    /// brackets are left as they are.
+    public static func markdown(_ text: String) -> String {
+        let found = matches(in: text)
+        if found.isEmpty { return text }
+        let whole = NSRange(text.startIndex..., in: text)
+        var protected: [NSRange] = []
+        for expression in protectedExpressions {
+            protected += expression.matches(in: text, range: whole).map(\.range)
+        }
         var result = text
-        let plain = String(text.characters)
-        for match in matches(in: plain) {
-            guard let start = AttributedString.Index(match.range.lowerBound, within: result), let end = AttributedString.Index(match.range.upperBound, within: result) else { continue }
-            var isTaken = false
-            for run in result[start..<end].runs {
-                if run.link != nil { isTaken = true }
-                if let intent = run.inlinePresentationIntent, intent.contains(InlinePresentationIntent.code) { isTaken = true }
-            }
-            if !isTaken { result[start..<end].link = match.url }
+        // From the end, so the places of the addresses before it do not move.
+        for match in found.reversed() {
+            let range = NSRange(match.range, in: text)
+            if protected.contains(where: { NSIntersectionRange($0, range).length > 0 }) { continue }
+            guard let place = Range(range, in: result) else { continue }
+            result.replaceSubrange(place, with: "<" + String(text[match.range]) + ">")
         }
         return result
     }
 
+    // Code spans, then Markdown links and images, then autolinks.
+    private static let protectedExpressions: [NSRegularExpression] = [
+        #"(`+).+?\1"#, #"\[[^\]]*\]\([^)]*\)"#, #"<[^>\s]*>"#,
+    ].compactMap { try? NSRegularExpression(pattern: $0) }
+
     /// The text as it is written, with its addresses as links.
     public static func linked(plainText text: String) -> AttributedString {
-        linked(AttributedString(text))
+        var result = AttributedString(text)
+        for match in matches(in: text) {
+            guard let start = AttributedString.Index(match.range.lowerBound, within: result), let end = AttributedString.Index(match.range.upperBound, within: result) else { continue }
+            result[start..<end].link = match.url
+        }
+        return result
     }
 
     private static func isEnd(_ character: Character) -> Bool {

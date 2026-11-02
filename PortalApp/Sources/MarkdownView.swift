@@ -64,12 +64,10 @@ struct MarkdownView: View {
     }
 
     static func inline(_ text: String) -> AttributedString {
-        var result = (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
         // Web addresses typed as plain text become links too, which the
         // app opens in its own browser. Code and existing links stay as they are.
-        result = BareLinks.linked(result)
-        result = styledLinks(result)
-        return result
+        let result = (try? AttributedString(markdown: BareLinks.markdown(text), options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
+        return styledLinks(result)
     }
 
     /// Text as it was written, whose web addresses are links.

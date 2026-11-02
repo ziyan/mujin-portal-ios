@@ -4,60 +4,53 @@ import Testing
 @testable import PortalKit
 
 @Suite struct BareLinkTests {
-    func linkedText(_ text: AttributedString) -> [String: URL] {
-        var result: [String: URL] = [:]
-        for run in text.runs {
-            if let url = run.link { result[String(text[run.range].characters)] = url }
-        }
-        return result
-    }
-
-    func linked(_ markdown: String) -> [String: URL] {
-        let parsed = (try? AttributedString(markdown: markdown, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(markdown)
-        return linkedText(BareLinks.linked(parsed))
-    }
-
-    @Test func aBareAddressBecomesALink() {
-        #expect(linked("The checklist is here: https://example.test/docs/suction") == ["https://example.test/docs/suction": URL(string: "https://example.test/docs/suction")!])
-        #expect(linked("see HTTP://example.test/a now")["HTTP://example.test/a"] != nil)
+    @Test func aBareAddressBecomesAnAutolink() {
+        #expect(BareLinks.markdown("The checklist is here: https://example.test/docs/suction") == "The checklist is here: <https://example.test/docs/suction>")
+        #expect(BareLinks.markdown("see HTTP://example.test/a now") == "see <HTTP://example.test/a> now")
+        #expect(BareLinks.markdown("no address here") == "no address here")
     }
 
     @Test func punctuationAfterAnAddressIsNotPartOfIt() {
-        #expect(Set(linked("Read https://example.test/a.").keys) == ["https://example.test/a"])
-        #expect(Set(linked("Is it https://example.test/a?").keys) == ["https://example.test/a"])
-        #expect(Set(linked("One https://example.test/a, two https://example.test/b; done").keys) == ["https://example.test/a", "https://example.test/b"])
-        #expect(Set(linked("Query https://example.test/a?x=1&y=2.").keys) == ["https://example.test/a?x=1&y=2"])
+        #expect(BareLinks.markdown("Read https://example.test/a.") == "Read <https://example.test/a>.")
+        #expect(BareLinks.markdown("Is it https://example.test/a?") == "Is it <https://example.test/a>?")
+        #expect(BareLinks.markdown("One https://example.test/a, two https://example.test/b; done") == "One <https://example.test/a>, two <https://example.test/b>; done")
+        #expect(BareLinks.markdown("Query https://example.test/a?x=1&y=2.") == "Query <https://example.test/a?x=1&y=2>.")
+        #expect(BareLinks.markdown("Bold **https://example.test/a**") == "Bold **<https://example.test/a>**")
     }
 
     @Test func aClosingBracketOnlyBelongsToTheAddressWhenItIsBalanced() {
-        #expect(Set(linked("(see https://example.test/a)").keys) == ["https://example.test/a"])
-        #expect(Set(linked("(see https://example.test/a).").keys) == ["https://example.test/a"])
-        #expect(Set(linked("also https://example.test/wiki/Item_(thing) here").keys) == ["https://example.test/wiki/Item_(thing)"])
+        #expect(BareLinks.markdown("(see https://example.test/a)") == "(see <https://example.test/a>)")
+        #expect(BareLinks.markdown("(see https://example.test/a).") == "(see <https://example.test/a>).")
+        #expect(BareLinks.markdown("also https://example.test/wiki/Item_(thing) here") == "also <https://example.test/wiki/Item_(thing)> here")
     }
 
-    @Test func anAddressInsideCodeIsNotALink() {
-        #expect(linked("run `curl https://example.test/a` first").isEmpty)
+    @Test func anAddressInsideCodeIsLeftAlone() {
+        #expect(BareLinks.markdown("run `curl https://example.test/a` first") == "run `curl https://example.test/a` first")
+        #expect(BareLinks.markdown("run ``a ` https://example.test/a`` first") == "run ``a ` https://example.test/a`` first")
+        #expect(BareLinks.markdown("`code` then https://example.test/a") == "`code` then <https://example.test/a>")
     }
 
-    @Test func aMarkdownLinkIsKeptAsItIs() {
-        let links = linked("[the docs](https://example.test/docs) and [https://example.test/x](https://example.test/y)")
-        #expect(links["the docs"] == URL(string: "https://example.test/docs"))
-        #expect(links["https://example.test/x"] == URL(string: "https://example.test/y"))
-        #expect(links.count == 2)
+    @Test func existingLinksAreLeftAlone() {
+        let text = "[the docs](https://example.test/docs) and [https://example.test/x](https://example.test/y) and <https://example.test/z> and ![shot](https://example.test/p.png)"
+        #expect(BareLinks.markdown(text) == text)
+        #expect(BareLinks.markdown("[docs](https://example.test/d) or https://example.test/e") == "[docs](https://example.test/d) or <https://example.test/e>")
     }
 
     @Test func mailAddressesAndOtherSchemesAreLeftAlone() {
-        #expect(linked("write to sam@example.test or ftp://example.test/a or example.test/b").isEmpty)
-        #expect(linked("see mailto:sam@example.test").isEmpty)
+        let text = "write to sam@example.test or ftp://example.test/a or example.test/b or mailto:sam@example.test"
+        #expect(BareLinks.markdown(text) == text)
     }
 
     @Test func aWordEndingInTheSchemeIsNotAnAddress() {
-        #expect(linked("xhttps://example.test/a").isEmpty)
-        #expect(linked("https://").isEmpty)
+        #expect(BareLinks.markdown("xhttps://example.test/a") == "xhttps://example.test/a")
+        #expect(BareLinks.markdown("https://") == "https://")
     }
 
     @Test func plainTextIsLinkedAsWritten() {
-        let text = BareLinks.linked(plainText: "Got it https://example.test/a")
-        #expect(linkedText(text) == ["https://example.test/a": URL(string: "https://example.test/a")!])
+        let text = BareLinks.linked(plainText: "Got it https://example.test/a.")
+        let links = text.runs.compactMap { run in run.link.map { (String(text[run.range].characters), $0) } }
+        #expect(links.count == 1)
+        #expect(links.first?.0 == "https://example.test/a")
+        #expect(links.first?.1 == URL(string: "https://example.test/a"))
     }
 }
