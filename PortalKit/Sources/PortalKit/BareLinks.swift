@@ -43,8 +43,10 @@ public enum BareLinks {
         let plain = String(text.characters)
         for match in matches(in: plain) {
             guard let start = AttributedString.Index(match.range.lowerBound, within: result), let end = AttributedString.Index(match.range.upperBound, within: result) else { continue }
-            let isTaken = result[start..<end].runs.contains { run in
-                run.link != nil || run.inlinePresentationIntent?.contains(.code) == true
+            var isTaken = false
+            for run in result[start..<end].runs {
+                if run.link != nil { isTaken = true }
+                if let intent = run.inlinePresentationIntent, intent.contains(InlinePresentationIntent.code) { isTaken = true }
             }
             if !isTaken { result[start..<end].link = match.url }
         }
