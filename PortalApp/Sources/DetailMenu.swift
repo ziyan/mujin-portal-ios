@@ -26,6 +26,7 @@ private struct DemoMenuHost: ViewModifier {
                 VStack(alignment: .leading, spacing: 14) { presenter.items }
                     .buttonStyle(.plain)
                     .padding(20)
+                    .fixedSize(horizontal: false, vertical: true)
                     .presentationCompactAdaptation(.popover)
             }
             .task {
