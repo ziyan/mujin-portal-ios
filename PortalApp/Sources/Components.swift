@@ -380,6 +380,37 @@ struct ReactionMenuRow: View {
     }
 }
 
+/// StatusValueRow is a title with a status beside it: a symbol and one word. At the large text sizes, where the two do not fit on a
+/// line, the status goes under the title, whole; a word is never broken. Its separator starts at the row's edge.
+struct StatusValueRow: View {
+    let title: LocalizedStringKey
+    let symbol: String
+    let value: LocalizedStringKey
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                Text(title)
+                Spacer(minLength: 8)
+                valueView
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                valueView
+            }
+        }
+        .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+    }
+
+    private var valueView: some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol).accessibilityHidden(true)
+            Text(value).lineLimit(1).fixedSize(horizontal: true, vertical: false)
+        }
+        .foregroundStyle(.secondary)
+    }
+}
+
 /// DayLabel names a day between messages: Today, Yesterday, or the date.
 enum DayLabel {
     static func isNewDay(_ previous: Date?, _ current: Date?) -> Bool {

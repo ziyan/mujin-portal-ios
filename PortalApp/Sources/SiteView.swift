@@ -654,17 +654,9 @@ struct ControllerDetailView: View {
         let server = session.account.server
         List { PortalRows {
             Section {
-                HStack {
-                    Text("Status")
-                    Spacer(minLength: 8)
-                    HStack(spacing: 6) {
-                        Image(systemName: controller.isOnline ? "checkmark.circle" : "circle.slash").accessibilityHidden(true)
-                        Text(controller.isOnline ? "Online" : "Offline")
-                    }
-                    .foregroundStyle(.secondary)
-                }
-                // The separator starts at the row's edge, not at the label's.
-                .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+                StatusValueRow(
+                    title: "Status", symbol: controller.isOnline ? "checkmark.circle" : "circle.slash",
+                    value: controller.isOnline ? LocalizedStringKey("Online") : LocalizedStringKey("Offline"))
                 if let detail = editedComment ?? controller.detail {
                     LabeledContent("Comment") { Text(detail) }
                 }
@@ -969,18 +961,9 @@ struct VirtualControllerDetailView: View {
         let server = session.account.server
         List { PortalRows {
             Section {
-                // A plain row, not a LabeledContent: a symbol label as its value made the row several times too tall.
-                HStack {
-                    Text("Status")
-                    Spacer(minLength: 8)
-                    // The value is a symbol and a text, not a Label: a list takes a Label for the start of the row's separator.
-                    HStack(spacing: 6) {
-                        Image(systemName: virtual.isRunning ? "checkmark.circle" : "circle.slash").accessibilityHidden(true)
-                        Text(virtual.isRunning ? LocalizedStringKey("Running") : LocalizedStringKey(virtual.status ?? ""))
-                    }
-                    .foregroundStyle(.secondary)
-                }
-                .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+                StatusValueRow(
+                    title: "Status", symbol: virtual.isRunning ? "checkmark.circle" : "circle.slash",
+                    value: virtual.isRunning ? LocalizedStringKey("Running") : LocalizedStringKey(virtual.status ?? ""))
                 if let comment = virtual.comment, !comment.isEmpty { LabeledContent("Comment") { Text(comment) } }
                 ReleaseRow(release: virtual.release)
                 if let region = virtual.region, !region.isEmpty { LabeledContent("Region") { Text(region) } }
