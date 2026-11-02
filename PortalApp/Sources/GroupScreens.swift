@@ -83,7 +83,7 @@ struct GroupsView: View {
         .overlay {
             if groups.isEmpty {
                 ContentUnavailableView {
-                    Label("No groups", systemImage: "person.3")
+                    Label("No groups", systemImage: "person.2.crop.square.stack")
                 } description: {
                     Text("Make a group, add people to it and choose the sites and roles it gives.")
                 }

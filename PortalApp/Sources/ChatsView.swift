@@ -36,7 +36,7 @@ struct ChatsView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button { newChatMode = .direct } label: { Label("New chat", systemImage: "person") }
-                            Button { newChatMode = .group } label: { Label("New group", systemImage: "person.3") }
+                            Button { newChatMode = .group } label: { Label("New group", systemImage: "person.2.crop.square.stack") }
                         } label: {
                             Label("New chat", systemImage: "square.and.pencil")
                         }

@@ -81,7 +81,7 @@ struct AccountMoreSections: View {
                     link(.organizations, "People by organization", "person.2")
                 } else if let organizationId = session.organizationId {
                     if access.canSeeMembers(in: organizationId) { link(.members(organizationId: organizationId), "Members", "person.2") }
-                    if access.canSeeGroups(in: organizationId) { link(.groups(organizationId: organizationId), "Groups", "person.3") }
+                    if access.canSeeGroups(in: organizationId) { link(.groups(organizationId: organizationId), "Groups", "person.2.crop.square.stack") }
                     if access.canOpenRoles(in: organizationId) { link(.roles(organizationId: organizationId), "Roles", "checkmark.shield") }
                 }
             }

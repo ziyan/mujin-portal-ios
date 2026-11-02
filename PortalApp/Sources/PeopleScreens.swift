@@ -92,7 +92,7 @@ struct PeopleHubView: View {
                         NavigationLink {
                             GroupsView(organizationId: organizationId)
                         } label: {
-                            Label("Groups", systemImage: "person.3")
+                            Label("Groups", systemImage: "person.2.crop.square.stack")
                                 .foregroundStyle(.primary)
                         }
                     }
