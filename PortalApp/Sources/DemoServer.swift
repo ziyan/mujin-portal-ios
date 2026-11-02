@@ -350,6 +350,15 @@ final class DemoState: @unchecked Sendable {
                 }
             }
             broadcast(conversationId: conversationId, event: ["type": "run_complete", "runId": "run-demo", "runComplete": ["stopReason": "end_turn"]])
+            // As on the server: the title it writes from the first exchange comes a few seconds after the turn ends, with no event.
+            if conversationId.hasPrefix("conversation-new-") {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                withData { data in
+                    if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
+                        data.conversations[index]["title"] = "A first question for the assistant"
+                    }
+                }
+            }
         }
     }
 }

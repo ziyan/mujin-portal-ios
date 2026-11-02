@@ -9,6 +9,8 @@ struct ConversationView: View {
     let account: Account
     let conversationId: String
     let title: String?
+    /// Told when the server gives the conversation a new title, so the list shows it too.
+    var onTitleChanged: ((String) -> Void)?
 
     @State private var model: ConversationModel?
     @State private var voice: VoiceCallController?
@@ -93,6 +95,7 @@ struct ConversationView: View {
                 conversationId: conversationId, currentUserId: account.userId, connection: appModel.connection(for: account),
                 socketFactory: appModel.socketFactory,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
+            conversationModel.onTitleChanged = { onTitleChanged?($0) }
             model = conversationModel
             takeReference()
             voice?.end()
@@ -100,6 +103,7 @@ struct ConversationView: View {
                 model: conversationModel, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
             conversationModel.start()
             if appModel.isDemo, DemoOptions.screen == "voice" { voice?.startDemo() }
+            if appModel.isDemo, DemoOptions.screen == "conversation-composer" { drafts.stageDemo() }
             if appModel.isDemo, DemoOptions.screen == "conversation-reply" {
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 conversationModel.replyTarget = ReplyReference(
@@ -703,7 +707,7 @@ private struct ComposerBar: View {
                         .font(.footnote)
                         .foregroundStyle(Color.statusError)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    if !isDraftEmpty {
+                    if canSend {
                         Button("Retry") { send() }
                             .font(.footnote.weight(.semibold))
                     }

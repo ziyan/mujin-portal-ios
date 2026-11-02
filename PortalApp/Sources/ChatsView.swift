@@ -57,7 +57,7 @@ struct ChatsView: View {
         .sheet(item: $newChatMode) { mode in
             NewChatView(mode: mode) { conversationId in
                 selectedConversationId = conversationId
-                Task { await model?.load() }
+                Task { await model?.didStart(conversationId: conversationId) }
             }
         }
         .task(id: account.accountKey) {
@@ -70,7 +70,7 @@ struct ChatsView: View {
             if appModel.isDemo, let screen = DemoOptions.screen {
                 if screen.hasPrefix("chat:") { selectedConversationId = String(screen.dropFirst("chat:".count)) }
                 if screen == "chat-info" { selectedConversationId = "chatconv02" }
-                if screen == "chat-reply" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-message-actions" { selectedConversationId = "chatconv01" }
+                if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-message-actions" { selectedConversationId = "chatconv01" }
                 if screen == "chats-new" { newChatMode = .direct }
                 if screen == "chats-new-group" { newChatMode = .group }
             }

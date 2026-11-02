@@ -30,6 +30,15 @@ final class ChatListModel {
         await load()
     }
 
+    /// Reads the list after a chat was started, again for a moment if a replica is behind and does not list it yet.
+    func didStart(conversationId: String) async {
+        for attempt in 0..<4 {
+            await load()
+            if chats.contains(where: { $0.id == conversationId }) { return }
+            if attempt < 3 { try? await Task.sleep(nanoseconds: 1_500_000_000) }
+        }
+    }
+
     func load() async {
         do {
             chats = try await connection.chats(search: searchText)
@@ -273,16 +282,25 @@ final class ChatModel {
 
     // MARK: sending
 
-    /// Says something to the room, or saves an edit.
-    func send(_ text: String) async -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
+    /// Says something to the room, or saves an edit. Files in `attachments` go up first and the message names them as the web app does.
+    func send(_ text: String, attachments: AttachmentDrafts? = nil) async -> Bool {
+        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasFiles = editTarget == nil && !(attachments?.items.isEmpty ?? true)
+        guard !trimmed.isEmpty || hasFiles else { return false }
         guard trimmed.count <= ChatRules.maximumMessageCharacters else {
             actionError = String(localized: "A message can be up to \(ChatRules.maximumMessageCharacters) characters.")
             return false
         }
         actionError = nil
         do {
+            if hasFiles, let attachments {
+                let files = try await attachments.upload(using: connection)
+                if AttachmentLimits.chatMessageRefusal(text: trimmed, files: files) != nil {
+                    actionError = String(localized: "A message can be up to \(ChatRules.maximumMessageCharacters) characters.")
+                    return false
+                }
+                trimmed = SharePayload.assistantMessage(text: trimmed, files: files)
+            }
             if let editTarget, let chatId {
                 try await connection.editChatMessage(chatId: chatId, messageId: editTarget.id, text: trimmed)
                 self.editTarget = nil
@@ -294,6 +312,7 @@ final class ChatModel {
                 conversationId: conversationId, text: trimmed, replyToMessageId: replyTarget?.id, mentions: mentions)
             replyTarget = nil
             pickedMentions = []
+            if hasFiles { attachments?.removeUploaded() }
             if let message = sent.message { timeline.upsert(message) }
             if !sent.runId.isEmpty { isOwnTurnRunning = true }
             await markRead()

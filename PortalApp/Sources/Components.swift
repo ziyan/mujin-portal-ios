@@ -23,28 +23,33 @@ struct ComposerCard<Accessory: View>: View {
     let onSend: () -> Void
     @ViewBuilder var accessory: Accessory
 
-    @FocusState private var isFocused: Bool
+    @State private var isFocused = false
     /// The round buttons grow with the text, held where their symbols stay inside them.
     @ScaledMetric(relativeTo: .body) private var scaledDiameter: CGFloat = 36
     private var diameter: CGFloat { min(scaledDiameter, 60) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            TextField(placeholder, text: $text, axis: .vertical)
-                .lineLimit(1...8)
-                .focused($isFocused)
-                .disabled(!isEnabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .accessibilityIdentifier(fieldIdentifier)
-                .onKeyPress(.escape, phases: .down) { _ in (onEscape?() ?? false) ? .handled : .ignored }
-                // With a hardware keyboard, Return sends and Shift+Return adds a line.
-                .onKeyPress(.return, phases: .down) { press in
-                    if press.modifiers.contains(.shift) { return .ignored }
-                    if canSend { onSend() }
-                    return .handled
+            ZStack(alignment: .topLeading) {
+                if text.isEmpty {
+                    Text(placeholder)
+                        .foregroundStyle(Color(.placeholderText))
+                        .lineLimit(1)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
+                // Paste of a picture is the card's own: it adds an attachment. With a hardware keyboard, Return sends and Shift+Return adds a line.
+                ComposerTextView(
+                    text: $text, isFocused: $isFocused, isEnabled: isEnabled,
+                    onReturn: { if canSend { onSend() } }, onEscape: onEscape,
+                    onPastePicture: drafts.map { drafts in { drafts.pastePicture() } }
+                )
+                .accessibilityLabel(Text(placeholder))
+                .accessibilityIdentifier(fieldIdentifier)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
             HStack(spacing: 4) {
                 if let drafts { AttachMenu(drafts: drafts, systemImage: "plus") }
                 accessory
