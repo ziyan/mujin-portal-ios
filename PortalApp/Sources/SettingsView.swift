@@ -92,30 +92,40 @@ struct TabBarEditorView: View {
 
     var body: some View {
         let onBar = session.tabSections.filter { $0 != .more && $0 != TabBar.pinned }
+        let rows = [TabBar.pinned] + onBar
         let isFull = onBar.count >= TabBar.capacity - 1
         let others = session.choosableSections.filter { !onBar.contains($0) }
         List { PortalRows {
             Section {
-                VStack(alignment: .leading, spacing: 2) {
-                    Label(TabBar.pinned.titleKey, systemImage: TabBar.pinned.symbol)
-                    Text("Always first")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(onBar) { section in
-                    // A single line that shrinks, so a long name is never broken mid-word at the largest text sizes.
-                    Label(section.titleKey, systemImage: section.symbol)
-                        .lineLimit(1).minimumScaleFactor(0.5)
+                // Chat is a row of the same list, without a remove or drag control, so its icon and title line up with the rows below it.
+                ForEach(rows) { section in
+                    Group {
+                        if section == TabBar.pinned {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Label(section.titleKey, systemImage: section.symbol)
+                                Text("Always first")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            // A single line that shrinks, so a long name is never broken mid-word at the largest text sizes.
+                            Label(section.titleKey, systemImage: section.symbol)
+                                .lineLimit(1).minimumScaleFactor(0.5)
+                        }
+                    }
+                    .deleteDisabled(section == TabBar.pinned)
+                    .moveDisabled(section == TabBar.pinned)
                 }
                 .onMove { offsets, destination in
-                    var next = onBar
-                    next.move(fromOffsets: offsets, toOffset: destination)
-                    session.setTabBar(next)
+                    guard !offsets.contains(0) else { return }
+                    var next = rows
+                    next.move(fromOffsets: offsets, toOffset: max(destination, 1))
+                    session.setTabBar(Array(next.dropFirst()))
                 }
                 .onDelete { offsets in
-                    var next = onBar
-                    next.remove(atOffsets: offsets)
-                    session.setTabBar(next)
+                    var next = rows
+                    next.remove(atOffsets: IndexSet(offsets.filter { $0 != 0 }))
+                    session.setTabBar(Array(next.dropFirst()))
                 }
             } header: {
                 Text("In the tab bar")
