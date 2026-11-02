@@ -144,8 +144,7 @@ struct ReactionBadges: View {
                         if summary.count > 1 { Text("\(summary.count)").font(.caption2) }
                     }
                     .padding(.horizontal, 4)
-                    // The person's own is the same neutral pill as any other, marked by a 1 pt accent outline and no fill.
-                    .overlay(Capsule().strokeBorder(summary.isMine ? Color.accentColor : Color.clear, lineWidth: 1))
+                    // The person's own looks like any other, its count in bold, as on the web; no outline.
                     .fontWeight(summary.isMine ? .bold : .regular)
                     if let onTap {
                         Button { onTap(summary.emoji) } label: { label.contentShape(Rectangle().inset(by: -12)) }

@@ -302,7 +302,7 @@ struct NotificationPreferencesView: View {
             }
             ForEach(NotificationPreferences.kinds, id: \.self) { kind in
                 Section {
-                    Toggle(isOn: binding(kind: kind, channel: "push")) { Label("Push", systemImage: "iphone.gen3.radiowaves.left.and.right").foregroundStyle(.primary) }
+                    Toggle(isOn: binding(kind: kind, channel: "push")) { Label("Push", systemImage: "bell.badge").foregroundStyle(.primary) }
                     // The assistant's notifications and chat messages have no email.
                     if !kind.hasPrefix("agent_") && kind != "chat_message" {
                         Toggle(isOn: binding(kind: kind, channel: "email")) { Label("Email", systemImage: "envelope").foregroundStyle(.primary) }
@@ -355,9 +355,9 @@ struct NotificationPreferencesView: View {
         case "ticket_lifecycle", "ticket_activity": "tray.full"
         case "incident": "exclamationmark.triangle"
         case "alarm": "bell.badge"
-        case "budget_alert": "creditcard"
+        case "budget_alert": "dollarsign.circle"
         case "agent_job_failed": "clock.badge.exclamationmark"
-        case "chat_message": "bubble.left.and.bubble.right"
+        case "chat_message": "bubble.left"
         case "agent_message": "sparkles"
         case "agent_waiting": "questionmark.bubble"
         case "agent_goal_needs_you": "scope"
