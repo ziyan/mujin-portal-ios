@@ -143,9 +143,21 @@ struct RoleDetailView: View {
         .navigationTitle(role?.shownName ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if canEdit, role != nil {
+            if canEdit, let role {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Edit") { isEditing = true }
+                    DetailMenu {
+                        Section {
+                            Button { isEditing = true } label: { Label("Edit", systemImage: "pencil") }
+                        }
+                        Section {
+                            Button(role: .destructive) { isConfirmingDeletion = true } label: { Label("Delete role", systemImage: "trash") }
+                        }
+                    }
+                    .confirmationDialog("Delete \(role.shownName)?", isPresented: $isConfirmingDeletion, titleVisibility: .visible) {
+                        Button("Delete role", role: .destructive) { Task { await delete() } }
+                    } message: {
+                        Text("Groups lose the permissions it gave them. This cannot be undone.")
+                    }
                 }
             }
         }
@@ -189,21 +201,6 @@ struct RoleDetailView: View {
                 }
                 if catalog.isEmpty {
                     Section { Text("This server offers no permissions to choose from.").foregroundStyle(Color.secondary) }
-                }
-                if canEdit {
-                    Section {
-                        Button(role: .destructive) {
-                            isConfirmingDeletion = true
-                        } label: {
-                            Text("Delete role")
-                                .foregroundStyle(Color.statusError)
-                        }
-                        .confirmationDialog("Delete \(role.shownName)?", isPresented: $isConfirmingDeletion, titleVisibility: .visible) {
-                            Button("Delete role", role: .destructive) { Task { await delete() } }
-                        } message: {
-                            Text("Groups lose the permissions it gave them. This cannot be undone.")
-                        }
-                    }
                 }
             }
         }

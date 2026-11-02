@@ -292,6 +292,12 @@ extension Documents {
         }
         """
 
+    public static let getTicketBySequence = """
+        query GetTicketBySequence($sequence: Int64!) {
+          GetTicketBySequence(sequence: $sequence) { \(ticketFields) description }
+        }
+        """
+
     public static let listTicketComments = """
         query ListTicketComments($ticketId: String) {
           ListTicketComments(ticketId: $ticketId) { \(commentFields) }
@@ -327,7 +333,7 @@ extension Documents {
         """
 
     static var ticketDocuments: [String] {
-        [listTickets, getTicket, listTicketComments, createTicketComment, closeTicket, reopenTicket, getUser, listOrganizations]
+        [listTickets, getTicket, getTicketBySequence, listTicketComments, createTicketComment, closeTicket, reopenTicket, getUser, listOrganizations]
     }
 }
 
@@ -392,6 +398,15 @@ extension Connection {
     public func ticket(id: String) async throws -> Ticket {
         struct Answer: Decodable, Sendable { let GetTicket: Ticket? }
         guard let ticket = try await execute(Documents.getTicket, variables: ["ticketId": .string(id)], as: Answer.self).GetTicket else {
+            throw PortalError.refused("Ticket not found.")
+        }
+        return ticket
+    }
+
+    /// The ticket a web address names: Portal's pages say "#12", the sequence, not the id.
+    public func ticket(sequence: Int64) async throws -> Ticket {
+        struct Answer: Decodable, Sendable { let GetTicketBySequence: Ticket? }
+        guard let ticket = try await execute(Documents.getTicketBySequence, variables: ["sequence": .number(Double(sequence))], as: Answer.self).GetTicketBySequence else {
             throw PortalError.refused("Ticket not found.")
         }
         return ticket

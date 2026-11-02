@@ -269,14 +269,34 @@ struct UserDetailView: View {
         }
         .navigationTitle(profile?.shownName ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let profile, canDeactivate(profile) {
+                ToolbarItem(placement: .primaryAction) {
+                    DetailMenu {
+                        if profile.isDeactivated {
+                            Button { Task { await setActive(true) } } label: { Label("Reactivate", systemImage: "person.crop.circle.badge.checkmark") }
+                        } else {
+                            Button(role: .destructive) { isConfirmingDeactivation = true } label: { Label("Deactivate", systemImage: "person.slash") }
+                        }
+                    }
+                    .confirmationDialog("Deactivate \(profile.shownName)?", isPresented: $isConfirmingDeactivation, titleVisibility: .visible) {
+                        Button("Deactivate", role: .destructive) { Task { await setActive(false) } }
+                    } message: {
+                        Text("They can no longer sign in. You can reactivate them later.")
+                    }
+                }
+            }
+        }
         .task { await load() }
         .failureAlert(actions)
     }
 
+    private func canDeactivate(_ profile: UserProfile) -> Bool {
+        session.peopleAccess.canDeactivateUsers(in: profile.organizationId ?? organizationId) && profile.id != session.userId
+    }
+
     private func details(_ profile: UserProfile) -> some View {
-        let access = session.peopleAccess
-        let canDeactivate = access.canDeactivateUsers(in: profile.organizationId ?? organizationId) && profile.id != session.userId
-        return List {
+        List {
             PortalRows {
                 Section {
                     HStack(spacing: 16) {
@@ -356,31 +376,6 @@ struct UserDetailView: View {
                                         .font(.footnote)
                                         .foregroundStyle(Color.secondary)
                                 }
-                            }
-                        }
-                    }
-                }
-                if canDeactivate {
-                    Section {
-                        if profile.isDeactivated {
-                            Button {
-                                Task { await setActive(true) }
-                            } label: {
-                                Text("Reactivate")
-                                    .foregroundStyle(Color.primary)
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            Button(role: .destructive) {
-                                isConfirmingDeactivation = true
-                            } label: {
-                                Text("Deactivate")
-                                    .foregroundStyle(Color.statusError)
-                            }
-                            .confirmationDialog("Deactivate \(profile.shownName)?", isPresented: $isConfirmingDeactivation, titleVisibility: .visible) {
-                                Button("Deactivate", role: .destructive) { Task { await setActive(false) } }
-                            } message: {
-                                Text("They can no longer sign in. You can reactivate them later.")
                             }
                         }
                     }

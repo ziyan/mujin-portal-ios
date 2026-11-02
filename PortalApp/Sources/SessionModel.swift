@@ -366,7 +366,7 @@ enum DemoOptions {
         case "assistant-settings": [.assistantSettings]
         case "releases", "release-tap": [.releases]
         case "surveillance": [.surveillance]
-        case "release": [.releases, .release("release01")]
+        case "release", "release-menu": [.releases, .release("release01")]
         case "release-image": [.releases, .release("release01"), .releaseImage("image01")]
         default:
             AccountDemo.owns(screen ?? "") ? AccountDemo.morePath(screen ?? "") : PlatformDemo.morePath(screen ?? "")

@@ -1,12 +1,14 @@
 import PortalKit
 import SwiftUI
 
-/// VirtualControllerManageRows are the actions on a virtual controller: pause or resume, edit and destroy. Each shows only
-/// when the viewer holds its capability at the site, so nobody sees a button the server would refuse.
-struct VirtualControllerManageRows: View {
+/// VirtualControllerMenu is the `...` menu of a virtual controller's page: copy its link, then pause or resume, edit and destroy.
+/// Each action shows only when the viewer holds its capability at the site, so nobody sees a button the server would refuse.
+/// The destroy confirmation hangs from the menu button, and the editor and the error from the page.
+struct VirtualControllerMenu: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
     let virtual: VirtualControllerSummary
+    @Binding var isLinkCopied: Bool
     let onChange: (VirtualControllerSummary) -> Void
     let onDestroyed: () -> Void
 
@@ -16,38 +18,49 @@ struct VirtualControllerManageRows: View {
     @State private var errorText: String?
 
     var body: some View {
-        if virtual.canTogglePause {
-            Button {
-                Task { await togglePause() }
-            } label: {
-                Label(virtual.isPaused ? "Resume" : "Pause", systemImage: virtual.isPaused ? "play.circle" : "pause.circle")
-            }
-            .disabled(isWorking)
-        }
-        if virtual.canModify {
-            Button { isEditing = true } label: { Label("Edit", systemImage: "pencil") }
-                .disabled(isWorking)
-                .sheet(isPresented: $isEditing) {
-                    VirtualControllerEditView(virtual: virtual) { updated in
-                        onChange(updated)
+        DetailMenu(demoScreen: "virtual-controller-menu") {
+            Section { LinkMenuItems(link: .virtualController(id: virtual.id), isCopied: $isLinkCopied) }
+            if virtual.canTogglePause || virtual.canModify {
+                Section {
+                    if virtual.canTogglePause {
+                        Button {
+                            Task { await togglePause() }
+                        } label: {
+                            Label(virtual.isPaused ? "Resume" : "Pause", systemImage: virtual.isPaused ? "play.circle" : "pause.circle")
+                        }
+                        .disabled(isWorking)
+                    }
+                    if virtual.canModify {
+                        Button { isEditing = true } label: { Label("Edit", systemImage: "pencil") }
+                            .disabled(isWorking)
                     }
                 }
-        }
-        if virtual.canDestroy {
-            Button(role: .destructive) {
-                isConfirmingDestroy = true
-            } label: {
-                Label("Destroy", systemImage: "trash")
             }
-            .disabled(isWorking)
-            .confirmationDialog("Destroy this virtual controller?", isPresented: $isConfirmingDestroy, titleVisibility: .visible) {
-                Button("Destroy \(virtual.displayName)", role: .destructive) { Task { await destroy() } }
-            } message: {
-                Text("Its data and snapshots go with it. This cannot be undone.")
+            if virtual.canDestroy {
+                Section {
+                    Button(role: .destructive) {
+                        isConfirmingDestroy = true
+                    } label: {
+                        Label("Destroy", systemImage: "trash")
+                    }
+                    .disabled(isWorking)
+                }
             }
         }
-        if let errorText {
-            Text(errorText).font(.footnote).foregroundStyle(Color.statusError)
+        .confirmationDialog("Destroy this virtual controller?", isPresented: $isConfirmingDestroy, titleVisibility: .visible) {
+            Button("Destroy \(virtual.displayName)", role: .destructive) { Task { await destroy() } }
+        } message: {
+            Text("Its data and snapshots go with it. This cannot be undone.")
+        }
+        .sheet(isPresented: $isEditing) {
+            VirtualControllerEditView(virtual: virtual) { updated in
+                onChange(updated)
+            }
+        }
+        .alert("Could not change it", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorText ?? "")
         }
     }
 
