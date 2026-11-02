@@ -250,6 +250,28 @@ jobs:
           shoot people-limited people-limited
           shoot people-organizations people-organizations staff
           shoot people-staff-members people-staff-members staff
+          shoot surveillance surveillance
+          shoot surveillance-staff surveillance-staff staff
+          shoot more-staff section:more staff
+          shoot platform-hub platform-hub
+          shoot platform-hub-staff platform-hub staff
+          shoot platform-organizations platform-organizations staff
+          shoot platform-organization platform-organization staff
+          shoot platform-audit platform-audit
+          shoot platform-audit-all platform-audit-all staff
+          shoot platform-audit-event platform-audit-event
+          shoot platform-usage platform-usage staff
+          shoot platform-controller-usage platform-controller-usage staff
+          shoot platform-billing platform-billing staff
+          shoot platform-transactions platform-transactions staff
+          shoot platform-plans platform-plans staff
+          shoot platform-providers platform-providers staff
+          shoot platform-provider platform-provider staff
+          shoot platform-agents platform-agents staff
+          shoot platform-agent platform-agent staff
+          shoot platform-grants platform-grants staff
+          shoot platform-registrations platform-registrations staff
+          shoot platform-alerts platform-alerts
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
           shoot virtual-controller-dark virtual-controller
@@ -304,6 +326,15 @@ jobs:
           shoot people-roles-dark people-roles
           shoot people-role-dark people-role
           shoot people-organizations-dark people-organizations staff
+          shoot surveillance-dark surveillance
+          shoot surveillance-staff-dark surveillance-staff staff
+          shoot more-staff-dark section:more staff
+          shoot platform-hub-staff-dark platform-hub staff
+          shoot platform-organization-dark platform-organization staff
+          shoot platform-audit-dark platform-audit
+          shoot platform-usage-dark platform-usage staff
+          shoot platform-billing-dark platform-billing staff
+          shoot platform-provider-dark platform-provider staff
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
@@ -336,6 +367,15 @@ jobs:
           shoot large-text-people-group people-group
           shoot large-text-people-role people-role
           shoot large-text-sites-staff-people sites-staff staff
+          shoot large-text-surveillance surveillance
+          shoot large-text-more-staff section:more staff
+          shoot large-text-platform-hub platform-hub
+          shoot large-text-platform-hub-staff platform-hub staff
+          shoot large-text-platform-organization platform-organization staff
+          shoot large-text-platform-audit platform-audit
+          shoot large-text-platform-audit-event platform-audit-event
+          shoot large-text-platform-billing platform-billing staff
+          shoot large-text-platform-provider platform-provider staff
 
       - name: Keep the screenshots
         if: always()

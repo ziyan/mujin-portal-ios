@@ -26,6 +26,8 @@ enum PortalRoute: Hashable {
     case virtualAlarmSubscriptions(VirtualControllerSummary)
     /// A camera, live or at a moment of its recording.
     case camera(CameraTarget)
+    /// The camera wall of every site the person can see.
+    case surveillance
 }
 
 /// ReleaseUsageKind is what a release's "See all" lists.
@@ -82,6 +84,8 @@ private struct PortalDestinations: ViewModifier {
                 AlarmSubscriptionsView(virtual: virtual)
             case .camera(let target):
                 CameraDetailView(target: target)
+            case .surveillance:
+                SurveillanceView()
             }
         }
     }

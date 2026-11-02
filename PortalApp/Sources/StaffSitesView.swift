@@ -42,6 +42,8 @@ struct StaffSitesView: View {
             }
             .task {
                 await load()
+                // The row waits for the cameras, which are read beside the sites.
+                try? await session.surveillance.load()
                 await openDemoScreen()
             }
         }
@@ -59,12 +61,16 @@ struct StaffSitesView: View {
     }
 
     private func openDemoScreen() async {
-        guard appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("site-staff") || screen == "controllers-staff" || screen == "virtual-controllers-staff", path.isEmpty,
+        guard appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("site-staff") || screen == "controllers-staff" || screen == "surveillance-staff" || screen == "virtual-controllers-staff", path.isEmpty,
             let first = SiteGroups.group(session.staffSites.sites, organizationNames: session.staffSites.organizationNames).first?.sites.first,
             let organizationId = first.organizationId
         else { return }
         if screen == "controllers-staff" {
             path.append(.allControllers)
+            return
+        }
+        if screen == "surveillance-staff" {
+            path.append(.surveillance)
             return
         }
         if screen == "virtual-controllers-staff" {
@@ -102,6 +108,9 @@ struct StaffSitesView: View {
                             }
                             NavigationLink(value: PortalRoute.allVirtualControllers) {
                                 Label("All virtual controllers", systemImage: "square.stack.3d.up").foregroundStyle(.primary)
+                            }
+                            if session.surveillance.hasCameras {
+                                NavigationLink(value: PortalRoute.surveillance) { SurveillanceRow() }
                             }
                         }
                     }
