@@ -252,6 +252,7 @@ jobs:
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
           shoot virtual-controller-dark virtual-controller
+          shoot controller-dark controller
           shoot virtual-controller-snapshots-dark virtual-controller-snapshots
           shoot controller-backups-dark controller-backups
           shoot controller-settings-dark controller-settings
@@ -306,6 +307,7 @@ jobs:
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
           shoot large-text-virtual-controller virtual-controller
+          shoot large-text-controller controller
           shoot large-text-virtual-controller-snapshots virtual-controller-snapshots
           shoot large-text-controller-backups controller-backups
           shoot large-text-controller-settings controller-settings
