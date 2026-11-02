@@ -45,7 +45,7 @@ struct WebAppsSection: View {
                 .accessibilityLabel(Text("Loading"))
         case .loaded(let list):
             if !list.isAvailable || (list.source == "cloud" && !canOpenCloud) {
-                note("Apps are not available right now.")
+                note(controllerId == nil ? LocalizedStringKey("Apps show when the virtual controller is running.") : LocalizedStringKey("Apps show when the controller is online."))
             } else if list.webApps.isEmpty {
                 note("No web apps are installed.")
             } else {

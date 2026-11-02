@@ -45,7 +45,8 @@ struct ConversationListView: View {
                     } else {
                         ConversationView(
                             account: account, conversationId: selectedConversationId,
-                            title: model?.conversation(id: selectedConversationId)?.title)
+                            title: model?.conversation(id: selectedConversationId)?.title,
+                            onTitleChanged: { [selectedConversationId] title in model?.retitle(id: selectedConversationId, title: title) })
                     }
                 }
                 .id(selectedConversationId)
@@ -65,13 +66,17 @@ struct ConversationListView: View {
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("conversation:") {
                 selectedConversationId = String(screen.dropFirst("conversation:".count))
             }
+            if appModel.isDemo, DemoOptions.screen == "list-started" {
+                // A conversation just started: listed at once, at the top, though the demo server does not list it yet.
+                await listModel.didStartAssistantConversation(id: "conversation-started", text: "Which dock doors were slow this week and why?")
+            }
             if appModel.isDemo, let screen = DemoOptions.screen {
                 if screen.hasPrefix("chat:") { selectedConversationId = String(screen.dropFirst("chat:".count)) }
                 if screen == "chat-info" { selectedConversationId = "chatconv02" }
                 if screen == "photo-chat" { selectedConversationId = "conversation-photos" }
                 if screen == "voice" { selectedConversationId = "conversation01" }
                 if screen == "side-chat-links" { selectedConversationId = "conversation05" }
-                if screen == "chat-reply" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" { selectedConversationId = "chatconv01" }
+                if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" { selectedConversationId = "chatconv01" }
                 if screen.hasPrefix("chats-new") { isComposing = true }
             }
         }
@@ -83,10 +88,16 @@ struct ConversationListView: View {
         }
         .onChange(of: selectedConversationId) { _, id in model?.openConversationId = id }
         .sheet(isPresented: Binding(get: { isComposing || session.composeRequest != nil }, set: { if !$0 { isComposing = false; session.composeRequest = nil } })) {
-            ComposeMessageView(request: session.composeRequest) { conversationId in
-                selectedConversationId = conversationId
-                Task { await model?.load() }
-            }
+            ComposeMessageView(request: session.composeRequest, onSent: { selectedConversationId = $0 }, onStarted: { conversationId, text, isChat in
+                // The row is there at once; the server is asked afterwards, and the title comes when it is set.
+                Task {
+                    if isChat {
+                        await model?.didStartChat(id: conversationId)
+                    } else {
+                        await model?.didStartAssistantConversation(id: conversationId, text: text)
+                    }
+                }
+            })
         }
         .onChange(of: session.chatToOpen, initial: true) { _, conversationId in
             guard let conversationId else { return }

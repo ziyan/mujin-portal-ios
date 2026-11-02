@@ -19,6 +19,7 @@ struct ChatView: View {
     @State private var messageToDelete: ChatMessage?
     @State private var isShowingInfo = DemoOptions.screen == "chat-info"
     @State private var isAddingPeople = DemoOptions.screen == "chat-add-people"
+    @State private var drafts = AttachmentDrafts()
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -43,6 +44,7 @@ struct ChatView: View {
                 }
             }
         }
+        .attachmentPickers(drafts)
         .sheet(isPresented: $isAddingPeople) {
             if let model { AddPeopleView(model: model) }
         }
@@ -67,6 +69,7 @@ struct ChatView: View {
             chatModel.offersStructuredMentions = session.capabilities.offersStructuredMentions
             model = chatModel
             chatModel.start()
+            if appModel.isDemo, DemoOptions.screen == "chat-composer" { drafts.stageDemo() }
             if appModel.isDemo, DemoOptions.screen == "chat-reply" {
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 chatModel.replyTarget = chatModel.timeline.messages.first { $0.authorUserId == "user02" }
@@ -234,9 +237,16 @@ struct ChatView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 20)
                 }
+                if model.editTarget == nil {
+                    AttachmentStrip(drafts: drafts)
+                        .padding(.horizontal, 16)
+                    if let attachError = drafts.errorText {
+                        Text(attachError).font(.footnote).foregroundStyle(Color.statusError).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
+                    }
+                }
                 ComposerCard(
-                    placeholder: fieldPrompt(model), text: $draft, isEnabled: model.canWrite,
-                    canSend: !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    placeholder: fieldPrompt(model), text: $draft, drafts: model.editTarget == nil ? drafts : nil, isEnabled: model.canWrite,
+                    canSend: !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (model.editTarget == nil && !drafts.items.isEmpty),
                     sendSymbol: model.editTarget == nil ? "arrow.up" : "checkmark", sendLabel: model.editTarget == nil ? "Send" : "Save edit",
                     fieldIdentifier: "chatMessageField", sendIdentifier: "chatSendButton",
                     onEscape: {
@@ -247,7 +257,7 @@ struct ChatView: View {
                     onSend: {
                         let text = draft
                         draft = ""
-                        Task { if await !model.send(text) { draft = text } }
+                        Task { if await !model.send(text, attachments: drafts) { draft = text } }
                     }
                 )
                 .onChange(of: draft) { _, text in
