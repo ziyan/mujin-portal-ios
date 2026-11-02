@@ -175,6 +175,8 @@ struct CameraDetailView: View {
                 if player.hasSound { SoundButton(player: player) }
             }
             .buttonStyle(.plain)
+            // Four icons side by side must fit the width at the largest text sizes, so the row stops growing a step short of them.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .frame(maxWidth: .infinity)
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 10) { secondaryControls(player) }
