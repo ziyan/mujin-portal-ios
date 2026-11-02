@@ -116,4 +116,34 @@ import Testing
         #expect(ConversationEvent.Kind(rawValue: "reacted") == .reacted)
         #expect(ConversationEvent.Kind(rawValue: "model_switch") == .modelSwitch)
     }
+
+    @Test func aConversationUpdatedEventDecodesAndGivesTheTitleToItsOwnConversationOnly() throws {
+        let json = #"{"type":"conversation_updated","conversationUpdated":{"conversationId":"c1","conversationTitle":"Dock door check","isTitleCustom":false}}"#
+        let event = try JSONDecoder().decode(ConversationEvent.self, from: Data(json.utf8))
+        #expect(event.kind == .conversationUpdated)
+        #expect(event.conversationUpdated == .init(conversationId: "c1", conversationTitle: "Dock door check"))
+        let announced = event.announcedTitle(for: "c1")
+        #expect(announced?.title == "Dock door check")
+        #expect(announced?.isCustom == false)
+        #expect(event.announcedTitle(for: "c2") == nil)
+    }
+
+    @Test func aRenameIsCustomAndAnEmptyTitleOrAnotherEventAnnouncesNothing() {
+        let renamed = ConversationEvent(type: "conversation_updated", conversationUpdated: .init(conversationId: "c1", conversationTitle: "Pallet counts", isTitleCustom: true))
+        #expect(renamed.announcedTitle(for: "c1")?.isCustom == true)
+        let empty = ConversationEvent(type: "conversation_updated", conversationUpdated: .init(conversationId: "c1", conversationTitle: ""))
+        #expect(empty.announcedTitle(for: "c1") == nil)
+        let other = ConversationEvent(type: "run_complete", conversationUpdated: .init(conversationId: "c1", conversationTitle: "Not an update"))
+        #expect(other.announcedTitle(for: "c1") == nil)
+    }
+
+    @Test func theAnnouncedTitleRetitlesTheListRow() {
+        let rows = [
+            ConversationSummary(id: "c1", title: "Check dock door 4", conversationKind: "assistant"),
+            ConversationSummary(id: "c2", title: "Other", conversationKind: "assistant"),
+        ]
+        let event = ConversationEvent(type: "conversation_updated", conversationUpdated: .init(conversationId: "c1", conversationTitle: "Dock door 4 check"))
+        let title = event.announcedTitle(for: "c1")?.title
+        #expect(ConversationListUpdate.retitled(rows, id: "c1", title: title).map { $0.title } == ["Dock door 4 check", "Other"])
+    }
 }

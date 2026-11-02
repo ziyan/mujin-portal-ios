@@ -62,6 +62,23 @@ import Testing
         #expect(sent.contains { $0.contains("OnConversationEvent") && $0.contains("conversation01") })
     }
 
+    @Test func aTitleEventReachesTheScreenThroughTheFeed() async {
+        let socket = Self.portalLikeSocket(extraFrames: [
+            eventFrame(#"{"type":"conversation_updated","conversationUpdated":{"conversationId":"conversation01","conversationTitle":"Dock door check","isTitleCustom":false}}"#)
+        ])
+        let updates = ConversationFeed.updates(connection: connection(), conversationId: "conversation01", socketFactory: { _, _ in socket }, timing: Self.fastTiming())
+        let collected = await collect(updates) { update, _ in
+            if case .event(let event) = update { return event.kind == .conversationUpdated }
+            return false
+        }
+        guard case .event(let event)? = collected.last else {
+            Issue.record("no event arrived")
+            return
+        }
+        #expect(event.announcedTitle(for: "conversation01")?.title == "Dock door check")
+        #expect(socket.sent.contains { $0.contains("conversationUpdated") })
+    }
+
     @Test func closeCode4401RenewsTheTokenAndReconnectsAtOnce() async {
         let sockets = Guarded<[ScriptedSocket]>([
             ScriptedSocket(frames: [ackFrame(), .closed(code: 4401)]),

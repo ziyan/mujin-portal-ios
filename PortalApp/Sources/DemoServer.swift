@@ -323,16 +323,27 @@ final class DemoState: @unchecked Sendable {
                 }
             }
             broadcast(conversationId: conversationId, event: ["type": "run_complete", "runId": "run-demo", "runComplete": ["stopReason": "end_turn"]])
-            // As on the server: the title it writes from the first exchange comes a few seconds after the turn ends, with no event.
+            // As on the server: the title it writes from the first exchange comes a few seconds after the turn ends, as an event.
             if conversationId.hasPrefix("conversation-new-") {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
-                withData { data in
-                    if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
-                        data.conversations[index]["title"] = "A first question for the assistant"
-                    }
-                }
+                announceTitle(conversationId: conversationId, title: "A first question for the assistant")
             }
         }
+    }
+
+    /// Stores a conversation's title and tells every open feed about it, as the server does for each title it writes.
+    func announceTitle(conversationId: String, title: String, isTitleCustom: Bool = false) {
+        withData { data in
+            if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
+                data.conversations[index]["title"] = title
+            }
+        }
+        broadcast(
+            conversationId: conversationId,
+            event: [
+                "type": "conversation_updated",
+                "conversationUpdated": ["conversationId": conversationId, "conversationTitle": title, "isTitleCustom": isTitleCustom],
+            ])
     }
 }
 
@@ -904,8 +915,14 @@ struct DemoTransport: HTTPTransport {
                 ])
                 if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
                     data.conversations[index]["activeRunId"] = "run-demo"
-                    if data.conversations[index]["title"] is NSNull { data.conversations[index]["title"] = String(message.prefix(40)) }
                 }
+            }
+            // As on the server: the first message gives the conversation a placeholder title, announced at once.
+            let isUntitled = state.withData { data in
+                data.conversations.first { ($0["id"] as? String) == conversationId }?["title"] is NSNull
+            }
+            if isUntitled, let placeholder = ConversationListUpdate.placeholderTitle(for: message) {
+                state.announceTitle(conversationId: conversationId, title: placeholder)
             }
             state.playAnswer(
                 conversationId: conversationId,
@@ -1087,6 +1104,14 @@ final class DemoSocket: FeedSocket, @unchecked Sendable {
         case .subscribe(_, _, let variables):
             inner.withValue { $0.conversationId = variables["conversationId"]?.stringValue ?? "" }
             state.withData { $0.sockets.append(self) }
+            // The title-event screen: a conversation is open when the server renames it, and the title changes at once.
+            if DemoOptions.screen == "title-event", conversationId == "conversation01" {
+                let demoState = state
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    demoState.announceTitle(conversationId: "conversation01", title: "Slow dock doors this week")
+                }
+            }
         default: break
         }
     }

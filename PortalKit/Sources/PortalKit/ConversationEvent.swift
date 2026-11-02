@@ -119,6 +119,20 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
         }
     }
 
+    /// The conversation's title was written: the placeholder cut from the first message, the summary's
+    /// title a few seconds after the first answer, or a rename.
+    public struct ConversationUpdated: Codable, Equatable, Sendable {
+        public let conversationId: String
+        public let conversationTitle: String
+        /// True when the person typed the title, so no summary will replace it.
+        public let isTitleCustom: Bool
+        public init(conversationId: String, conversationTitle: String, isTitleCustom: Bool = false) {
+            self.conversationId = conversationId
+            self.conversationTitle = conversationTitle
+            self.isTitleCustom = isTitleCustom
+        }
+    }
+
     public struct ModelSwitch: Codable, Equatable, Sendable {
         /// `tool` when the quick model asked for it, `judgment` when the effort judgment did.
         public let switchCause: String?
@@ -159,6 +173,7 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
         case runError = "run_error"
         case roundRetry = "round_retry"
         case reacted
+        case conversationUpdated = "conversation_updated"
         case modelSwitch = "model_switch"
         case chatSaid = "chat_said"
         case chatEdited = "chat_edited"
@@ -182,14 +197,17 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
     public let roundRetry: RoundRetry?
     public let reacted: Reacted?
     public let modelSwitch: ModelSwitch?
+    public let conversationUpdated: ConversationUpdated?
     public let chat: Chat?
 
     public init(
         type: String, runId: String? = nil, textDelta: TextDelta? = nil, toolCall: ToolCall? = nil, toolResult: ToolResult? = nil,
         pendingQuestion: PendingQuestion? = nil, pendingApproval: PendingApproval? = nil, runComplete: RunComplete? = nil, runError: RunError? = nil,
-        roundRetry: RoundRetry? = nil, reacted: Reacted? = nil, modelSwitch: ModelSwitch? = nil, chat: Chat? = nil
+        roundRetry: RoundRetry? = nil, reacted: Reacted? = nil, modelSwitch: ModelSwitch? = nil,
+        conversationUpdated: ConversationUpdated? = nil, chat: Chat? = nil
     ) {
         self.chat = chat
+        self.conversationUpdated = conversationUpdated
         self.roundRetry = roundRetry
         self.reacted = reacted
         self.modelSwitch = modelSwitch
@@ -205,4 +223,13 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
     }
 
     public var kind: Kind? { Kind(rawValue: type) }
+
+    /// The title this event gives the conversation, or nil when it is another kind of event, is about
+    /// another conversation, or carries no title.
+    public func announcedTitle(for conversationId: String) -> (title: String, isCustom: Bool)? {
+        guard kind == .conversationUpdated, let updated = conversationUpdated, updated.conversationId == conversationId,
+            !updated.conversationTitle.isEmpty
+        else { return nil }
+        return (updated.conversationTitle, updated.isTitleCustom)
+    }
 }
