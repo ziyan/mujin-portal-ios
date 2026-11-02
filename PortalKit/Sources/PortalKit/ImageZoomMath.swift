@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(CoreGraphics)
+    import CoreGraphics
+#endif
+
 /// ImageZoomMath is the arithmetic of the full-screen picture viewer, kept apart from UIKit so it can be tested: the scale that
 /// fits a picture to the screen, how far to inset it so it sits in the middle when it is smaller than the screen, and where a
 /// double tap zooms to.
