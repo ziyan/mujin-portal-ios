@@ -164,6 +164,11 @@ enum DemoCameraPaths {
             return reply(200, body ?? Data(), contentType: "application/json")
         case "snapshot":
             let cameraId = parts.count > 5 ? parts[5] : ""
+            // The failed-picture screenshot has one camera Portal refuses and one the NVR cannot answer for.
+            if ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "cameras-failed" {
+                if cameraId == "nvrcamera03" { return reply(403, Data(), contentType: "text/plain") }
+                if cameraId == "nvrcamera02" { return reply(502, Data(), contentType: "text/plain") }
+            }
             let index = DemoCameras.everything.firstIndex { ($0["originCameraId"] as? String) == cameraId } ?? 0
             return reply(200, DemoPictures.cameraFrame(variant: index), contentType: "image/jpeg")
         case "playback":

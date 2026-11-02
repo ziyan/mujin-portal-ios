@@ -136,6 +136,8 @@ public enum CameraTransportProbe: Equatable, Sendable {
     case found(CameraPlaybackTransport)
     /// The controller could not be asked (offline, or the network failed). Nothing is learned, so nothing is remembered.
     case unreachable
+    /// Portal refused the request (401), which says nothing about the route and is not the controller's being offline.
+    case notAllowed
 }
 
 /// CameraTransportRules decides which transport a probe or a failed dial means.
@@ -145,6 +147,7 @@ public enum CameraTransportRules {
     /// controller is a 502, which says nothing about the route.
     public static func probe(statusCode: Int?) -> CameraTransportProbe {
         guard let statusCode else { return .unreachable }
+        if statusCode == 401 { return .notAllowed }
         if statusCode == 400 { return .found(.webSocket) }
         if [502, 503, 504].contains(statusCode) { return .unreachable }
         return .found(.exportClips)
@@ -181,7 +184,15 @@ extension Connection {
     public func probePlaybackTransport(controllerId: String, cameraId: String) async -> CameraTransportProbe {
         var request = URLRequest(url: server.endpoint(CameraRoutes.playbackPath(controllerId: controllerId, cameraId: cameraId, channel: 0, startMS: 1, endMS: 2)))
         request.timeoutInterval = 15
-        let status = try? await send(authorizing: request).1.statusCode
+        let status: Int?
+        do {
+            status = try await send(authorizing: request).1.statusCode
+        } catch PortalError.notPermitted {
+            // A request refused even with a fresh token is a refusal of this camera, not a controller that is offline.
+            status = 401
+        } catch {
+            status = nil
+        }
         return CameraTransportRules.probe(statusCode: status)
     }
 }

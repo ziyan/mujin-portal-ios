@@ -171,7 +171,7 @@ struct CameraShareSheet: View {
             try FileManager.default.moveItem(at: download.url, to: named)
             phase = .ready(named)
         } catch {
-            phase = .failed(error.userMessage)
+            phase = .failed(CameraFailure.classify(error) == .notAllowed ? String(localized: "Portal did not allow this camera's video. Ask an administrator for access.") : (CameraFailure.status(of: error) != nil ? String(localized: "The clip could not be prepared. Try again in a moment.") : error.userMessage))
             appModel.handle(error, account: session.account)
         }
     }
