@@ -19,6 +19,8 @@ enum AttachmentImageCache {
 struct RichBodyView<TextPart: View>: View {
     let markdown: String
     let connection: Connection
+    /// Whether the text of each part can be selected where it is, which a message that opens its actions on a long press cannot.
+    var isSelectable = true
     @ViewBuilder let textPart: (String) -> TextPart
 
     var body: some View {
@@ -37,8 +39,8 @@ struct RichBodyView<TextPart: View>: View {
 }
 
 extension RichBodyView where TextPart == MarkdownView {
-    init(markdown: String, connection: Connection) {
-        self.init(markdown: markdown, connection: connection) { MarkdownView(markdown: $0) }
+    init(markdown: String, connection: Connection, isSelectable: Bool = true) {
+        self.init(markdown: markdown, connection: connection, isSelectable: isSelectable) { MarkdownView(markdown: $0, isSelectable: isSelectable) }
     }
 }
 

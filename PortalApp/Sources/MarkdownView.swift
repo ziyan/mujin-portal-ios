@@ -5,15 +5,24 @@ import SwiftUI
 /// splitter; the system renders the bold, italic, code and links inside them.
 struct MarkdownView: View {
     let markdown: String
+    var isSelectable = true
 
+    @ViewBuilder
     var body: some View {
+        if isSelectable {
+            blocks.textSelection(.enabled)
+        } else {
+            blocks
+        }
+    }
+
+    private var blocks: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(MarkdownBlocks.parse(MemoryCitation.linking(markdown)).enumerated()), id: \.offset) { _, block in
                 view(for: block)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .textSelection(.enabled)
     }
 
     @ViewBuilder

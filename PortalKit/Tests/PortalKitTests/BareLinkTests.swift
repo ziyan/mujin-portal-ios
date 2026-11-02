@@ -54,3 +54,15 @@ import Testing
         #expect(links.first?.1 == URL(string: "https://example.test/a"))
     }
 }
+
+@Suite struct FirstEmojiTests {
+    @Test func theFirstEmojiIsTaken() {
+        #expect(Reactions.firstEmoji(in: "\u{1F525}") == "\u{1F525}")
+        #expect(Reactions.firstEmoji(in: "ab \u{2764}\u{FE0F} \u{1F389}") == "\u{2764}\u{FE0F}")
+    }
+
+    @Test func lettersAndDigitsAreNotEmoji() {
+        #expect(Reactions.firstEmoji(in: "abc 123 #*") == nil)
+        #expect(Reactions.firstEmoji(in: "") == nil)
+    }
+}

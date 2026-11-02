@@ -15,7 +15,6 @@ struct ChatView: View {
 
     @State private var model: ChatModel?
     @State private var draft = DemoOptions.screen == "chat-mention" ? "Can @" : ""
-    @State private var emojiTarget: ConversationView.EmojiTarget?
     @State private var messageToDelete: ChatMessage?
     @State private var isShowingInfo = DemoOptions.screen == "chat-info"
     @State private var isAddingPeople = DemoOptions.screen == "chat-add-people"
@@ -48,9 +47,6 @@ struct ChatView: View {
         }
         .sheet(isPresented: $isShowingInfo) {
             if let model { ChatInfoView(model: model) }
-        }
-        .sheet(item: $emojiTarget) { target in
-            EmojiEntryView { emoji in Task { await model?.react(messageId: target.id, emoji: emoji) } }
         }
         .confirmationDialog(
             "Delete this message?", isPresented: Binding(get: { messageToDelete != nil }, set: { if !$0 { messageToDelete = nil } }),
@@ -135,7 +131,7 @@ struct ChatView: View {
                             message: message, model: model, isLastOwn: message.id == lastOwnMessageId(model),
                             startsRun: isNewDay || previous == nil || previous?.authorUserId != message.authorUserId || previous?.isAssistant != message.isAssistant,
                             previousMessageId: previous?.id,
-                            moreEmoji: { emojiTarget = ConversationView.EmojiTarget(id: $0) }, askDelete: { messageToDelete = $0 }
+                            askDelete: { messageToDelete = $0 }
                         )
                         .id(message.id)
                         }
@@ -344,7 +340,6 @@ private struct MessageRow: View {
     let startsRun: Bool
     /// The message directly above this one, which a reply to it need not quote.
     var previousMessageId: String?
-    let moreEmoji: (String) -> Void
     let askDelete: (ChatMessage) -> Void
 
     private var isMine: Bool { message.authorUserId == model.currentUserId && !message.isAssistant }
@@ -439,18 +434,17 @@ private struct MessageRow: View {
                 mentionNames: model.mentionNames, memberNames: (model.room?.members ?? []).map(\.shownName), canWrite: model.canWrite,
                 canEdit: model.canEdit(message), canDelete: model.canDelete(message), hasPreviews: !(model.previews[message.id] ?? []).isEmpty)
             ) {
+            HoldableMessage(actions: heldActions) {
             VStack(alignment: .leading, spacing: 2) {
                 // People write plain text; a table or a Markdown link in it is laid out as Markdown, which gives up the name chips.
                 if message.isAssistant || MarkdownBlocks.hasTable(message.text) || message.text.contains("](") {
-                    RichBodyView(markdown: message.text, connection: model.connection)
+                    RichBodyView(markdown: message.text, connection: model.connection, isSelectable: false)
                 } else if TicketBody.hasAttachments(message.text) {
                     RichBodyView(markdown: message.text, connection: model.connection) { words in
                         Text(Self.attributed(MentionText.rendered(words, members: model.room?.members ?? [], agents: model.agents), mentionNames: model.mentionNames, onAccent: isMine))
-                            .textSelection(.enabled)
                     }
                 } else {
                     Text(Self.attributed(MentionText.rendered(message.text, members: model.room?.members ?? [], agents: model.agents), mentionNames: model.mentionNames, onAccent: isMine))
-                        .textSelection(.enabled)
                 }
                 if message.isEdited {
                     Text("edited").font(.caption2).foregroundStyle(AnyShapeStyle(.secondary))
@@ -463,12 +457,11 @@ private struct MessageRow: View {
                 in: RoundedRectangle(cornerRadius: 20, style: .continuous)
             )
             .foregroundStyle(.primary)
+            }
             // The reactions sit on the bubble's corner; a tap toggles the person's own.
             .reactionCorner(model.timeline.reactions(for: message.id), currentUserId: model.currentUserId, isLeading: isMine) { emoji in
                 Task { await model.react(messageId: message.id, emoji: emoji) }
             }
-            .contextMenu { menu }
-            .accessibilityAction(named: Text("Reply")) { model.replyTarget = message }
             }
             .equatable()
         }
@@ -487,23 +480,17 @@ private struct MessageRow: View {
         return MarkdownView.styledLinks(result)
     }
 
-    @ViewBuilder
-    private var menu: some View {
-        ReactionMenuRow { emoji in Task { await model.react(messageId: message.id, emoji: emoji) } }
-        if model.canWrite {
-            Button { model.replyTarget = message } label: { Label("Reply", systemImage: "arrowshape.turn.up.left") }
-        }
-        Button { UIPasteboard.general.string = message.text } label: { Label("Copy", systemImage: "doc.on.doc") }
-        Button { moreEmoji(message.id) } label: { Label("More emoji", systemImage: "face.smiling") }
-        if model.canEdit(message) {
-            Button { model.editTarget = message } label: { Label("Edit", systemImage: "pencil") }
-        }
-        if isMine, !(model.previews[message.id] ?? []).isEmpty {
-            Button { Task { await model.removePreviews(of: message) } } label: { Label("Remove link previews", systemImage: "link.badge.plus") }
-        }
-        if model.canDelete(message) {
-            Button(role: .destructive) { askDelete(message) } label: { Label("Delete", systemImage: "trash") }
-        }
+    /// What a long press on the message offers. A person reacts to anyone's message; the rest follows what the room allows.
+    private var heldActions: MessageActions {
+        let hasPreviews = !(model.previews[message.id] ?? []).isEmpty
+        return MessageActions(
+            messageId: message.id, text: message.text, isTrailing: isMine,
+            ownReaction: Reactions.summaries(model.timeline.reactions(for: message.id), currentUserId: model.currentUserId).first { $0.isMine }?.emoji,
+            onReact: { emoji in Task { await model.react(messageId: message.id, emoji: emoji) } },
+            onReply: model.canWrite ? { model.replyTarget = message } : nil,
+            onEdit: model.canEdit(message) ? { model.editTarget = message } : nil,
+            onRemoveLinkPreviews: isMine && hasPreviews ? { Task { await model.removePreviews(of: message) } } : nil,
+            onDelete: model.canDelete(message) ? { askDelete(message) } : nil)
     }
 
     @ViewBuilder

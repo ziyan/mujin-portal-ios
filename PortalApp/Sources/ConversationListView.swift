@@ -69,9 +69,9 @@ struct ConversationListView: View {
                 if screen.hasPrefix("chat:") { selectedConversationId = String(screen.dropFirst("chat:".count)) }
                 if screen == "chat-info" { selectedConversationId = "chatconv02" }
                 if screen == "photo-chat" { selectedConversationId = "conversation-photos" }
-                if screen == "voice" { selectedConversationId = "conversation01" }
+                if screen == "voice" || screen == "message-actions" || screen == "select-text" { selectedConversationId = "conversation01" }
                 if screen == "side-chat-links" { selectedConversationId = "conversation05" }
-                if screen == "chat-reply" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" { selectedConversationId = "chatconv01" }
+                if screen == "chat-reply" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-message-actions" { selectedConversationId = "chatconv01" }
                 if screen.hasPrefix("chats-new") { isComposing = true }
             }
         }
