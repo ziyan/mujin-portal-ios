@@ -51,13 +51,7 @@ struct LinkControllerView: View {
             content
                 .navigationTitle("Link a controller")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    // Placed explicitly so it stays centered between the buttons, as on the other sheets.
-                    ToolbarItem(placement: .principal) { Text("Link a controller").font(.headline) }
-                    if step != .linked {
-                        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                    }
-                }
+                .toolbar { toolbarContent }
         }
         // The camera picture is dark whatever the setting, so its controls are drawn for a dark background.
         .preferredColorScheme(step == .scanning && camera != .denied ? .dark : nil)
@@ -66,6 +60,34 @@ struct LinkControllerView: View {
             // Back from Settings with the camera allowed.
             if phase == .active, step == .scanning, camera == .denied { Task { await refreshCamera(asking: false) } }
         }
+    }
+
+    /// Cancel on the left and one action on the right, which keeps the title centered as on the app's other sheets.
+    @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
+        if step != .linked {
+            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+        }
+        switch step {
+        case .scanning:
+            ToolbarItem(placement: .confirmationAction) { typeInsteadButton }
+        case .typing:
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Look up") { lookUpTyped() }
+                    .disabled(isWorking || typedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        case .confirm:
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Approve") { Task { await approve() } }.disabled(isWorking || found == nil)
+            }
+        case .otherServer:
+            ToolbarItem(placement: .confirmationAction) { Button("Scan again") { resetToScanning() } }
+        case .linked:
+            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+        }
+    }
+
+    private var typeInsteadButton: some View {
+        Button { step = .typing } label: { Label("Enter the code instead", systemImage: "keyboard") }
     }
 
     @ViewBuilder private var content: some View {
@@ -105,6 +127,7 @@ struct LinkControllerView: View {
                 Text("Point the camera at the QR code on the controller's screen")
                     .font(.callout)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(12)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
                 if appModel.isDemo {
