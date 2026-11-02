@@ -1,27 +1,12 @@
 import PortalKit
 import SwiftUI
 
-/// ControllerExtras are the sections of a controller's page below its status: its alarms, orchestrators, robots, last 24 hours,
-/// incidents and the progress of copying it to Portal, then what the viewer may change, each shown only when allowed.
-struct ControllerExtras: View {
-    @Environment(AppModel.self) private var appModel
-    @Environment(SessionModel.self) private var session
-    let controller: ControllerSummary
-    @Binding var editedComment: String?
-
-    @State private var alarms: [SiteAlarm] = []
-    @State private var orchestrators: SiteOrchestrators?
-    @State private var robots: [SiteRobots.Robot] = []
-    @State private var incidents: [IncidentSummary] = []
-    @State private var tickets: [Ticket] = []
-    @State private var telemetry: SiteTelemetry?
-    @State private var syncProgress: [ControllerSyncProgress] = []
-    @State private var isEditingComment = false
-    @State private var commentDraft = ""
-    @State private var isMoving = false
-    @State private var errorText: String?
-
-    var body: some View {
+/// The sections of a controller's page below its status: its alarms, orchestrators, robots, last 24 hours, incidents and the
+/// progress of copying it to Portal, then what the viewer may change, each shown only when allowed. They are built here as part
+/// of the page's own list, not as a view of their own: a list draws a custom view as one row, which left a blank row behind.
+extension ControllerDetailView {
+    @ViewBuilder
+    var extraSections: some View {
         Group {
             if let telemetry, telemetry.machinesTotal > 0 {
                 Section("Last 24 hours") {
@@ -96,8 +81,6 @@ struct ControllerExtras: View {
                     Label("Alarm subscriptions", systemImage: "bell.badge").foregroundStyle(.primary)
                 }
             }
-            // The load hangs on this section's one row, not on the group: a modifier on the group would draw an empty row in the list.
-            .task(id: controller.id) { await load() }
             if controller.canEdit || controller.canDeleteBackups || canMove {
                 Section {
                     if controller.canEdit {
@@ -128,9 +111,9 @@ struct ControllerExtras: View {
         }
     }
 
-    private var canMove: Bool { ControllerMoveAccess.canOffer(permissions: session.profile?.me.permissions ?? []) }
+    var canMove: Bool { ControllerMoveAccess.canOffer(permissions: session.profile?.me.permissions ?? []) }
 
-    private func load() async {
+    func loadExtras() async {
         let connection = appModel.connection(for: session.account)
         if let siteId = controller.siteId, !siteId.isEmpty {
             if let result = try? await connection.siteAlarms(siteId: siteId) { alarms = ControllerLive.alarms(result.alarms, controllerId: controller.id) }
@@ -143,7 +126,7 @@ struct ControllerExtras: View {
         syncProgress = (try? await connection.syncProgress(controllerId: controller.id)) ?? []
     }
 
-    private func saveComment() async {
+    func saveComment() async {
         errorText = nil
         do {
             try await appModel.connection(for: session.account).setControllerComment(id: controller.id, comment: commentDraft)
@@ -277,7 +260,7 @@ struct ControllerBackupsView: View {
         .task { await load() }
     }
 
-    private func load() async {
+    func loadExtras() async {
         do {
             backups = try await appModel.connection(for: session.account).backups(controllerId: controller.id)
             phase = .loaded

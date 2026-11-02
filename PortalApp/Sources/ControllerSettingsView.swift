@@ -26,7 +26,7 @@ struct ControllerSettingsView: View {
             case .loaded:
                 List { PortalRows {
                     if let errorText { Section { Text(errorText).font(.footnote).foregroundStyle(Color.statusError) } }
-                    Section("Copy to Portal") {
+                    Section {
                         Toggle("Copy to Portal", isOn: Binding(get: { settings.isSyncEnabled ?? false }, set: { value in
                             settings.isSyncEnabled = value
                             Task { await saveSync() }
@@ -35,9 +35,13 @@ struct ControllerSettingsView: View {
                             settings.syncIntervalSeconds = value
                             Task { await saveSync() }
                         }
+                    } header: {
+                        Text("Sync")
+                    } footer: {
+                        Text("How often this controller's data is copied to Portal.")
                     }
-                    Section("Backups") {
-                        Toggle("Back up", isOn: Binding(get: { settings.isBackupEnabled ?? false }, set: { value in
+                    Section {
+                        Toggle("Back up automatically", isOn: Binding(get: { settings.isBackupEnabled ?? false }, set: { value in
                             settings.isBackupEnabled = value
                             Task { await saveBackup() }
                         }))
@@ -45,6 +49,10 @@ struct ControllerSettingsView: View {
                             settings.backupIntervalSeconds = value
                             Task { await saveBackup() }
                         }
+                    } header: {
+                        Text("Backups")
+                    } footer: {
+                        Text("How often a backup of this controller's configuration is made and kept.")
                     }
                 } }
                 .portalList()

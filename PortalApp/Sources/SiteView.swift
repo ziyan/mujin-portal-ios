@@ -630,14 +630,25 @@ struct StatTile: View {
 /// version, and the ways into it: its live and cloud web UIs in the built-in
 /// browser, and its screen. An entry that cannot be opened says why.
 struct ControllerDetailView: View {
-    @Environment(AppModel.self) private var appModel
-    @Environment(SessionModel.self) private var session
+    @Environment(AppModel.self) var appModel
+    @Environment(SessionModel.self) var session
     @Environment(\.openURL) private var openURL
     let controller: ControllerSummary
 
     @State private var syncedUsers: SyncedUserCount?
     @State private var screenSession: WebSession?
-    @State private var editedComment: String?
+    @State var editedComment: String?
+    @State var alarms: [SiteAlarm] = []
+    @State var orchestrators: SiteOrchestrators?
+    @State var robots: [SiteRobots.Robot] = []
+    @State var incidents: [IncidentSummary] = []
+    @State var tickets: [Ticket] = []
+    @State var telemetry: SiteTelemetry?
+    @State var syncProgress: [ControllerSyncProgress] = []
+    @State var isEditingComment = false
+    @State var commentDraft = ""
+    @State var isMoving = false
+    @State var errorText: String?
 
     var body: some View {
         let server = session.account.server
@@ -668,9 +679,10 @@ struct ControllerDetailView: View {
                     screenSession = appModel.makeScreenSession(for: session.account, url: url)
                 }
             }
-            ControllerExtras(controller: controller, editedComment: $editedComment)
+            extraSections
         } }
         .portalList()
+        .task(id: controller.id) { await loadExtras() }
         .navigationTitle(controller.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -933,17 +945,20 @@ struct SiteTelemetryView: View {
 /// VirtualControllerDetailView is a virtual controller: its name, whether it
 /// runs, its web UI and, while it runs, its screen.
 struct VirtualControllerDetailView: View {
-    @Environment(AppModel.self) private var appModel
-    @Environment(SessionModel.self) private var session
+    @Environment(AppModel.self) var appModel
+    @Environment(SessionModel.self) var session
     @Environment(\.openURL) private var openURL
     let initial: VirtualControllerSummary
     @State private var current: VirtualControllerSummary?
     @State private var screenSession: WebSession?
     @Environment(\.dismiss) private var dismiss
+    @State var liveTelemetry: SiteTelemetry?
+    @State var liveAlarms: [SiteAlarm] = []
+    @State var liveTickets: [Ticket] = []
 
     init(virtual: VirtualControllerSummary) { initial = virtual }
 
-    private var virtual: VirtualControllerSummary { current ?? initial }
+    var virtual: VirtualControllerSummary { current ?? initial }
 
     var body: some View {
         let server = session.account.server
@@ -965,7 +980,7 @@ struct VirtualControllerDetailView: View {
                     }
                 }
             }
-            VirtualControllerLive(virtual: virtual)
+            liveSections
             Section {
                 row(virtual.webEntry(server: server), title: "Open the web UI", systemImage: "safari") { openURL($0) }
                 row(virtual.screenEntry(server: server), title: "Screen", systemImage: "display") { url in
@@ -974,6 +989,7 @@ struct VirtualControllerDetailView: View {
             }
         } }
         .portalList()
+        .task(id: virtual.id) { await loadLive() }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 AskAboutButton(viewing: Viewing(kind: "virtual_controller", id: virtual.id), subject: virtual.displayName)
