@@ -257,7 +257,6 @@ final class ConversationModel {
             do {
                 let files = try await attachments.upload(using: connection)
                 trimmed = SharePayload.assistantMessage(text: trimmed, files: files)
-                attachments.clear()
             } catch {
                 actionError = error.userMessage
                 onError(error)
@@ -266,6 +265,7 @@ final class ConversationModel {
         }
         if let question = activeQuestion {
             await answer(question, with: trimmed)
+            if actionError == nil { attachments?.removeUploaded() }
             return actionError == nil
         }
         actionError = nil
@@ -276,6 +276,7 @@ final class ConversationModel {
             try await connection.sendMessage(conversationId: conversationId, text: trimmed, viewing: viewing, replyToMessageId: reply?.messageId, pageTitle: title)
             replyTarget = nil
             viewingReference = nil
+            attachments?.removeUploaded()
             return true
         } catch {
             transcript.removePendingUser(trimmed)

@@ -110,6 +110,7 @@ struct ConversationView: View {
                 model: conversationModel, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
             conversationModel.start()
             if appModel.isDemo, DemoOptions.screen == "voice" { voice?.startDemo() }
+            if appModel.isDemo, DemoOptions.screen == "conversation-composer" { drafts.stageDemo() }
             if appModel.isDemo, DemoOptions.screen == "conversation-reply" {
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 conversationModel.replyTarget = ReplyReference(
@@ -761,7 +762,7 @@ private struct ComposerBar: View {
                         .font(.footnote)
                         .foregroundStyle(Color.statusError)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    if !isDraftEmpty {
+                    if canSend {
                         Button("Retry") { send() }
                             .font(.footnote.weight(.semibold))
                     }
