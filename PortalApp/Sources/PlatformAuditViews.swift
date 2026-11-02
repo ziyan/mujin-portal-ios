@@ -178,9 +178,7 @@ struct AuditEventRow: View {
                 .font(.subheadline)
                 .foregroundStyle(Color.primary)
                 .lineLimit(2)
-            Text("\(event.actorName), \(event.createdDate?.formatted(date: .abbreviated, time: .shortened) ?? "")")
-                .font(.footnote)
-                .foregroundStyle(Color.secondary)
+            actorAndDate
             if !event.changes.isEmpty {
                 Text("^[\(event.changes.count) field](inflect: true) changed")
                     .font(.footnote)
@@ -188,6 +186,26 @@ struct AuditEventRow: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var dateText: String { event.createdDate?.formatted(date: .abbreviated, time: .shortened) ?? "" }
+
+    /// Who and when on one line when they fit; at the large text sizes the actor is on a line of its own with the date under it. The
+    /// actor is cut short in the middle rather than broken inside a word.
+    private var actorAndDate: some View {
+        ViewThatFits(in: .horizontal) {
+            Text("\(event.actorName), \(dateText)")
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(event.actorName)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(dateText)
+            }
+        }
+        .font(.footnote)
+        .foregroundStyle(Color.secondary)
     }
 }
 
