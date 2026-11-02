@@ -96,13 +96,21 @@ struct ControllerExtras: View {
                     Label("Alarm subscriptions", systemImage: "bell.badge").foregroundStyle(.primary)
                 }
             }
+            // The load hangs on this section's one row, not on the group: a modifier on the group would draw an empty row in the list.
+            .task(id: controller.id) { await load() }
             if controller.canEdit || controller.canDeleteBackups || canMove {
                 Section {
                     if controller.canEdit {
                         Button { commentDraft = editedComment ?? controller.detail ?? ""; isEditingComment = true } label: { Label("Edit comment", systemImage: "pencil") }
+                            .alert("Edit comment", isPresented: $isEditingComment) {
+                                TextField("Comment", text: $commentDraft)
+                                Button("Save") { Task { await saveComment() } }
+                                Button("Cancel", role: .cancel) {}
+                            }
                     }
                     if canMove {
                         Button { isMoving = true } label: { Label("Move to another site", systemImage: "arrow.right.square") }
+                            .sheet(isPresented: $isMoving) { MoveControllerView(controller: controller) }
                     }
                     if controller.canEdit {
                         NavigationLink(value: PortalRoute.controllerSettings(controller)) {
@@ -118,15 +126,6 @@ struct ControllerExtras: View {
                 }
             }
         }
-        .alert("Edit comment", isPresented: $isEditingComment) {
-            TextField("Comment", text: $commentDraft)
-            Button("Save") { Task { await saveComment() } }
-            Button("Cancel", role: .cancel) {}
-        }
-        .sheet(isPresented: $isMoving) {
-            MoveControllerView(controller: controller)
-        }
-        .task(id: controller.id) { await load() }
     }
 
     private var canMove: Bool { ControllerMoveAccess.canOffer(permissions: session.profile?.me.permissions ?? []) }

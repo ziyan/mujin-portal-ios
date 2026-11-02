@@ -39,12 +39,13 @@ struct VirtualControllerLive: View {
                     Label("Alarm subscriptions", systemImage: "bell.badge").foregroundStyle(.primary)
                 }
             }
-        }
-        .task(id: virtual.id) {
-            let connection = appModel.connection(for: session.account)
-            telemetry = try? await connection.siteTelemetry(controllerIds: [], virtualControllerIds: [virtual.id])
-            alarms = (try? await connection.virtualControllerAlarms(id: virtual.id)) ?? []
-            tickets = (try? await connection.tickets(virtualControllerId: virtual.id, first: 20)) ?? []
+            // The load hangs on the last section's one row, not on the group: a modifier on the group would draw an empty row in the list.
+            .task(id: virtual.id) {
+                let connection = appModel.connection(for: session.account)
+                telemetry = try? await connection.siteTelemetry(controllerIds: [], virtualControllerIds: [virtual.id])
+                alarms = (try? await connection.virtualControllerAlarms(id: virtual.id)) ?? []
+                tickets = (try? await connection.tickets(virtualControllerId: virtual.id, first: 20)) ?? []
+            }
         }
     }
 }
