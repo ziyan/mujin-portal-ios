@@ -260,7 +260,7 @@ struct ControllerBackupsView: View {
         .task { await load() }
     }
 
-    func loadExtras() async {
+    private func load() async {
         do {
             backups = try await appModel.connection(for: session.account).backups(controllerId: controller.id)
             phase = .loaded
