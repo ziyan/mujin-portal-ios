@@ -13,6 +13,8 @@ import UIKit
 @MainActor
 enum DemoServer {
     static let server = try! ServerAddress("https://demo.example.test")
+    /// The code on the link address the demo's scan screen pretends to read.
+    static let linkCode = "ZGVtby1saW5rLWNvZGUtMDEyMzQ1Njc4OQ"
 
     static func makeModel(isSignedIn: Bool = !["welcome", "demo-entered"].contains(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] ?? "")) -> AppModel {
         let account = Account(

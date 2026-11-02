@@ -16,7 +16,6 @@ struct StaffSitesView: View {
     @State private var phase = LoadPhase.loading
     @State private var searchText = ""
     @State private var path: [PortalRoute] = []
-    @State private var isLinking = false
     /// The organization whose people are shown in a sheet, from a section header.
     @State private var peopleOrganization: PeopleOrganization?
 
@@ -31,11 +30,10 @@ struct StaffSitesView: View {
             .toolbar {
                 if ControllerLinkAccess.canOffer(permissions: session.profile?.me.permissions ?? []) {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button { isLinking = true } label: { Label("Link a controller", systemImage: "link.badge.plus") }
+                        Button { appModel.linkRequest = ControllerLinkRequest() } label: { Label("Link a controller", systemImage: "link.badge.plus") }
                     }
                 }
             }
-            .sheet(isPresented: $isLinking) { LinkControllerView() }
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search sites")
             .sheet(item: $peopleOrganization) { organization in
                 PeopleSheet(organizationId: organization.id)

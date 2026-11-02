@@ -55,6 +55,9 @@ targets:
           - $(MUJINPORTAL_APP_GROUP)
         com.apple.developer.usernotifications.communication: true
         com.apple.developer.usernotifications.time-sensitive: true
+        # The link a controller shows as a QR code opens the approval in the app.
+        com.apple.developer.associated-domains:
+          - applinks:portal.mujin.cloud
         # The shared group comes first, which is where an item goes when no
         # group is named.
         keychain-access-groups:
@@ -75,7 +78,7 @@ targets:
         # only to an app that supports all four orientations.
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.business
-        INFOPLIST_KEY_NSCameraUsageDescription: Take a photo to attach to a ticket.
+        INFOPLIST_KEY_NSCameraUsageDescription: Take a photo to attach to a ticket, or scan the QR code on a controller to link it.
         INFOPLIST_KEY_NSMicrophoneUsageDescription: Talk to the assistant by voice.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor

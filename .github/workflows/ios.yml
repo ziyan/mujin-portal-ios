@@ -277,6 +277,9 @@ jobs:
           shoot platform-grants platform-grants staff
           shoot platform-registrations platform-registrations staff
           shoot platform-alerts platform-alerts
+          shoot link-scan link-scan
+          shoot link-confirm link-confirm
+          shoot link-denied link-denied
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
           shoot virtual-controller-dark virtual-controller
@@ -341,6 +344,9 @@ jobs:
           shoot platform-usage-dark platform-usage staff
           shoot platform-billing-dark platform-billing staff
           shoot platform-provider-dark platform-provider staff
+          shoot link-scan-dark link-scan
+          shoot link-confirm-dark link-confirm
+          shoot link-denied-dark link-denied
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
@@ -383,6 +389,9 @@ jobs:
           shoot large-text-platform-audit-event platform-audit-event
           shoot large-text-platform-billing platform-billing staff
           shoot large-text-platform-provider platform-provider staff
+          shoot large-text-link-scan link-scan
+          shoot large-text-link-confirm link-confirm
+          shoot large-text-link-denied link-denied
 
       - name: Keep the screenshots
         if: always()

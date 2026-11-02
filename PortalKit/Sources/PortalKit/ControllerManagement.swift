@@ -189,9 +189,9 @@ public enum ControllerLinkAccess {
         permissions.contains("controller:link") || permissions.contains("organization:operate-all") || permissions.contains("platform:administer")
     }
 
-    /// A code a person types: the spaces dropped, upper case, so it matches what the controller shows.
+    /// A code a person pasted: the spaces dropped. The case stays, because the code is signed and case sensitive.
     public static func normalized(_ code: String) -> String {
-        code.filter { !$0.isWhitespace }.uppercased()
+        code.filter { !$0.isWhitespace }
     }
 }
 

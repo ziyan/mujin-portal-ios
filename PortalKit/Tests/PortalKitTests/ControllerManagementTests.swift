@@ -115,7 +115,7 @@ import Testing
 
 @Suite struct ControllerLinkApprovalTests {
     @Test func theCodeIsNormalizedAndTheOfferFollowsThePermissions() {
-        #expect(ControllerLinkAccess.normalized(" ab12 cd34 ") == "AB12CD34")
+        #expect(ControllerLinkAccess.normalized(" ab12 Cd34 ") == "ab12Cd34")
         #expect(ControllerLinkAccess.canOffer(permissions: ["controller:link"]))
         #expect(!ControllerLinkAccess.canOffer(permissions: ["site:assign"]))
     }

@@ -67,6 +67,9 @@ struct MainTabsView: View {
             if start == .chats { start = .assistant }
             if !Navigation.sections(for: newSession.persona).contains(start) { start = Navigation.home(for: newSession.persona) }
             newSession.selectedSection = start
+            if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("link-") {
+                appModel.linkRequest = ControllerLinkRequest(code: screen == "link-confirm" ? DemoServer.linkCode : nil)
+            }
             if appModel.isDemo, DemoOptions.screen == "ask" || DemoOptions.screen == "ask-site" || DemoOptions.screen == "conversation-reply" || DemoOptions.screen == "main-chat" {
                 if DemoOptions.screen == "ask-site" {
                     Task { await newSession.beginAsk(about: Viewing(kind: "site", id: "site01"), subject: "Example Yard") }
@@ -103,6 +106,10 @@ struct MainTabsView: View {
         .environment(session)
         .sheet(isPresented: Binding(get: { session.isShowingNotifications }, set: { session.isShowingNotifications = $0 })) {
             NotificationsView()
+                .environment(session)
+        }
+        .fullScreenCover(item: Binding(get: { appModel.linkRequest }, set: { appModel.linkRequest = $0 })) { request in
+            LinkControllerView(request: request)
                 .environment(session)
         }
         .onChange(of: appModel.pendingRoute) { _, _ in

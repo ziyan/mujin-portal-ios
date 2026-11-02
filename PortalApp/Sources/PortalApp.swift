@@ -10,6 +10,7 @@ struct PortalApp: App {
         WindowGroup {
             AppRoot()
                 .environment(model)
+                .onOpenURL { url in model.handleIncoming(url) }
         }
     }
 }
