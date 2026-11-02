@@ -129,7 +129,7 @@ struct RegistrationView: View {
                     if let email = registration.email, !email.isEmpty { fact("Email", email) }
                     if let country = registration.country, !country.isEmpty { fact("Country", country) }
                     if let when = registration.createdDate { fact("Asked", when.formatted(date: .abbreviated, time: .shortened)) }
-                    fact("Status", registration.statusName)
+                    fact("Status", localizedWords(registration.statusName))
                 }
                 if registration.isPending {
                     Section {
@@ -219,6 +219,10 @@ private struct IncidentAlertsList: View {
         return (name ?? "").isEmpty ? String(localized: "Unknown site") : name!
     }
 
+    private func floorWords(_ alert: IncidentAlert) -> String {
+        alert.minimumConfidence == nil ? String(localized: "Every incident") : alert.floorText
+    }
+
     private var sitesWithoutAlert: [SiteSummary] {
         let taken = Set(snapshot.alerts.compactMap(\.siteId))
         return snapshot.sites.filter { !taken.contains($0.id) }
@@ -243,7 +247,7 @@ private struct IncidentAlertsList: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(siteName(alert))
                                             .foregroundStyle(Color.primary)
-                                        Text(alert.isEnabled == false ? "Paused" : "From \(alert.floorText)")
+                                        Text(alert.isEnabled == false ? String(localized: "Paused") : String(localized: "From \(floorWords(alert))"))
                                             .font(.footnote)
                                             .foregroundStyle(Color.secondary)
                                     }
@@ -342,7 +346,7 @@ private struct IncidentAlertSheet: View {
                 }
             }
             .portalList()
-            .navigationTitle(isNew ? "Add a site" : "Incident alert")
+            .navigationTitle(isNew ? LocalizedStringKey("Add a site") : LocalizedStringKey("Incident alert"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

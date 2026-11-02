@@ -118,7 +118,7 @@ private struct BillingList: View {
                 LabeledContent("Status") { Text(status).foregroundStyle(Color.secondary) }
             }
             if let message = billing.blockMessage {
-                Label(message, systemImage: "exclamationmark.triangle")
+                Label(localizedWords(message), systemImage: "exclamationmark.triangle")
                     .foregroundStyle(Color.statusWarning)
             }
         }
@@ -185,7 +185,7 @@ private struct BillingList: View {
         Button {
             editing = kind
         } label: {
-            Text(title)
+            Label(title, systemImage: "pencil")
                 .foregroundStyle(Color.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -352,7 +352,7 @@ struct BillingTransactionsView: View {
         let currency = transaction.currency ?? "usd"
         return HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(transaction.kindName)
+                Text(localizedWords(transaction.kindName))
                     .foregroundStyle(Color.primary)
                 if let description = transaction.description, !description.isEmpty {
                     Text(description)

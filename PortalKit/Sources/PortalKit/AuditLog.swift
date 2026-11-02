@@ -47,12 +47,15 @@ public struct AuditEvent: Codable, Equatable, Hashable, Identifiable, Sendable {
         return text.isEmpty ? "Change" : text.prefix(1).uppercased() + text.dropFirst()
     }
 
-    /// The kind of resource in words: "virtual_controller" is "Virtual controller".
+    /// The kind of resource in words: "virtual_controller" is "Virtual controller" and "token" is "API token".
     public var resourceKindName: String {
-        let words = (resourceType ?? "").split(separator: "_").map(String.init)
-        guard let first = words.first else { return "Resource" }
-        return ([first.prefix(1).uppercased() + first.dropFirst()] + words.dropFirst()).joined(separator: " ")
+        let sentence = AuditWording.words(resourceType ?? "")
+        guard !sentence.isEmpty else { return "Resource" }
+        return AuditWording.capitalizingFirst(sentence)
     }
+
+    /// What was done to what, as one sentence in English ("Revoked an API token"). The pieces are for localizing it.
+    public var summary: AuditSummary { AuditWording.summary(action: action, resourceType: resourceType) }
 
     /// The name of the resource when its snapshot holds one, and the end of its id when not.
     public var resourceName: String {
@@ -67,6 +70,75 @@ public struct AuditEvent: Codable, Equatable, Hashable, Identifiable, Sendable {
 
     /// The fields that changed, in name order. A create has only what it set, a delete only what it removed.
     public var changes: [AuditFieldChange] { AuditChanges.diff(before: before, after: after) }
+}
+
+/// AuditSummary is what an audit entry did, split so a screen can translate each part: a format with one `%@` for the verb, and the
+/// noun that fills it, with its article.
+public struct AuditSummary: Equatable, Sendable {
+    /// "Created %@", "Changed %@", "Deleted %@", "Revoked %@".
+    public let verbFormat: String
+    /// "a site", "an API token".
+    public let noun: String
+
+    public var english: String { verbFormat.replacingOccurrences(of: "%@", with: noun) }
+}
+
+public enum AuditWording {
+    /// Words that are written in capitals.
+    static let acronyms: Set<String> = ["api", "ssh", "vpn", "id", "ai", "url", "oidc", "sso", "ip", "mfa", "wms", "wes", "nvr", "pdf", "sql"]
+    /// Acronyms that start with a vowel sound when said out loud, and so take "an".
+    static let vowelSoundAcronyms: Set<String> = ["api", "ssh", "id", "ai", "sso", "ip", "mfa", "nvr", "sql"]
+
+    /// The nouns of the resource kinds Portal writes to the log, each with its article.
+    static let nouns: [String: String] = [
+        "organization": "an organization", "organization_registration": "a registration", "domain": "a domain", "user": "a person", "token": "an API token",
+        "session": "a session", "controller": "a controller", "virtual_controller": "a virtual controller", "virtual_controller_snapshot": "a snapshot",
+        "backup": "a backup", "wireguard_peer": "a VPN device", "sshkey": "an SSH key", "passkey": "a passkey", "site": "a site", "cell": "a cell",
+        "ticket": "a ticket", "ticket_comment": "a ticket comment", "attachment": "an attachment", "camera": "a camera", "incident": "an incident",
+        "incident_subscription": "an incident alert", "page": "a page", "role": "a role", "group": "a group", "group_site": "a site of a group",
+        "group_role": "a role of a group", "user_group": "a group membership", "provider": "an AI provider", "agent": "an AI agent",
+        "organization_provider": "an AI provider grant", "organization_agent": "an AI agent grant", "conversation": "a conversation", "chat": "a chat",
+        "job": "an automation", "release": "a release", "email_template": "an email template", "favorite": "a favorite", "memory_page": "a memory page",
+    ]
+
+    /// Deletes that are better said another way.
+    static let removalVerbs: [String: String] = [
+        "token": "Revoked %@", "sshkey": "Revoked %@", "wireguard_peer": "Revoked %@", "session": "Ended %@", "passkey": "Removed %@",
+    ]
+
+    /// "virtual_controller" is "virtual controller", "sshkey" is "SSH key" and "token" is "API token".
+    public static func words(_ resourceType: String) -> String {
+        let special = ["token": "API token", "sshkey": "SSH key", "wireguard_peer": "VPN device"]
+        if let found = special[resourceType] { return found }
+        return resourceType.split(separator: "_").map { acronyms.contains($0.lowercased()) ? $0.uppercased() : String($0) }.joined(separator: " ")
+    }
+
+    static func capitalizingFirst(_ text: String) -> String {
+        guard let first = text.first else { return text }
+        return first.uppercased() + text.dropFirst()
+    }
+
+    /// "a ticket comment" for a kind that is known, and for one that is not, its words with the right article: "a foo bar".
+    public static func noun(for resourceType: String?) -> String {
+        let kind = resourceType ?? ""
+        if let known = nouns[kind] { return known }
+        let text = words(kind)
+        guard let first = text.split(separator: " ").first.map(String.init), !text.isEmpty else { return "a resource" }
+        let isAcronym = acronyms.contains(first.lowercased())
+        let takesAn = isAcronym ? vowelSoundAcronyms.contains(first.lowercased()) : "aeiou".contains(first.lowercased().first ?? "x")
+        return (takesAn ? "an " : "a ") + text
+    }
+
+    public static func summary(action: String?, resourceType: String?) -> AuditSummary {
+        let kind = resourceType ?? ""
+        let verb: String
+        switch action ?? "" {
+        case "create": verb = "Created %@"
+        case "delete": verb = removalVerbs[kind] ?? "Deleted %@"
+        default: verb = "Changed %@"
+        }
+        return AuditSummary(verbFormat: verb, noun: noun(for: resourceType))
+    }
 }
 
 public enum AuditChanges {

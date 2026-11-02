@@ -338,6 +338,7 @@ enum DemoOptions {
     /// The tab to open on, from `section:<name>`.
     static var section: AppSection? {
         guard let screen else { return nil }
+        if screen.hasPrefix("more-") { return .more }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         if AccountDemo.owns(screen) || PlatformDemo.owns(screen) { return .more }
         // Screens that live under More.
@@ -369,6 +370,15 @@ enum DemoOptions {
         case "release-image": [.releases, .release("release01"), .releaseImage("image01")]
         default:
             AccountDemo.owns(screen ?? "") ? AccountDemo.morePath(screen ?? "") : PlatformDemo.morePath(screen ?? "")
+        }
+    }
+
+    /// The row of More a screenshot run scrolls to, from `more-platform` or `more-surveillance`.
+    static var moreRowToShow: String? {
+        switch screen {
+        case "more-platform": "platformSettingsRow"
+        case "more-surveillance": "surveillanceRow"
+        default: nil
         }
     }
 

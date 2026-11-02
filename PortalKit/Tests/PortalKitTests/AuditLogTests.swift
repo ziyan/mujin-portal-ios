@@ -14,6 +14,7 @@ import Testing
         #expect(event.actorName == "alex@example.test")
         #expect(event.actionName == "Update")
         #expect(event.resourceKindName == "Virtual controller")
+        #expect(event.summary.english == "Changed a virtual controller")
         #expect(event.resourceName == "New")
     }
 
@@ -89,5 +90,37 @@ import Testing
         let options = variables?["options"] as? [String: Any]
         #expect(options?["after"] as? Int == 50)
         #expect(options?["first"] as? Int == 50)
+    }
+
+    @Test func theWordingNamesWhatWasDoneToWhat() {
+        func english(_ action: String, _ kind: String) -> String { AuditWording.summary(action: action, resourceType: kind).english }
+        #expect(english("create", "site") == "Created a site")
+        #expect(english("delete", "site") == "Deleted a site")
+        #expect(english("delete", "token") == "Revoked an API token")
+        #expect(english("create", "token") == "Created an API token")
+        #expect(english("delete", "sshkey") == "Revoked an SSH key")
+        #expect(english("delete", "wireguard_peer") == "Revoked a VPN device")
+        #expect(english("delete", "session") == "Ended a session")
+        #expect(english("delete", "passkey") == "Removed a passkey")
+        #expect(english("update", "organization") == "Changed an organization")
+        #expect(english("update", "user") == "Changed a person")
+    }
+
+    @Test func aKindWithNoWordsOfItsOwnIsSpelledOutWithItsAcronymsInCapitals() {
+        #expect(AuditWording.noun(for: "oauth_consent") == "an oauth consent")
+        #expect(AuditWording.noun(for: "api_key") == "an API key")
+        #expect(AuditWording.noun(for: "vpn_route") == "a VPN route")
+        #expect(AuditWording.noun(for: "ssh_certificate") == "an SSH certificate")
+        #expect(AuditWording.noun(for: "widget") == "a widget")
+        #expect(AuditWording.noun(for: "") == "a resource")
+        #expect(AuditWording.noun(for: nil) == "a resource")
+        #expect(AuditWording.summary(action: "explode", resourceType: "widget").english == "Changed a widget")
+    }
+
+    @Test func aKindIsWrittenAsWordsWithAcronymsInCapitals() throws {
+        #expect(try Self.event(#"{"id":"e","resourceType":"token"}"#).resourceKindName == "API token")
+        #expect(try Self.event(#"{"id":"e","resourceType":"sshkey"}"#).resourceKindName == "SSH key")
+        #expect(try Self.event(#"{"id":"e","resourceType":"user_id_map"}"#).resourceKindName == "User ID map")
+        #expect(try Self.event(#"{"id":"e","resourceType":"ai_job"}"#).resourceKindName == "AI job")
     }
 }

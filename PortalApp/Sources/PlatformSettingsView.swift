@@ -72,9 +72,15 @@ struct PlatformMoreSection: View {
                         .foregroundStyle(.primary)
                 }
                 .accessibilityIdentifier("platformSettingsRow")
+                .id("platformSettingsRow")
             }
         }
     }
+}
+
+/// localizedWords looks up English words that PortalKit wrote, such as "Waiting", in the string catalog. What the catalog lacks stays English.
+func localizedWords(_ english: String) -> String {
+    String(localized: String.LocalizationValue(english))
 }
 
 /// PageReload reads a screen's data again; screens call it after a change.
@@ -407,7 +413,7 @@ private struct OrganizationSettingsList: View {
                             Text(name)
                                 .font(.title3.weight(.semibold))
                                 .foregroundStyle(Color.primary)
-                            Text(profile?.isActive == false ? "Switched off" : "Active")
+                            Text(profile?.isActive == false ? String(localized: "Switched off") : String(localized: "Active"))
                                 .font(.footnote)
                                 .foregroundStyle(Color.secondary)
                         }
@@ -462,7 +468,7 @@ private struct OrganizationSettingsList: View {
                         Button(role: profile.isActive == false ? nil : .destructive) {
                             isConfirmingSwitch = true
                         } label: {
-                            Text(profile.isActive == false ? "Switch on this organization" : "Switch off this organization")
+                            Text(profile.isActive == false ? String(localized: "Switch on this organization") : String(localized: "Switch off this organization"))
                                 .foregroundStyle(profile.isActive == false ? Color.primary : Color.statusError)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())

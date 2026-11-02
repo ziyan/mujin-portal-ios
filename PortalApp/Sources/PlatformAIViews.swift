@@ -124,7 +124,7 @@ private struct ProviderFormSheet: View {
                 }
             }
             .portalList()
-            .navigationTitle(isNew ? "Add provider" : "Edit provider")
+            .navigationTitle(isNew ? LocalizedStringKey("Add provider") : LocalizedStringKey("Edit provider"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -398,7 +398,7 @@ private struct AgentFormSheet: View {
                 }
             }
             .portalList()
-            .navigationTitle(isNew ? "Add agent" : "Edit agent")
+            .navigationTitle(isNew ? LocalizedStringKey("Add agent") : LocalizedStringKey("Edit agent"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

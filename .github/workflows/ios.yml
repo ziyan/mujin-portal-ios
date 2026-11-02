@@ -253,6 +253,10 @@ jobs:
           shoot surveillance surveillance
           shoot surveillance-staff surveillance-staff staff
           shoot more-staff section:more staff
+          shoot more-platform-staff more-platform staff
+          shoot more-surveillance-staff more-surveillance staff
+          shoot more-platform more-platform
+          shoot more-surveillance more-surveillance
           shoot platform-hub platform-hub
           shoot platform-hub-staff platform-hub staff
           shoot platform-organizations platform-organizations staff

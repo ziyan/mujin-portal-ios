@@ -37,6 +37,7 @@ struct MoreView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
+            ScrollViewReader { proxy in
             List { PortalRows {
                 Section {
                     Button {
@@ -114,6 +115,7 @@ struct MoreView: View {
                     }
                     if session.surveillance.hasCameras {
                         NavigationLink(value: MoreDestination.surveillance) { SurveillanceRow() }
+                            .id("surveillanceRow")
                     }
                     NavigationLink(value: MoreDestination.releases) {
                         Label("Releases", systemImage: "shippingbox")
@@ -195,6 +197,13 @@ struct MoreView: View {
                 guard let goalId else { return }
                 session.goalToOpen = nil
                 path = NavigationPath([MoreDestination.goals, MoreDestination.goal(goalId)])
+            }
+            .task {
+                // The screenshot run scrolls to the row it photographs.
+                guard appModel.isDemo, let row = DemoOptions.moreRowToShow else { return }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                proxy.scrollTo(row, anchor: .center)
+            }
             }
         }
     }

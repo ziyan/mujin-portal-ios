@@ -158,13 +158,21 @@ struct AuditLogView: View {
     }
 }
 
+extension AuditSummary {
+    /// The sentence in the person's language: the verb and the noun are looked up apart, so each has its own translation. Anything the
+    /// catalog does not know stays in English.
+    var localized: String {
+        String(format: String(localized: String.LocalizationValue(verbFormat)), String(localized: String.LocalizationValue(noun)))
+    }
+}
+
 /// AuditEventRow is one entry of the log in a list: what was done to what, by whom and when.
 struct AuditEventRow: View {
     let event: AuditEvent
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("\(event.actionName) \(event.resourceKindName.lowercased())")
+            Text(event.summary.localized)
                 .foregroundStyle(Color.primary)
             Text(event.resourceName)
                 .font(.subheadline)
@@ -191,7 +199,7 @@ struct AuditEventView: View {
         List {
             PortalRows {
                 Section {
-                    fact("Done", "\(event.actionName) \(event.resourceKindName.lowercased())")
+                    fact("Done", event.summary.localized)
                     fact("Resource", event.resourceName)
                     if let when = event.createdDate { fact("When", when.formatted(date: .complete, time: .standard)) }
                 }
