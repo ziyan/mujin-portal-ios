@@ -27592,53 +27592,6 @@
         }
       }
     },
-    "A new group starts with the people you pick. They see messages from now on.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A new group starts with the people you pick. They see messages from now on."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新しいグループは選んだ人で始まります。参加者はこれ以降のメッセージを見られます。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新群组将由你选择的人开始。他们只能看到从现在起的消息。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新群組將由你選擇的人開始。他們只能看到從現在起的訊息。"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eine neue Gruppe beginnt mit den gewählten Personen. Sie sehen Nachrichten ab jetzt."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Un nouveau groupe commence avec les personnes choisies. Elles voient les messages à partir de maintenant."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Een nieuwe groep begint met de gekozen mensen. Zij zien berichten vanaf nu."
-          }
-        }
-      }
-    },
     "You were removed from this chat": {
       "extractionState": "manual",
       "localizations": {
@@ -57670,6 +57623,100 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alle organisaties"
+          }
+        }
+      }
+    },
+    "This chat becomes a group with them in it. They can read everything said in it so far.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This chat becomes a group with them in it. They can read everything said in it so far."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このチャットは追加した人を含むグループになります。追加した人はこれまでのすべてのメッセージを閲覧できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此聊天将变为包含他们的群组。他们能看到此前的全部消息。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此聊天將變成包含他們的群組。他們能看到先前的所有訊息。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Chat wird zu einer Gruppe mit ihnen. Sie können alles lesen, was bisher darin gesagt wurde."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette conversation devient un groupe qui les inclut. Elles peuvent lire tout ce qui y a été dit jusqu'ici."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deze chat wordt een groep met hen erin. Ze kunnen alles lezen wat er tot nu toe in is gezegd."
+          }
+        }
+      }
+    },
+    "They join this group and can read everything said in it so far.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "They join this group and can read everything said in it so far."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このグループに参加し、これまでのすべてのメッセージを閲覧できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他们将加入该群组，并能看到此前的全部消息。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他們將加入此群組，並能看到先前的所有訊息。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sie treten dieser Gruppe bei und können alles lesen, was bisher darin gesagt wurde."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elles rejoignent ce groupe et peuvent lire tout ce qui y a été dit jusqu'ici."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ze komen in deze groep en kunnen alles lezen wat er tot nu toe in is gezegd."
           }
         }
       }
