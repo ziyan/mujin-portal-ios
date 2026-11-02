@@ -162,6 +162,7 @@ jobs:
           shoot tickets tickets
           shoot ticket ticket
           shoot attachment-viewer attachment-viewer
+          shoot attachment-viewer-tall attachment-viewer-tall
           shoot tickets-solved tickets-solved
           shoot tickets-staff tickets-everyone staff
           shoot ticket-staff ticket staff

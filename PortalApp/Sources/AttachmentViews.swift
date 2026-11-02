@@ -139,7 +139,7 @@ private struct AttachmentImage: View {
                 AttachmentImageCache.images.setObject(image, forKey: key)
                 phase = .loaded(image)
                 // The screenshot run opens the viewer, since a tap cannot be scripted there.
-                if DemoOptions.screen == "attachment-viewer" {
+                if DemoOptions.screen == "attachment-viewer" && attachmentId == "imagedemo01" || DemoOptions.screen == "attachment-viewer-tall" && attachmentId == "imagedemo03" {
                     try? await Task.sleep(nanoseconds: 600_000_000)
                     isShowingViewer = true
                 }
@@ -156,7 +156,7 @@ struct ImageViewer: View {
     var body: some View {
         ZStack(alignment: .top) {
             Color.black.ignoresSafeArea()
-            ZoomableImage(image: image).ignoresSafeArea()
+            ZoomableImage(image: image, onDismiss: { dismiss() }).ignoresSafeArea()
             HStack {
                 Button { dismiss() } label: {
                     Image(systemName: "xmark").font(.body.weight(.semibold)).frame(width: 44, height: 44).contentShape(Circle())
@@ -177,51 +177,6 @@ struct ImageViewer: View {
         }
         .foregroundStyle(.white)
         .statusBarHidden()
-    }
-}
-
-/// ZoomableImage is a picture in a scroll view that pinches and double taps to zoom.
-private struct ZoomableImage: UIViewRepresentable {
-    let image: UIImage
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    func makeUIView(context: Context) -> UIScrollView {
-        let scrollView = UIScrollView()
-        scrollView.delegate = context.coordinator
-        scrollView.minimumZoomScale = 1
-        scrollView.maximumZoomScale = 5
-        scrollView.showsHorizontalScrollIndicator = false
-        scrollView.showsVerticalScrollIndicator = false
-        scrollView.backgroundColor = .clear
-        let imageView = UIImageView(image: image)
-        imageView.contentMode = .scaleAspectFit
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.addSubview(imageView)
-        NSLayoutConstraint.activate([
-            imageView.leadingAnchor.constraint(equalTo: scrollView.frameLayoutGuide.leadingAnchor),
-            imageView.trailingAnchor.constraint(equalTo: scrollView.frameLayoutGuide.trailingAnchor),
-            imageView.topAnchor.constraint(equalTo: scrollView.frameLayoutGuide.topAnchor),
-            imageView.bottomAnchor.constraint(equalTo: scrollView.frameLayoutGuide.bottomAnchor),
-        ])
-        context.coordinator.imageView = imageView
-        let doubleTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.doubleTapped(_:)))
-        doubleTap.numberOfTapsRequired = 2
-        scrollView.addGestureRecognizer(doubleTap)
-        return scrollView
-    }
-
-    func updateUIView(_ scrollView: UIScrollView, context: Context) {}
-
-    final class Coordinator: NSObject, UIScrollViewDelegate {
-        weak var imageView: UIImageView?
-
-        func viewForZooming(in scrollView: UIScrollView) -> UIView? { imageView }
-
-        @objc func doubleTapped(_ recognizer: UITapGestureRecognizer) {
-            guard let scrollView = recognizer.view as? UIScrollView else { return }
-            scrollView.setZoomScale(scrollView.zoomScale > 1 ? 1 : 2.5, animated: true)
-        }
     }
 }
 

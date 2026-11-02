@@ -339,7 +339,7 @@ enum DemoOptions {
         if AccountDemo.owns(screen) { return .more }
         // Screens that live under More.
         if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image", "accounts"].contains(where: { screen.hasPrefix($0) }) { return .more }
-        if screen.hasPrefix("ticket") || screen == "attachment-viewer" { return .tickets }
+        if screen.hasPrefix("ticket") || screen.hasPrefix("attachment-viewer") { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
         if screen.hasPrefix("site-staff") || screen == "sites-staff" { return .site }
         if screen.hasPrefix("site") || screen.hasPrefix("incident") || screen.hasPrefix("controller") || screen.hasPrefix("virtual-controller") || screen.hasPrefix("camera") { return .site }

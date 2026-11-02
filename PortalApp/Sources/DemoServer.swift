@@ -211,7 +211,7 @@ final class DemoState: @unchecked Sendable {
         data.comments["ticket01"] = [
             [
                 "id": "comment01", "authorUserId": "user01", "isOriginalRequest": true, "isInternal": false, "createdAt": stamp(10_800),
-                "body": "The gripper drops about one box in twenty at pick station 3. A frame from the camera, the walkthrough and the pressure log are attached.\n\n![frame_008.jpg](attachment:imagedemo01)\n\n<video src=\"attachment:videodemo01\" controls preload=\"metadata\" width=\"100%\" title=\"station-walkthrough.mp4\"></video>\n\n<iframe src=\"attachment:pdfdemo01\" width=\"100%\" height=\"600\" title=\"pressure-log.pdf\"></iframe>\n\n![removed.png](attachment:missingdemo01)",
+                "body": "The gripper drops about one box in twenty at pick station 3. A frame from the camera, the walkthrough and the pressure log are attached.\n\n![frame_008.jpg](attachment:imagedemo01)\n\n<video src=\"attachment:videodemo01\" controls preload=\"metadata\" width=\"100%\" title=\"station-walkthrough.mp4\"></video>\n\n<iframe src=\"attachment:pdfdemo01\" width=\"100%\" height=\"600\" title=\"pressure-log.pdf\"></iframe>\n\n![shelf.jpg](attachment:imagedemo03)\n\n![removed.png](attachment:missingdemo01)",
             ],
             [
                 "id": "comment02", "authorUserId": "user02", "isInternal": false, "createdAt": stamp(7_200),
@@ -1057,6 +1057,7 @@ enum DemoPictures {
         case "/api/v1/user/user03/avatar": return render(ground: .systemOrange, figure: .white, isLogo: false)
         case "/api/v1/organization/organization01/logo": return render(ground: .systemIndigo, figure: .white, isLogo: true)
         case "/api/v1/attachment/imagedemo01", "/api/v1/attachment/imagedemo02", "/api/v1/attachment/videodemo01": return camera()
+        case "/api/v1/attachment/imagedemo03": return tall()
         case "/api/v1/attachment/pdfdemo01": return pdf()
         default: return nil
         }
@@ -1084,6 +1085,21 @@ enum DemoPictures {
             UIColor.systemTeal.setStroke()
             let frame = UIBezierPath(rect: CGRect(x: 20, y: 20, width: 760, height: 480))
             frame.lineWidth = 3
+            frame.stroke()
+        }
+    }
+
+    /// A tall picture, a shelf seen from the front.
+    private static func tall() -> Data {
+        let size = CGSize(width: 500, height: 900)
+        return UIGraphicsImageRenderer(size: size).jpegData(withCompressionQuality: 0.85) { _ in
+            UIColor(red: 0.2, green: 0.24, blue: 0.3, alpha: 1).setFill()
+            UIBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
+            UIColor.systemOrange.setFill()
+            for row in 0..<5 { for column in 0..<3 { UIBezierPath(roundedRect: CGRect(x: 40 + CGFloat(column) * 150, y: 40 + CGFloat(row) * 170, width: 120, height: 110), cornerRadius: 6).fill() } }
+            UIColor.systemTeal.setStroke()
+            let frame = UIBezierPath(rect: CGRect(x: 12, y: 12, width: 476, height: 876))
+            frame.lineWidth = 4
             frame.stroke()
         }
     }
