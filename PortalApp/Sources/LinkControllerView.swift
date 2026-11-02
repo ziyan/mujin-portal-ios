@@ -52,6 +52,8 @@ struct LinkControllerView: View {
                 .navigationTitle("Link a controller")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    // Placed explicitly so it stays centered between the buttons, as on the other sheets.
+                    ToolbarItem(placement: .principal) { Text("Link a controller").font(.headline) }
                     if step != .linked {
                         ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                     }
@@ -105,7 +107,21 @@ struct LinkControllerView: View {
                     .multilineTextAlignment(.center)
                     .padding(12)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                Spacer()
+                if appModel.isDemo {
+                    // The camera's stand-in shrinks to the room left, so it never sits under the hint at the large text sizes.
+                    Image(systemName: "qrcode.viewfinder")
+                        .resizable()
+                        .scaledToFit()
+                        .fontWeight(.ultraLight)
+                        .foregroundStyle(.white.opacity(0.45))
+                        .frame(maxWidth: 160, maxHeight: .infinity)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                        .onTapGesture { scanned(ControllerLinkPayload.address(code: DemoServer.linkCode, server: session.account.server)) }
+                        .accessibilityHidden(true)
+                } else {
+                    Spacer()
+                }
                 if let note {
                     Text(note)
                         .font(.footnote)
@@ -339,12 +355,7 @@ private struct DemoScannerPlaceholder: View {
     let onTap: () -> Void
 
     var body: some View {
-        ZStack {
-            LinearGradient(colors: [Color(white: 0.16), Color(white: 0.05)], startPoint: .top, endPoint: .bottom)
-            Image(systemName: "qrcode.viewfinder")
-                .font(.system(size: 160, weight: .ultraLight))
-                .foregroundStyle(.white.opacity(0.45))
-        }
+        LinearGradient(colors: [Color(white: 0.16), Color(white: 0.05)], startPoint: .top, endPoint: .bottom)
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
         .accessibilityLabel("Camera preview")
