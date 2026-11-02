@@ -25,6 +25,8 @@ final class ConversationModel {
     private(set) var window = MessageWindow()
     private(set) var phase = Phase.loading
     private(set) var title: String?
+    /// Told when the server gives the conversation another title, such as the one it writes after the first answer.
+    var onTitleChanged: (@MainActor (String) -> Void)?
     private(set) var isMain = false
     /// Whether the live feed is up. False while it reconnects.
     private(set) var isFeedLive = false
@@ -57,6 +59,8 @@ final class ConversationModel {
 
     private var feedTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
+    private var titleTask: Task<Void, Never>?
+    private var isTitleCustom = false
     private var cards: (questions: [QuestionCard], approvals: [ApprovalCard]) = ([], [])
 
     init(
@@ -117,6 +121,8 @@ final class ConversationModel {
         feedTask = nil
         pollTask?.cancel()
         pollTask = nil
+        titleTask?.cancel()
+        titleTask = nil
         linkPreviews.cancel()
     }
 
@@ -193,18 +199,46 @@ final class ConversationModel {
             let (loadedSummary, loadedMessages, loadedCards) = try await (summary, messages, waitingCards)
             window.replace(with: loadedMessages, totalCount: await total)
             cards = loadedCards
-            title = loadedSummary.title
+            isTitleCustom = loadedSummary.isTitleCustom == true
+            applyTitle(loadedSummary.title)
             isMain = loadedSummary.isMain == true
             ownerUserId = loadedSummary.userId
             transcript.load(
                 messages: window.messages, questions: cards.questions, approvals: cards.approvals,
                 isRunning: !isRunFinished && (loadedSummary.isRunning || transcript.hasPendingUser))
             phase = .loaded
+            if isRunFinished { watchForServerTitle() }
             await refreshBackgroundWork()
             await askForPreviews(window.messages.suffix(30))
         } catch {
             onError(error)
             if phase == .loading { phase = .failed(error.userMessage) }
+        }
+    }
+
+    private func applyTitle(_ newTitle: String?) {
+        guard newTitle != title else { return }
+        title = newTitle
+        if let newTitle, !newTitle.isEmpty { onTitleChanged?(newTitle) }
+    }
+
+    /// The server writes a conversation's title a few seconds after the first answer ends, and sends no
+    /// event for it. So the title is read again a few times after a turn ends, until it changes.
+    /// A title the person set is never replaced, so nothing is read for it.
+    private func watchForServerTitle() {
+        guard !isTitleCustom, titleTask == nil else { return }
+        let titleWhenTurnEnded = title
+        titleTask = Task { [weak self] in
+            for seconds in [2, 3, 5, 8, 12] as [UInt64] {
+                try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+                guard let self, !Task.isCancelled else { return }
+                if let read = try? await connection.conversation(id: conversationId), read.title != titleWhenTurnEnded {
+                    self.isTitleCustom = read.isTitleCustom == true
+                    self.applyTitle(read.title)
+                    break
+                }
+            }
+            self?.titleTask = nil
         }
     }
 

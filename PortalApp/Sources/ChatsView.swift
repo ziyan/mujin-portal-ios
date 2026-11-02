@@ -57,7 +57,7 @@ struct ChatsView: View {
         .sheet(item: $newChatMode) { mode in
             NewChatView(mode: mode) { conversationId in
                 selectedConversationId = conversationId
-                Task { await model?.load() }
+                Task { await model?.didStart(conversationId: conversationId) }
             }
         }
         .task(id: account.accountKey) {
