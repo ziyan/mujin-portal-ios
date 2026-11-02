@@ -107,12 +107,21 @@ private struct MarkdownTableView: View {
     let bodyRows: [[String]]
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
+        // A table that fits fills the width; one that does not scrolls sideways.
+        ViewThatFits(in: .horizontal) {
+            grid.frame(maxWidth: .infinity)
+            ScrollView(.horizontal, showsIndicators: false) { grid }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
+    }
+
+    private var grid: some View {
+        Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
                 GridRow {
                     ForEach(Array(headerCells.enumerated()), id: \.offset) { column, cell in
                         cellView(cell, column: column, isHeader: true)
-                            .background(Color(.tertiarySystemFill))
+                            .background { Rectangle().fill(Color(.tertiarySystemFill)) }
                     }
                 }
                 ForEach(Array(bodyRows.enumerated()), id: \.offset) { rowIndex, row in
@@ -120,14 +129,11 @@ private struct MarkdownTableView: View {
                     GridRow {
                         ForEach(Array(row.enumerated()), id: \.offset) { column, cell in
                             cellView(cell, column: column, isHeader: false)
-                                .background(rowIndex % 2 == 1 ? Color(.quaternarySystemFill) : Color.clear)
+                                .background { Rectangle().fill(rowIndex % 2 == 1 ? Color(.quaternarySystemFill) : Color.clear) }
                         }
                     }
                 }
             }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
     }
 
     private func cellView(_ text: String, column: Int, isHeader: Bool) -> some View {

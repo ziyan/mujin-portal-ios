@@ -131,6 +131,7 @@ struct MessageActionsView: View {
     /// the bar. The bar gives way to a line saying so.
     @State private var isChoosingEmoji = false
     @State private var actionsHeight: CGFloat = 300
+    @ScaledMetric(relativeTo: .body) private var iconWidth: CGFloat = 24
 
     private var side: HorizontalAlignment { actions.isTrailing ? .trailing : .leading }
     private var frameAlignment: Alignment { actions.isTrailing ? .trailing : .leading }
@@ -185,7 +186,7 @@ struct MessageActionsView: View {
                     onClose { actions.onReact?(emoji) }
                 } label: {
                     Text(verbatim: emoji)
-                        .font(.title3)
+                        .font(.system(size: 24))
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .background(actions.ownReaction == emoji ? Color.accentColor.opacity(0.3) : .clear, in: .circle)
                         .contentShape(.rect)
@@ -197,7 +198,7 @@ struct MessageActionsView: View {
                 isChoosingEmoji = true
             } label: {
                 Image(systemName: "plus")
-                    .font(.body.weight(.semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 30, height: 30)
                     .background(Color(.tertiarySystemFill), in: .circle)
@@ -298,7 +299,7 @@ struct MessageActionsView: View {
     private func rowLabel(_ title: LocalizedStringKey, systemImage: String) -> some View {
         HStack(spacing: 14) {
             Image(systemName: systemImage)
-                .frame(width: 24)
+                .frame(width: iconWidth)
             Text(title)
             Spacer()
         }
