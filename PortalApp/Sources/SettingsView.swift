@@ -25,6 +25,7 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(account.displayName).foregroundStyle(Color.primary)
                             Text(account.server.displayHost).font(.footnote).foregroundStyle(Color.secondary)
+                                .lineLimit(1).minimumScaleFactor(0.5)
                         }
                     }
                     .contentShape(Rectangle())
@@ -102,7 +103,9 @@ struct TabBarEditorView: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(onBar) { section in
+                    // A single line that shrinks, so a long name is never broken mid-word at the largest text sizes.
                     Label(section.titleKey, systemImage: section.symbol)
+                        .lineLimit(1).minimumScaleFactor(0.5)
                 }
                 .onMove { offsets, destination in
                     var next = onBar
@@ -133,6 +136,7 @@ struct TabBarEditorView: View {
                                 Image(systemName: "plus.circle.fill").foregroundStyle(Color.green)
                                 Label(section.titleKey, systemImage: section.symbol)
                                     .foregroundStyle(.primary)
+                                    .lineLimit(1).minimumScaleFactor(0.5)
                             }
                             .contentShape(Rectangle())
                         }
