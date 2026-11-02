@@ -121,82 +121,6 @@ public typealias CameraSocketFactory = @Sendable (_ url: URL, _ accessToken: Str
     }
 #endif
 
-// MARK: - playback transport
-
-/// CameraPlaybackTransport is how a controller serves recorded footage.
-public enum CameraPlaybackTransport: Equatable, Sendable {
-    /// The `playback` websocket of newer controller software.
-    case webSocket
-    /// Older software has none: clips are downloaded from `video/export` and played one after another.
-    case exportClips
-}
-
-/// CameraTransportProbe is what asking a controller whether it has the playback websocket found out.
-public enum CameraTransportProbe: Equatable, Sendable {
-    case found(CameraPlaybackTransport)
-    /// The controller could not be asked (offline, or the network failed). Nothing is learned, so nothing is remembered.
-    case unreachable
-    /// Portal refused the request (401), which says nothing about the route and is not the controller's being offline.
-    case notAllowed
-}
-
-/// CameraTransportRules decides which transport a probe or a failed dial means.
-public enum CameraTransportRules {
-    /// A plain GET to a websocket route is answered 400 when the route exists (the upgrade header is missing). A controller
-    /// without the route sends its page for any unknown address (200), and a Portal without the proxy route says 404. An offline
-    /// controller is a 502, which says nothing about the route.
-    public static func probe(statusCode: Int?) -> CameraTransportProbe {
-        guard let statusCode else { return .unreachable }
-        if statusCode == 401 { return .notAllowed }
-        if statusCode == 400 { return .found(.webSocket) }
-        if [502, 503, 504].contains(statusCode) { return .unreachable }
-        return .found(.exportClips)
-    }
-
-    /// A socket the server refused to upgrade before sending a single frame means the route is not there after all, whatever the probe said.
-    public static func transportAfterDial(didReceiveFrame: Bool) -> CameraPlaybackTransport? {
-        didReceiveFrame ? nil : .exportClips
-    }
-}
-
-/// CameraTransportMemory remembers, for the life of the process, which transport each controller has.
-public final class CameraTransportMemory: @unchecked Sendable {
-    private let lock = NSLock()
-    private var transports: [String: CameraPlaybackTransport] = [:]
-
-    public init() {}
-
-    public func transport(forController controllerId: String) -> CameraPlaybackTransport? {
-        lock.lock()
-        defer { lock.unlock() }
-        return transports[controllerId]
-    }
-
-    public func remember(_ transport: CameraPlaybackTransport, forController controllerId: String) {
-        lock.lock()
-        defer { lock.unlock() }
-        transports[controllerId] = transport
-    }
-}
-
-extension Connection {
-    /// Asks the controller whether it serves recorded footage over a websocket, with one cheap GET.
-    public func probePlaybackTransport(controllerId: String, cameraId: String) async -> CameraTransportProbe {
-        var request = URLRequest(url: server.endpoint(CameraRoutes.playbackPath(controllerId: controllerId, cameraId: cameraId, channel: 0, startMS: 1, endMS: 2)))
-        request.timeoutInterval = 15
-        let status: Int?
-        do {
-            status = try await send(authorizing: request).1.statusCode
-        } catch PortalError.notPermitted {
-            // A request refused even with a fresh token is a refusal of this camera, not a controller that is offline.
-            status = 401
-        } catch {
-            status = nil
-        }
-        return CameraTransportRules.probe(statusCode: status)
-    }
-}
-
 // MARK: - health
 
 /// CameraStreamHealth holds the timing rules for noticing that a live stream
@@ -249,18 +173,23 @@ public enum CameraStreamStatus: Equatable, Sendable {
 // MARK: - playback windows
 
 /// CameraPlaybackWindows plans which recorded window to ask for next. The NVR
-/// sends a requested window as fast as the link allows and then leaves the
-/// socket open and silent, never saying it is done. So a recording plays as
-/// consecutive windows of a minute, one socket each, and the next one is
-/// opened when the footage ahead of the playhead runs low.
+/// sends a requested window and then leaves the socket open and silent, never
+/// saying it is done. So a recording plays as consecutive windows of a minute,
+/// one socket each, and the next one is opened when the footage ahead of the
+/// playhead runs low. How fast a window arrives depends on the controller: some
+/// send it far faster than it plays, others at about the speed it plays, with
+/// pauses of several seconds between key frame groups.
 public struct CameraPlaybackWindows: Equatable, Sendable {
     public static let windowMS: Double = 60_000
     /// Silence this long after a frame means the window has been delivered.
     public static let idleSeconds: TimeInterval = 2.5
-    /// A window that has sent no frame by now is empty: there is no recording in it.
-    public static let firstFrameTimeout: TimeInterval = 6
+    /// A window that has sent no frame by now is empty: there is no recording in it. The NVR first has to find the footage, which takes
+    /// a few seconds on a busy one.
+    public static let firstFrameTimeout: TimeInterval = 10
     /// Footage kept ahead of the playhead, in seconds of recording at 1x. Faster playback eats it faster, so it scales with the speed.
     public static let leadSeconds: Double = 20
+    /// How far short of its end a window may stop and still count as delivered: its last key frame group is cut at the end asked for.
+    public static let endToleranceMS: Double = 1_500
 
     /// A window that sent nothing before the idle time ran out is a gap in the recording. The next one is asked for twice as long (up to
     /// this) so a gap is crossed quickly; the NVR only sends what exists, so a longer window costs nothing where there is no footage.
@@ -282,21 +211,36 @@ public struct CameraPlaybackWindows: Equatable, Sendable {
     public private(set) var nextStartMS: Double
     public private(set) var consecutiveEmptyWindows = 0
     public let endMS: Double
+    private var openStartMS: Double
+    private var openEndMS: Double
 
     /// `startMS` is where to begin; `endMS` is the end of what may be watched (now, or the end of a clip).
     public init(startMS: Double, endMS: Double) {
         self.nextStartMS = startMS
         self.endMS = endMS
+        self.openStartMS = startMS
+        self.openEndMS = startMS
     }
 
-    /// Records how a window ended: with frames, or with none.
-    public mutating func windowEnded(didDeliverFrames: Bool) {
-        consecutiveEmptyWindows = didDeliverFrames ? 0 : consecutiveEmptyWindows + 1
+    /// Records how a window ended. `didDeliverFootage` is whether it brought footage that was not shown already, and `bufferedEndMS` is
+    /// the moment its footage reached. A window that went quiet before its end, with more still to ask for, is not skipped over: the
+    /// next one starts where this one stopped, so a pause of the NVR does not drop the rest of the minute.
+    public mutating func windowEnded(didDeliverFootage: Bool, bufferedEndMS: Double? = nil) {
+        consecutiveEmptyWindows = didDeliverFootage ? 0 : consecutiveEmptyWindows + 1
+        if didDeliverFootage, let bufferedEndMS, openEndMS < endMS, bufferedEndMS > openStartMS, bufferedEndMS < openEndMS - Self.endToleranceMS {
+            nextStartMS = bufferedEndMS
+        }
     }
 
     /// The length of the next window: a minute, longer after empty windows.
     public var nextWindowMS: Double {
         min(Self.windowMS * pow(2, Double(consecutiveEmptyWindows)), Self.maximumGrowthMS)
+    }
+
+    /// Whether more footage is on its way or still to be asked for, so that a picture waiting for it is not at the end of the recording.
+    public func hasMoreComing(isWindowOpen: Bool) -> Bool {
+        if isWindowOpen { return true }
+        return consecutiveEmptyWindows < Self.maximumEmptyWindows && nextStartMS < endMS - 250
     }
 
     /// `bufferedEndMS` is the recording moment up to which frames have arrived; `playheadMS` is where the picture is; `speed` is the playback rate.
@@ -310,7 +254,32 @@ public struct CameraPlaybackWindows: Equatable, Sendable {
         let windowStart = nextStartMS
         let windowEnd = min(windowStart + nextWindowMS, endMS)
         nextStartMS = windowEnd
+        openStartMS = windowStart
+        openEndMS = windowEnd
         return .open(startMS: windowStart, endMS: windowEnd)
+    }
+}
+
+/// CameraPlaybackBuffering decides when a recorded picture waits for footage that has not arrived. A clock that went on while the next
+/// window was still being fetched would show the frames that come late by skipping over the seconds the clock had passed.
+public enum CameraPlaybackBuffering {
+    public enum Step: Equatable, Sendable {
+        case keep
+        /// Stop the clock until the footage arrives.
+        case hold
+        /// Start the clock again.
+        case resume
+    }
+
+    /// The clock is held when it has caught up with the footage that arrived.
+    public static let starvedLeadSeconds = 0.1
+    /// ... and goes on again when this much has arrived beyond it, so it does not stop at every frame.
+    public static let resumeLeadSeconds = 1.0
+
+    /// `leadSeconds` is how far the end of the arrived footage is ahead of the clock. `isMoreComing` is whether the rest is still to arrive.
+    public static func step(isHolding: Bool, leadSeconds: Double, isMoreComing: Bool) -> Step {
+        if isHolding { return leadSeconds >= resumeLeadSeconds || !isMoreComing ? .resume : .keep }
+        return isMoreComing && leadSeconds <= starvedLeadSeconds ? .hold : .keep
     }
 }
 

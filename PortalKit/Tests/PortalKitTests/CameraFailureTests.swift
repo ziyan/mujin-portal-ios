@@ -20,11 +20,6 @@ import Testing
         #expect(CameraFailure.status(of: URLError(.timedOut)) == nil)
     }
 
-    @Test func aProbeTheServerRefusesIsNotACameraThatIsOffline() {
-        #expect(CameraTransportRules.probe(statusCode: 401) == .notAllowed)
-        #expect(CameraTransportRules.probe(statusCode: 502) == .unreachable)
-    }
-
     @Test func aSnapshotThatIsRefusedTwiceIsNotAllowedAndOneThatComesIsNoFailure() async {
         let refused = ScriptedTransport { _ in (401, Data()) }
         let denied = Connection(account: makeAccount(refreshToken: ""), transport: refused)

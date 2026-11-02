@@ -61,7 +61,7 @@ private func fragment(baseTime: UInt64, count: Int = 3, duration: UInt32 = 3000,
         #expect(overlap[0].isSync)
     }
 
-    @Test func audioAndOtherTracksAreSkipped() {
+    @Test func aTrackThatIsNotTheVideoIsNotStitchedAsVideo() {
         var stitcher = CameraStitcher(configuration: configuration(), expectedEpochMS: 1_700_000_000_000)
         #expect(stitcher.stitch(fragment(baseTime: 153_000_000_000, trackId: 2)).isEmpty)
         #expect(stitcher.mode == .undecided)
@@ -82,55 +82,6 @@ private func fragment(baseTime: UInt64, count: Int = 3, duration: UInt32 = 3000,
         #expect(CameraLiveSync.rebasedSeconds(leadSeconds: 2.9, firstFrameSeconds: 100) == nil)
         #expect(CameraLiveSync.rebasedSeconds(leadSeconds: -0.2, firstFrameSeconds: 100) == 100 - CameraLiveSync.cushionSeconds)
         #expect(CameraLiveSync.rebasedSeconds(leadSeconds: 5, firstFrameSeconds: 100) == 100 - CameraLiveSync.cushionSeconds)
-    }
-}
-
-@Suite struct CameraTransportTests {
-    @Test func aBadRequestMeansTheRouteExists() {
-        #expect(CameraTransportRules.probe(statusCode: 400) == .found(.webSocket))
-    }
-
-    @Test func aPageOrANotFoundMeansTheControllerIsOlder() {
-        #expect(CameraTransportRules.probe(statusCode: 200) == .found(.exportClips))
-        #expect(CameraTransportRules.probe(statusCode: 404) == .found(.exportClips))
-        #expect(CameraTransportRules.probe(statusCode: 403) == .found(.exportClips))
-    }
-
-    @Test func anOfflineControllerOrNoAnswerSaysNothing() {
-        #expect(CameraTransportRules.probe(statusCode: 502) == .unreachable)
-        #expect(CameraTransportRules.probe(statusCode: 504) == .unreachable)
-        #expect(CameraTransportRules.probe(statusCode: nil) == .unreachable)
-    }
-
-    @Test func aRefusedUpgradeBeforeAnyFrameFallsBackToClips() {
-        #expect(CameraTransportRules.transportAfterDial(didReceiveFrame: false) == .exportClips)
-        #expect(CameraTransportRules.transportAfterDial(didReceiveFrame: true) == nil)
-    }
-
-    @Test func theMemoryKeepsWhatWasLearnedPerController() {
-        let memory = CameraTransportMemory()
-        #expect(memory.transport(forController: "controller01") == nil)
-        memory.remember(.exportClips, forController: "controller01")
-        memory.remember(.webSocket, forController: "controller02")
-        #expect(memory.transport(forController: "controller01") == .exportClips)
-        #expect(memory.transport(forController: "controller02") == .webSocket)
-    }
-
-    @Test func theProbeAsksForTheSmallestWindowAndReadsTheStatus() async {
-        let transport = ScriptedTransport { _ in (400, Data()) }
-        let connection = Connection(account: makeAccount(), transport: transport)
-        let probe = await connection.probePlaybackTransport(controllerId: "controller01", cameraId: "nvrcamera01")
-        #expect(probe == .found(.webSocket))
-        let request = transport.requests.first
-        #expect(request?.url?.path == "/api/v1/unifiprotect/controller01/playback/nvrcamera01")
-        #expect(request?.url?.query == "channel=0&start=1&end=2")
-        #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer access-1")
-    }
-
-    @Test func theProbeOfAnOfflineControllerIsUnreachable() async {
-        let transport = ScriptedTransport { _ in (502, Data()) }
-        let connection = Connection(account: makeAccount(), transport: transport)
-        #expect(await connection.probePlaybackTransport(controllerId: "controller01", cameraId: "nvrcamera01") == .unreachable)
     }
 }
 
@@ -239,23 +190,88 @@ private func fragment(baseTime: UInt64, count: Int = 3, duration: UInt32 = 3000,
                 return
             }
             lengths.append(end - start)
-            windows.windowEnded(didDeliverFrames: false)
+            windows.windowEnded(didDeliverFootage: false)
         }
         #expect(lengths == [60_000, 120_000, 240_000, 480_000, 900_000, 900_000])
     }
 
     @Test func aWindowWithFramesStartsTheGrowthOver() {
         var windows = CameraPlaybackWindows(startMS: 0, endMS: 100_000_000)
-        windows.windowEnded(didDeliverFrames: false)
-        windows.windowEnded(didDeliverFrames: false)
+        windows.windowEnded(didDeliverFootage: false)
+        windows.windowEnded(didDeliverFootage: false)
         #expect(windows.nextWindowMS == 240_000)
-        windows.windowEnded(didDeliverFrames: true)
+        windows.windowEnded(didDeliverFootage: true)
         #expect(windows.nextWindowMS == 60_000)
     }
 
     @Test func eightEmptyWindowsInARowMeanThereIsNoRecording() {
         var windows = CameraPlaybackWindows(startMS: 0, endMS: 100_000_000)
-        for _ in 0..<8 { windows.windowEnded(didDeliverFrames: false) }
+        for _ in 0..<8 { windows.windowEnded(didDeliverFootage: false) }
         #expect(windows.plan(bufferedEndMS: 0, playheadMS: 0, speed: 1, isWindowOpen: false) == .noRecording)
+    }
+
+    @Test func aWindowThatWentQuietBeforeItsEndIsContinuedFromWhereItStopped() {
+        var windows = CameraPlaybackWindows(startMS: 0, endMS: 10_000_000)
+        #expect(windows.plan(bufferedEndMS: 0, playheadMS: 0, speed: 1, isWindowOpen: false) == .open(startMS: 0, endMS: 60_000))
+        // The NVR paused for good after twenty seconds of the minute.
+        windows.windowEnded(didDeliverFootage: true, bufferedEndMS: 20_000)
+        #expect(windows.nextStartMS == 20_000)
+        #expect(windows.plan(bufferedEndMS: 20_000, playheadMS: 5_000, speed: 1, isWindowOpen: false) == .open(startMS: 20_000, endMS: 80_000))
+    }
+
+    @Test func aWindowThatReachedItsEndIsFollowedByTheNextMinute() {
+        var windows = CameraPlaybackWindows(startMS: 0, endMS: 10_000_000)
+        _ = windows.plan(bufferedEndMS: 0, playheadMS: 0, speed: 1, isWindowOpen: false)
+        // The last key frame group is cut at the end asked for, so the footage stops a frame short of it.
+        windows.windowEnded(didDeliverFootage: true, bufferedEndMS: 59_960)
+        #expect(windows.nextStartMS == 60_000)
+    }
+
+    @Test func theLastWindowIsNotAskedForAgainWhereverItStopped() {
+        var windows = CameraPlaybackWindows(startMS: 100_000, endMS: 130_000)
+        _ = windows.plan(bufferedEndMS: 0, playheadMS: 0, speed: 1, isWindowOpen: false)
+        // The recording may simply end before now.
+        windows.windowEnded(didDeliverFootage: true, bufferedEndMS: 110_000)
+        #expect(windows.plan(bufferedEndMS: 110_000, playheadMS: 100_000, speed: 1, isWindowOpen: false) == .finished)
+    }
+
+    @Test func aWindowThatBroughtNothingNewDoesNotMoveTheNextOneBack() {
+        var windows = CameraPlaybackWindows(startMS: 0, endMS: 10_000_000)
+        _ = windows.plan(bufferedEndMS: 0, playheadMS: 0, speed: 1, isWindowOpen: false)
+        windows.windowEnded(didDeliverFootage: false, bufferedEndMS: 20_000)
+        #expect(windows.nextStartMS == 60_000)
+        #expect(windows.consecutiveEmptyWindows == 1)
+    }
+
+    @Test func moreIsComingWhileAWindowIsOpenOrTheEndIsNotAskedForYet() {
+        var windows = CameraPlaybackWindows(startMS: 0, endMS: 100_000)
+        #expect(windows.hasMoreComing(isWindowOpen: true))
+        #expect(windows.hasMoreComing(isWindowOpen: false))
+        _ = windows.plan(bufferedEndMS: 0, playheadMS: 0, speed: 1, isWindowOpen: false)
+        _ = windows.plan(bufferedEndMS: 0, playheadMS: 0, speed: 1, isWindowOpen: false)
+        #expect(!windows.hasMoreComing(isWindowOpen: false))
+    }
+
+    @Test func aSlowControllerGetsTimeToFindTheFootage() {
+        #expect(CameraPlaybackWindows.firstFrameTimeout >= 10)
+        #expect(CameraPlaybackWindows.idleSeconds < CameraPlaybackWindows.firstFrameTimeout)
+    }
+}
+
+@Suite struct CameraPlaybackBufferingTests {
+    @Test func theClockWaitsWhenItHasCaughtUpWithFootageThatIsStillComing() {
+        #expect(CameraPlaybackBuffering.step(isHolding: false, leadSeconds: 0.05, isMoreComing: true) == .hold)
+        #expect(CameraPlaybackBuffering.step(isHolding: false, leadSeconds: -3, isMoreComing: true) == .hold)
+    }
+
+    @Test func theClockNeverWaitsForFootageThatIsNotComing() {
+        #expect(CameraPlaybackBuffering.step(isHolding: false, leadSeconds: 0, isMoreComing: false) == .keep)
+        #expect(CameraPlaybackBuffering.step(isHolding: true, leadSeconds: 0, isMoreComing: false) == .resume)
+    }
+
+    @Test func theClockGoesOnOnlyWhenASecondOfFootageIsAhead() {
+        #expect(CameraPlaybackBuffering.step(isHolding: true, leadSeconds: 0.4, isMoreComing: true) == .keep)
+        #expect(CameraPlaybackBuffering.step(isHolding: true, leadSeconds: 1, isMoreComing: true) == .resume)
+        #expect(CameraPlaybackBuffering.step(isHolding: false, leadSeconds: 0.5, isMoreComing: true) == .keep)
     }
 }

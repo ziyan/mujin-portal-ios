@@ -31,12 +31,32 @@ public struct CameraVideoConfiguration: Equatable, Sendable {
     }
 }
 
+/// CameraAudioConfiguration is what a decoder needs to know about an AAC audio track, read from the initialization segment.
+public struct CameraAudioConfiguration: Equatable, Sendable {
+    public let trackId: UInt32
+    public let timescale: UInt32
+    public let sampleRate: Double
+    public let channelCount: Int
+    /// The `esds` box's descriptors, which is the codec's own configuration as an AAC decoder takes it.
+    public let magicCookie: Data
+
+    public init(trackId: UInt32, timescale: UInt32, sampleRate: Double, channelCount: Int, magicCookie: Data) {
+        self.trackId = trackId
+        self.timescale = timescale
+        self.sampleRate = sampleRate
+        self.channelCount = channelCount
+        self.magicCookie = magicCookie
+    }
+}
+
 /// CameraInitSegment is the part of the initialization segment the app uses.
 public struct CameraInitSegment: Equatable, Sendable {
     /// Every track's timescale (ticks per second) by track id. A camera with audio has two, and they differ.
     public let timescales: [UInt32: UInt32]
     public let video: CameraVideoConfiguration?
     public let hasAudio: Bool
+    /// The AAC audio track, or nil when the camera has none or its audio is another codec.
+    public let audio: CameraAudioConfiguration?
 }
 
 public enum CameraMP4Error: Error, Equatable, Sendable {
@@ -145,6 +165,7 @@ public enum CameraMP4 {
         var video: CameraVideoConfiguration?
         var videoError: CameraMP4Error?
         var hasAudio = false
+        var audio: CameraAudioConfiguration?
         for trak in allBoxes(bytes, "trak", in: moov) {
             guard let tkhd = firstBox(bytes, "tkhd", in: trak), let mdia = firstBox(bytes, "mdia", in: trak),
                 let mdhd = firstBox(bytes, "mdhd", in: mdia)
@@ -160,7 +181,10 @@ public enum CameraMP4 {
                 guard handlerBox.payloadStart + 12 <= handlerBox.end else { return nil }
                 return String(decoding: bytes[(handlerBox.payloadStart + 8)..<(handlerBox.payloadStart + 12)], as: UTF8.self)
             }
-            if handler == "soun" { hasAudio = true }
+            if handler == "soun" {
+                hasAudio = true
+                if audio == nil { audio = parseAudioTrack(bytes, mdia: mdia, trackId: trackId, timescale: timescale) }
+            }
             guard handler == "vide", video == nil, videoError == nil else { continue }
             do {
                 video = try parseVideoTrack(bytes, mdia: mdia, trackId: trackId, timescale: timescale)
@@ -169,7 +193,94 @@ public enum CameraMP4 {
             }
         }
         if let videoError { throw videoError }
-        return CameraInitSegment(timescales: timescales, video: video, hasAudio: hasAudio)
+        return CameraInitSegment(timescales: timescales, video: video, hasAudio: hasAudio, audio: audio)
+    }
+
+    /// The sample entry of an AAC track: the `mp4a` entry, whose `esds` box holds the descriptors that name the codec and its settings.
+    /// Returns nil for any other audio, which the app does not play.
+    private static func parseAudioTrack(_ bytes: [UInt8], mdia: Box, trackId: UInt32, timescale: UInt32) -> CameraAudioConfiguration? {
+        guard let minf = firstBox(bytes, "minf", in: mdia), let stbl = firstBox(bytes, "stbl", in: minf), let stsd = firstBox(bytes, "stsd", in: stbl),
+            let entry = boxes(bytes, from: stsd.payloadStart + 8, to: stsd.end).first, entry.type == "mp4a",
+            // An audio sample entry: six reserved bytes, the data reference index, eight bytes, the channel count, the sample size, four
+            // bytes, then the sample rate as a 16.16 number.
+            entry.payloadStart + 28 <= entry.end
+        else { return nil }
+        let channelCount = readUInt16(bytes, entry.payloadStart + 16)
+        let entryRate = Double(readUInt16(bytes, entry.payloadStart + 24))
+        guard let esds = boxes(bytes, from: entry.payloadStart + 28, to: entry.end).first(where: { $0.type == "esds" }), esds.payloadStart + 4 < esds.end
+        else { return nil }
+        let descriptors = Array(bytes[(esds.payloadStart + 4)..<esds.end])
+        guard let specific = audioSpecificConfiguration(descriptors) else { return nil }
+        let rate = specific.sampleRate ?? entryRate
+        let channels = specific.channelCount ?? channelCount
+        guard rate > 0, channels > 0 else { return nil }
+        return CameraAudioConfiguration(trackId: trackId, timescale: timescale, sampleRate: rate, channelCount: channels, magicCookie: Data(descriptors))
+    }
+
+    private static let aacSampleRates: [Double] = [96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000, 12_000, 11_025, 8_000, 7_350]
+
+    /// Walks the `esds` descriptors (ES, decoder configuration, decoder specific) and reads the AAC settings from the last one. Nil when the
+    /// stream is not MPEG-4 audio, or the descriptors do not hold what an AAC decoder needs.
+    static func audioSpecificConfiguration(_ descriptors: [UInt8]) -> (sampleRate: Double?, channelCount: Int?)? {
+        var offset = 0
+        func readLength() -> Int? {
+            var length = 0
+            for _ in 0..<4 {
+                guard offset < descriptors.count else { return nil }
+                let byte = Int(descriptors[offset])
+                offset += 1
+                length = (length << 7) | (byte & 0x7f)
+                if byte & 0x80 == 0 { return length }
+            }
+            return nil
+        }
+        // ES_Descriptor: tag 3, then the ES id (2) and flags (1), with optional dependency, URL and OCR fields.
+        guard offset < descriptors.count, descriptors[offset] == 0x03 else { return nil }
+        offset += 1
+        guard readLength() != nil, offset + 3 <= descriptors.count else { return nil }
+        let flags = descriptors[offset + 2]
+        offset += 3
+        if flags & 0x80 != 0 { offset += 2 }
+        if flags & 0x40 != 0 {
+            guard offset < descriptors.count else { return nil }
+            offset += 1 + Int(descriptors[offset])
+        }
+        if flags & 0x20 != 0 { offset += 2 }
+        // DecoderConfigDescriptor: tag 4, the object type (0x40 is MPEG-4 audio), the stream type, the buffer size and two bit rates.
+        guard offset < descriptors.count, descriptors[offset] == 0x04 else { return nil }
+        offset += 1
+        guard readLength() != nil, offset + 13 <= descriptors.count, descriptors[offset] == 0x40 else { return nil }
+        offset += 13
+        // DecoderSpecificInfo: tag 5, the AudioSpecificConfig.
+        guard offset < descriptors.count, descriptors[offset] == 0x05 else { return nil }
+        offset += 1
+        guard let length = readLength(), length >= 2, offset + length <= descriptors.count else { return nil }
+        let config = Array(descriptors[offset..<(offset + length)])
+        var bitPosition = 0
+        func readBits(_ count: Int) -> Int? {
+            guard bitPosition + count <= config.count * 8 else { return nil }
+            var value = 0
+            for _ in 0..<count {
+                value = (value << 1) | Int((config[bitPosition / 8] >> UInt8(7 - bitPosition % 8)) & 1)
+                bitPosition += 1
+            }
+            return value
+        }
+        guard var objectType = readBits(5) else { return nil }
+        if objectType == 31 {
+            guard let extended = readBits(6) else { return nil }
+            objectType = 32 + extended
+        }
+        // Only AAC is played: low complexity and its relatives, object types 1 to 4.
+        guard (1...4).contains(objectType), let rateIndex = readBits(4) else { return nil }
+        let sampleRate: Double?
+        if rateIndex == 15 {
+            sampleRate = readBits(24).map(Double.init)
+        } else {
+            sampleRate = rateIndex < aacSampleRates.count ? aacSampleRates[rateIndex] : nil
+        }
+        let channels = readBits(4)
+        return (sampleRate, channels.flatMap { $0 > 0 && $0 <= 7 ? ($0 == 7 ? 8 : $0) : nil })
     }
 
     private static func parseVideoTrack(_ bytes: [UInt8], mdia: Box, trackId: UInt32, timescale: UInt32) throws -> CameraVideoConfiguration {

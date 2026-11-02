@@ -14,6 +14,19 @@ public struct CameraDisplaySample: Equatable, Sendable {
     public let isDisplayed: Bool
 }
 
+/// CameraAudioSample is an AAC frame placed on the same time axis as the video, in the audio track's own ticks.
+public struct CameraAudioSample: Equatable, Sendable {
+    public let data: Data
+    public let presentationTicks: Int64
+    public let durationTicks: Int64
+}
+
+/// CameraStitchedFragment is what one fragment adds to the stream.
+public struct CameraStitchedFragment: Equatable, Sendable {
+    public let video: [CameraDisplaySample]
+    public let audio: [CameraAudioSample]
+}
+
 /// CameraStitcher puts the fragments of one stream on a single time axis.
 ///
 /// The NVR stamps each fragment's `tfdt` with the wall clock, so the stamp
@@ -33,6 +46,8 @@ public struct CameraStitcher: Sendable {
     public static let toleranceMS: Double = 10 * 60_000
 
     public let configuration: CameraVideoConfiguration
+    /// The audio track, or nil when sound is not wanted or the camera has none.
+    public let audio: CameraAudioConfiguration?
     public let expectedEpochMS: Double
     public private(set) var mode = Mode.undecided
     /// The moment the first fragment's stamp names, as milliseconds since 1970, whether or not it was taken for a wall clock.
@@ -42,9 +57,12 @@ public struct CameraStitcher: Sendable {
     private var nextSequenceTicks: Int64 = 0
     private var latestDisplayedEndTicks: Int64?
     private var repeatedBeforeTicks: Int64?
+    /// How far the video of the latest fragment was moved on the axis, in video ticks; the audio of a fragment is moved by the same time.
+    private var shiftTicks: Int64 = 0
 
-    public init(configuration: CameraVideoConfiguration, expectedEpochMS: Double) {
+    public init(configuration: CameraVideoConfiguration, audio: CameraAudioConfiguration? = nil, expectedEpochMS: Double) {
         self.configuration = configuration
+        self.audio = audio
         self.expectedEpochMS = expectedEpochMS
     }
 
@@ -76,11 +94,16 @@ public struct CameraStitcher: Sendable {
         repeatedBeforeTicks = latestDisplayedEndTicks
     }
 
-    /// Places a fragment's video frames on the axis. Fragments with no video, or a camera's audio track, give nothing.
+    /// Places a fragment's video frames on the axis. Fragments with no video give nothing.
     public mutating func stitch(_ fragment: Data) -> [CameraDisplaySample] {
-        let trackFragments = CameraMP4.parseFragment(fragment).filter { $0.trackId == configuration.trackId }
+        stitchAll(fragment).video
+    }
+
+    /// Places a fragment's video frames and, when the stream has a wanted audio track, its audio frames on the axis.
+    public mutating func stitchAll(_ fragment: Data) -> CameraStitchedFragment {
+        let tracks = CameraMP4.parseFragment(fragment)
         var output: [CameraDisplaySample] = []
-        for track in trackFragments where !track.samples.isEmpty {
+        for track in tracks where track.trackId == configuration.trackId && !track.samples.isEmpty {
             if mode == .undecided { decideMode(firstBaseTicks: track.baseMediaDecodeTime) }
             let shift: Int64
             switch mode {
@@ -89,6 +112,7 @@ public struct CameraStitcher: Sendable {
             case .sequence:
                 shift = nextSequenceTicks - Int64(track.baseMediaDecodeTime)
             }
+            shiftTicks = shift
             let isReordered = track.samples.contains { $0.compositionOffsetTicks != 0 }
             for sample in track.samples {
                 let presentation = sample.presentationTicks + shift
@@ -103,6 +127,27 @@ public struct CameraStitcher: Sendable {
             }
             if mode == .sequence {
                 nextSequenceTicks += track.durationTicks ?? track.samples.reduce(0) { $0 + $1.durationTicks }
+            }
+        }
+        return CameraStitchedFragment(video: output, audio: stitchAudio(tracks))
+    }
+
+    /// The audio frames of a fragment, moved by the time the video was moved by, and without the ones a window repeats.
+    private func stitchAudio(_ tracks: [CameraTrackFragment]) -> [CameraAudioSample] {
+        guard let audio else { return [] }
+        let videoSeconds = Double(timescale)
+        let shiftSeconds = Double(shiftTicks) / videoSeconds
+        let audioShift = Int64((shiftSeconds * Double(audio.timescale)).rounded())
+        var output: [CameraAudioSample] = []
+        for track in tracks where track.trackId == audio.trackId {
+            for sample in track.samples {
+                let presentation = sample.presentationTicks + audioShift
+                if mode == .absolute, let repeatedBeforeTicks {
+                    let seconds = Double(presentation) / Double(audio.timescale)
+                    let halfDuration = Double(sample.durationTicks) / Double(audio.timescale) / 2
+                    if seconds < Double(repeatedBeforeTicks) / videoSeconds - halfDuration { continue }
+                }
+                output.append(CameraAudioSample(data: sample.data, presentationTicks: presentation, durationTicks: sample.durationTicks))
             }
         }
         return output
