@@ -17,6 +17,8 @@ struct StaffSitesView: View {
     @State private var searchText = ""
     @State private var path: [PortalRoute] = []
     @State private var isLinking = false
+    /// The organization whose people are shown in a sheet, from a section header.
+    @State private var peopleOrganization: PeopleOrganization?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -35,6 +37,9 @@ struct StaffSitesView: View {
             }
             .sheet(isPresented: $isLinking) { LinkControllerView() }
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search sites")
+            .sheet(item: $peopleOrganization) { organization in
+                PeopleSheet(organizationId: organization.id)
+            }
             .task {
                 await load()
                 await openDemoScreen()
@@ -101,10 +106,23 @@ struct StaffSitesView: View {
                         }
                     }
                     ForEach(groups) { group in
-                        Section(group.organizationName ?? String(localized: "Unknown organization")) {
+                        Section {
                             ForEach(group.sites) { site in
                                 NavigationLink(value: PortalRoute.site(id: site.id, organizationId: group.organizationId)) {
                                     Label(site.name ?? site.id, systemImage: "building.2").foregroundStyle(.primary)
+                                }
+                            }
+                        } header: {
+                            // Beside the name when it fits; under it at the largest text sizes.
+                            ViewThatFits(in: .horizontal) {
+                                HStack {
+                                    headerName(group)
+                                    Spacer()
+                                    peopleButton(group)
+                                }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    headerName(group)
+                                    peopleButton(group)
                                 }
                             }
                         }
@@ -122,6 +140,25 @@ struct StaffSitesView: View {
                 }
             }
             .refreshable { await load(force: true) }
+        }
+    }
+
+    private func headerName(_ group: SiteGroup) -> some View {
+        Text(group.organizationName ?? String(localized: "Unknown organization"))
+    }
+
+    /// The organization's people, for whoever may manage them.
+    @ViewBuilder
+    private func peopleButton(_ group: SiteGroup) -> some View {
+        if session.peopleAccess.hasPeopleScreens(in: group.organizationId) {
+            Button {
+                peopleOrganization = PeopleOrganization(id: group.organizationId)
+            } label: {
+                Label("People", systemImage: "person.2")
+                    .font(.footnote)
+                    .foregroundStyle(Color.secondary)
+            }
+            .buttonStyle(.plain)
         }
     }
 }

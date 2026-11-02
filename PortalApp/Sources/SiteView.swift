@@ -468,6 +468,14 @@ struct SiteView: View {
                 NavigationLink(value: PortalRoute.siteList(.members, organizationKey: model.sessionKey)) {
                     LabeledContent("Members") { Text(model.members.count.formatted()).monospacedDigit() }
                 }
+                if let siteOrganizationId = model.selectedSite?.organizationId, session.peopleAccess.hasPeopleScreens(in: siteOrganizationId) {
+                    NavigationLink {
+                        PeopleHubView(organizationId: siteOrganizationId)
+                    } label: {
+                        Text("Manage people")
+                            .foregroundStyle(.primary)
+                    }
+                }
             }
             if model.robots.errorCount > 0 {
                 LabeledContent("Robots with errors") { Text(model.robots.errorCount.formatted()).monospacedDigit().foregroundStyle(Color.statusError) }

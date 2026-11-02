@@ -17,6 +17,8 @@ enum MoreDestination: Hashable {
     case releases
     case release(String)
     case releaseImage(String)
+    /// A screen of the person's account or of an organization's people.
+    case account(AccountDestination)
 }
 
 /// MoreView is the last tab: the account, and what does not need a tab of its own.
@@ -72,6 +74,7 @@ struct MoreView: View {
                             .foregroundStyle(.primary)
                     }
                 }
+                AccountMoreSections()
                 Section("Assistant") {
                     NavigationLink(value: MoreDestination.goals) {
                         Label("Goals", systemImage: "scope")
@@ -151,6 +154,7 @@ struct MoreView: View {
                 case .releases: ReleasesView()
                 case .release(let id): ReleaseDetailView(releaseId: id)
                 case .releaseImage(let id): ReleaseImageView(imageId: id)
+                case .account(let destination): AccountDestinationView(destination: destination)
                 }
                 }
                 .toolbarVisibility(.hidden, for: .tabBar)

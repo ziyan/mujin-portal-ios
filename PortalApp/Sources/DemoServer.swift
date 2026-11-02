@@ -366,6 +366,7 @@ struct DemoTransport: HTTPTransport {
     }
 
     private func respond(operation: String, variables: [String: Any]) -> [String: Any] {
+        if let answer = AccountDemo.respond(operation: operation, variables: variables) { return answer }
         let conversationId = variables["conversationId"] as? String ?? ""
         switch operation {
         case "Me":
