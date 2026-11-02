@@ -496,6 +496,14 @@ struct DemoTransport: HTTPTransport {
                     ], "meta": ["totalCount": 2],
                 ]
             ]
+        case "GetController":
+            let controllerId = variables["controllerId"] as? String ?? ""
+            let known: [[String: Any]] = [
+                ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write", "controller:edit", "backup:delete"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
+                ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
+            ]
+            if let controller = known.first(where: { ($0["id"] as? String) == controllerId }) { return ["GetController": controller] }
+            return ["GetController": NSNull()]
         case "ListControllerTelemetrySummaries":
             return [
                 "ListControllerTelemetrySummaries": [
@@ -667,6 +675,10 @@ struct DemoTransport: HTTPTransport {
         case "GetTicket":
             let ticketId = variables["ticketId"] as? String ?? ""
             return ["GetTicket": state.withData { $0.tickets.first { ($0["id"] as? String) == ticketId } ?? [:] }]
+        case "GetTicketBySequence":
+            let sequence = (variables["sequence"] as? NSNumber)?.intValue ?? 0
+            if let ticket = state.withData({ data in data.tickets.first { ($0["sequence"] as? Int) == sequence } }) { return ["GetTicketBySequence": ticket] }
+            return ["GetTicketBySequence": NSNull()]
         case "ListTicketComments":
             let ticketId = variables["ticketId"] as? String ?? ""
             let showsInternal = DemoOptions.isStaff
