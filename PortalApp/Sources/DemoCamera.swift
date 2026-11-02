@@ -148,7 +148,7 @@ final class DemoCameraSocket: CameraSocket, @unchecked Sendable {
     }
 }
 
-/// DemoCameraPaths answers the plain requests of the camera routes: the bootstrap document, a snapshot, and the probe of the playback socket.
+/// DemoCameraPaths answers the plain requests of the camera routes: the bootstrap document and a snapshot.
 enum DemoCameraPaths {
     static func respond(to request: URLRequest) -> (Data, HTTPURLResponse) {
         let url = request.url!
@@ -171,9 +171,6 @@ enum DemoCameraPaths {
             }
             let index = DemoCameras.everything.firstIndex { ($0["originCameraId"] as? String) == cameraId } ?? 0
             return reply(200, DemoPictures.cameraFrame(variant: index), contentType: "image/jpeg")
-        case "playback":
-            // A websocket route answers a plain GET with 400, which is how the app learns it exists.
-            return reply(400, Data(), contentType: "text/plain")
         default:
             return reply(404, Data(), contentType: "text/plain")
         }

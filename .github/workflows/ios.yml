@@ -212,6 +212,7 @@ jobs:
           shoot camera-incident camera-incident
           shoot camera-jump camera-jump
           shoot camera-share camera-share
+          shoot camera-sound camera-sound
           shoot notifications notifications
           shoot about about
           shoot sites-staff sites-staff staff
@@ -308,6 +309,7 @@ jobs:
           shoot cameras-failed-dark cameras-failed
           shoot camera-dark camera
           shoot camera-recorded-dark camera-recorded
+          shoot camera-sound-dark camera-sound
           shoot chat-dark chat:chatconv01
           shoot chats-dark chats
           shoot speaks-first-dark conversation:conversation06
@@ -360,6 +362,8 @@ jobs:
           shoot large-text-cameras cameras
           shoot large-text-cameras-failed cameras-failed
           shoot large-text-camera camera
+          shoot large-text-camera-recorded camera-recorded
+          shoot large-text-camera-sound camera-sound
           shoot large-text-chat chat:chatconv01
           shoot large-text-speaks-first conversation:conversation06
           shoot large-text-goals goals

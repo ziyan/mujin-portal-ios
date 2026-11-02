@@ -1,34 +1,6 @@
-import AVFoundation
 import PortalKit
 import SwiftUI
 import UIKit
-
-/// PlayerLayerView shows an `AVPlayer`, for the fallback that plays downloaded clips.
-final class PlayerLayerView: UIView {
-    override class var layerClass: AnyClass { AVPlayerLayer.self }
-
-    var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        backgroundColor = .black
-        playerLayer.videoGravity = .resizeAspect
-    }
-
-    required init?(coder: NSCoder) { nil }
-}
-
-struct ClipSurface: UIViewRepresentable {
-    let player: AVPlayer
-
-    func makeUIView(context: Context) -> PlayerLayerView {
-        let view = PlayerLayerView()
-        view.playerLayer.player = player
-        return view
-    }
-
-    func updateUIView(_ view: PlayerLayerView, context: Context) {}
-}
 
 /// CameraDetailView is one camera: the picture, live or from the recording, a
 /// timeline to scrub back into it, and the controls to play, pause, change
@@ -117,7 +89,7 @@ struct CameraDetailView: View {
         let connection = appModel.connection(for: session.account)
         let created = CameraPlayer(
             camera: target.camera, clock: CameraClock(identifier: target.camera.timeZone), connection: connection, server: session.account.server,
-            socketFactory: appModel.cameraSocketFactory, transports: appModel.cameraTransports, isDemo: appModel.isDemo)
+            socketFactory: appModel.cameraSocketFactory, isDemo: appModel.isDemo)
         player = created
         created.start(atMS: target.startAtMS)
         // A camera whose registry row has no zone gets the NVR's own, from its bootstrap document.
@@ -128,6 +100,7 @@ struct CameraDetailView: View {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             if DemoOptions.screen == "camera-jump" { isShowingJump = true }
             if DemoOptions.screen == "camera-share" { isShowingShare = true }
+            if DemoOptions.screen == "camera-sound" { created.toggleSound() }
         }
     }
 
@@ -183,6 +156,8 @@ struct CameraDetailView: View {
     private func transport(_ player: CameraPlayer) -> some View {
         VStack(spacing: 12) {
             HStack(spacing: 28) {
+                // The sound button sits to the right of the other three; the same width on the left keeps them centered.
+                if player.hasSound { Color.clear.frame(width: 44, height: 44).accessibilityHidden(true) }
                 Button { player.skip(byMS: -10_000) } label: {
                     Image(systemName: "gobackward.10").font(.title2).frame(minWidth: 44, minHeight: 44)
                 }
@@ -197,6 +172,7 @@ struct CameraDetailView: View {
                 }
                 .disabled(player.isLive)
                 .accessibilityLabel("Forward 10 seconds")
+                if player.hasSound { SoundButton(player: player) }
             }
             .buttonStyle(.plain)
             .frame(maxWidth: .infinity)
@@ -236,15 +212,9 @@ struct CameraDetailView: View {
     private func video(_ player: CameraPlayer) -> some View {
         ZStack {
             Color.black
-            Group {
-                if player.surface == .clips {
-                    ClipSurface(player: player.clipPlayer)
-                } else {
-                    CameraSurface(renderer: player.renderer)
-                }
-            }
-            .scaleEffect(zoom)
-            .offset(pan)
+            CameraSurface(renderer: player.renderer)
+                .scaleEffect(zoom)
+                .offset(pan)
             statusOverlay(player)
         }
         .clipped()
@@ -341,6 +311,15 @@ struct CameraDetailView: View {
                         .buttonStyle(.plain)
                         .glassEffect(.regular.interactive(), in: .circle)
                         .accessibilityLabel(player.isPaused ? Text("Play") : Text("Pause"))
+                        if player.hasSound {
+                            Button { player.toggleSound() } label: {
+                                Image(systemName: player.isSoundOn ? "speaker.wave.2" : "speaker.slash").font(.body.weight(.semibold)).frame(width: 44, height: 44).contentShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .glassEffect(.regular.interactive(), in: .circle)
+                            .accessibilityLabel(player.isSoundOn ? Text("Mute") : Text("Unmute"))
+                            .accessibilityIdentifier("cameraSound")
+                        }
                         Text(CameraText.stamp(player.playheadMS, clock: player.clock) + " " + player.clock.zoneLabel(atMS: player.playheadMS))
                             .font(.footnote.weight(.medium))
                             .monospacedDigit()
@@ -360,6 +339,19 @@ struct CameraDetailView: View {
                 .padding(12)
             }
         }
+    }
+}
+
+/// SoundButton turns the camera's sound on and off. Sound starts off.
+struct SoundButton: View {
+    let player: CameraPlayer
+
+    var body: some View {
+        Button { player.toggleSound() } label: {
+            Image(systemName: player.isSoundOn ? "speaker.wave.2" : "speaker.slash").font(.title2).frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityLabel(player.isSoundOn ? Text("Mute") : Text("Unmute"))
+        .accessibilityIdentifier("cameraSound")
     }
 }
 

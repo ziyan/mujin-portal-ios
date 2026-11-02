@@ -181,7 +181,7 @@ enum DemoCameraScreens {
     static func target(for screen: String?, camera: Camera, incidentDetectedAt: Date?) -> CameraTarget? {
         let now = Date().timeIntervalSince1970 * 1000
         switch screen {
-        case "camera", "camera-jump", "camera-share":
+        case "camera", "camera-jump", "camera-share", "camera-sound":
             return CameraTarget(camera: camera)
         case "camera-recorded":
             return CameraTarget(camera: camera, startAtMS: now - 25 * 60_000)

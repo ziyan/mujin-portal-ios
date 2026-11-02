@@ -17,8 +17,6 @@ final class AppModel {
     let socketFactory: FeedSocketFactory
     /// Opens the websockets of camera streams: the real network, or the demo's recording.
     let cameraSocketFactory: CameraSocketFactory
-    /// Which controllers serve recorded footage over a websocket, learned once per launch.
-    let cameraTransports = CameraTransportMemory()
     let isDemo: Bool
 
     /// The demo a person entered from the welcome screen, with its own fake server: nothing in it reaches a network host,
