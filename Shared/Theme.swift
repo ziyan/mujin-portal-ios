@@ -28,8 +28,23 @@ struct PortalRows<Content: View>: View {
     var body: some View {
         Group { content }
             .listRowBackground(Color.portalCard)
+            .labelStyle(PortalRowLabelStyle())
             // Switches take the accent, not the system green.
             .tint(Color.accentColor)
+    }
+}
+
+/// PortalRowLabelStyle puts every row icon in one centered column, so a wide
+/// symbol and a narrow one line up and the titles start at the same place.
+struct PortalRowLabelStyle: LabelStyle {
+    @ScaledMetric(relativeTo: .body) private var iconColumnWidth = 28
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 12) {
+            configuration.icon
+                .frame(width: iconColumnWidth, alignment: .center)
+            configuration.title
+        }
     }
 }
 

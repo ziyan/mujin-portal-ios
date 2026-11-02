@@ -205,6 +205,10 @@ jobs:
           shoot chat-link-tap chat-link-tap
           shoot voice voice
           shoot site-orchestrators site-orchestrators
+          shoot site-mobile-robots site-mobile-robots
+          shoot site-alarms site-alarms
+          shoot site-alarm-detail site-alarm-detail
+          shoot site-alarm-metadata site-alarm-metadata
           shoot site-members site-members
           shoot site-controllers site-controllers
           shoot site-back site-back
@@ -307,6 +311,11 @@ jobs:
           shoot attachment-viewer-dark attachment-viewer
           shoot tickets-dark tickets
           shoot site-dark site
+          shoot site-orchestrators-dark site-orchestrators
+          shoot site-mobile-robots-dark site-mobile-robots
+          shoot site-alarms-dark site-alarms
+          shoot site-alarm-detail-dark site-alarm-detail
+          shoot site-alarm-metadata-dark site-alarm-metadata
           shoot site-staff-dark site-staff staff
           shoot release-dark release
           shoot voice-dark voice
@@ -375,6 +384,11 @@ jobs:
           shoot large-text-release-menu release-menu
           shoot large-text-chat-link-tap chat-link-tap
           shoot large-text-site site
+          shoot large-text-site-orchestrators site-orchestrators
+          shoot large-text-site-mobile-robots site-mobile-robots
+          shoot large-text-site-alarms site-alarms
+          shoot large-text-site-alarm-detail site-alarm-detail
+          shoot large-text-site-alarm-metadata site-alarm-metadata
           shoot large-text-cameras cameras
           shoot large-text-cameras-failed cameras-failed
           shoot large-text-camera camera

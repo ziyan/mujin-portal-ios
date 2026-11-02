@@ -68,7 +68,7 @@ struct PlatformMoreSection: View {
         if session.platformAccess.hasEntry {
             Section {
                 NavigationLink(value: MoreDestination.platform(.hub)) {
-                    Label("Platform settings", systemImage: "gearshape.2")
+                    Label("Platform settings", systemImage: "wrench")
                         .foregroundStyle(.primary)
                 }
                 .accessibilityIdentifier("platformSettingsRow")
@@ -255,7 +255,7 @@ struct PlatformSettingsHub: View {
         } else if let organizationId = session.organizationId {
             OrganizationSettingsView(organizationId: organizationId, isHub: true)
         } else {
-            ContentUnavailableView("Nothing to set", systemImage: "gearshape.2")
+            ContentUnavailableView("Nothing to set", systemImage: "wrench")
         }
     }
 
@@ -288,7 +288,7 @@ struct PlatformSettingsHub: View {
                         if access.canSeePlans { PlatformLink(destination: .plans, title: "Plans", symbol: "tag") }
                         if access.canManageProviders { PlatformLink(destination: .providers, title: "AI providers", symbol: "cpu") }
                         if access.canManageAgents { PlatformLink(destination: .agents, title: "AI agents", symbol: "person.crop.square") }
-                        if access.canManageGrants { PlatformLink(destination: .grants, title: "AI access by organization", symbol: "key.horizontal") }
+                        if access.canManageGrants { PlatformLink(destination: .grants, title: "AI access by organization", symbol: "key") }
                         if access.canDecideRegistrations { PlatformLink(destination: .registrations, title: "Registrations", symbol: "person.badge.plus") }
                     }
                 }
@@ -449,10 +449,10 @@ private struct OrganizationSettingsList: View {
                         PlatformLink(destination: .auditLog(organizationId: organizationId), title: "Audit log", symbol: "list.bullet.clipboard")
                     }
                     if access.canViewBilling(of: organizationId) {
-                        PlatformLink(destination: .billing(organizationId: organizationId), title: "Billing", symbol: "creditcard")
+                        PlatformLink(destination: .billing(organizationId: organizationId), title: "Billing", symbol: "dollarsign.circle")
                     }
                     if session.isStaff, access.canManageGrants {
-                        PlatformLink(destination: .organizationGrants(organizationId: organizationId), title: "AI access", symbol: "key.horizontal")
+                        PlatformLink(destination: .organizationGrants(organizationId: organizationId), title: "AI access", symbol: "key")
                     }
                 }
                 if access.canEditOrganization(organizationId) {
