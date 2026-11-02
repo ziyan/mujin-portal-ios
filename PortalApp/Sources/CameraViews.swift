@@ -23,6 +23,8 @@ struct CameraSnapshotView: View {
     var refreshInterval: TimeInterval = 30
 
     @State private var image: UIImage?
+    /// Why the last request for a picture failed, when no picture has come yet. It clears itself when one does.
+    @State private var failure: CameraFailure?
 
     var body: some View {
         Color.black
@@ -30,6 +32,17 @@ struct CameraSnapshotView: View {
             .overlay {
                 if let image {
                     Image(uiImage: image).resizable().scaledToFill().frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
+                } else if let failure {
+                    // A quiet note on the tile, not an alert: a wall of cameras that cannot be reached must not ask for an answer 70 times.
+                    VStack(spacing: 4) {
+                        Image(systemName: failure == .notAllowed ? "lock" : "video.slash").font(.title3)
+                        Text(failure == .notAllowed ? "Not allowed" : "No picture")
+                            .font(.caption)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .foregroundStyle(.white.opacity(0.75))
+                    .padding(6)
                 } else if camera.isStreamable {
                     ProgressView().tint(.white)
                 } else {
@@ -49,11 +62,20 @@ struct CameraSnapshotView: View {
         let connection = appModel.connection(for: session.account)
         while !Task.isCancelled {
             let path = CameraRoutes.snapshotPath(controllerId: camera.controllerId, cameraId: camera.originCameraId, cacheBust: Int(Date().timeIntervalSince1970))
-            if let data = try? await connection.fetch(path: path), let picture = UIImage(data: data) {
-                image = picture
-                CameraSnapshotCache.images.setObject(picture, forKey: key)
+            do {
+                let data = try await connection.fetch(path: path)
+                if let picture = UIImage(data: data) {
+                    image = picture
+                    failure = nil
+                    CameraSnapshotCache.images.setObject(picture, forKey: key)
+                } else if image == nil {
+                    failure = .unavailable
+                }
+            } catch {
+                // A picture already shown stays; a tile that never had one says why, and tries again sooner than a working one refreshes.
+                if image == nil, !Task.isCancelled { failure = CameraFailure.classify(error) }
             }
-            try? await Task.sleep(for: .seconds(refreshInterval))
+            try? await Task.sleep(for: .seconds(failure == nil ? refreshInterval : min(refreshInterval, 15)))
         }
     }
 }

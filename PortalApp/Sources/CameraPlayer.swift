@@ -59,6 +59,9 @@ final class CameraPlayer {
     let clipPlayer = AVPlayer()
 
     private let connection: Connection
+    /// Whether Portal refused the last request for this camera, so that "offline" is not said of a camera that is only not allowed.
+    private var wasRefused = false
+    private static var refusedNotice: String { String(localized: "Portal did not allow this camera's video. Ask an administrator for access.") }
     private let server: ServerAddress
     private let socketFactory: CameraSocketFactory
     private let transports: CameraTransportMemory
@@ -261,6 +264,13 @@ final class CameraPlayer {
         guard CameraStreamHealth.canReconnectAutomatically(consecutiveFailures: failures) else {
             status = .failed
             notice = String(localized: "The camera could not be reached.")
+            // One snapshot request tells a refusal from a camera that is down, so the person is told which.
+            Task { [weak self] in
+                guard let self else { return }
+                if await self.connection.snapshotFailure(controllerId: self.camera.controllerId, cameraId: self.camera.originCameraId) == .notAllowed, self.status == .failed {
+                    self.notice = Self.refusedNotice
+                }
+            }
             return
         }
         status = .reconnecting
@@ -301,7 +311,7 @@ final class CameraPlayer {
                 self.beginClips(atMS: requestedMS)
             case nil:
                 self.status = .failed
-                self.notice = String(localized: "The controller is offline.")
+                self.notice = self.wasRefused ? Self.refusedNotice : String(localized: "The controller is offline.")
             }
         }
     }
@@ -314,6 +324,9 @@ final class CameraPlayer {
             transports.remember(transport, forController: camera.controllerId)
             return transport
         case .unreachable:
+            return nil
+        case .notAllowed:
+            wasRefused = true
             return nil
         }
     }
@@ -382,6 +395,9 @@ final class CameraPlayer {
                 case .unreachable:
                     self.status = .failed
                     self.notice = String(localized: "The controller is offline.")
+                case .notAllowed:
+                    self.status = .failed
+                    self.notice = Self.refusedNotice
                 }
             }
             return
@@ -463,7 +479,7 @@ final class CameraPlayer {
             notice = String(localized: "No recording was found after this time.")
         } else {
             status = .failed
-            notice = String(localized: "The recording could not be loaded.")
+            notice = CameraFailure.classify(error) == .notAllowed ? Self.refusedNotice : String(localized: "The recording could not be loaded.")
         }
     }
 
