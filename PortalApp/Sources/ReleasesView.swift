@@ -213,6 +213,7 @@ struct ReleaseDetailView: View {
             }
         }
         .linkCopiedToast($isLinkCopied)
+        .demoMenuHost(screen: "release-menu")
         .task(id: releaseId) { await load() }
     }
 

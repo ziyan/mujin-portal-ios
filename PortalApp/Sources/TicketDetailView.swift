@@ -127,6 +127,7 @@ struct TicketDetailView: View {
         }
         .attachmentPickers(drafts)
         .linkCopiedToast($isLinkCopied)
+        .demoMenuHost(screen: "ticket-menu")
         .toolbarVisibility(.hidden, for: .tabBar)
         .task(id: ticketId) {
             let detailModel = TicketDetailModel(

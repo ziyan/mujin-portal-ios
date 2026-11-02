@@ -2,20 +2,51 @@ import PortalKit
 import SwiftUI
 import UIKit
 
+/// DemoMenuPresenter carries a menu's items from the `...` button to the page, so a screenshot run, which cannot tap, can
+/// show them in a popover under the button.
+@Observable
+final class DemoMenuPresenter {
+    var items: AnyView?
+}
+
+extension View {
+    /// On the demo screen `screen`, shows the items of the page's `DetailMenu` in a popover at the top right, a moment after the page appears.
+    func demoMenuHost(screen: String) -> some View { modifier(DemoMenuHost(screen: screen)) }
+}
+
+private struct DemoMenuHost: ViewModifier {
+    let screen: String
+    @State private var presenter = DemoMenuPresenter()
+    @State private var isShown = false
+
+    func body(content: Content) -> some View {
+        content
+            .environment(presenter)
+            .popover(isPresented: $isShown, attachmentAnchor: .point(.topTrailing), arrowEdge: .top) {
+                VStack(alignment: .leading, spacing: 14) { presenter.items }
+                    .buttonStyle(.plain)
+                    .padding(20)
+                    .presentationCompactAdaptation(.popover)
+            }
+            .task {
+                guard DemoOptions.screen == screen else { return }
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                isShown = presenter.items != nil
+            }
+    }
+}
+
 /// DetailMenu is the `...` menu in the trailing toolbar of a detail screen: the
 /// place for what is done rarely (copy the link, edit, pause, destroy), so the
-/// page itself keeps only what the person comes for. A screenshot run cannot
-/// tap, so on the demo screen named by `demoScreen` the same items also show in
-/// a popover under the button.
+/// page itself keeps only what the person comes for.
 struct DetailMenu<Content: View>: View {
     var demoScreen: String?
     @ViewBuilder let content: Content
-    @State private var isShownInDemo: Bool
+    @Environment(DemoMenuPresenter.self) private var presenter: DemoMenuPresenter?
 
     init(demoScreen: String? = nil, @ViewBuilder content: () -> Content) {
         self.demoScreen = demoScreen
         self.content = content()
-        _isShownInDemo = State(initialValue: demoScreen != nil && DemoOptions.screen == demoScreen)
     }
 
     var body: some View {
@@ -25,11 +56,8 @@ struct DetailMenu<Content: View>: View {
             Label("More", systemImage: "ellipsis.circle")
         }
         .accessibilityIdentifier("detailMenuButton")
-        .popover(isPresented: $isShownInDemo) {
-            VStack(alignment: .leading, spacing: 14) { content }
-                .buttonStyle(.plain)
-                .padding(20)
-                .presentationCompactAdaptation(.popover)
+        .onAppear {
+            if let demoScreen, DemoOptions.screen == demoScreen { presenter?.items = AnyView(content) }
         }
     }
 }

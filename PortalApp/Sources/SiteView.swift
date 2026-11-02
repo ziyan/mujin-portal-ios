@@ -708,6 +708,7 @@ struct ControllerDetailView: View {
             }
         }
         .linkCopiedToast($isLinkCopied)
+        .demoMenuHost(screen: "controller-menu")
         .alert("Edit comment", isPresented: $isEditingComment) {
             TextField("Comment", text: $commentDraft)
             Button("Save") { Task { await saveComment() } }
@@ -1027,6 +1028,7 @@ struct VirtualControllerDetailView: View {
             }
         }
         .linkCopiedToast($isLinkCopied)
+        .demoMenuHost(screen: "virtual-controller-menu")
         .navigationTitle(virtual.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)
