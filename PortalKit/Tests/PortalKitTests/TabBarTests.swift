@@ -4,7 +4,7 @@ import Testing
 @testable import PortalKit
 
 @Suite struct TabBarTests {
-    @Test func customersDefaultToMessagesSitesSurveillanceTickets() {
+    @Test func customersDefaultToChatSitesSurveillanceTickets() {
         #expect(TabBar.defaults(persona: .customer, hasCameras: true) == [.assistant, .site, .surveillance, .tickets])
         #expect(TabBar.tabs(saved: nil, persona: .customer, hasCameras: true) == [.assistant, .site, .surveillance, .tickets, .more])
     }
@@ -23,7 +23,7 @@ import Testing
         #expect(TabBar.tabs(saved: saved, persona: .customer, hasCameras: true) == [.assistant, .settings, .releases, .more])
     }
 
-    @Test func aChoiceHoldsFourAtMostAndMessagesIsOneOfThem() {
+    @Test func aChoiceHoldsFourAtMostAndChatIsOneOfThem() {
         let saved = ["site", "tickets", "goals", "ideas", "releases"]
         let bar = TabBar.resolve(saved: saved, persona: .customer, hasCameras: true)
         #expect(bar == [.assistant, .site, .tickets, .goals])

@@ -3,14 +3,14 @@ import Foundation
 /// TabBar decides which sections are on the tab bar. A phone shows five tabs at most, and More is always the last, so a person
 /// chooses up to four. The iPad's sidebar lists the same sections, so one choice serves both.
 public enum TabBar {
-    /// How many sections the bar holds besides More, Messages included.
+    /// How many sections the bar holds besides More, Chat included.
     public static let capacity = 4
 
-    /// Messages is always the first tab: conversations, chats and the assistant's questions open there, and it is the screen the
+    /// Chat is always the first tab: conversations, chats and the assistant's questions open there, and it is the screen the
     /// app starts on. The person chooses the rest.
     public static let pinned = AppSection.assistant
 
-    /// The sections a person may put on the bar besides Messages, in the order the editor lists them. A person without cameras is
+    /// The sections a person may put on the bar besides Chat, in the order the editor lists them. A person without cameras is
     /// not offered Surveillance, and only Mujin staff are offered Incidents.
     public static func choosable(persona: Persona, hasCameras: Bool) -> [AppSection] {
         var sections: [AppSection] = persona == .staff ? [.tickets, .site] : [.site, .tickets]
@@ -21,7 +21,7 @@ public enum TabBar {
         return sections
     }
 
-    /// The bar before anyone edits it: Messages, Sites, Surveillance and Tickets. Surveillance is left out without cameras.
+    /// The bar before anyone edits it: Chat, Sites, Surveillance and Tickets. Surveillance is left out without cameras.
     public static func defaults(persona: Persona, hasCameras: Bool) -> [AppSection] {
         var sections = Navigation.sections(for: persona).filter { $0 != .more }
         if hasCameras, let index = sections.firstIndex(of: .site) { sections.insert(.surveillance, at: index + 1) }

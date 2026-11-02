@@ -4,7 +4,7 @@ import SwiftUI
 extension AppSection {
     var titleKey: LocalizedStringKey {
         switch self {
-        case .assistant: "Messages"
+        case .assistant: "Chat"
         case .chats: "Chats"
         case .tickets: "Tickets"
         case .site: "Sites"
@@ -22,7 +22,7 @@ extension AppSection {
 
     var symbol: String {
         switch self {
-        case .assistant: "sparkles"
+        case .assistant: "bubble.left.and.bubble.right"
         case .chats: "bubble.left.and.bubble.right"
         case .tickets: "tray.full"
         case .site: "building.2"
@@ -102,7 +102,7 @@ struct MainTabsView: View {
                 if let route = appModel.takeRoute(for: account) { newSession.open(route) }
             }
             var start = DemoOptions.section ?? Navigation.home(for: newSession.persona)
-            // Chats are part of Messages: there is no tab of their own.
+            // Chats are part of Chat: there is no tab of their own.
             if start == .chats { start = .assistant }
             if !newSession.tabSections.contains(start) { start = Navigation.home(for: newSession.persona) }
             newSession.selectedSection = start
