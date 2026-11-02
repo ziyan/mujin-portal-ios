@@ -41,6 +41,8 @@ final class CameraPlayer {
     private(set) var hasSound = false
     /// Sound starts off, so opening a camera never interrupts what the person is listening to.
     private(set) var isSoundOn = false
+    /// Whether the controller's software is too old to have recorded playback, so only live video and downloaded clips work.
+    private(set) var isRecordingUnsupported = false
     /// A sentence for the person when something is not as expected: no recording here, the controller is offline.
     private(set) var notice: String?
     private(set) var clock: CameraClock
@@ -112,6 +114,7 @@ final class CameraPlayer {
         stopSessions()
         generation += 1
         notice = nil
+        isRecordingUnsupported = false
         failures = 0
         isPaused = false
         let now = Self.nowMS
@@ -349,17 +352,24 @@ final class CameraPlayer {
         failRecordedSession()
     }
 
-    /// The recorded stream cannot be had: Portal refused it, or the controller does not answer. One snapshot request tells which.
+    /// The recorded stream cannot be had. One plain GET to the playback route, made only now that the dial failed, says why: Portal refused
+    /// it, the controller's software has no such route, or the controller does not answer.
     private func failRecordedSession() {
         status = .failed
         notice = String(localized: "The controller is offline.")
         let generationAtFailure = generation
         Task { [weak self] in
             guard let self else { return }
-            if await self.connection.snapshotFailure(controllerId: self.camera.controllerId, cameraId: self.camera.originCameraId) == .notAllowed,
-                generationAtFailure == self.generation, self.status == .failed
-            {
+            let failure = await self.connection.playbackFailure(controllerId: self.camera.controllerId, cameraId: self.camera.originCameraId)
+            guard generationAtFailure == self.generation, self.status == .failed else { return }
+            switch failure {
+            case .notAllowed:
                 self.notice = Self.refusedNotice
+            case .unsupported:
+                self.isRecordingUnsupported = true
+                self.notice = String(localized: "Recorded video needs a newer controller version.")
+            case .unreachable:
+                break
             }
         }
     }

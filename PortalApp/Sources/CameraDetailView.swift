@@ -268,7 +268,9 @@ struct CameraDetailView: View {
                         .font(.footnote)
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
-                    if player.camera.isStreamable || !player.isLive {
+                    if player.isRecordingUnsupported {
+                        Button("Download clip") { isShowingShare = true }.buttonStyle(.borderedProminent)
+                    } else if player.camera.isStreamable || !player.isLive {
                         Button("Try again") { player.retry() }.buttonStyle(.borderedProminent)
                     }
                 }

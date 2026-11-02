@@ -117,6 +117,13 @@ final class DemoCameraSocket: CameraSocket, @unchecked Sendable {
         let windowMS = max((value("end") ?? now) - (value("start") ?? now), 0)
         windowFragmentCount = Int((windowMS / 1000 / DemoCameraClip.shared.fragmentSeconds).rounded(.up))
         state.withValue { $0.queue = [DemoCameraClip.shared.openingMessage] }
+        // The unsupported-controller screenshot has a controller whose software has no playback route: the upgrade is not accepted.
+        if !live, ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "camera-unsupported" {
+            state.withValue {
+                $0.queue = []
+                $0.isClosed = true
+            }
+        }
     }
 
     func receive() async throws -> Data? {
@@ -148,7 +155,7 @@ final class DemoCameraSocket: CameraSocket, @unchecked Sendable {
     }
 }
 
-/// DemoCameraPaths answers the plain requests of the camera routes: the bootstrap document and a snapshot.
+/// DemoCameraPaths answers the plain requests of the camera routes: the bootstrap document, a snapshot and, only after a playback dial failed, what the playback route answers.
 enum DemoCameraPaths {
     static func respond(to request: URLRequest) -> (Data, HTTPURLResponse) {
         let url = request.url!
@@ -171,6 +178,12 @@ enum DemoCameraPaths {
             }
             let index = DemoCameras.everything.firstIndex { ($0["originCameraId"] as? String) == cameraId } ?? 0
             return reply(200, DemoPictures.cameraFrame(variant: index), contentType: "image/jpeg")
+        case "playback":
+            // A websocket route answers a plain GET with 400. The screenshot of a controller too old to have it gets its web page.
+            if ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "camera-unsupported" {
+                return reply(200, Data("<html></html>".utf8), contentType: "text/html")
+            }
+            return reply(400, Data(), contentType: "text/plain")
         default:
             return reply(404, Data(), contentType: "text/plain")
         }
