@@ -38,12 +38,18 @@ struct PortalRows<Content: View>: View {
 /// symbol and a narrow one line up and the titles start at the same place.
 struct PortalRowLabelStyle: LabelStyle {
     @ScaledMetric(relativeTo: .body) private var iconColumnWidth = 28
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 12) {
-            configuration.icon
-                .frame(width: iconColumnWidth, alignment: .center)
+        if dynamicTypeSize.isAccessibilitySize {
+            // At the accessibility sizes the icon column would leave too little width, and the title would break mid-word.
             configuration.title
+        } else {
+            HStack(spacing: 12) {
+                configuration.icon
+                    .frame(width: iconColumnWidth, alignment: .center)
+                configuration.title
+            }
         }
     }
 }

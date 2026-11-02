@@ -22,39 +22,79 @@ enum MoreDestination: Hashable {
     case account(AccountDestination)
     /// A screen of Platform settings.
     case platform(PlatformDestination)
+    case settings
+    case tabBarEditor
+    /// The places that are usually tabs, pushed here while the person keeps them off the tab bar.
+    case sites
+    case tickets
 }
 
-/// MoreView is the last tab: the account, and what does not need a tab of its own.
+/// MoreDestinationView is the screen a MoreDestination names. More pushes it, and a tab that holds one of these screens as its root
+/// shows it the same way.
+struct MoreDestinationView: View {
+    let destination: MoreDestination
+    /// Whether the screen is the root of a tab, which keeps the tab bar.
+    var isTabRoot = false
+
+    var body: some View {
+        switch destination {
+        case .automations: AutomationsView()
+        case .notificationSettings: NotificationPreferencesView()
+        case .about: AboutView()
+        case .goals: GoalsView()
+        case .goal(let id): GoalDetailView(goalId: id)
+        case .ideas: IdeasView()
+        case .knowledge: KnowledgeView()
+        case .memoryPage(let reference): MemoryPageView(reference: reference)
+        case .dreams: DreamsView()
+        case .assistantSettings: AssistantSettingsView()
+        case .incidents: IncidentsView()
+        case .releases: ReleasesView()
+        case .surveillance: SurveillanceView(isTabRoot: isTabRoot)
+        case .release(let id): ReleaseDetailView(releaseId: id)
+        case .releaseImage(let id): ReleaseImageView(imageId: id)
+        case .account(let destination): AccountDestinationView(destination: destination)
+        case .platform(let destination): PlatformDestinationView(destination: destination)
+        case .settings: SettingsView(isTabRoot: isTabRoot)
+        case .tabBarEditor: TabBarEditorView()
+        case .sites: SitesDestination()
+        case .tickets: TicketsView(embedsNavigation: false)
+        }
+    }
+}
+
+/// SitesDestination is the Sites screen of the person's kind, pushed on More's stack.
+private struct SitesDestination: View {
+    @Environment(SessionModel.self) private var session
+
+    var body: some View {
+        if session.persona == .staff {
+            StaffSitesView(embedsNavigation: false)
+        } else {
+            SiteView(embedsNavigation: false)
+        }
+    }
+}
+
+/// MoreView is the last tab: the places the tab bar does not hold. Settings, with the account and the tab bar, is one of them.
 struct MoreView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
     let account: Account
 
-    @State private var isShowingAccounts = DemoOptions.screen == "accounts"
-    @State private var isConfirmingSignOut = false
     // Screens under More push their own kinds of value (a release opens controllers), so the path holds any of them.
     @State private var path = NavigationPath(DemoOptions.morePath)
 
     var body: some View {
+        let onBar = session.tabSections
         NavigationStack(path: $path) {
             ScrollViewReader { proxy in
             List { PortalRows {
-                Section {
-                    Button {
-                        isShowingAccounts = true
-                    } label: {
-                        HStack(spacing: 12) {
-                            UserAvatar(userId: account.userId, name: account.displayName, hasAvatar: session.profile?.me.hasAvatar, modifiedAt: session.profile?.me.modifiedAt, size: 40)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(account.displayName).foregroundStyle(Color.primary)
-                                Text(account.server.displayHost).font(.footnote).foregroundStyle(Color.secondary)
-                            }
-                        }
-                        .contentShape(Rectangle())
+                if !onBar.contains(.site) || !onBar.contains(.tickets) {
+                    Section {
+                        row(.site, onBar)
+                        row(.tickets, onBar)
                     }
-                    // A row that opens something reads as a navigation row: plain text, not the accent a Button takes in a list.
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("accountsButton")
                 }
                 Section {
                     Button {
@@ -73,72 +113,31 @@ struct MoreView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    NavigationLink(value: MoreDestination.notificationSettings) {
-                        Label("Notification settings", systemImage: "gearshape")
-                            .foregroundStyle(.primary)
-                    }
                 }
                 AccountMoreSections()
                 PlatformMoreSection()
                 Section("Assistant") {
-                    NavigationLink(value: MoreDestination.goals) {
-                        Label("Goals", systemImage: "scope")
-                            .foregroundStyle(.primary)
-                    }
-                    NavigationLink(value: MoreDestination.ideas) {
-                        Label("Ideas", systemImage: "lightbulb")
-                            .foregroundStyle(.primary)
-                    }
-                    NavigationLink(value: MoreDestination.knowledge) {
-                        Label("What it knows", systemImage: "brain.head.profile")
-                            .foregroundStyle(.primary)
-                    }
-                    NavigationLink(value: MoreDestination.automations) {
-                        Label("Automations", systemImage: "clock.arrow.2.circlepath")
-                            .foregroundStyle(.primary)
-                    }
+                    row(.goals, onBar)
+                    row(.ideas, onBar)
+                    row(.knowledge, onBar)
+                    row(.automations, onBar)
                     NavigationLink(value: MoreDestination.dreams) {
                         Label("Tidying up", systemImage: "moon.stars")
                             .foregroundStyle(.primary)
                     }
-                    NavigationLink(value: MoreDestination.assistantSettings) {
-                        Label("Assistant settings", systemImage: "slider.horizontal.3")
-                            .foregroundStyle(.primary)
-                    }
                 }
                 Section {
-                    if session.isStaff {
-                        NavigationLink(value: MoreDestination.incidents) {
-                            Label("Incidents", systemImage: "exclamationmark.shield")
+                    if session.isStaff { row(.incidents, onBar) }
+                    if session.surveillance.hasCameras { row(.surveillance, onBar).id("surveillanceRow") }
+                    row(.releases, onBar)
+                }
+                if !onBar.contains(.settings) {
+                    Section {
+                        NavigationLink(value: MoreDestination.settings) {
+                            Label("Settings", systemImage: "gearshape")
                                 .foregroundStyle(.primary)
                         }
-                    }
-                    if session.surveillance.hasCameras {
-                        NavigationLink(value: MoreDestination.surveillance) { SurveillanceRow() }
-                            .id("surveillanceRow")
-                    }
-                    NavigationLink(value: MoreDestination.releases) {
-                        Label("Releases", systemImage: "shippingbox")
-                            .foregroundStyle(.primary)
-                    }
-                    NavigationLink(value: MoreDestination.about) {
-                        Label("About", systemImage: "info.circle")
-                            .foregroundStyle(.primary)
-                    }
-                    if let exit = appModel.exitDemo {
-                        Button("Exit demo", action: exit)
-                    } else {
-                        Button(role: .destructive) {
-                            isConfirmingSignOut = true
-                        } label: {
-                            Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                                .foregroundStyle(Color.statusError)
-                        }
-                        .confirmationDialog("Sign out of this account?", isPresented: $isConfirmingSignOut, titleVisibility: .visible) {
-                            Button("Sign out of \(account.displayName)", role: .destructive) { Task { await appModel.remove(account) } }
-                        } message: {
-                            Text("\(account.displayName) on \(account.server.displayHost) will be removed from this phone.")
-                        }
+                        .accessibilityIdentifier("settingsRow")
                     }
                 }
             } }
@@ -147,34 +146,8 @@ struct MoreView: View {
             .portalDestinations()
             .navigationDestination(for: MoreDestination.self) { destination in
                 // A screen pushed from More has no use for the tab bar.
-                Group {
-                switch destination {
-                case .automations: AutomationsView()
-                case .notificationSettings: NotificationPreferencesView()
-                case .about: AboutView()
-                case .goals: GoalsView()
-                case .goal(let id): GoalDetailView(goalId: id)
-                case .ideas: IdeasView()
-                case .knowledge: KnowledgeView()
-                case .memoryPage(let reference): MemoryPageView(reference: reference)
-                case .dreams: DreamsView()
-                case .assistantSettings: AssistantSettingsView()
-                case .incidents: IncidentsView()
-                case .releases: ReleasesView()
-                case .surveillance: SurveillanceView()
-                case .release(let id): ReleaseDetailView(releaseId: id)
-                case .releaseImage(let id): ReleaseImageView(imageId: id)
-                case .account(let destination): AccountDestinationView(destination: destination)
-                case .platform(let destination): PlatformDestinationView(destination: destination)
-                }
-                }
-                .toolbarVisibility(.hidden, for: .tabBar)
-            }
-            .sheet(isPresented: $isShowingAccounts) {
-                AccountsView()
-            }
-            .task {
-                try? await session.surveillance.load()
+                MoreDestinationView(destination: destination)
+                    .toolbarVisibility(.hidden, for: .tabBar)
             }
             .task {
                 // The demo opens the releases list and taps the first row, as a person does.
@@ -193,6 +166,21 @@ struct MoreView: View {
                 session.incidentsRequested = false
                 path = NavigationPath([MoreDestination.incidents])
             }
+            .onChange(of: session.moreScreenToOpen, initial: true) { _, destination in
+                guard let destination else { return }
+                session.moreScreenToOpen = nil
+                path = NavigationPath([destination])
+            }
+            .onChange(of: session.ticketToOpen, initial: true) { _, ticketId in
+                // With Tickets on the tab bar its own screen takes the ticket. Without, More opens the ticket on its stack.
+                guard let ticketId, !onBar.contains(.tickets) else { return }
+                session.ticketToOpen = nil
+                session.moreScreenToOpen = nil
+                var ticketPath = NavigationPath()
+                ticketPath.append(MoreDestination.tickets)
+                ticketPath.append(PortalRoute.ticket(id: ticketId))
+                path = ticketPath
+            }
             .onChange(of: session.goalToOpen, initial: true) { _, goalId in
                 guard let goalId else { return }
                 session.goalToOpen = nil
@@ -204,6 +192,17 @@ struct MoreView: View {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 proxy.scrollTo(row, anchor: .center)
             }
+            }
+        }
+    }
+
+    /// The row of a screen that can also be a tab. A screen on the tab bar is not listed again.
+    @ViewBuilder
+    private func row(_ section: AppSection, _ onBar: [AppSection]) -> some View {
+        if !onBar.contains(section), let destination = section.moreDestination {
+            NavigationLink(value: destination) {
+                Label(section.titleKey, systemImage: section.symbol)
+                    .foregroundStyle(.primary)
             }
         }
     }

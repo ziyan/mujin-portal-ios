@@ -19,13 +19,20 @@ struct StaffSitesView: View {
     /// The organization whose people are shown in a sheet, from a section header.
     @State private var peopleOrganization: PeopleOrganization?
 
+    /// False when More pushes the list on its own stack.
+    var embedsNavigation = true
+
     var body: some View {
-        NavigationStack(path: $path) {
-            Group {
-                content
-            }
+        if embedsNavigation {
+            NavigationStack(path: $path) { screen.portalDestinations() }
+        } else {
+            screen
+        }
+    }
+
+    private var screen: some View {
+        content
             .navigationTitle("Sites")
-            .portalDestinations()
             .notificationsBell()
             .toolbar {
                 if ControllerLinkAccess.canOffer(permissions: session.profile?.me.permissions ?? []) {
@@ -44,7 +51,6 @@ struct StaffSitesView: View {
                 try? await session.surveillance.load()
                 await openDemoScreen()
             }
-        }
     }
 
     /// The demo walks the list into a site, then into its controllers, as a person would.

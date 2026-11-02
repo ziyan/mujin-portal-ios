@@ -22,7 +22,7 @@ struct ConversationListView: View {
                     ProgressView()
                 }
             }
-            .navigationTitle("Messages")
+            .navigationTitle("Chat")
             .notificationsBell()
             .searchable(text: $searchText, prompt: "Search")
             .toolbar {

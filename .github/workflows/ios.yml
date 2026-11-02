@@ -273,6 +273,13 @@ jobs:
           shoot more-surveillance-staff more-surveillance staff
           shoot more-platform more-platform
           shoot more-surveillance more-surveillance
+          shoot tab-bar tab-bar
+          shoot tab-bar-staff tab-bar staff
+          shoot surveillance-tab surveillance-tab
+          shoot settings settings
+          shoot settings-staff settings staff
+          shoot tab-bar-edit tab-bar-edit
+          shoot tab-bar-edit-staff tab-bar-edit staff
           shoot platform-hub platform-hub
           shoot platform-hub-staff platform-hub staff
           shoot platform-organizations platform-organizations staff
@@ -367,6 +374,11 @@ jobs:
           shoot surveillance-dark surveillance
           shoot surveillance-staff-dark surveillance-staff staff
           shoot more-staff-dark section:more staff
+          shoot tab-bar-dark tab-bar
+          shoot surveillance-tab-dark surveillance-tab
+          shoot settings-dark settings
+          shoot tab-bar-edit-dark tab-bar-edit
+          shoot tab-bar-edit-staff-dark tab-bar-edit staff
           shoot platform-hub-staff-dark platform-hub staff
           shoot platform-organization-dark platform-organization staff
           shoot platform-audit-dark platform-audit
@@ -426,6 +438,11 @@ jobs:
           shoot large-text-sites-staff-people sites-staff staff
           shoot large-text-surveillance surveillance
           shoot large-text-more-staff section:more staff
+          shoot large-text-tab-bar tab-bar
+          shoot large-text-surveillance-tab surveillance-tab
+          shoot large-text-settings settings
+          shoot large-text-tab-bar-edit tab-bar-edit
+          shoot large-text-tab-bar-edit-staff tab-bar-edit staff
           shoot large-text-platform-hub platform-hub
           shoot large-text-platform-hub-staff platform-hub staff
           shoot large-text-platform-organization platform-organization staff
