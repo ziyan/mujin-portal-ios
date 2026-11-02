@@ -19,17 +19,11 @@ extension ControllerDetailView {
                 }
             }
             if !alarms.isEmpty {
-                Section("Active alarms") { ForEach(alarms) { SiteRows.alarm($0) } }
+                Section("Active alarms") { ForEach(alarms) { SiteRows.alarmLink($0, controllers: [controller]) } }
             }
             if let rows = orchestrators?.list, !rows.isEmpty {
                 Section("Orchestrators") {
-                    ForEach(rows) { row in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(row.orchestratorId ?? "").foregroundStyle(.primary)
-                            Text([row.runStatus, row.processStatus].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " \u{00B7} "))
-                                .font(.footnote).foregroundStyle(row.hasError == true ? Color.statusError : Color.secondary)
-                        }
-                    }
+                    ForEach(rows) { row in OrchestratorRow(orchestrator: row, showsID: true) }
                 }
             }
             if !robots.isEmpty {

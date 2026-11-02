@@ -16,7 +16,7 @@ extension ManagedListSpec {
 
     static var sessions: ManagedListSpec {
         ManagedListSpec(
-            title: "Sessions", emptyTitle: "No other sessions", emptySymbol: "laptopcomputer.and.iphone",
+            title: "Sessions", emptyTitle: "No other sessions", emptySymbol: "iphone",
             emptyMessage: "Browsers signed in to Portal on the web show up here, and you can sign any of them out.",
             introduction: "This app's own sign-in is not listed. To end it, use Sign out in More.",
             removeTitle: "Revoke session",

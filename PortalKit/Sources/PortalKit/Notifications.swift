@@ -122,11 +122,13 @@ public struct PortalNotification: Codable, Equatable, Identifiable, Sendable {
         }
     }
 
-    /// A further line: the failure of a job, or where an alarm is.
+    /// A further line: the failure of a job, or which controller and site an alarm is on.
     public var detail: String? {
         switch kind {
         case "agent_job_failed": return (agentJobFailureMessage ?? "").isEmpty ? nil : agentJobFailureMessage
-        case "alarm": return siteName ?? controllerId
+        case "alarm":
+            let place = [controllerId, siteName].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
+            return place.isEmpty ? nil : place
         case "agent_goal_needs_you": return (agentGoalQuestion ?? "").isEmpty ? nil : agentGoalQuestion
         default: return nil
         }

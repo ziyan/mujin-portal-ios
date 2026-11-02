@@ -502,11 +502,29 @@ struct DemoTransport: HTTPTransport {
                     [
                         "controllerId": "controller01", "isAvailable": true,
                         "alarms": ["alarms": [
-                            ["alarmLevel": "error", "alarmMessage": "Gripper suction pressure is low", "alarmStatus": "active", "occurredAt": stamp(1_200), "originLabel": "controller01"],
-                            ["alarmLevel": "warning", "alarmMessage": "Conveyor 2 is running slowly", "alarmStatus": "active", "occurredAt": stamp(5_400), "originLabel": "controller01"],
+                            ["logEntryId": "alarmEntry01", "alarmLevel": "error", "alarmMessage": "Gripper suction pressure is low", "alarmStatus": "active", "occurredAt": stamp(1_200), "originLabel": "Pick station gripper"],
+                            ["logEntryId": "alarmEntry02", "alarmLevel": "warning", "alarmMessage": "Conveyor 2 is running slowly", "alarmStatus": "active", "occurredAt": stamp(5_400), "originLabel": "controller01"],
                         ]],
                     ],
                     ["controllerId": "controller02", "isAvailable": false, "alarms": NSNull()],
+                ]
+            ]
+        case "GetAlarmDetail":
+            // A controller's clock: the offset is part of the timestamp, as the real server sends it.
+            let controllerClock = ISO8601DateFormatter()
+            controllerClock.timeZone = TimeZone(secondsFromGMT: -4 * 3600) ?? .current
+            return [
+                "GetAlarmDetail": [
+                    "logEntryId": variables["logEntryId"] as? String ?? "alarmEntry01", "alarmStatus": "active", "alarmLevel": "error",
+                    "alarmMessage": "Gripper suction pressure is low", "occurredAt": controllerClock.string(from: Date().addingTimeInterval(-1_200)),
+                    "originKind": "device", "originControllerId": "controller01",
+                    "originFields": [["key": "deviceName", "value": "gripper_1"], ["key": "zoneName", "value": "pick_zone_a"]],
+                    "metadata": [
+                        ["key": "alarmCode", "value": "E1042"], ["key": "pressureKPa", "value": "38.5"], ["key": "thresholdKPa", "value": "60"],
+                        ["key": "isRecoverable", "value": "true"], ["key": "recentReadingsKPa", "value": "[61.2, 52.8, 44.1, 38.5]"],
+                        ["key": "context", "value": "{\"cycleIndex\": 18, \"partName\": \"box_small\", \"pickerArm\": {\"name\": \"arm_1\", \"payloadKg\": 1.4}}"],
+                        ["key": "operatorHint", "value": "Check the suction cup and the hose for a leak."],
+                    ],
                 ]
             ]
         case "ListSiteMobileRobots":
@@ -515,9 +533,9 @@ struct DemoTransport: HTTPTransport {
                     [
                         "controllerId": "controller01", "isAvailable": true,
                         "mobileRobots": ["robots": [
-                            ["name": "robot_1", "isOnline": true, "hasError": false, "powerLevel": 0.82, "isCharging": false],
-                            ["name": "robot_2", "isOnline": true, "hasError": true, "error": "Lost localization near aisle 4", "powerLevel": 0.4, "isCharging": false],
-                            ["name": "robot_3", "isOnline": false, "hasError": false, "powerLevel": 0.1, "isCharging": true],
+                            ["name": "robot_1", "status": "Running", "isOnline": true, "hasError": false, "powerLevel": 0.82, "isCharging": false, "isLoaded": true],
+                            ["name": "robot_2", "status": "Paused", "isOnline": true, "hasError": true, "error": "Lost localization near aisle 4", "powerLevel": 0.4, "isCharging": false, "isLoaded": false],
+                            ["name": "robot_3", "status": "Offline", "isOnline": false, "hasError": false, "powerLevel": 0.1, "isCharging": true, "isLoaded": false],
                         ]],
                     ]
                 ]
@@ -554,8 +572,9 @@ struct DemoTransport: HTTPTransport {
                     [
                         "controllerId": "controller01", "isAvailable": true,
                         "orchestrators": ["activeRunModeName": "Normal", "orchestrators": [
-                            ["orchestratorId": "orchestrator01", "orchestratorType": "pick_station", "runStatus": "running", "processStatus": "running", "hasError": false],
-                            ["orchestratorId": "orchestrator02", "orchestratorType": "packing_line", "runStatus": "stopped", "hasError": true, "statusMessage": "Label printer not responding"],
+                            ["orchestratorId": "orchestrator01", "orchestratorType": "productioncycle", "runStatus": "Idle", "processStatus": "Started", "hasError": false, "state": ["productionCycleStatus": "Running"]],
+                            ["orchestratorId": "orchestrator02", "orchestratorType": "warehouseexecution", "runStatus": "Working", "processStatus": "Started", "hasError": false, "state": ["warehouseExecutionState": ["warehouseExecutionStatus": "Paused"]]],
+                            ["orchestratorId": "orchestrator03", "orchestratorType": "packing_line", "runStatus": "Idle", "hasError": true, "statusMessage": "Label printer not responding", "state": ["printerIsReady": false]],
                         ]],
                     ],
                     ["controllerId": "controller02", "isAvailable": false],
@@ -692,7 +711,7 @@ struct DemoTransport: HTTPTransport {
                     "notifications": [
                         ["id": "notification01", "kind": "ticket_comment", "createdAt": stamp(900), "ticketId": "ticket01", "ticket": ["id": "ticket01", "sequence": 1, "title": "Gripper drops boxes at pick station 3"]],
                         ["id": "notification02", "kind": "incident", "createdAt": stamp(2_400), "incidentId": "incident01", "incident": ["id": "incident01", "title": "Person near the conveyor"]],
-                        ["id": "notification03", "kind": "alarm", "createdAt": stamp(5_000), "readAt": stamp(4_000), "alarmMessage": "Gripper suction pressure is low", "siteName": "site01"],
+                        ["id": "notification03", "kind": "alarm", "createdAt": stamp(5_000), "readAt": stamp(4_000), "alarmMessage": "Gripper suction pressure is low", "controllerId": "controller01", "siteName": "site01"],
                         ["id": "notification04", "kind": "agent_job_failed", "createdAt": stamp(20_000), "readAt": stamp(19_000), "agentJobName": "Watch controller01 planner", "agentJobFailureMessage": "The controller did not answer."],
                     ], "meta": ["totalCount": 4],
                 ]

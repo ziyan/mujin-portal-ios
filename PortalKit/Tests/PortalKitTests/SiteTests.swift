@@ -162,8 +162,8 @@ import Testing
                     [
                         "controllerId": "controller01", "isAvailable": true,
                         "orchestrators": ["activeRunModeName": "Normal", "orchestrators": [
-                            ["orchestratorId": "o1", "orchestratorType": "picking", "runStatus": "running", "hasError": false],
-                            ["orchestratorId": "o2", "orchestratorType": "packing", "runStatus": "stopped", "hasError": true, "statusMessage": "Gripper fault"],
+                            ["orchestratorId": "o1", "orchestratorType": "productioncycle", "runStatus": "Idle", "hasError": false, "state": ["productionCycleStatus": "Running"]],
+                            ["orchestratorId": "o2", "orchestratorType": "packing", "runStatus": "Working", "hasError": true, "statusMessage": "Gripper fault"],
                         ]],
                     ],
                     ["controllerId": "controller02", "isAvailable": false],
@@ -172,9 +172,106 @@ import Testing
         }
         let rows = try await connection.siteOrchestrators(siteId: "site01")
         let summary = SiteOrchestratorSummary(rows)
-        #expect(summary.runningCount == 1 && summary.totalCount == 2 && summary.hasError)
+        #expect(summary.runningCount == 1 && summary.totalCount == 1 && summary.withoutOwnStatusCount == 1 && summary.hasError)
         #expect(summary.unreachableControllerCount == 1)
         #expect(rows[0].list[1].statusMessage == "Gripper fault")
+    }
+
+    @Test func aProductionCycleThatIsIdleButRunningCountsAsRunning() {
+        let orchestrator = SiteOrchestrators.Orchestrator(
+            orchestratorId: "o1", orchestratorType: "productioncycle", runStatus: "Idle", state: .object(["productionCycleStatus": .string("Running")]))
+        #expect(orchestrator.ownStatus == "Running")
+        #expect(orchestrator.isRunning)
+        #expect(SiteOrchestratorSummary([SiteOrchestrators(controllerId: "c1", orchestrators: .init(observedAt: nil, activeRunModeName: nil, orchestrators: [orchestrator]))]).runningCount == 1)
+    }
+
+    @Test func aWorkingOrchestratorWhoseLineIsStoppedIsNotRunning() {
+        let orchestrator = SiteOrchestrators.Orchestrator(
+            orchestratorType: "productioncycle", runStatus: "Working", state: .object(["productionCycleStatus": .string("Stopped")]))
+        #expect(orchestrator.ownStatus == "Stopped" && !orchestrator.isRunning && !orchestrator.isInTransition)
+    }
+
+    @Test func warehouseExecutionAndFleetKeepTheirStatusUnderTheirOwnState() {
+        let warehouse = SiteOrchestrators.Orchestrator(
+            orchestratorType: "warehouseexecution", runStatus: "Idle",
+            state: .object(["warehouseExecutionState": .object(["warehouseExecutionStatus": .string("Running")])]))
+        let fleet = SiteOrchestrators.Orchestrator(
+            orchestratorType: "fleet", runStatus: "Idle", state: .object(["fleetManagementState": .object(["fleetManagementStatus": .string("Paused")])]))
+        #expect(warehouse.isRunning)
+        #expect(fleet.ownStatus == "Paused" && !fleet.isRunning && fleet.isInTransition)
+    }
+
+    @Test func aTypeWithNoOwnStatusIsLeftOutOfTheTotal() {
+        let unknown = SiteOrchestrators.Orchestrator(orchestratorType: "packing", runStatus: "Active", state: .object(["productionCycleStatus": .string("Running")]))
+        #expect(unknown.ownStatus == nil && !unknown.isRunning)
+        let running = SiteOrchestrators.Orchestrator(orchestratorType: "fleet", state: .object(["fleetManagementState": .object(["fleetManagementStatus": .string("Running")])]))
+        let rows = [SiteOrchestrators(controllerId: "c1", orchestrators: .init(observedAt: nil, activeRunModeName: nil, orchestrators: [unknown, running]))]
+        let summary = SiteOrchestratorSummary(rows)
+        #expect(summary.runningCount == 1 && summary.totalCount == 1 && summary.withoutOwnStatusCount == 1)
+    }
+
+    @Test func theStateArrivesAsJSONOrAsJSONText() throws {
+        let object = try JSONDecoder().decode(
+            SiteOrchestrators.Orchestrator.self, from: Data(#"{"orchestratorType":"productioncycle","state":{"productionCycleStatus":"Running"}}"#.utf8))
+        let text = try JSONDecoder().decode(
+            SiteOrchestrators.Orchestrator.self, from: Data(#"{"orchestratorType":"productioncycle","state":"{\"productionCycleStatus\":\"Paused\"}"}"#.utf8))
+        #expect(object.ownStatus == "Running" && text.ownStatus == "Paused")
+    }
+
+    @Test func robotsCarryTheirStateAndLoad() async throws {
+        let (connection, _) = scriptedConnection { _, _ in
+            [
+                "ListSiteMobileRobots": [
+                    ["controllerId": "c1", "isAvailable": true, "mobileRobots": ["robots": [["name": "robot_1", "status": "Running", "isOnline": true, "isLoaded": true]]]]
+                ]
+            ]
+        }
+        let robots = try await connection.siteRobots(siteId: "site01")
+        #expect(robots.robots.first?.statusText == "Running" && robots.robots.first?.isLoaded == true)
+    }
+
+    @Test func anAlarmNamesItsControllerAndCarriesItsLogEntry() async throws {
+        let (connection, _) = scriptedConnection { _, _ in
+            [
+                "ListSiteActiveAlarms": [
+                    ["controllerId": "controller01", "isAvailable": true, "alarms": ["alarms": [["logEntryId": "entry01", "alarmLevel": "error", "alarmMessage": "Low pressure", "alarmStatus": "active"]]]]
+                ]
+            ]
+        }
+        let result = try await connection.siteAlarms(siteId: "site01")
+        #expect(result.alarms.first?.controllerId == "controller01" && result.alarms.first?.logEntryId == "entry01")
+    }
+
+    @Test func alarmDetailBuildsPrettyMetadataJSON() async throws {
+        let (connection, _) = scriptedConnection { _, _ in
+            [
+                "GetAlarmDetail": [
+                    "logEntryId": "entry01", "alarmLevel": "error", "originFields": [["key": "deviceName", "value": "gripper_1"]],
+                    "metadata": [["key": "code", "value": "E1"], ["key": "readings", "value": "[1, 2]"], ["key": "isRecoverable", "value": "true"]],
+                ]
+            ]
+        }
+        let detail = try await connection.alarmDetail(controllerId: "controller01", logEntryId: "entry01")
+        #expect(detail?.originEntries.first?.value == "gripper_1")
+        let json = try #require(detail?.metadataJSON)
+        #expect(json.contains("\"code\" : \"E1\"") && json.contains("\"isRecoverable\" : true") && json.contains("\n"))
+        #expect(json.range(of: "\"code\"")!.lowerBound < json.range(of: "\"readings\"")!.lowerBound)
+    }
+
+    @Test func controllerTimeKeepsTheOffsetTheTimestampCarries() {
+        #expect(ControllerTime.offsetSeconds(of: "2026-08-03T09:15:00-04:00") == -4 * 3600)
+        #expect(ControllerTime.offsetSeconds(of: "2026-08-03T09:15:00+0930") == 9 * 3600 + 1800)
+        #expect(ControllerTime.offsetSeconds(of: "2026-08-03T09:15:00Z") == 0)
+        #expect(ControllerTime.offsetSeconds(of: "2026-08-03T09:15:00") == nil)
+        let text = ControllerTime.text("2026-08-03T09:15:00-04:00", locale: Locale(identifier: "en_US"))
+        #expect(text?.contains("9:15") == true && text?.hasSuffix("UTC-04:00") == true)
+        #expect(ControllerTime.label(offsetSeconds: 0) == "UTC" && ControllerTime.label(offsetSeconds: 9 * 3600 + 1800) == "UTC+09:30")
+    }
+
+    @Test func anAlarmNotificationNamesItsControllerAndSite() {
+        let both = PortalNotification(id: "n1", kind: "alarm", controllerId: "controller01", siteName: "site01", alarmMessage: "Low pressure")
+        let controllerOnly = PortalNotification(id: "n2", kind: "alarm", controllerId: "controller01")
+        #expect(both.detail == "controller01 \u{00B7} site01" && controllerOnly.detail == "controller01")
     }
 
     @Test func membersAreNamedFromTheOrganizationsUsersAndSortedByName() async throws {

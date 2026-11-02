@@ -10,6 +10,8 @@ enum PortalRoute: Hashable {
     case ticket(id: String)
     case siteList(SiteListKind, organizationKey: String)
     case controller(ControllerSummary)
+    /// One active alarm in full, with the controller it is on when that is known.
+    case alarm(SiteAlarm, controller: ControllerSummary?)
     case virtualController(VirtualControllerSummary)
     case incident(IncidentSummary)
     /// One specific site of an organization, which never changes to another site.
@@ -66,6 +68,8 @@ struct PortalRouteView: View {
             }
         case .controller(let controller):
             ControllerDetailView(controller: controller)
+        case .alarm(let alarm, let controller):
+            AlarmDetailView(alarm: alarm, controller: controller)
         case .virtualController(let virtual):
             VirtualControllerDetailView(virtual: virtual)
         case .incident(let incident):
