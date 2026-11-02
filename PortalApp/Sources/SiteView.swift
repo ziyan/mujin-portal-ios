@@ -660,6 +660,8 @@ struct ControllerDetailView: View {
                     Label(controller.isOnline ? "Online" : "Offline", systemImage: controller.isOnline ? "checkmark.circle" : "circle.slash")
                         .foregroundStyle(.secondary)
                 }
+                // The separator starts at the row's edge, not at the label's.
+                .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                 if let detail = editedComment ?? controller.detail {
                     LabeledContent("Comment") { Text(detail) }
                 }
@@ -964,10 +966,14 @@ struct VirtualControllerDetailView: View {
         let server = session.account.server
         List { PortalRows {
             Section {
-                LabeledContent("Status") {
+                // A plain row, not a LabeledContent: a symbol label as its value made the row several times too tall.
+                HStack {
+                    Text("Status")
+                    Spacer(minLength: 8)
                     Label(virtual.isRunning ? "Running" : LocalizedStringKey(virtual.status ?? ""), systemImage: virtual.isRunning ? "checkmark.circle" : "circle.slash")
                         .foregroundStyle(.secondary)
                 }
+                .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                 if let comment = virtual.comment, !comment.isEmpty { LabeledContent("Comment") { Text(comment) } }
                 ReleaseRow(release: virtual.release)
                 if let region = virtual.region, !region.isEmpty { LabeledContent("Region") { Text(region) } }
