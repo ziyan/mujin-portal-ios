@@ -18,8 +18,7 @@ struct ChatView: View {
     @State private var emojiTarget: ConversationView.EmojiTarget?
     @State private var messageToDelete: ChatMessage?
     @State private var isShowingInfo = DemoOptions.screen == "chat-info"
-    @State private var isAddingPeople = false
-    @State private var isStartingGroup = false
+    @State private var isAddingPeople = DemoOptions.screen == "chat-add-people"
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -35,13 +34,9 @@ struct ChatView: View {
             if let model, model.room != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        // A group's administrators add to it; a direct chat becomes a new group; others see no such row.
-                        if let room = model.room, room.canWrite {
-                            if room.isGroup, model.isAdmin {
-                                Button { isAddingPeople = true } label: { Label("Add people", systemImage: "person.badge.plus") }
-                            } else if !room.isGroup {
-                                Button { isStartingGroup = true } label: { Label("Add people", systemImage: "person.badge.plus") }
-                            }
+                        // A group's administrators add to it; either person adds to a direct chat, which becomes a group; others see no such row.
+                        if model.canAddPeople {
+                            Button { isAddingPeople = true } label: { Label("Add people", systemImage: "person.badge.plus") }
                         }
                         Button { isShowingInfo = true } label: { Label("Members", systemImage: "person.2") }
                     } label: { Label("Chat details", systemImage: "ellipsis.circle") }
@@ -50,16 +45,6 @@ struct ChatView: View {
         }
         .sheet(isPresented: $isAddingPeople) {
             if let model { AddPeopleView(model: model) }
-        }
-        .sheet(isPresented: $isStartingGroup) {
-            if let model, let room = model.room {
-                let others = room.currentMembers.filter { $0.userId != model.currentUserId }.map {
-                    ChatCandidate(userId: $0.userId, userName: $0.userName, organizationId: $0.organizationId, organizationName: $0.organizationName, isMujinUser: $0.isMujinUser)
-                }
-                ComposeMessageView(
-                    onSent: { session.open(.chat(conversationId: $0)) }, initialPicked: others,
-                    note: "A new group starts with the people you pick. They see messages from now on.")
-            }
         }
         .sheet(isPresented: $isShowingInfo) {
             if let model { ChatInfoView(model: model) }
@@ -575,7 +560,7 @@ struct ChatInfoView: View {
                                     }
                                 }
                         }
-                        if model.isAdmin, room.isGroup, room.canWrite {
+                        if model.canAddPeople {
                             Button { isAddingPeople = true } label: { Label("Add people", systemImage: "person.badge.plus") }
                         }
                     }
@@ -682,7 +667,7 @@ private struct MemberRow: View {
     }
 }
 
-/// AddPeopleView picks people to add to a group.
+/// AddPeopleView picks people to add to a chat. They join that same chat and read its whole history; a direct chat becomes a group.
 private struct AddPeopleView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
@@ -696,16 +681,23 @@ private struct AddPeopleView: View {
     var body: some View {
         NavigationStack {
             List { PortalRows {
-                ForEach(shown) { person in
-                    Button {
-                        if selected.contains(person.userId) { selected.remove(person.userId) } else { selected.insert(person.userId) }
-                    } label: {
-                        CandidateRow(person: person, showsOrganization: true, isSelected: selected.contains(person.userId))
+                Section {
+                    ForEach(shown) { person in
+                        Button {
+                            if selected.contains(person.userId) { selected.remove(person.userId) } else { selected.insert(person.userId) }
+                        } label: {
+                            CandidateRow(person: person, showsOrganization: true, isSelected: selected.contains(person.userId))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                } header: {
+                    Text(model.room?.isGroup == false
+                        ? LocalizedStringKey("This chat becomes a group with them in it. They can read everything said in it so far.")
+                        : LocalizedStringKey("They join this group and can read everything said in it so far."))
+                        .textCase(nil)
                 }
             } }
-.portalList()
+            .portalList()
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search people")
             .navigationTitle("Add people")
             .navigationBarTitleDisplayMode(.inline)

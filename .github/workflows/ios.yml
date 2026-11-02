@@ -181,6 +181,7 @@ jobs:
           shoot photo-chat photo-chat
           shoot main-chat main-chat
           shoot chat-info chat-info
+          shoot chat-add-people chat-add-people
           shoot chats-new chats-new
           shoot chats-new-staff chats-new-group staff
           shoot chats-staff chats staff
