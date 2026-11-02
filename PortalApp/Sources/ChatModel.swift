@@ -107,6 +107,11 @@ final class ChatModel {
     var title: String { room?.title ?? String(localized: "Chat") }
     var canWrite: Bool { room?.canWrite ?? true }
     var isAdmin: Bool { room?.isReaderAdmin == true }
+    /// A group takes people from its administrators; a direct chat from either person, and becomes a group.
+    var canAddPeople: Bool {
+        guard let room, room.canWrite else { return false }
+        return room.isGroup ? isAdmin : true
+    }
 
     /// The people and agents the @ list offers for what the draft ends with, or none when it is closed.
     func mentionSuggestions(for draft: String) -> [MentionCandidate] {

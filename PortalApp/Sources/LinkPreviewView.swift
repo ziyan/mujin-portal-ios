@@ -57,6 +57,12 @@ struct LinkPreviewCardView: View {
                 ShareLink(item: url)
             }
         }
+        .task {
+            // The demo run taps the ticket card once it has shown, as a person does.
+            guard appModel.isDemo, DemoOptions.screen == "chat-link-tap", card.linkKind == "ticket" else { return }
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            if !Task.isCancelled { open() }
+        }
         .task(id: card.urlHash) {
             guard !appModel.isDemo, let path = card.imageUrl, path.hasPrefix("/api/") else { return }
             imageData = try? await connection.fetch(path: path)

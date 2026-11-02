@@ -112,6 +112,11 @@ struct MainTabsView: View {
             LinkControllerView(request: request)
                 .environment(session)
         }
+        .sheet(item: Binding(get: { appModel.openedLink }, set: { appModel.openedLink = $0 })) { opened in
+            LinkedPageSheet(link: opened.link)
+                .environment(appModel)
+                .environment(session)
+        }
         .onChange(of: appModel.pendingRoute) { _, _ in
             if let route = appModel.takeRoute(for: account) { session.open(route) }
         }

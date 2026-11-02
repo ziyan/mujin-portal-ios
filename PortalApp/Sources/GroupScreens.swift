@@ -152,9 +152,29 @@ struct GroupDetailView: View {
         .navigationTitle(group?.shownName ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if canEdit, group != nil {
+            if canEdit, let group {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Edit") { editing = .details }
+                    DetailMenu {
+                        Section {
+                            Button { editing = .details } label: { Label("Edit", systemImage: "pencil") }
+                            if group.isDefault != true {
+                                Button { isConfirmingDefault = true } label: { Label("Make this the default group", systemImage: "checkmark.circle") }
+                            }
+                        }
+                        Section {
+                            Button(role: .destructive) { isConfirmingDeletion = true } label: { Label("Delete group", systemImage: "trash") }
+                        }
+                    }
+                    .confirmationDialog("Make this the default group?", isPresented: $isConfirmingDefault, titleVisibility: .visible) {
+                        Button("Make default") { Task { await makeDefault() } }
+                    } message: {
+                        Text("A person who joins the organization and is in no group is put in the default group.")
+                    }
+                    .confirmationDialog("Delete \(group.shownName)?", isPresented: $isConfirmingDeletion, titleVisibility: .visible) {
+                        Button("Delete group", role: .destructive) { Task { await delete() } }
+                    } message: {
+                        Text("Its people lose the access it gave them. This cannot be undone.")
+                    }
                 }
             }
         }
@@ -171,25 +191,14 @@ struct GroupDetailView: View {
         let memberByIdentifier = Dictionary(members.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return List {
             PortalRows {
-                Section {
-                    if let text = group.description, !text.isEmpty {
-                        Text(text).foregroundStyle(Color.primary)
-                    }
-                    if group.isDefault == true {
-                        Label("Default group", systemImage: "checkmark.circle")
-                            .foregroundStyle(Color.secondary)
-                    } else if canEdit {
-                        Button {
-                            isConfirmingDefault = true
-                        } label: {
-                            Text("Make this the default group")
-                                .foregroundStyle(Color.primary)
+                if group.isDefault == true || !(group.description ?? "").isEmpty {
+                    Section {
+                        if let text = group.description, !text.isEmpty {
+                            Text(text).foregroundStyle(Color.primary)
                         }
-                        .buttonStyle(.plain)
-                        .confirmationDialog("Make this the default group?", isPresented: $isConfirmingDefault, titleVisibility: .visible) {
-                            Button("Make default") { Task { await makeDefault() } }
-                        } message: {
-                            Text("A person who joins the organization and is in no group is put in the default group.")
+                        if group.isDefault == true {
+                            Label("Default group", systemImage: "checkmark.circle")
+                                .foregroundStyle(Color.secondary)
                         }
                     }
                 }
@@ -226,21 +235,6 @@ struct GroupDetailView: View {
                     if canEdit { chooseButton("Choose people", .people) }
                 } header: {
                     Text("People")
-                }
-                if canEdit {
-                    Section {
-                        Button(role: .destructive) {
-                            isConfirmingDeletion = true
-                        } label: {
-                            Text("Delete group")
-                                .foregroundStyle(Color.statusError)
-                        }
-                        .confirmationDialog("Delete \(group.shownName)?", isPresented: $isConfirmingDeletion, titleVisibility: .visible) {
-                            Button("Delete group", role: .destructive) { Task { await delete() } }
-                        } message: {
-                            Text("Its people lose the access it gave them. This cannot be undone.")
-                        }
-                    }
                 }
             }
         }
