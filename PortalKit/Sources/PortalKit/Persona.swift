@@ -23,6 +23,15 @@ public enum AppSection: String, CaseIterable, Identifiable, Sendable {
     case tickets
     case site
     case more
+    // The rest are screens More offers that a person may also put on the tab bar.
+    case surveillance
+    case releases
+    case goals
+    case ideas
+    case knowledge
+    case automations
+    case incidents
+    case settings
 
     public var id: String { rawValue }
 }
