@@ -39,6 +39,13 @@ websocket when it has one (found with a probe that expects a 400) and downloads 
 `video/export` when it does not. The demo server plays a generated test pattern
 (`PortalApp/Resources/DemoCamera.mp4`, made with a software encoder; nothing recorded by a camera).
 
+## Web apps
+
+A controller's page and a virtual controller's page list the web apps installed on it as a grid of tiles with each app's icon and name
+(`ListControllerWebApps`, shown only when the server offers it). A tile opens the app's page in the built-in browser through the same web
+session handoff as the controller's web UI, so it lands signed in. Icons come from a Portal route that takes the app's token, since the
+controller's own host refuses it. Most apps ship an SVG, which UIKit cannot decode, so the app draws each one once with WebKit.
+
 ## Layout
 
 | Path | What it is |

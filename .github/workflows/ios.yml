@@ -200,6 +200,9 @@ jobs:
           shoot release-tap release-tap
           shoot controller-menu controller-menu
           shoot virtual-controller-menu virtual-controller-menu
+          shoot controller-apps controller-apps
+          shoot controller-app-open controller-app-open
+          shoot virtual-controller-apps virtual-controller-apps
           shoot ticket-menu ticket-menu
           shoot release-menu release-menu
           shoot chat-link-tap chat-link-tap
@@ -332,6 +335,9 @@ jobs:
           shoot release-tap-dark release-tap
           shoot controller-menu-dark controller-menu
           shoot virtual-controller-menu-dark virtual-controller-menu
+          shoot controller-apps-dark controller-apps
+          shoot controller-app-open-dark controller-app-open
+          shoot virtual-controller-apps-dark virtual-controller-apps
           shoot ticket-menu-dark ticket-menu
           shoot release-menu-dark release-menu
           shoot chat-link-tap-dark chat-link-tap
@@ -378,6 +384,9 @@ jobs:
           shoot large-text-ticket ticket
           shoot large-text-controller-menu controller-menu
           shoot large-text-virtual-controller-menu virtual-controller-menu
+          shoot large-text-controller-apps controller-apps
+          shoot large-text-controller-app-open controller-app-open
+          shoot large-text-virtual-controller-apps virtual-controller-apps
           shoot large-text-ticket-menu ticket-menu
           shoot large-text-release-menu release-menu
           shoot large-text-chat-link-tap chat-link-tap

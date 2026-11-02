@@ -281,6 +281,8 @@ struct SiteView: View {
             if appModel.isDemo {
                 if DemoOptions.screen == "incident", let incident = siteModel.incidents.first { path.append(.incident(incident)) }
                 if DemoOptions.screen == "controller" || DemoOptions.screen == "controller-screen" || DemoOptions.screen == "controller-menu", let controller = siteModel.controllers.first { path.append(.controller(controller)) }
+                if DemoOptions.screen == "controller-apps" || DemoOptions.screen == "controller-app-open", let controller = siteModel.controllers.first { path.append(.controller(controller)) }
+                if DemoOptions.screen == "virtual-controller-apps", let virtual = siteModel.virtualControllers.first { path.append(.virtualController(virtual)) }
                 if DemoOptions.screen == "controller-settings", let controller = siteModel.controllers.first {
                     path.append(.controller(controller))
                     path.append(.controllerSettings(controller))
@@ -661,8 +663,22 @@ struct ControllerDetailView: View {
     @State private var isLinkCopied = false
 
     var body: some View {
+        ScrollViewReader { proxy in
+            listContent
+                .task { await scrollToAppsInDemo(proxy) }
+        }
+    }
+
+    /// The demo's Apps screens start scrolled to the section, since the page is longer than the screen at large text sizes.
+    private func scrollToAppsInDemo(_ proxy: ScrollViewProxy) async {
+        guard appModel.isDemo, DemoOptions.screen?.hasSuffix("-apps") == true else { return }
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        proxy.scrollTo(WebAppsSection.scrollID, anchor: .top)
+    }
+
+    private var listContent: some View {
         let server = session.account.server
-        List { PortalRows {
+        return List { PortalRows {
             Section {
                 StatusValueRow(
                     title: "Status", symbol: controller.isOnline ? "checkmark.circle" : "circle.slash",
@@ -685,6 +701,9 @@ struct ControllerDetailView: View {
                 entry(controller.screenEntry(server: server), title: "Screen", systemImage: "display") { url in
                     screenSession = appModel.makeScreenSession(for: session.account, url: url)
                 }
+            }
+            if controller.can("controller:connect") {
+                WebAppsSection(controllerId: controller.id, virtualControllerId: nil, canOpenCloud: controller.cloudEntry(server: server, syncedUsers: syncedUsers).isOpen)
             }
             extraSections
         } }
@@ -1000,8 +1019,22 @@ struct VirtualControllerDetailView: View {
     var virtual: VirtualControllerSummary { current ?? initial }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            listContent
+                .task { await scrollToAppsInDemo(proxy) }
+        }
+    }
+
+    /// The demo's Apps screens start scrolled to the section, since the page is longer than the screen at large text sizes.
+    private func scrollToAppsInDemo(_ proxy: ScrollViewProxy) async {
+        guard appModel.isDemo, DemoOptions.screen?.hasSuffix("-apps") == true else { return }
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        proxy.scrollTo(WebAppsSection.scrollID, anchor: .top)
+    }
+
+    private var listContent: some View {
         let server = session.account.server
-        List { PortalRows {
+        return List { PortalRows {
             Section {
                 StatusValueRow(
                     title: "Status", symbol: virtual.isRunning ? "checkmark.circle" : "circle.slash",
@@ -1023,6 +1056,9 @@ struct VirtualControllerDetailView: View {
                 row(virtual.screenEntry(server: server), title: "Screen", systemImage: "display") { url in
                     screenSession = appModel.makeScreenSession(for: session.account, url: url)
                 }
+            }
+            if virtual.isRunning && virtual.can("virtual_controller:connect") {
+                WebAppsSection(controllerId: nil, virtualControllerId: virtual.id, canOpenCloud: false)
             }
         } }
         .portalList()

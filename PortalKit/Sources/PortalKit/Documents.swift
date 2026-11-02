@@ -207,6 +207,7 @@ public enum Documents {
         documents += virtualControllerLiveDocuments
         documents += accountSecurityDocuments
         documents += peopleDocuments
+        documents += webAppDocuments
         return documents
     }
 }

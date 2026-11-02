@@ -334,6 +334,12 @@ struct DemoTransport: HTTPTransport {
         if let path = request.url?.path, path.hasPrefix("/api/v1/unifiprotect/") {
             return DemoCameraPaths.respond(to: request)
         }
+        if let path = request.url?.path, path.contains("/webapp/"), path.hasSuffix("/icon") {
+            // Most demo apps have an icon (one of them an SVG, as real apps ship); one is listed with an icon the server does not have.
+            let icon = DemoWebApps.icon(forPath: path)
+            let response = HTTPURLResponse(url: request.url!, statusCode: icon == nil ? 404 : 200, httpVersion: nil, headerFields: ["Content-Type": icon?.contentType ?? "text/plain"])!
+            return (icon?.data ?? Data(), response)
+        }
         if let path = request.url?.path, path.hasPrefix("/api/v1/user/") || path.hasPrefix("/api/v1/organization/") || path.hasPrefix("/api/v1/attachment/") {
             // Two demo people and one organization have a picture; everyone else gets a 404 and keeps their initials.
             let image = DemoPictures.jpeg(forPath: path)
@@ -382,7 +388,7 @@ struct DemoTransport: HTTPTransport {
         case "ServerCapabilities":
             return [
                 "__schema": [
-                    "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"]]],
+                    "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"]]],
                     "mutationType": ["fields": [["name": "sendMessage"], ["name": "registerPushDevice"], ["name": "startDirectChat"]]],
                     "subscriptionType": ["fields": [["name": "onConversationEvent"]]],
                 ]
@@ -578,6 +584,8 @@ struct DemoTransport: HTTPTransport {
                     ["controllerId": "controller02", "isAvailable": false],
                 ]
             ]
+        case "ListControllerWebApps":
+            return ["ListControllerWebApps": DemoWebApps.list(controllerId: variables["controllerId"] as? String, virtualControllerId: variables["virtualControllerId"] as? String)]
         case "ListSiteUserIDs":
             return ["ListSiteUserIDs": ["user01", "user02", "user03"]]
         case "ListOrganizationUsers":
@@ -1194,5 +1202,72 @@ enum DemoPictures {
                 UIBezierPath(ovalIn: CGRect(x: 35, y: 115, width: 130, height: 130)).fill()
             }
         }
+    }
+}
+
+
+/// DemoWebApps is the invented apps of the demo controller and virtual controller, and the icons the demo server serves for them.
+enum DemoWebApps {
+    private struct App {
+        let id: String
+        let name: String
+        /// An SF Symbol drawn white on a colored square, or nil for the app that has no icon.
+        let symbol: String?
+        let color: UIColor
+        let isIconMissing: Bool
+    }
+
+    private static let apps: [App] = [
+        App(id: "pick-monitor", name: "Pick Monitor", symbol: "gauge.with.dots.needle.bottom.50percent", color: .systemOrange, isIconMissing: false),
+        App(id: "line-statistics", name: "Line Statistics", symbol: nil, color: .systemBlue, isIconMissing: false),
+        App(id: "station-setup", name: "Station Setup", symbol: "slider.horizontal.3", color: .systemGreen, isIconMissing: false),
+        App(id: "calibration-helper", name: "Calibration Helper", symbol: "scope", color: .systemPurple, isIconMissing: false),
+        App(id: "device-console", name: "Device Console", symbol: "terminal", color: .systemGray, isIconMissing: false),
+        App(id: "order-board", name: "Order Board", symbol: "list.bullet.rectangle", color: .systemTeal, isIconMissing: false),
+        App(id: "inbound-and-outbound-station-manager", name: "Inbound and Outbound Station Manager", symbol: nil, color: .systemIndigo, isIconMissing: true),
+        App(id: "packing-review", name: "Packing Review", symbol: "shippingbox", color: .systemBrown, isIconMissing: true),
+    ]
+
+    /// The apps ListControllerWebApps answers for the demo's controllers: the online controller has eight, the virtual controller four,
+    /// and the offline one has none to offer.
+    static func list(controllerId: String?, virtualControllerId: String?) -> [String: Any] {
+        let isVirtual = virtualControllerId != nil
+        if controllerId == "controller02" { return ["isAvailable": false, "source": NSNull(), "webApps": []] }
+        let shown = isVirtual ? apps.filter { ["pick-monitor", "station-setup", "device-console", "calibration-helper"].contains($0.id) } : apps
+        let prefix = isVirtual ? "/api/v1/virtualcontroller/\(virtualControllerId ?? "")" : "/api/v1/controller/\(controllerId ?? "")"
+        return [
+            "isAvailable": true, "source": isVirtual ? "virtual" : "live",
+            "webApps": shown.map { app -> [String: Any] in
+                // The one with no icon at all has no icon address; "Packing Review" has an address the server cannot serve.
+                let hasIconAddress = app.symbol != nil || app.id == "line-statistics"
+                return [
+                    "webAppId": app.id, "name": app.name, "versionString": "1.0.0", "openPath": "/app/\(app.id)",
+                    "iconUrl": hasIconAddress ? "\(prefix)/webapp/\(app.id)/icon" : NSNull(),
+                ]
+            },
+        ]
+    }
+
+    static func icon(forPath path: String) -> (data: Data, contentType: String)? {
+        let parts = path.split(separator: "/")
+        guard let index = parts.firstIndex(of: "webapp"), index + 1 < parts.count, let app = apps.first(where: { $0.id == String(parts[index + 1]) }), !app.isIconMissing else { return nil }
+        guard let symbol = app.symbol else {
+            let svg = """
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#2f6fde"/>\
+                <rect x="22" y="48" width="12" height="28" fill="white"/><rect x="42" y="32" width="12" height="44" fill="white"/>\
+                <rect x="62" y="20" width="12" height="56" fill="white"/></svg>
+                """
+            return (Data(svg.utf8), "image/svg+xml")
+        }
+        let size = CGSize(width: 128, height: 128)
+        let data = UIGraphicsImageRenderer(size: size).pngData { _ in
+            app.color.setFill()
+            UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 28).fill()
+            let configuration = UIImage.SymbolConfiguration(pointSize: 64, weight: .semibold)
+            if let image = UIImage(systemName: symbol, withConfiguration: configuration)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
+                image.draw(in: CGRect(x: (size.width - image.size.width) / 2, y: (size.height - image.size.height) / 2, width: image.size.width, height: image.size.height))
+            }
+        }
+        return (data, "image/png")
     }
 }

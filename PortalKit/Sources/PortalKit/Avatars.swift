@@ -10,6 +10,8 @@ public struct AvatarSubject: Hashable, Sendable {
     public enum Kind: String, Sendable {
         case user
         case organization
+        /// Any other picture of the server, such as a web app's icon: `id` is its path.
+        case picture
     }
 
     public let kind: Kind
@@ -27,6 +29,7 @@ public struct AvatarSubject: Hashable, Sendable {
         switch kind {
         case .user: "/api/v1/user/\(id)/avatar"
         case .organization: "/api/v1/organization/\(id)/logo"
+        case .picture: id
         }
     }
 
