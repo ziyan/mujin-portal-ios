@@ -30,6 +30,15 @@ final class ChatListModel {
         await load()
     }
 
+    /// Reads the list after a chat was started, again for a moment if a replica is behind and does not list it yet.
+    func didStart(conversationId: String) async {
+        for attempt in 0..<4 {
+            await load()
+            if chats.contains(where: { $0.id == conversationId }) { return }
+            if attempt < 3 { try? await Task.sleep(nanoseconds: 1_500_000_000) }
+        }
+    }
+
     func load() async {
         do {
             chats = try await connection.chats(search: searchText)

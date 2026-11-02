@@ -9,6 +9,8 @@ struct ConversationView: View {
     let account: Account
     let conversationId: String
     let title: String?
+    /// Told when the server gives the conversation a new title, so the list shows it too.
+    var onTitleChanged: ((String) -> Void)?
 
     @State private var model: ConversationModel?
     @State private var voice: VoiceCallController?
@@ -103,6 +105,7 @@ struct ConversationView: View {
                 conversationId: conversationId, currentUserId: account.userId, connection: appModel.connection(for: account),
                 socketFactory: appModel.socketFactory,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
+            conversationModel.onTitleChanged = { onTitleChanged?($0) }
             model = conversationModel
             takeReference()
             voice?.end()

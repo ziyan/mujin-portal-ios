@@ -12,6 +12,8 @@ struct ComposeMessageView: View {
     /// What a screen asked to ask about, or the words waiting in the box.
     var request: SessionModel.ComposeRequest?
     let onSent: (String) -> Void
+    /// Told what was started, for a list that shows it before the server is asked: the text sent and whether it is a chat with people.
+    var onStarted: ((_ conversationId: String, _ text: String, _ isChat: Bool) -> Void)?
     /// People already chosen, such as the other person of a chat that becomes a group.
     var initialPicked: [ChatCandidate] = []
     /// A conversation with the assistant this one carries a reference to.
@@ -159,6 +161,7 @@ struct ComposeMessageView: View {
             let conversationId = try await connection.startConversation(
                 withPeople: picked.map(\.userId), groupName: name, text: text, viewing: picked.isEmpty ? request?.viewing.map { Viewing(kind: $0.kind, id: $0.id, label: request?.subject) } : nil)
             dismiss()
+            onStarted?(conversationId, text, !picked.isEmpty)
             onSent(conversationId)
         } catch {
             errorText = error.userMessage
