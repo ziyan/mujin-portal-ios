@@ -657,8 +657,11 @@ struct ControllerDetailView: View {
                 HStack {
                     Text("Status")
                     Spacer(minLength: 8)
-                    Label(controller.isOnline ? "Online" : "Offline", systemImage: controller.isOnline ? "checkmark.circle" : "circle.slash")
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        Image(systemName: controller.isOnline ? "checkmark.circle" : "circle.slash").accessibilityHidden(true)
+                        Text(controller.isOnline ? "Online" : "Offline")
+                    }
+                    .foregroundStyle(.secondary)
                 }
                 // The separator starts at the row's edge, not at the label's.
                 .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
@@ -970,8 +973,12 @@ struct VirtualControllerDetailView: View {
                 HStack {
                     Text("Status")
                     Spacer(minLength: 8)
-                    Label(virtual.isRunning ? "Running" : LocalizedStringKey(virtual.status ?? ""), systemImage: virtual.isRunning ? "checkmark.circle" : "circle.slash")
-                        .foregroundStyle(.secondary)
+                    // The value is a symbol and a text, not a Label: a list takes a Label for the start of the row's separator.
+                    HStack(spacing: 6) {
+                        Image(systemName: virtual.isRunning ? "checkmark.circle" : "circle.slash").accessibilityHidden(true)
+                        Text(virtual.isRunning ? LocalizedStringKey("Running") : LocalizedStringKey(virtual.status ?? ""))
+                    }
+                    .foregroundStyle(.secondary)
                 }
                 .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                 if let comment = virtual.comment, !comment.isEmpty { LabeledContent("Comment") { Text(comment) } }
