@@ -181,6 +181,7 @@ jobs:
           shoot photo-chat photo-chat
           shoot main-chat main-chat
           shoot chat-info chat-info
+          shoot chat-add-people chat-add-people
           shoot chats-new chats-new
           shoot chats-new-staff chats-new-group staff
           shoot chats-staff chats staff
@@ -197,6 +198,11 @@ jobs:
           shoot release-image release-image
           shoot releases releases
           shoot release-tap release-tap
+          shoot controller-menu controller-menu
+          shoot virtual-controller-menu virtual-controller-menu
+          shoot ticket-menu ticket-menu
+          shoot release-menu release-menu
+          shoot chat-link-tap chat-link-tap
           shoot voice voice
           shoot site-orchestrators site-orchestrators
           shoot site-members site-members
@@ -317,6 +323,11 @@ jobs:
           shoot knowledge-dark memory-page
           shoot knowledge-list-dark knowledge
           shoot release-tap-dark release-tap
+          shoot controller-menu-dark controller-menu
+          shoot virtual-controller-menu-dark virtual-controller-menu
+          shoot ticket-menu-dark ticket-menu
+          shoot release-menu-dark release-menu
+          shoot chat-link-tap-dark chat-link-tap
           shoot notifications-dark notifications
           shoot sites-staff-dark sites-staff staff
           shoot incidents-staff incidents staff
@@ -358,6 +369,11 @@ jobs:
           shoot large-text-list list
           shoot large-text-tickets tickets
           shoot large-text-ticket ticket
+          shoot large-text-controller-menu controller-menu
+          shoot large-text-virtual-controller-menu virtual-controller-menu
+          shoot large-text-ticket-menu ticket-menu
+          shoot large-text-release-menu release-menu
+          shoot large-text-chat-link-tap chat-link-tap
           shoot large-text-site site
           shoot large-text-cameras cameras
           shoot large-text-cameras-failed cameras-failed

@@ -419,6 +419,39 @@ struct DemoTransport: HTTPTransport {
             return ["StartDirectChat": ["chat": ["id": "chat01"], "conversation": ["id": "chatconv01"]]]
         case "CreateGroupChat":
             return ["CreateGroupChat": ["chat": ["id": "chat02"], "conversation": ["id": "chatconv02"]]]
+        case "AddChatMembers":
+            // As on the server: the people join the same chat, and a direct chat becomes a group of everyone, its two people administrators.
+            let chatId = variables["chatId"] as? String ?? ""
+            let userIds = variables["userIds"] as? [String] ?? []
+            let names = ["user02": "Sam Sample", "user03": "Robin Demo", "user04": "Jordan Placeholder", "user05": "Ana Support"]
+            let chat = state.withData { data -> [String: Any] in
+                guard let index = data.chats.firstIndex(where: { ($0["chat"] as? [String: Any])?["id"] as? String == chatId }),
+                    var room = data.chats[index]["chat"] as? [String: Any]
+                else { return [:] }
+                var members = room["members"] as? [[String: Any]] ?? []
+                if room["chatKind"] as? String == "direct" {
+                    members = members.map { var member = $0; member["isAdmin"] = true; return member }
+                    room["chatKind"] = "group"
+                    room["isReaderAdmin"] = true
+                }
+                for userId in userIds where !members.contains(where: { $0["userId"] as? String == userId }) {
+                    members.append([
+                        "id": "member-\(userId)", "userId": userId, "userName": names[userId] ?? userId, "organizationId": "organization01",
+                        "organizationName": "Example Logistics", "isMujinUser": false, "isAdmin": false, "lastReadMessageId": NSNull(), "leftAt": NSNull(),
+                        "notificationLevel": "all",
+                    ])
+                }
+                room["members"] = members
+                if room["name"] is NSNull || room["name"] == nil {
+                    let name = members.compactMap { ($0["userName"] as? String)?.split(separator: " ").first.map(String.init) }.joined(separator: ", ")
+                    room["name"] = name
+                    room["displayName"] = name
+                    data.chats[index]["title"] = name
+                }
+                data.chats[index]["chat"] = room
+                return room
+            }
+            return ["AddChatMembers": ["chat": chat]]
         case "ListMessageLinkPreviews":
             let ids = variables["messageIds"] as? [String] ?? []
             return [
@@ -496,6 +529,14 @@ struct DemoTransport: HTTPTransport {
                     ], "meta": ["totalCount": 2],
                 ]
             ]
+        case "GetController":
+            let controllerId = variables["controllerId"] as? String ?? ""
+            let known: [[String: Any]] = [
+                ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write", "controller:edit", "backup:delete"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
+                ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
+            ]
+            if let controller = known.first(where: { ($0["id"] as? String) == controllerId }) { return ["GetController": controller] }
+            return ["GetController": NSNull()]
         case "ListControllerTelemetrySummaries":
             return [
                 "ListControllerTelemetrySummaries": [
@@ -667,6 +708,10 @@ struct DemoTransport: HTTPTransport {
         case "GetTicket":
             let ticketId = variables["ticketId"] as? String ?? ""
             return ["GetTicket": state.withData { $0.tickets.first { ($0["id"] as? String) == ticketId } ?? [:] }]
+        case "GetTicketBySequence":
+            let sequence = (variables["sequence"] as? NSNumber)?.intValue ?? 0
+            if let ticket = state.withData({ data in data.tickets.first { ($0["sequence"] as? Int) == sequence } }) { return ["GetTicketBySequence": ticket] }
+            return ["GetTicketBySequence": NSNull()]
         case "ListTicketComments":
             let ticketId = variables["ticketId"] as? String ?? ""
             let showsInternal = DemoOptions.isStaff

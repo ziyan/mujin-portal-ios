@@ -39,6 +39,8 @@ final class AppModel {
     var pendingRoute: PendingRoute?
     /// The memory page a citation in an answer points at, shown over whatever is open.
     var openedCitation: MemoryCitation?
+    /// A page of Portal a tapped link asked for, shown in a sheet.
+    var openedLink: OpenedLink?
     /// Said once at the top of the screen, such as a sign-in the server ended.
     var notice: String?
 
@@ -110,9 +112,11 @@ final class AppModel {
         return connection
     }
 
-    /// Decides where a tapped link opens: Portal and its controllers in the
-    /// built-in browser, other web addresses in Safari's view, anything else
-    /// (mail, phone) in the system.
+    /// Decides where a tapped link opens: a page the app has a screen for
+    /// (a ticket, controller, virtual controller or release on the account's
+    /// own server) in that screen, other Portal pages and the controllers in
+    /// the built-in browser, other web addresses in Safari's view, anything
+    /// else (mail, phone) in the system.
     func handleLink(_ url: URL) -> OpenURLAction.Result {
         // A memory citation in an answer opens the page it cites.
         if let citation = MemoryCitation(url: url) {
@@ -122,6 +126,10 @@ final class AppModel {
         guard let account = activeAccount else { return .systemAction }
         switch LinkClassifier.classify(url, server: account.server) {
         case .portal, .controller:
+            if let link = PortalLink(url: url, server: account.server) {
+                openedLink = OpenedLink(link: link)
+                return .handled
+            }
             Task { await openInApp(url, account: account) }
             return .handled
         case .external:
