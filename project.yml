@@ -55,9 +55,6 @@ targets:
           - $(MUJINPORTAL_APP_GROUP)
         com.apple.developer.usernotifications.communication: true
         com.apple.developer.usernotifications.time-sensitive: true
-        # The link a controller shows as a QR code opens the approval in the app.
-        com.apple.developer.associated-domains:
-          - applinks:portal.mujin.cloud
         # The shared group comes first, which is where an item goes when no
         # group is named.
         keychain-access-groups:
