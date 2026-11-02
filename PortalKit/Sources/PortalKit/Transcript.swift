@@ -560,7 +560,7 @@ public struct Transcript: Equatable, Sendable {
             let arguments = (try? JSONEncoder().encode(["switchReason": modelSwitch.switchReason ?? ""])).flatMap { String(data: $0, encoding: .utf8) } ?? ""
             entries.append(.tool(ToolActivity(id: id, name: ToolActivity.thinkHarderToolName, arguments: arguments, result: "")))
             liveEntryIds.insert("tool:\(id)")
-        case .chatSaid, .chatEdited, .chatDeleted, .chatReacted, .chatMembers, .chatTyping, .chatRead, .chatLinkPreview, nil:
+        case .conversationUpdated, .chatSaid, .chatEdited, .chatDeleted, .chatReacted, .chatMembers, .chatTyping, .chatRead, .chatLinkPreview, nil:
             // Chat events belong to ChatTimeline.
             return
         }

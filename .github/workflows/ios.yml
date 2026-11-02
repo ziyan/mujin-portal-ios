@@ -153,6 +153,7 @@ jobs:
           }
           shoot list list
           shoot list-started list-started
+          shoot title-event title-event
           shoot approval conversation:conversation02
           shoot answer conversation:conversation01
           shoot share share

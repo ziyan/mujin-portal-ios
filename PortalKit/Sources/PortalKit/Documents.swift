@@ -145,6 +145,7 @@ public enum Documents {
             runError { error turnEndReason reasonKind reasonParameters }
             roundRetry { discardedMessageId }
             reacted { messageId emoji reactorKind reactorUserId }
+            conversationUpdated { conversationId conversationTitle isTitleCustom }
             modelSwitch { switchCause switchReason }
             chat {
               type chatId messageId messageCreatedAt actorUserId actorUserName isActorAssistant lastReadMessageId memberChangeKind affectedUserIds
