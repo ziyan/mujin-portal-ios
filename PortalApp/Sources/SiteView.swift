@@ -305,7 +305,7 @@ struct SiteView: View {
                     path.removeAll()
                 }
                 if DemoOptions.screen == "site-controllers" { path.append(.siteList(.controllers, organizationKey: siteModel.sessionKey)) }
-                if DemoOptions.screen == "cameras" { path.append(.siteList(.cameras, organizationKey: siteModel.sessionKey)) }
+                if DemoOptions.screen == "cameras" || DemoOptions.screen == "cameras-failed" { path.append(.siteList(.cameras, organizationKey: siteModel.sessionKey)) }
                 if let camera = siteModel.cameras.first,
                     let target = DemoCameraScreens.target(for: DemoOptions.screen, camera: camera, incidentDetectedAt: siteModel.incidents.first?.detectedDate)
                 {
