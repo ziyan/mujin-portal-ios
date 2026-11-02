@@ -297,7 +297,7 @@ struct SiteView: View {
                 if DemoOptions.screen == "site-orchestrators" { path.append(.siteList(.orchestrators, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "site-mobile-robots" { path.append(.siteList(.mobileRobots, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "site-alarms" { path.append(.siteList(.alarms, organizationKey: siteModel.sessionKey)) }
-                if DemoOptions.screen == "site-alarm-detail", let alarm = siteModel.alarms.first {
+                if DemoOptions.screen == "site-alarm-detail" || DemoOptions.screen == "site-alarm-metadata", let alarm = siteModel.alarms.first {
                     path.append(.alarm(alarm, controller: siteModel.controllers.first { $0.id == alarm.controllerId }))
                 }
                 if DemoOptions.screen == "site-members" { path.append(.siteList(.members, organizationKey: siteModel.sessionKey)) }

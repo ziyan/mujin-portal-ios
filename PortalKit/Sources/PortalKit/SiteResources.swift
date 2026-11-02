@@ -57,6 +57,17 @@ public struct SiteOrchestrators: Decodable, Equatable, Identifiable, Sendable {
             return text
         }
 
+        /// The type in words: the known concatenated names split, any other with its underscores turned into spaces.
+        public var displayName: String {
+            let type = orchestratorType ?? id
+            switch type {
+            case "productioncycle": return "Production cycle"
+            case "warehouseexecution": return "Warehouse execution"
+            case "fleet": return "Fleet"
+            default: return type.replacingOccurrences(of: "_", with: " ").capitalized
+            }
+        }
+
         /// True only when the line itself is running. Paused, Stopping and the other in-between
         /// statuses are not running.
         public var isRunning: Bool { ownStatus == "Running" }

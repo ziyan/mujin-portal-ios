@@ -34,7 +34,7 @@ struct OrchestratorRow: View {
 
     private var title: some View {
         HStack(spacing: 6) {
-            Text(showsID ? (orchestrator.orchestratorId ?? orchestrator.id) : (orchestrator.orchestratorType ?? orchestrator.id).replacingOccurrences(of: "_", with: " ").capitalized)
+            Text(showsID ? (orchestrator.orchestratorId ?? orchestrator.id) : orchestrator.displayName)
                 .foregroundStyle(.primary)
             if orchestrator.hasError == true {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.statusError).accessibilityLabel(Text("Has an error"))
@@ -75,17 +75,9 @@ struct RobotRow: View {
             if showsController, !robot.controllerId.isEmpty {
                 Text(robot.controllerId).font(.footnote).foregroundStyle(.secondary)
             }
-            HStack(spacing: 10) {
-                if let power = robot.powerLevel {
-                    Label {
-                        Text(power, format: .percent.precision(.fractionLength(0)))
-                    } icon: {
-                        Image(systemName: robot.isCharging ? "battery.100.bolt" : "battery.50")
-                    }
-                    .accessibilityLabel(Text("Battery \(power.formatted(.percent.precision(.fractionLength(0))))"))
-                }
-                if robot.isCharging { Text("Charging") }
-                if robot.isLoaded == true { Text("Loaded") }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { detailParts }
+                VStack(alignment: .leading, spacing: 2) { detailParts }
             }
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -94,6 +86,20 @@ struct RobotRow: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var detailParts: some View {
+        if let power = robot.powerLevel {
+            Label {
+                Text(power, format: .percent.precision(.fractionLength(0))).fixedSize()
+            } icon: {
+                Image(systemName: robot.isCharging ? "battery.100.bolt" : "battery.50")
+            }
+            .accessibilityLabel(Text("Battery \(power.formatted(.percent.precision(.fractionLength(0))))"))
+        }
+        if robot.isCharging { Text("Charging") }
+        if robot.isLoaded == true { Text("Loaded") }
     }
 
     private var nameView: some View {
@@ -131,6 +137,7 @@ struct AlarmDetailView: View {
     @State private var didCopy = false
 
     var body: some View {
+        ScrollViewReader { proxy in
         List { PortalRows {
             Section {
                 LabeledContent("Severity") { Text(severityText).foregroundStyle(alarm.severityRank <= 1 ? Color.statusError : Color.statusWarning) }
@@ -157,6 +164,27 @@ struct AlarmDetailView: View {
                     Text("Not reported").foregroundStyle(.secondary)
                 }
             }
+            Section("Metadata") {
+                if isLoading {
+                    ProgressView()
+                } else if didFail {
+                    Label("Could not load the details", systemImage: "exclamationmark.triangle").foregroundStyle(Color.statusError)
+                } else if let detail, !detail.metadataEntries.isEmpty {
+                    Text(detail.metadataJSON)
+                        .font(.footnote.monospaced())
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .id("metadata")
+                    Button {
+                        UIPasteboard.general.string = detail.metadataJSON
+                        didCopy = true
+                    } label: {
+                        Label(didCopy ? LocalizedStringKey("Copied") : LocalizedStringKey("Copy"), systemImage: didCopy ? "checkmark" : "doc.on.doc")
+                    }
+                } else {
+                    Text("No metadata reported").foregroundStyle(.secondary)
+                }
+            }
             if let logEntryId = nonEmpty(alarm.logEntryId) {
                 Section("Origin") {
                     VStack(alignment: .leading, spacing: 2) {
@@ -174,31 +202,19 @@ struct AlarmDetailView: View {
                     }
                 }
             }
-            Section("Metadata") {
-                if isLoading {
-                    ProgressView()
-                } else if didFail {
-                    Label("Could not load the details", systemImage: "exclamationmark.triangle").foregroundStyle(Color.statusError)
-                } else if let detail, !detail.metadataEntries.isEmpty {
-                    Text(detail.metadataJSON)
-                        .font(.footnote.monospaced())
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Button {
-                        UIPasteboard.general.string = detail.metadataJSON
-                        didCopy = true
-                    } label: {
-                        Label(didCopy ? LocalizedStringKey("Copied") : LocalizedStringKey("Copy"), systemImage: didCopy ? "checkmark" : "doc.on.doc")
-                    }
-                } else {
-                    Text("No metadata reported").foregroundStyle(.secondary)
-                }
-            }
         } }
         .portalList()
         .navigationTitle("Alarm")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: alarm.id) { await load() }
+        .task(id: alarm.id) {
+            await load()
+            // The screenshot of the metadata scrolls to it: the screen is taller than the display.
+            if appModel.isDemo, DemoOptions.screen == "site-alarm-metadata" {
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                withAnimation { proxy.scrollTo("metadata", anchor: UnitPoint(x: 0.5, y: 0.1)) }
+            }
+        }
+        }
     }
 
     private var severityText: String {
