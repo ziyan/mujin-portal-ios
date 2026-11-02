@@ -275,6 +275,8 @@ struct CameraDetailView: View {
                     }
                 }
                 .padding(16)
+                // The picture is a fixed 16 by 9, so its message stops growing with the text size before it would be cut off.
+                .dynamicTypeSize(...DynamicTypeSize.large)
             case .ended:
                 Text(player.notice ?? "").font(.footnote).foregroundStyle(.white).multilineTextAlignment(.center).padding(16)
             case .idle, .playing:
@@ -380,7 +382,7 @@ struct StreamChip: View {
         switch player.status {
         case .stalled: "No data"
         case .reconnecting: "Reconnecting"
-        case .failed: "Offline"
+        case .failed: player.isRecordingUnsupported ? "No recording" : "Offline"
         case .connecting, .idle: player.isLive ? "Connecting" : "Loading"
         case .ended: "No recording"
         case .playing: player.isPaused ? "Paused" : (player.isLive ? "Live" : "Recorded")
