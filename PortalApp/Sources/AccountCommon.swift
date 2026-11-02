@@ -65,7 +65,7 @@ struct AccountSettingsSection: View {
     var body: some View {
         Section("Account") {
             accountLink(.profile, "Profile and preferences", "person.crop.circle")
-            accountLink(.sessions, "Sessions", "laptopcomputer.and.iphone")
+            accountLink(.sessions, "Sessions", "iphone")
             accountLink(.passkeys, "Passkeys", "person.badge.key")
             accountLink(.tokens, "API tokens", "key")
             accountLink(.authorizedApps, "Authorized apps", "app.badge.checkmark")
@@ -94,7 +94,7 @@ struct AccountMoreSections: View {
                     link(.organizations, "People by organization", "person.2")
                 } else if let organizationId = session.organizationId {
                     if access.canSeeMembers(in: organizationId) { link(.members(organizationId: organizationId), "Members", "person.2") }
-                    if access.canSeeGroups(in: organizationId) { link(.groups(organizationId: organizationId), "Groups", "person.3") }
+                    if access.canSeeGroups(in: organizationId) { link(.groups(organizationId: organizationId), "Groups", "person.2.crop.square.stack") }
                     if access.canOpenRoles(in: organizationId) { link(.roles(organizationId: organizationId), "Roles", "checkmark.shield") }
                 }
             }

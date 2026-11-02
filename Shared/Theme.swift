@@ -28,8 +28,29 @@ struct PortalRows<Content: View>: View {
     var body: some View {
         Group { content }
             .listRowBackground(Color.portalCard)
+            .labelStyle(PortalRowLabelStyle())
             // Switches take the accent, not the system green.
             .tint(Color.accentColor)
+    }
+}
+
+/// PortalRowLabelStyle puts every row icon in one centered column, so a wide
+/// symbol and a narrow one line up and the titles start at the same place.
+struct PortalRowLabelStyle: LabelStyle {
+    @ScaledMetric(relativeTo: .body) private var iconColumnWidth = 28
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    func makeBody(configuration: Configuration) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            // At the accessibility sizes the icon column would leave too little width, and the title would break mid-word.
+            configuration.title
+        } else {
+            HStack(spacing: 12) {
+                configuration.icon
+                    .frame(width: iconColumnWidth, alignment: .center)
+                configuration.title
+            }
+        }
     }
 }
 

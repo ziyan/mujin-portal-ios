@@ -216,7 +216,7 @@ private struct SurveillanceFilterSection: Identifiable {
 /// SurveillanceRow is the row that opens the wall, in More and at the top of the Sites tab.
 struct SurveillanceRow: View {
     var body: some View {
-        Label("Surveillance", systemImage: "video")
+        Label("Surveillance", systemImage: "web.camera")
             .foregroundStyle(.primary)
     }
 }
