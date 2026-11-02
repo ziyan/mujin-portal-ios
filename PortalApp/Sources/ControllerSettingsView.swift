@@ -60,7 +60,7 @@ struct ControllerSettingsView: View {
     private func intervalPicker(seconds: Int64?, set: @escaping (Int64) -> Void) -> some View {
         Picker("Every", selection: Binding(get: { ControllerSettings.nearestChoice(to: seconds) }, set: set)) {
             ForEach(ControllerSettings.intervalChoices, id: \.self) { value in
-                Text(Duration.seconds(value).formatted(.units(allowed: [.weeks, .days, .hours, .minutes], width: .wide, maxUnitCount: 1))).tag(value)
+                Text(Duration.seconds(value).formatted(.units(allowed: [.weeks, .days, .hours, .minutes], width: .wide, maximumUnitCount: 1))).tag(value)
             }
         }
     }
