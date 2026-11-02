@@ -60,9 +60,13 @@ public struct AuditEvent: Codable, Equatable, Hashable, Identifiable, Sendable {
     /// The name of the resource when its snapshot holds one, and the end of its id when not.
     public var resourceName: String {
         for payload in [after, before] {
-            for key in ["name", "title", "email", "comment"] {
+            for key in ["name", "title", "email", "comment", "filename", "domain"] {
                 if let text = payload?[key]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty { return text }
             }
+        }
+        // A ticket with no title is still told apart by its number.
+        for payload in [after, before] {
+            if case .number(let number)? = payload?["sequence"] { return "#\(Int(number))" }
         }
         let identifier = resourceId ?? ""
         return identifier.count > 10 ? "…" + identifier.suffix(8) : identifier

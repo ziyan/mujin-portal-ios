@@ -18,6 +18,15 @@ import Testing
         #expect(event.resourceName == "New")
     }
 
+    @Test func aTicketWithoutATitleIsNamedByItsNumber() throws {
+        let event = try Self.event(#"{"id":"e4","resourceType":"ticket","resourceId":"01HZZZZZZZZZZZZZZZZZZZZZ","after":{"sequence":42,"status":"open"}}"#)
+        #expect(event.resourceName == "#42")
+        let titled = try Self.event(#"{"id":"e5","resourceType":"ticket","after":{"sequence":42,"title":"Scanner fault"}}"#)
+        #expect(titled.resourceName == "Scanner fault")
+        let file = try Self.event(#"{"id":"e6","resourceType":"attachment","after":{"filename":"photo.jpg"}}"#)
+        #expect(file.resourceName == "photo.jpg")
+    }
+
     @Test func anEventWithoutNamesFallsBackToWhatIsKnown() throws {
         let event = try Self.event(#"{"id":"e2","actorType":"system","resourceType":"ticket","resourceId":"01HZZZZZZZZZZZZZZZZZZZZZ"}"#)
         #expect(event.actorName == "System")

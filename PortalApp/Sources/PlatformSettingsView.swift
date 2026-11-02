@@ -166,13 +166,14 @@ struct PlatformWebRow: View {
     @Environment(SessionModel.self) private var session
     let title: LocalizedStringKey
     let path: String
+    var symbol = "safari"
 
     var body: some View {
         Button {
             WebPage(appModel: appModel, session: session).open(path)
         } label: {
             HStack {
-                Label(title, systemImage: "safari")
+                Label(title, systemImage: symbol)
                     .foregroundStyle(Color.primary)
                 Spacer()
                 Image(systemName: "arrow.up.right")
@@ -264,13 +265,17 @@ struct PlatformSettingsHub: View {
             PortalRows {
                 if access.isPlatformAdministrator {
                     Section {
-                        PlatformLink(destination: .organizations, title: "Organizations", symbol: "building.2")
+                        PlatformLink(destination: .organizations, title: "All organizations", symbol: "building.2")
+                    } header: {
+                        Text("Organizations")
                     } footer: {
                         Text("The profile, audit log and billing of each organization.")
                     }
                 } else if let organizationId = session.organizationId, access.hasOrganizationPages(organizationId) {
                     Section {
                         PlatformLink(destination: .organization(id: organizationId), title: "Your organization", symbol: "building.2")
+                    } header: {
+                        Text("Organizations")
                     }
                 }
                 if access.hasPlatformPages {
@@ -289,8 +294,8 @@ struct PlatformSettingsHub: View {
                 }
                 if access.isPlatformAdministrator {
                     Section {
-                        PlatformWebRow(title: "Email templates", path: "/settings/emailTemplates")
-                        PlatformWebRow(title: "OAuth clients", path: "/settings/oauthClients")
+                        PlatformWebRow(title: "Email templates", path: "/settings/emailTemplates", symbol: "envelope")
+                        PlatformWebRow(title: "OAuth clients", path: "/settings/oauthClients", symbol: "person.badge.key")
                     } header: {
                         Text("On the web")
                     } footer: {
@@ -300,6 +305,8 @@ struct PlatformSettingsHub: View {
                 if access.canSeeIncidentAlerts {
                     Section {
                         PlatformLink(destination: .incidentAlerts, title: "Incident alerts", symbol: "bell.badge")
+                    } header: {
+                        Text("Alerts")
                     }
                 }
             }
@@ -450,8 +457,8 @@ private struct OrganizationSettingsList: View {
                 }
                 if access.canEditOrganization(organizationId) {
                     Section {
-                        PlatformWebRow(title: "Email domains", path: "/organization/\(organizationId)/domains")
-                        PlatformWebRow(title: "Single sign-on", path: "/organization/\(organizationId)/sso")
+                        PlatformWebRow(title: "Email domains", path: "/organization/\(organizationId)/domains", symbol: "at")
+                        PlatformWebRow(title: "Single sign-on", path: "/organization/\(organizationId)/sso", symbol: "lock.shield")
                     } header: {
                         Text("On the web")
                     } footer: {
@@ -461,6 +468,8 @@ private struct OrganizationSettingsList: View {
                 if isHub, access.canSeeIncidentAlerts {
                     Section {
                         PlatformLink(destination: .incidentAlerts, title: "Incident alerts", symbol: "bell.badge")
+                    } header: {
+                        Text("Alerts")
                     }
                 }
                 if access.canSetOrganizationActive, organizationId != session.organizationId, let profile {

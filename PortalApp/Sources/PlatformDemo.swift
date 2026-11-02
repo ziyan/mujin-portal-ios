@@ -113,7 +113,7 @@ enum PlatformDemo {
         var events: [[String: Any]] = [
             event(1, ago: 12 * minute, actor: "alex@example.test", action: "update", resource: "virtual_controller", resourceId: "01HZAAAAAAAAAAAAAAAAAAAA01", before: ["name": "Training copy", "size": "small"], after: ["name": "Training copy", "size": "medium"]),
             event(2, ago: 55 * minute, actor: "sam@example.test", action: "create", resource: "group", resourceId: "01HZAAAAAAAAAAAAAAAAAAAA02", after: ["name": "Night shift", "description": "People on the night shift"], address: "198.51.100.7"),
-            event(3, ago: 3 * hour, actor: "System", actorType: "system", action: "update", resource: "ticket", resourceId: "01HZAAAAAAAAAAAAAAAAAAAA03", before: ["status": "open"], after: ["status": "solved"], address: ""),
+            event(3, ago: 3 * hour, actor: "System", actorType: "system", action: "update", resource: "ticket", resourceId: "01HZAAAAAAAAAAAAAAAAAAAA03", before: ["title": "Gripper drops boxes at pick station 3", "sequence": 12, "status": "open"], after: ["title": "Gripper drops boxes at pick station 3", "sequence": 12, "status": "solved"], address: ""),
             event(4, ago: 7 * hour, actor: "alex@example.test", action: "delete", resource: "api_token", resourceId: "01HZAAAAAAAAAAAAAAAAAAAA04", before: ["comment": "Nightly export script"]),
             event(5, ago: day, actor: "robin@example.test", action: "update", resource: "user", resourceId: "01HZAAAAAAAAAAAAAAAAAAAA05", before: ["name": "Robin Demo", "jobRole": ""], after: ["name": "Robin Demo", "jobRole": "Shift supervisor"], address: "192.0.2.55"),
             event(6, ago: 2 * day, actor: "alex@example.test", action: "create", resource: "role", resourceId: "01HZAAAAAAAAAAAAAAAAAAAA06", after: ["name": "Auditor", "permissions": ["site:read", "audit:read"]]),
@@ -122,12 +122,27 @@ enum PlatformDemo {
             event(9, ago: 9 * day, actor: "alex@example.test", action: "create", resource: "user", resourceId: "01HZAAAAAAAAAAAAAAAAAAAA09", after: ["name": "Casey Illustration", "email": "casey@example.test"]),
             event(10, ago: 21 * day, actor: "alex@example.test", action: "delete", resource: "group", resourceId: "01HZAAAAAAAAAAAAAAAAAAAA10", before: ["name": "Temporary crew"]),
         ]
+        let ticketTitles = ["Scanner misreads labels", "Conveyor stops at merge", "Gripper drops boxes", "Wrong pallet height reported", "Camera feed freezes"]
+        let pageTitles = ["Pick station start-up guide", "Shift handover checklist", "Charging area rules"]
+        let controllerNames = ["Training copy", "Line A rehearsal", "Dock robots test"]
+        let people = ["Robin Demo", "Jordan Placeholder", "Taylor Imaginary", "Morgan Fictional"]
         for number in 11...58 {
+            let kind = ["ticket", "page", "virtual_controller", "user"][number % 4]
+            let name: String
+            switch kind {
+            case "ticket": name = ticketTitles[number % ticketTitles.count]
+            case "page": name = pageTitles[number % pageTitles.count]
+            case "virtual_controller": name = controllerNames[number % controllerNames.count]
+            default: name = people[number % people.count]
+            }
+            let key = kind == "ticket" || kind == "page" ? "title" : "name"
+            var before: [String: Any] = [key: name, "comment": "Version \(number - 1)"]
+            var after: [String: Any] = [key: name, "comment": "Version \(number)"]
+            if kind == "ticket" { before["sequence"] = number; after["sequence"] = number }
             events.append(
                 event(
-                    number, ago: TimeInterval(number) * 14 * hour, actor: number % 3 == 0 ? "sam@example.test" : "alex@example.test", action: ["update", "create", "update"][number % 3],
-                    resource: ["ticket", "page", "virtual_controller", "user"][number % 4], resourceId: "01HZAAAAAAAAAAAAAAAAAAAA\(number)",
-                    before: ["title": "Pick station note \(number)"], after: ["title": "Pick station note \(number) (edited)"], address: number % 2 == 0 ? "203.0.113.24" : "198.51.100.7"))
+                    number, ago: TimeInterval(number) * 14 * hour, actor: number % 3 == 0 ? "sam@example.test" : "alex@example.test", action: "update", resource: kind,
+                    resourceId: "01HZAAAAAAAAAAAAAAAAAAAA\(number)", before: before, after: after, address: number % 2 == 0 ? "203.0.113.24" : "198.51.100.7"))
         }
         events.append(event(70, ago: 4 * hour, actor: "ana@example.test", action: "update", resource: "organization", resourceId: "organization02", before: ["name": "Sample Foods Ltd"], after: ["name": "Sample Foods"], address: "203.0.113.99", organizationId: "organization02"))
         events.append(event(71, ago: 30 * hour, actor: "pat@example.test", action: "create", resource: "ticket", resourceId: "01HZAAAAAAAAAAAAAAAAAAAA71", after: ["title": "Scanner misreads labels"], address: "192.0.2.12", organizationId: "organization02"))
