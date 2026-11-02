@@ -198,10 +198,32 @@ struct GoalDetailView: View {
         .background(Color.portalPage)
         .navigationTitle(goal?.title ?? "")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Stop this goal?", isPresented: $isConfirmingStop, titleVisibility: .visible) {
-            Button("Stop this goal", role: .destructive) { Task { await change { try await $0.stopGoal(id: goalId) } } }
-        } message: {
-            Text("The assistant stops working toward it. You can reopen it later.")
+        .toolbar {
+            if let goal {
+                ToolbarItem(placement: .primaryAction) {
+                    DetailMenu {
+                        if goal.isOpen {
+                            Section {
+                                Button { Task { await change { try await $0.markGoalMet(id: goalId, statusLine: goal.statusLine ?? "") } } } label: {
+                                    Label("Mark as done", systemImage: "checkmark.circle")
+                                }
+                            }
+                            Section {
+                                Button(role: .destructive) { isConfirmingStop = true } label: { Label("Stop this goal", systemImage: "stop.circle") }
+                            }
+                        } else {
+                            Button { Task { await change { try await $0.reopenGoal(id: goalId) } } } label: {
+                                Label("Reopen", systemImage: "arrow.uturn.backward")
+                            }
+                        }
+                    }
+                    .confirmationDialog("Stop this goal?", isPresented: $isConfirmingStop, titleVisibility: .visible) {
+                        Button("Stop this goal", role: .destructive) { Task { await change { try await $0.stopGoal(id: goalId) } } }
+                    } message: {
+                        Text("The assistant stops working toward it. You can reopen it later.")
+                    }
+                }
+            }
         }
         .task { await load() }
     }
@@ -258,14 +280,6 @@ struct GoalDetailView: View {
                                     Text(turn.activityStatus ?? "").font(.caption).foregroundStyle(.secondary)
                                 }
                             }
-                        }
-                    }
-                    Section {
-                        if goal.isOpen {
-                            Button("Mark as done") { Task { await change { try await $0.markGoalMet(id: goalId, statusLine: goal.statusLine ?? "") } } }
-                            Button("Stop this goal", role: .destructive) { isConfirmingStop = true }
-                        } else {
-                            Button("Reopen") { Task { await change { try await $0.reopenGoal(id: goalId) } } }
                         }
                     }
                     if let errorText { Section { Text(errorText).foregroundStyle(Color.statusError) } }

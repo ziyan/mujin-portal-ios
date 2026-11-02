@@ -170,6 +170,7 @@ struct ReleaseDetailView: View {
     @State private var tickets: [Ticket] = []
     @State private var neighbors: (newer: Release?, older: Release?) = (nil, nil)
     @State private var phase = LoadPhase.loading
+    @State private var isLinkCopied = false
 
     private static let shownCount = 5
 
@@ -205,7 +206,13 @@ struct ReleaseDetailView: View {
                 Button { if let older = neighbors.older { releaseId = older.id } } label: { Label("Older release", systemImage: "chevron.down") }
                     .disabled(neighbors.older == nil)
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                DetailMenu(demoScreen: "release-menu") {
+                    LinkMenuItems(link: .release(id: releaseId), isCopied: $isLinkCopied)
+                }
+            }
         }
+        .linkCopiedToast($isLinkCopied)
         .task(id: releaseId) { await load() }
     }
 

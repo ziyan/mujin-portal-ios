@@ -85,6 +85,7 @@ struct TicketDetailView: View {
     @State private var drafts = AttachmentDrafts()
     @State private var isInternal = false
     @State private var isConfirmingClose = false
+    @State private var isLinkCopied = false
 
     var body: some View {
         Group {
@@ -99,19 +100,22 @@ struct TicketDetailView: View {
         .toolbar {
             if let ticket = model?.ticket {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        AskAboutButton(viewing: Viewing(kind: "ticket", id: ticket.id), subject: ticket.displayName)
-                        if ticket.isOpenForWork || ticket.status == "solved" {
-                            Button(role: .destructive) {
-                                isConfirmingClose = true
-                            } label: {
-                                Label("Close ticket", systemImage: "checkmark.circle")
-                            }
-                        } else if ticket.status == "closed" {
-                            Button { Task { await model?.setClosed(false) } } label: { Label("Reopen ticket", systemImage: "arrow.uturn.backward") }
+                    DetailMenu(demoScreen: "ticket-menu") {
+                        if let sequence = ticket.sequence {
+                            Section { LinkMenuItems(link: .ticket(sequence: sequence), isCopied: $isLinkCopied) }
                         }
-                    } label: {
-                        Label("Ticket options", systemImage: "ellipsis.circle")
+                        Section { AskAboutButton(viewing: Viewing(kind: "ticket", id: ticket.id), subject: ticket.displayName) }
+                        Section {
+                            if ticket.isOpenForWork || ticket.status == "solved" {
+                                Button(role: .destructive) {
+                                    isConfirmingClose = true
+                                } label: {
+                                    Label("Close ticket", systemImage: "checkmark.circle")
+                                }
+                            } else if ticket.status == "closed" {
+                                Button { Task { await model?.setClosed(false) } } label: { Label("Reopen ticket", systemImage: "arrow.uturn.backward") }
+                            }
+                        }
                     }
                     .confirmationDialog("Close this ticket?", isPresented: $isConfirmingClose, titleVisibility: .visible) {
                         Button("Close ticket", role: .destructive) { Task { await model?.setClosed(true) } }
@@ -122,6 +126,7 @@ struct TicketDetailView: View {
             }
         }
         .attachmentPickers(drafts)
+        .linkCopiedToast($isLinkCopied)
         .toolbarVisibility(.hidden, for: .tabBar)
         .task(id: ticketId) {
             let detailModel = TicketDetailModel(
