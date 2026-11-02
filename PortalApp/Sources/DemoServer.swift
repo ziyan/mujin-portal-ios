@@ -113,6 +113,31 @@ final class DemoState: @unchecked Sendable {
                     > Nothing needs your action today.
                     """,
             ],
+            ["id": "m03", "role": "user", "content": "Show me the stations, and where the checklist is.", "createdAt": stamp(3_000)],
+            [
+                "id": "m04", "role": "assistant", "createdAt": stamp(2_950),
+                "content": """
+                    The checklist is at [Suction cup checklist](https://example.test/docs/suction) and the raw log is at https://example.test/logs/pressure.
+
+                    | Station | State | Picks |
+                    | :--- | :---: | ---: |
+                    | Station 1 | Running | 1,204 |
+                    | Station 2 | Idle | 87 |
+                    | Station 3 | **Fault** | 12 |
+                    """,
+            ],
+            [
+                "id": "m05", "role": "assistant", "createdAt": stamp(2_900),
+                "content": """
+                    The longer view, from `controller02`:
+
+                    | Station | Operator | Last pick | Picks today | Average cycle | Drops | Note |
+                    | --- | --- | --- | ---: | ---: | ---: | --- |
+                    | Station 1 | Robin Demo | 09:41:07 | 1,204 | 3.2 s | 2 | Hose replaced |
+                    | Station 2 | Jordan Placeholder | 08:15:52 | 87 | 4.8 s | 0 | Waiting for stock |
+                    | Station 3 | Not assigned | 07:02:30 | 12 | 9.6 s | 5 | See ticket #1 |
+                    """,
+            ],
         ]
         data.messages["conversation02"] = [
             ["id": "m10", "role": "user", "content": "Restart the planner on controller01.", "createdAt": stamp(200)],
@@ -198,6 +223,8 @@ final class DemoState: @unchecked Sendable {
             said("c6", "user02", "Sam Sample", "", 900, extra: ["deletedAt": stamp(880)]),
             said("c7", "user02", "Sam Sample", "That matches what I saw. I will schedule a hose replacement.", 700, extra: ["editedAt": stamp(650)]),
             said("c8", "user01", "Alex Example", "Thanks, please do.", 620),
+            said("c9", "user02", "Sam Sample", "Notes: [Suction cup checklist](https://example.test/docs/suction) and the log https://example.test/logs/pressure.", 540),
+            said("c10", "user02", "Sam Sample", "Dips this week:\n\n| Station | Dips | Lowest kPa |\n| :--- | ---: | ---: |\n| Station 3 | 4 | 31 |\n| Station 1 | 1 | 38 |", 500),
         ]
         data.messages["chatconv02"] = [
             said("d1", "user03", "Robin Demo", "Shift change at 14:00.", 7_200),

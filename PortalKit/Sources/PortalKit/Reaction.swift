@@ -53,8 +53,17 @@ public struct ReactionSummary: Equatable, Identifiable, Sendable {
 }
 
 public enum Reactions {
-    /// The emoji the long press offers, as the web does.
-    public static let palette = ["\u{1F44D}", "\u{1F44E}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F389}", "\u{1F64F}"]
+    /// The emoji a held message offers in one row: thumbs up, heart, laughing, surprised, crying, folded hands, fire and party.
+    public static let palette = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F62E}", "\u{1F622}", "\u{1F64F}", "\u{1F525}", "\u{1F389}"]
+
+    /// The first emoji in the text, such as what the emoji keyboard typed, if Portal accepts it.
+    public static func firstEmoji(in text: String) -> String? {
+        for character in text {
+            let isEmoji = character.unicodeScalars.contains { $0.properties.isEmojiPresentation || ($0.properties.isEmoji && $0.value > 0xFF) }
+            if isEmoji, isAcceptable(String(character)) { return String(character) }
+        }
+        return nil
+    }
 
     /// The reactions grouped by emoji, in the order the emoji first appeared.
     public static func summaries(_ reactions: [Reaction], currentUserId: String) -> [ReactionSummary] {
