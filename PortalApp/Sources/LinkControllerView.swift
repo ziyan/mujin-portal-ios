@@ -57,6 +57,8 @@ struct LinkControllerView: View {
                     }
                 }
         }
+        // The camera picture is dark whatever the setting, so its controls are drawn for a dark background.
+        .preferredColorScheme(step == .scanning && camera != .denied ? .dark : nil)
         .task { await start() }
         .onChange(of: scenePhase) { _, phase in
             // Back from Settings with the camera allowed.
