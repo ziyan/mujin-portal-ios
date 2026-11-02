@@ -1,15 +1,17 @@
 import Foundation
 
 /// SiteAlarm is one alarm active on a controller of a site.
-public struct SiteAlarm: Equatable, Identifiable, Sendable {
+public struct SiteAlarm: Equatable, Hashable, Identifiable, Sendable {
     public let controllerId: String
     public let level: String
     public let message: String
     public let status: String
     public let occurredAt: String?
     public let originLabel: String?
+    /// The controller's own id for the alarm, which the detail is fetched by.
+    public var logEntryId: String? = nil
 
-    public var id: String { "\(controllerId)|\(occurredAt ?? "")|\(message)" }
+    public var id: String { "\(controllerId)|\(logEntryId ?? "")|\(occurredAt ?? "")|\(message)" }
     public var occurredDate: Date? { PortalDate.parse(occurredAt) }
 
     /// Lower is worse, for sorting the worst first.
@@ -33,6 +35,9 @@ public struct SiteRobots: Equatable, Sendable {
         public let errorText: String?
         public let powerLevel: Double?
         public let isCharging: Bool
+        /// The fleet's word for the robot: Offline, Paused or Running.
+        public var statusText: String? = nil
+        public var isLoaded: Bool? = nil
         public var id: String { "\(controllerId)|\(name)" }
     }
 
@@ -281,7 +286,7 @@ extension Documents {
         query ListSiteActiveAlarms($siteId: String) {
           ListSiteActiveAlarms(siteId: $siteId) {
             controllerId isAvailable
-            alarms { alarms { alarmLevel alarmMessage alarmStatus occurredAt originLabel } }
+            alarms { alarms { logEntryId alarmLevel alarmMessage alarmStatus occurredAt originLabel } }
           }
         }
         """
@@ -290,7 +295,7 @@ extension Documents {
         query ListSiteMobileRobots($siteId: String) {
           ListSiteMobileRobots(siteId: $siteId) {
             controllerId isAvailable
-            mobileRobots { robots { name isOnline hasError error powerLevel isCharging } }
+            mobileRobots { robots { name status isOnline hasError error powerLevel isCharging isLoaded } }
           }
         }
         """
@@ -355,6 +360,7 @@ extension Connection {
             struct Row: Decodable, Sendable {
                 struct Holder: Decodable, Sendable {
                     struct Alarm: Decodable, Sendable {
+                        let logEntryId: String?
                         let alarmLevel: String?
                         let alarmMessage: String?
                         let alarmStatus: String?
@@ -376,7 +382,7 @@ extension Connection {
                 alarms: (row.alarms?.alarms ?? []).map {
                     SiteAlarm(
                         controllerId: row.controllerId ?? "", level: $0.alarmLevel ?? "", message: $0.alarmMessage ?? "", status: $0.alarmStatus ?? "",
-                        occurredAt: $0.occurredAt, originLabel: $0.originLabel)
+                        occurredAt: $0.occurredAt, originLabel: $0.originLabel, logEntryId: $0.logEntryId)
                 }
             )
         }
@@ -389,6 +395,8 @@ extension Connection {
                 struct Holder: Decodable, Sendable {
                     struct Robot: Decodable, Sendable {
                         let name: String?
+                        let status: String?
+                        let isLoaded: Bool?
                         let isOnline: Bool?
                         let hasError: Bool?
                         let error: String?
@@ -411,7 +419,7 @@ extension Connection {
                 result.robots.append(
                     SiteRobots.Robot(
                         controllerId: row.controllerId ?? "", name: robot.name ?? "", isOnline: robot.isOnline ?? false, hasError: robot.hasError ?? false,
-                        errorText: robot.error, powerLevel: robot.powerLevel, isCharging: robot.isCharging ?? false))
+                        errorText: robot.error, powerLevel: robot.powerLevel, isCharging: robot.isCharging ?? false, statusText: robot.status, isLoaded: robot.isLoaded))
             }
         }
         result.robots.sort { ($0.hasError ? 0 : 1, $0.name) < ($1.hasError ? 0 : 1, $1.name) }
