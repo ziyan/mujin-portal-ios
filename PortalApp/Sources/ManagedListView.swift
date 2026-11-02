@@ -239,20 +239,6 @@ struct ManagedItemView: View {
                 }
                 if let note = item.protectionNote {
                     Section { Text(note).foregroundStyle(Color.secondary) }
-                } else {
-                    Section {
-                        Button(role: .destructive) {
-                            isConfirmingRemoval = true
-                        } label: {
-                            Text(spec.removeTitle)
-                                .foregroundStyle(Color.statusError)
-                        }
-                        .confirmationDialog(spec.removeTitle, isPresented: $isConfirmingRemoval, titleVisibility: .visible) {
-                            Button(spec.removeTitle, role: .destructive) { Task { await remove() } }
-                        } message: {
-                            Text(spec.removeMessage(item))
-                        }
-                    }
                 }
             }
         }
@@ -264,6 +250,18 @@ struct ManagedItemView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { Task { await rename() } }
                         .disabled(!hasNewName || actions.isWorking)
+                }
+            }
+            if item.protectionNote == nil {
+                ToolbarItem(placement: .primaryAction) {
+                    DetailMenu {
+                        Button(role: .destructive) { isConfirmingRemoval = true } label: { Label(spec.removeTitle, systemImage: "trash") }
+                    }
+                    .confirmationDialog(spec.removeTitle, isPresented: $isConfirmingRemoval, titleVisibility: .visible) {
+                        Button(spec.removeTitle, role: .destructive) { Task { await remove() } }
+                    } message: {
+                        Text(spec.removeMessage(item))
+                    }
                 }
             }
         }

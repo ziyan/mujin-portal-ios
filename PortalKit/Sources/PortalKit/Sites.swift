@@ -309,6 +309,14 @@ extension Documents {
         }
         """
 
+    public static let getController = """
+        query GetController($controllerId: String) {
+          GetController(controllerId: $controllerId) {
+            id comment siteId organizationId region viewerCapabilities releaseId releaseImageId connection { id } hypervisorState { version publishedAt }
+          }
+        }
+        """
+
     public static let listControllerSyncedUserCounts = """
         query ListControllerSyncedUserCounts($controllerIds: [String]) {
           ListControllerSyncedUserCounts(controllerIds: $controllerIds) { controllerId count isAvailable }
@@ -340,7 +348,7 @@ extension Documents {
         """
 
     static var siteDocuments: [String] {
-        [listControllerSyncedUserCounts, listSiteAlarms, listSiteRobots, listControllers, listIncidents, listIncidentEvidence, transitionIncident]
+        [listControllerSyncedUserCounts, listSiteAlarms, listSiteRobots, listControllers, getController, listIncidents, listIncidentEvidence, transitionIncident]
     }
 }
 
@@ -440,6 +448,15 @@ extension Connection {
             if page.count < 200, list?.meta?.totalCount == nil { break }
         }
         return rows.sorted { ($0.comment ?? $0.id).localizedCaseInsensitiveCompare($1.comment ?? $1.id) == .orderedAscending }
+    }
+
+    /// One controller, as the lists show it, for a page opened from a link.
+    public func controller(id: String) async throws -> ControllerSummary {
+        struct Answer: Decodable, Sendable { let GetController: ControllerSummary? }
+        guard let controller = try await execute(Documents.getController, variables: ["controllerId": .string(id)], as: Answer.self).GetController else {
+            throw PortalError.refused("Controller not found.")
+        }
+        return controller
     }
 
     public func incidents(organizationId: String? = nil, first: Int = 100) async throws -> [IncidentSummary] {

@@ -2,7 +2,7 @@ import PortalKit
 import SwiftUI
 
 /// The sections of a controller's page below its status: its alarms, orchestrators, robots, last 24 hours, incidents and the
-/// progress of copying it to Portal, then what the viewer may change, each shown only when allowed. They are built here as part
+/// progress of copying it to Portal, then its settings and backups, each shown only when allowed. They are built here as part
 /// of the page's own list, not as a view of their own: a list draws a custom view as one row, which left a blank row behind.
 extension ControllerDetailView {
     @ViewBuilder
@@ -75,20 +75,8 @@ extension ControllerDetailView {
                     Label("Alarm subscriptions", systemImage: "bell.badge").foregroundStyle(.primary)
                 }
             }
-            if controller.canEdit || controller.canDeleteBackups || canMove {
+            if controller.canEdit || controller.canDeleteBackups {
                 Section {
-                    if controller.canEdit {
-                        Button { commentDraft = editedComment ?? controller.detail ?? ""; isEditingComment = true } label: { Label("Edit comment", systemImage: "pencil") }
-                            .alert("Edit comment", isPresented: $isEditingComment) {
-                                TextField("Comment", text: $commentDraft)
-                                Button("Save") { Task { await saveComment() } }
-                                Button("Cancel", role: .cancel) {}
-                            }
-                    }
-                    if canMove {
-                        Button { isMoving = true } label: { Label("Move to another site", systemImage: "arrow.right.square") }
-                            .sheet(isPresented: $isMoving) { MoveControllerView(controller: controller) }
-                    }
                     if controller.canEdit {
                         NavigationLink(value: PortalRoute.controllerSettings(controller)) {
                             Label("Controller settings", systemImage: "gearshape").foregroundStyle(.primary)
@@ -99,7 +87,6 @@ extension ControllerDetailView {
                             Label("Backups", systemImage: "externaldrive").foregroundStyle(.primary)
                         }
                     }
-                    if let errorText { Text(errorText).font(.footnote).foregroundStyle(Color.statusError) }
                 }
             }
         }
