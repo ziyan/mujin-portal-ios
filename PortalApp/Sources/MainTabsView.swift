@@ -9,6 +9,14 @@ extension AppSection {
         case .tickets: "Tickets"
         case .site: "Sites"
         case .more: "More"
+        case .surveillance: "Surveillance"
+        case .releases: "Releases"
+        case .goals: "Goals"
+        case .ideas: "Ideas"
+        case .knowledge: "What it knows"
+        case .automations: "Automations"
+        case .incidents: "Incidents"
+        case .settings: "Settings"
         }
     }
 
@@ -19,6 +27,31 @@ extension AppSection {
         case .tickets: "tray.full"
         case .site: "building.2"
         case .more: "ellipsis"
+        case .surveillance: "video"
+        case .releases: "shippingbox"
+        case .goals: "scope"
+        case .ideas: "lightbulb"
+        case .knowledge: "brain.head.profile"
+        case .automations: "clock.arrow.2.circlepath"
+        case .incidents: "exclamationmark.shield"
+        case .settings: "gearshape"
+        }
+    }
+
+    /// The screen of More that fills a tab of this section, for the sections that are such a screen.
+    var moreDestination: MoreDestination? {
+        switch self {
+        case .surveillance: .surveillance
+        case .releases: .releases
+        case .goals: .goals
+        case .ideas: .ideas
+        case .knowledge: .knowledge
+        case .automations: .automations
+        case .incidents: .incidents
+        case .settings: .settings
+        case .site: .sites
+        case .tickets: .tickets
+        case .assistant, .chats, .more: nil
         }
     }
 }
@@ -58,6 +91,12 @@ struct MainTabsView: View {
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             session = newSession
             await newSession.load()
+            // The tab bar offers Surveillance only to a person with cameras, so the cameras are read at launch. The screenshot run waits for them.
+            if appModel.isDemo {
+                try? await newSession.surveillance.load()
+            } else {
+                Task { try? await newSession.surveillance.load() }
+            }
             if !appModel.isDemo {
                 newSession.startNotificationFeed(socketFactory: appModel.socketFactory)
                 if let route = appModel.takeRoute(for: account) { newSession.open(route) }
@@ -65,7 +104,7 @@ struct MainTabsView: View {
             var start = DemoOptions.section ?? Navigation.home(for: newSession.persona)
             // Chats are part of Messages: there is no tab of their own.
             if start == .chats { start = .assistant }
-            if !Navigation.sections(for: newSession.persona).contains(start) { start = Navigation.home(for: newSession.persona) }
+            if !newSession.tabSections.contains(start) { start = Navigation.home(for: newSession.persona) }
             newSession.selectedSection = start
             if appModel.isDemo, DemoOptions.screen == "ask" || DemoOptions.screen == "ask-site" || DemoOptions.screen == "conversation-reply" || DemoOptions.screen == "main-chat" {
                 if DemoOptions.screen == "ask-site" {
@@ -91,7 +130,7 @@ struct MainTabsView: View {
 
     private func tabs(_ session: SessionModel) -> some View {
         TabView(selection: Binding(get: { session.selectedSection }, set: { session.selectedSection = $0 })) {
-            ForEach(Navigation.sections(for: session.persona)) { section in
+            ForEach(session.tabSections) { section in
                 Tab(section.titleKey, systemImage: section.symbol, value: section) {
                     SectionContent(section: section, account: account)
                 }
@@ -101,6 +140,15 @@ struct MainTabsView: View {
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
         .environment(session)
+        .onChange(of: session.selectedSection, initial: true) { _, section in
+            // A screen that is not on the tab bar opens under More: a notification may point at it, or the person removed its tab.
+            guard !session.tabSections.contains(section) else { return }
+            session.selectedSection = .more
+            session.moreScreenToOpen = section.moreDestination
+        }
+        .onChange(of: session.tabSections) { _, sections in
+            if !sections.contains(session.selectedSection) { session.selectedSection = .more }
+        }
         .sheet(isPresented: Binding(get: { session.isShowingNotifications }, set: { session.isShowingNotifications = $0 })) {
             NotificationsView()
                 .environment(session)
@@ -138,6 +186,24 @@ private struct SectionContent: View {
         case .more: MoreView(account: account)
         case .tickets: TicketsView()
         case .site: session.persona == .staff ? AnyView(StaffSitesView()) : AnyView(SiteView())
+        case .surveillance, .releases, .goals, .ideas, .knowledge, .automations, .incidents, .settings:
+            if let destination = section.moreDestination { DestinationTab(root: destination) }
+        }
+    }
+}
+
+/// DestinationTab is a screen of More shown as a tab: the same screen, with the same screens it pushes.
+private struct DestinationTab: View {
+    let root: MoreDestination
+
+    var body: some View {
+        NavigationStack {
+            MoreDestinationView(destination: root, isTabRoot: true)
+                .portalDestinations()
+                .navigationDestination(for: MoreDestination.self) { destination in
+                    MoreDestinationView(destination: destination)
+                        .toolbarVisibility(.hidden, for: .tabBar)
+                }
         }
     }
 }

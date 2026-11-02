@@ -42,6 +42,8 @@ final class SurveillanceModel {
 struct SurveillanceView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
+    /// Whether the wall is the root of a tab, which keeps the tab bar. Pushed from a list it hides it.
+    var isTabRoot = false
     @State private var phase = LoadPhase.loading
     @State private var searchText = ""
     @State private var selectedSiteIds: Set<String> = []
@@ -55,7 +57,7 @@ struct SurveillanceView: View {
             .background(Color.portalPage)
             .navigationTitle("Surveillance")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarVisibility(.hidden, for: .tabBar)
+            .toolbarVisibility(isTabRoot ? .automatic : .hidden, for: .tabBar)
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search cameras")
             .toolbar {
                 if sites.count > 1 {
