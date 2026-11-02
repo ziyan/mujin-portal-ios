@@ -111,6 +111,13 @@ final class DemoState: @unchecked Sendable {
                     > Nothing needs your action today.
                     """,
             ],
+            ["id": "m03", "role": "user", "content": "Show me the stations, and where the checklist is.", "createdAt": stamp(3_000)],
+            [
+                "id": "m04", "role": "assistant", "createdAt": stamp(2_950),
+                "content": """
+                    The checklist is at [Suction cup checklist](https://example.test/docs/suction) and the raw log is at https://example.test/logs/pressure.
+                    """,
+            ],
         ]
         data.messages["conversation02"] = [
             ["id": "m10", "role": "user", "content": "Restart the planner on controller01.", "createdAt": stamp(200)],
@@ -196,6 +203,7 @@ final class DemoState: @unchecked Sendable {
             said("c6", "user02", "Sam Sample", "", 900, extra: ["deletedAt": stamp(880)]),
             said("c7", "user02", "Sam Sample", "That matches what I saw. I will schedule a hose replacement.", 700, extra: ["editedAt": stamp(650)]),
             said("c8", "user01", "Alex Example", "Thanks, please do.", 620),
+            said("c9", "user02", "Sam Sample", "Notes: [Suction cup checklist](https://example.test/docs/suction) and the log https://example.test/logs/pressure.", 540),
         ]
         data.messages["chatconv02"] = [
             said("d1", "user03", "Robin Demo", "Shift change at 14:00.", 7_200),

@@ -282,7 +282,7 @@ private struct TranscriptRow: View {
                 HStack {
                     Spacer(minLength: 48)
                     // The person's side in the accent's tint with primary text, as in Messages.
-                    Text(text)
+                    Text(MarkdownView.plain(text))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                         .background(Color.accentColor.opacity(0.2), in: RoundedRectangle(cornerRadius: 20, style: .continuous))

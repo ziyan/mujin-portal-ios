@@ -64,17 +64,21 @@ struct MarkdownView: View {
     static func inline(_ text: String) -> AttributedString {
         var result = (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
         // Web addresses typed as plain text become links too, which the
-        // app opens in its own browser.
-        let plain = String(result.characters)
-        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        for match in detector?.matches(in: plain, range: NSRange(plain.startIndex..., in: plain)) ?? [] {
-            guard let url = match.url, let range = Range(match.range, in: plain), let start = AttributedString.Index(range.lowerBound, within: result),
-                let end = AttributedString.Index(range.upperBound, within: result), result[start..<end].link == nil
-            else { continue }
-            result[start..<end].link = url
-        }
-        // Link text is small body text, where the accent is too faint on the
-        // page, so a link is underlined in the text color instead.
+        // app opens in its own browser. Code and existing links stay as they are.
+        result = BareLinks.linked(result)
+        result = styledLinks(result)
+        return result
+    }
+
+    /// Text as it was written, whose web addresses are links.
+    static func plain(_ text: String) -> AttributedString {
+        styledLinks(BareLinks.linked(plainText: text))
+    }
+
+    /// Link text is small body text, where the accent is too faint on the
+    /// page, so a link is underlined in the text color instead.
+    static func styledLinks(_ text: AttributedString) -> AttributedString {
+        var result = text
         for run in result.runs where run.link != nil {
             result[run.range].underlineStyle = .single
             result[run.range].foregroundColor = Color.primary

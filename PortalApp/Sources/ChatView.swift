@@ -440,7 +440,8 @@ private struct MessageRow: View {
                 canEdit: model.canEdit(message), canDelete: model.canDelete(message), hasPreviews: !(model.previews[message.id] ?? []).isEmpty)
             ) {
             VStack(alignment: .leading, spacing: 2) {
-                if message.isAssistant {
+                // People write plain text; a Markdown link in it is laid out as Markdown, which gives up the name chips.
+                if message.isAssistant || message.text.contains("](") {
                     RichBodyView(markdown: message.text, connection: model.connection)
                 } else if TicketBody.hasAttachments(message.text) {
                     RichBodyView(markdown: message.text, connection: model.connection) { words in
@@ -476,13 +477,14 @@ private struct MessageRow: View {
     /// Links in a message are live; the text is otherwise shown as written.
     static func attributed(_ text: String, mentionNames: [String], onAccent: Bool) -> AttributedString {
         // The names of agents and people in the message read as chips.
-        var result = AttributedString(text)
+        var result = BareLinks.linked(plainText: text)
         for span in Mentions.spans(in: text, names: mentionNames) {
             guard let start = AttributedString.Index(span.lowerBound, within: result), let end = AttributedString.Index(span.upperBound, within: result) else { continue }
             result[start..<end].font = .body.weight(.semibold)
             result[start..<end].backgroundColor = onAccent ? Color.onAccent.opacity(0.25) : Color.accentColor.opacity(0.18)
         }
-        return result
+        // A link reads as in an answer.
+        return MarkdownView.styledLinks(result)
     }
 
     @ViewBuilder
