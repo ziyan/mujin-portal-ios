@@ -1,3 +1,4 @@
+import ImageIO
 import Observation
 import PhotosUI
 import PortalKit
@@ -5,21 +6,98 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// AttachmentDrafts holds the files a person has picked for a ticket or a
-/// comment until it is sent. It refuses a file the web app would refuse,
-/// before anything is uploaded.
+/// EncodedPicture is a picture ready to attach: the bytes to upload and their format.
+struct EncodedPicture: Sendable {
+    let data: Data
+    let format: AttachmentImageFormat
+}
+
+/// PictureEncoder shrinks and recompresses a picture the way AttachmentImages
+/// plans it. It works on bytes with ImageIO, so a large camera picture is
+/// never held decoded in full, and it is safe to call off the main actor.
+enum PictureEncoder {
+    static func encode(_ data: Data) -> EncodedPicture? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil), CGImageSourceGetCount(source) > 0,
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let width = properties[kCGImagePropertyPixelWidth] as? Int, let height = properties[kCGImagePropertyPixelHeight] as? Int,
+            width > 0, height > 0
+        else { return nil }
+        let sourceFormat = CGImageSourceGetType(source).flatMap { AttachmentImageFormat(typeIdentifier: $0 as String) }
+        let plan = AttachmentImages.plan(pixelWidth: width, pixelHeight: height, sourceFormat: sourceFormat, byteCount: data.count)
+        if plan.keepsOriginalBytes { return EncodedPicture(data: data, format: plan.outputFormat) }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: plan.longestSidePixels,
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        var format = plan.outputFormat
+        guard var encoded = render(image, as: format) else { return nil }
+        let fallback = AttachmentImages.fallbackFormat(for: format, encodedByteCount: encoded.count)
+        if fallback != format, let smaller = render(image, as: fallback) {
+            format = fallback
+            encoded = smaller
+        }
+        return EncodedPicture(data: encoded, format: format)
+    }
+
+    /// A small picture to show in the composer.
+    static func thumbnail(_ data: Data, longestSide: Int = 240) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: longestSide,
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary).map { UIImage(cgImage: $0) }
+    }
+
+    private static func render(_ image: CGImage, as format: AttachmentImageFormat) -> Data? {
+        let output = NSMutableData()
+        let type = format == .png ? UTType.png : UTType.jpeg
+        guard let destination = CGImageDestinationCreateWithData(output, type.identifier as CFString, 1, nil) else { return nil }
+        let options: [CFString: Any] = format == .jpeg ? [kCGImageDestinationLossyCompressionQuality: AttachmentImages.jpegQuality] : [:]
+        CGImageDestinationAddImage(destination, image, options as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
+    }
+}
+
+/// AttachmentDrafts holds the files a person has picked for a ticket, a
+/// comment or a chat message until it is sent. It refuses a file the web app
+/// would refuse, before anything is uploaded. A picture is shrunk and
+/// recompressed when it is added; each file remembers whether it is waiting,
+/// on its way, uploaded or failed, so a retry sends only what is not up yet.
 @MainActor
 @Observable
 final class AttachmentDrafts {
+    enum Progress: Equatable {
+        case ready
+        case uploading
+        case uploaded
+        case failed
+    }
+
+    enum PictureSource {
+        case photo
+        case pasted
+    }
+
     struct Item: Identifiable {
         let id = UUID()
         let filename: String
         let contentType: String
         let data: Data
+        var preview: UIImage?
+        var progress = Progress.ready
+        var uploadedFile: UploadedFile?
         var isImage: Bool { contentType.lowercased().hasPrefix("image/") }
     }
 
     private(set) var items: [Item] = []
+    /// Pictures being read or shrunk, shown as placeholders.
+    private(set) var loadingCount = 0
     /// Why the last pick was refused, in words that name the file.
     var errorText: String?
     var isPickingPhotos = false
@@ -27,14 +105,16 @@ final class AttachmentDrafts {
     var isPickingFiles = false
     var photoSelection: [PhotosPickerItem] = []
     private var photoCount = 0
+    private var pastedCount = 0
 
-    func add(data: Data, filename: String, contentType: String) {
+    func add(data: Data, filename: String, contentType: String, preview: UIImage? = nil) {
         if let refusal = AttachmentLimits.refusal(name: filename, byteCount: Int64(data.count), alreadyAttached: items.count) {
             errorText = refusal
             return
         }
         errorText = nil
-        items.append(Item(filename: filename, contentType: contentType, data: data))
+        let name = AttachmentImages.uniqueName(filename, among: items.map(\.filename))
+        items.append(Item(filename: name, contentType: contentType, data: data, preview: preview))
     }
 
     func remove(_ item: Item) {
@@ -44,27 +124,67 @@ final class AttachmentDrafts {
     func clear() {
         items = []
         errorText = nil
+        photoCount = 0
+        pastedCount = 0
     }
 
-    /// Reads the photos chosen in the picker. Anything but JPEG and PNG is
-    /// saved as JPEG, which every screen can show.
+    /// Drops the files that reached the server, once the message naming them is sent. Files added while it was going stay.
+    func removeUploaded() {
+        items.removeAll { $0.progress == .uploaded }
+        if items.isEmpty { clear() }
+    }
+
+    /// Reads the photos chosen in the picker.
     func loadPhotos() async {
         let chosen = photoSelection
         photoSelection = []
         for pick in chosen {
+            loadingCount += 1
+            defer { loadingCount -= 1 }
             guard let data = try? await pick.loadTransferable(type: Data.self) else { continue }
-            let isPlain = pick.supportedContentTypes.contains { $0.conforms(to: .jpeg) || $0.conforms(to: .png) }
-            addPhoto(data: data, keepsFormat: isPlain, isPNG: pick.supportedContentTypes.contains { $0.conforms(to: .png) })
+            await addPicture(data: data, source: .photo)
         }
     }
 
-    func addPhoto(data: Data, keepsFormat: Bool, isPNG: Bool = false) {
-        photoCount += 1
-        if keepsFormat {
-            add(data: data, filename: String(localized: "Photo \(photoCount)") + (isPNG ? ".png" : ".jpg"), contentType: isPNG ? "image/png" : "image/jpeg")
-        } else if let image = UIImage(data: data), let jpeg = image.jpegData(compressionQuality: 0.85) {
-            add(data: jpeg, filename: String(localized: "Photo \(photoCount)") + ".jpg", contentType: "image/jpeg")
+    /// Adds a picture's bytes: shrunk to the longest side the composer sends, kept as JPEG or PNG when it was one.
+    func addPicture(data: Data, source: PictureSource) async {
+        let encoded = await Task.detached(priority: .userInitiated) { PictureEncoder.encode(data) }.value
+        guard let encoded else {
+            errorText = String(localized: "That picture could not be read.")
+            return
         }
+        let number: Int
+        switch source {
+        case .photo:
+            photoCount += 1
+            number = photoCount
+        case .pasted:
+            pastedCount += 1
+            number = pastedCount
+        }
+        let label = source == .photo ? String(localized: "Photo \(number)") : String(localized: "Pasted picture \(number)")
+        add(
+            data: encoded.data, filename: label + "." + encoded.format.fileExtension, contentType: encoded.format.contentType,
+            preview: PictureEncoder.thumbnail(encoded.data))
+    }
+
+    /// Adds the picture on the clipboard, if there is one.
+    func pastePicture() {
+        guard let data = Self.clipboardPictureData() else { return }
+        loadingCount += 1
+        Task {
+            await addPicture(data: data, source: .pasted)
+            loadingCount -= 1
+        }
+    }
+
+    /// The clipboard's picture as the bytes it was copied with, so a JPEG or PNG keeps its format.
+    private static func clipboardPictureData() -> Data? {
+        let board = UIPasteboard.general
+        for identifier in [UTType.jpeg.identifier, UTType.png.identifier, UTType.heic.identifier] {
+            if let data = board.data(forPasteboardType: identifier) { return data }
+        }
+        return board.image?.pngData()
     }
 
     func addFiles(from result: Result<[URL], Error>) {
@@ -74,17 +194,54 @@ final class AttachmentDrafts {
             defer { if isScoped { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url) else { continue }
             let type = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
-            add(data: data, filename: url.lastPathComponent, contentType: type)
+            add(data: data, filename: url.lastPathComponent, contentType: type, preview: type.hasPrefix("image/") ? PictureEncoder.thumbnail(data) : nil)
         }
     }
 
-    /// Uploads every file and returns how to refer to them.
+    /// Uploads every file that is not up yet and returns how to refer to all of them.
     func upload(using connection: Connection) async throws -> [UploadedFile] {
         var uploaded: [UploadedFile] = []
         for item in items {
-            uploaded.append(try await connection.uploadAttachment(data: item.data, filename: item.filename, contentType: item.contentType))
+            if let file = item.uploadedFile {
+                uploaded.append(file)
+                continue
+            }
+            setProgress(.uploading, for: item.id)
+            do {
+                let file = try await connection.uploadAttachment(data: item.data, filename: item.filename, contentType: item.contentType)
+                setProgress(.uploaded, for: item.id, file: file)
+                uploaded.append(file)
+            } catch {
+                setProgress(.failed, for: item.id)
+                throw error
+            }
         }
         return uploaded
+    }
+
+    private func setProgress(_ progress: Progress, for id: UUID, file: UploadedFile? = nil) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        items[index].progress = progress
+        if let file { items[index].uploadedFile = file }
+    }
+
+    /// Fills the composer with invented files for the demo screenshots.
+    func stageDemo() {
+        let sizes: [(CGSize, UIColor, UIColor)] = [
+            (CGSize(width: 480, height: 320), .systemTeal, .systemIndigo),
+            (CGSize(width: 320, height: 480), .systemOrange, .systemPink),
+        ]
+        for (index, spec) in sizes.enumerated() {
+            let image = UIGraphicsImageRenderer(size: spec.0).image { context in
+                let colors = [spec.1.cgColor, spec.2.cgColor] as CFArray
+                if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: nil) {
+                    context.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: spec.0.width, y: spec.0.height), options: [])
+                }
+            }
+            guard let data = image.pngData() else { continue }
+            add(data: data, filename: String(localized: "Pasted picture \(index + 1)") + ".png", contentType: "image/png", preview: image)
+        }
+        add(data: Data(count: 184_000), filename: "Pick list.pdf", contentType: "application/pdf")
     }
 }
 
@@ -97,7 +254,7 @@ private struct AttachmentPickers: ViewModifier {
         content
             .photosPicker(isPresented: $drafts.isPickingPhotos, selection: $drafts.photoSelection, maxSelectionCount: AttachmentLimits.maximumFileCount, matching: .images)
             .fullScreenCover(isPresented: $drafts.isTakingPhoto) {
-                CameraPicker { data in drafts.addPhoto(data: data, keepsFormat: false) }
+                CameraPicker { data in Task { await drafts.addPicture(data: data, source: .photo) } }
                     .ignoresSafeArea()
             }
             .fileImporter(isPresented: $drafts.isPickingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
@@ -115,10 +272,13 @@ extension View {
     }
 }
 
-/// AttachMenu is the button that offers the ways to add a file.
+/// AttachMenu is the button that offers the ways to add a file: the photo
+/// library, the camera, Files, and the picture on the clipboard when there is one.
 struct AttachMenu: View {
     let drafts: AttachmentDrafts
     var systemImage = "paperclip"
+
+    @State private var hasClipboardPicture = UIPasteboard.general.hasImages
 
     var body: some View {
         Menu {
@@ -131,13 +291,20 @@ struct AttachMenu: View {
                 Button {
                     drafts.isTakingPhoto = true
                 } label: {
-                    Label("Take a photo", systemImage: "camera")
+                    Label("Camera", systemImage: "camera")
                 }
             }
             Button {
                 drafts.isPickingFiles = true
             } label: {
-                Label("Choose a file", systemImage: "doc")
+                Label("Files", systemImage: "folder")
+            }
+            if hasClipboardPicture {
+                Button {
+                    drafts.pastePicture()
+                } label: {
+                    Label("Paste picture", systemImage: "doc.on.clipboard")
+                }
             }
         } label: {
             Label("Attach", systemImage: systemImage)
@@ -150,26 +317,84 @@ struct AttachMenu: View {
                 .contentShape(.rect)
         }
         .accessibilityIdentifier("attachMenu")
+        .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in
+            hasClipboardPicture = UIPasteboard.general.hasImages
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            hasClipboardPicture = UIPasteboard.general.hasImages
+        }
     }
 }
 
-/// AttachmentStrip shows the files picked so far as reference chips, each
-/// with the file's size and a button that takes it back.
+/// AttachmentStrip shows the files picked so far above the field: a picture
+/// as a thumbnail, any other file as a chip, each with a button that takes it
+/// back. A file on its way shows a spinner; one that failed says so.
 struct AttachmentStrip: View {
     let drafts: AttachmentDrafts
+    @ScaledMetric(relativeTo: .body) private var thumbnailSide: CGFloat = 64
 
     var body: some View {
-        if !drafts.items.isEmpty {
+        if !drafts.items.isEmpty || drafts.loadingCount > 0 {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     ForEach(drafts.items) { item in
-                        ReferenceChip(
-                            systemImage: "paperclip", text: item.filename, detail: ByteCountFormatter.string(fromByteCount: Int64(item.data.count), countStyle: .file)
-                        ) { drafts.remove(item) }
+                        if let preview = item.preview {
+                            thumbnail(item, preview: preview)
+                        } else {
+                            ReferenceChip(
+                                systemImage: item.progress == .failed ? "exclamationmark.triangle" : "paperclip", text: item.filename,
+                                detail: item.progress == .failed
+                                    ? String(localized: "Upload failed")
+                                    : ByteCountFormatter.string(fromByteCount: Int64(item.data.count), countStyle: .file)
+                            ) { drafts.remove(item) }
+                            .opacity(item.progress == .uploading ? 0.5 : 1)
+                        }
+                    }
+                    ForEach(0..<drafts.loadingCount, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(.tertiarySystemFill))
+                            .frame(width: thumbnailSide, height: thumbnailSide)
+                            .overlay { ProgressView() }
+                            .accessibilityLabel("Adding a picture")
                     }
                 }
             }
+            .accessibilityIdentifier("attachmentStrip")
         }
+    }
+
+    private func thumbnail(_ item: AttachmentDrafts.Item, preview: UIImage) -> some View {
+        Image(uiImage: preview)
+            .resizable()
+            .scaledToFill()
+            .frame(width: thumbnailSide, height: thumbnailSide)
+            .clipShape(.rect(cornerRadius: 12, style: .continuous))
+            .overlay {
+                if item.progress == .uploading {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.35))
+                    ProgressView().tint(.white).accessibilityLabel("Uploading")
+                } else if item.progress == .failed {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.45))
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.white).accessibilityLabel("Upload failed")
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if item.progress != .uploading {
+                    Button {
+                        drafts.remove(item)
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, .black.opacity(0.6))
+                            .font(.title3)
+                            .frame(width: 36, height: 36, alignment: .topTrailing)
+                            .contentShape(.rect)
+                    }
+                    .accessibilityLabel(Text("Remove \(item.filename)"))
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(Text(item.filename))
     }
 }
 

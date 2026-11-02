@@ -152,6 +152,7 @@ jobs:
             xcrun simctl terminate "${DEVICE}" com.ziyan.mujinportal
           }
           shoot list list
+          shoot list-started list-started
           shoot approval conversation:conversation02
           shoot answer conversation:conversation01
           shoot share share
@@ -172,6 +173,8 @@ jobs:
           shoot chat-reply chat-reply
           shoot chat-mention chat-mention
           shoot conversation-reply conversation-reply
+          shoot conversation-composer conversation-composer
+          shoot chat-composer chat-composer
           shoot welcome welcome
           shoot accounts accounts
           shoot demo-entered demo-entered
@@ -302,6 +305,8 @@ jobs:
           shoot accounts-dark accounts
           shoot ask-site-dark ask-site
           shoot main-chat-dark main-chat
+          shoot conversation-composer-dark conversation-composer
+          shoot chat-composer-dark chat-composer
           shoot side-chat-links-dark side-chat-links
           shoot dark conversation:conversation02
           shoot share-dark share
@@ -376,6 +381,8 @@ jobs:
           shoot large-text-controllers-staff controllers-staff staff
           shoot large-text-virtual-controllers-staff virtual-controllers-staff staff
           shoot large-text conversation:conversation02
+          shoot large-text-conversation-composer conversation-composer
+          shoot large-text-chat-composer chat-composer
           shoot large-text-artifacts conversation:conversation04
           shoot large-text-list list
           shoot large-text-tickets tickets
