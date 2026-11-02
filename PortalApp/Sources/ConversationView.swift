@@ -57,14 +57,6 @@ struct ConversationView: View {
                     } label: {
                         Label("Pages and files it made", systemImage: "doc.richtext")
                     }
-                    if let model, model.memorySetting?.isFilingActive != false {
-                        Button {
-                            Task { await model.rememberNow() }
-                        } label: {
-                            Label("Remember this now", systemImage: "brain.head.profile")
-                        }
-                        .disabled(model.isRemembering)
-                    }
                 } label: {
                     Label("Conversation options", systemImage: "ellipsis.circle")
                 }
