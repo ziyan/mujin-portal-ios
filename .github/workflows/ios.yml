@@ -302,6 +302,7 @@ jobs:
           shoot main-chat-dark main-chat
           shoot side-chat-links-dark side-chat-links
           shoot dark conversation:conversation02
+          shoot answer-dark conversation:conversation01
           shoot share-dark share
           shoot artifacts-dark conversation:conversation04
           shoot automations-activity-dark automations-activity
@@ -372,6 +373,7 @@ jobs:
           shoot large-text-controllers-staff controllers-staff staff
           shoot large-text-virtual-controllers-staff virtual-controllers-staff staff
           shoot large-text conversation:conversation02
+          shoot large-text-answer conversation:conversation01
           shoot large-text-artifacts conversation:conversation04
           shoot large-text-list list
           shoot large-text-tickets tickets

@@ -440,8 +440,8 @@ private struct MessageRow: View {
                 canEdit: model.canEdit(message), canDelete: model.canDelete(message), hasPreviews: !(model.previews[message.id] ?? []).isEmpty)
             ) {
             VStack(alignment: .leading, spacing: 2) {
-                // People write plain text; a Markdown link in it is laid out as Markdown, which gives up the name chips.
-                if message.isAssistant || message.text.contains("](") {
+                // People write plain text; a table or a Markdown link in it is laid out as Markdown, which gives up the name chips.
+                if message.isAssistant || MarkdownBlocks.hasTable(message.text) || message.text.contains("](") {
                     RichBodyView(markdown: message.text, connection: model.connection)
                 } else if TicketBody.hasAttachments(message.text) {
                     RichBodyView(markdown: message.text, connection: model.connection) { words in
