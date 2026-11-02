@@ -51,6 +51,8 @@ final class SessionModel {
     /// This account's pictures: fetched through its connection, kept on disk, and decoded images held for the session.
     let avatars: AvatarStore
     let avatarImages = AvatarImageMemory()
+    /// Every camera the person can see, for the Surveillance wall.
+    let surveillance: SurveillanceModel
     private var siteModels: [String: SiteModel] = [:]
     private var ticketModels: [String: TicketsModel] = [:]
 
@@ -60,6 +62,7 @@ final class SessionModel {
         self.onError = onError
         let directory = Self.avatarDirectory(accountKey: account.accountKey)
         self.avatars = AvatarStore(connection: connection, directory: directory)
+        self.surveillance = SurveillanceModel(connection: connection, cache: cache, accountKey: account.accountKey)
     }
 
     /// Where an account's pictures are kept on disk.
@@ -335,13 +338,15 @@ enum DemoOptions {
     /// The tab to open on, from `section:<name>`.
     static var section: AppSection? {
         guard let screen else { return nil }
+        if screen.hasPrefix("more-") { return .more }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
-        if AccountDemo.owns(screen) { return .more }
+        if AccountDemo.owns(screen) || PlatformDemo.owns(screen) { return .more }
         // Screens that live under More.
         if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image", "accounts"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") || screen.hasPrefix("attachment-viewer") { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
-        if screen.hasPrefix("site-staff") || screen == "sites-staff" { return .site }
+        if screen.hasPrefix("site-staff") || screen == "sites-staff" || screen == "surveillance-staff" { return .site }
+        if screen == "surveillance" { return .more }
         if screen.hasPrefix("site") || screen.hasPrefix("incident") || screen.hasPrefix("controller") || screen.hasPrefix("virtual-controller") || screen.hasPrefix("camera") { return .site }
         return nil
     }
@@ -360,9 +365,20 @@ enum DemoOptions {
         case "incidents": [.incidents]
         case "assistant-settings": [.assistantSettings]
         case "releases", "release-tap": [.releases]
+        case "surveillance": [.surveillance]
         case "release": [.releases, .release("release01")]
         case "release-image": [.releases, .release("release01"), .releaseImage("image01")]
-        default: AccountDemo.morePath(screen ?? "")
+        default:
+            AccountDemo.owns(screen ?? "") ? AccountDemo.morePath(screen ?? "") : PlatformDemo.morePath(screen ?? "")
+        }
+    }
+
+    /// The row of More a screenshot run scrolls to, from `more-platform` or `more-surveillance`.
+    static var moreRowToShow: String? {
+        switch screen {
+        case "more-platform": "platformSettingsRow"
+        case "more-surveillance": "surveillanceRow"
+        default: nil
         }
     }
 

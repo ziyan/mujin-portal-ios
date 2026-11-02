@@ -164,7 +164,7 @@ enum DemoCameraPaths {
             return reply(200, body ?? Data(), contentType: "application/json")
         case "snapshot":
             let cameraId = parts.count > 5 ? parts[5] : ""
-            let index = DemoCameras.all.firstIndex { ($0["originCameraId"] as? String) == cameraId } ?? 0
+            let index = DemoCameras.everything.firstIndex { ($0["originCameraId"] as? String) == cameraId } ?? 0
             return reply(200, DemoPictures.cameraFrame(variant: index), contentType: "image/jpeg")
         case "playback":
             // A websocket route answers a plain GET with 400, which is how the app learns it exists.
@@ -179,21 +179,24 @@ enum DemoCameraPaths {
 enum DemoCameras {
     static let timeZone = "America/Chicago"
 
+    private static func channels() -> [[String: Any]] {
+        [
+            ["id": 0, "name": "High", "isEnabled": true, "width": 2688, "height": 1512, "fps": 24],
+            ["id": 1, "name": "Medium", "isEnabled": true, "width": 1280, "height": 720, "fps": 24],
+            ["id": 2, "name": "Low", "isEnabled": true, "width": 640, "height": 360, "fps": 24],
+        ]
+    }
+
+    private static func camera(_ id: String, _ origin: String, _ name: String, isOnline: Bool, site: String = "site01", organization: String = "organization01") -> [String: Any] {
+        [
+            "id": id, "organizationId": organization, "siteId": site, "controllerId": "controller01", "originCameraId": origin, "name": name, "kind": "dome",
+            "status": isOnline ? "online" : "offline", "timeZone": timeZone, "isControllerConnected": true, "channels": channels(),
+        ]
+    }
+
+    /// The cameras of the demo's first site.
     static var all: [[String: Any]] {
-        func channels() -> [[String: Any]] {
-            [
-                ["id": 0, "name": "High", "isEnabled": true, "width": 2688, "height": 1512, "fps": 24],
-                ["id": 1, "name": "Medium", "isEnabled": true, "width": 1280, "height": 720, "fps": 24],
-                ["id": 2, "name": "Low", "isEnabled": true, "width": 640, "height": 360, "fps": 24],
-            ]
-        }
-        func camera(_ id: String, _ origin: String, _ name: String, isOnline: Bool) -> [String: Any] {
-            [
-                "id": id, "organizationId": "organization01", "siteId": "site01", "controllerId": "controller01", "originCameraId": origin, "name": name, "kind": "dome",
-                "status": isOnline ? "online" : "offline", "timeZone": timeZone, "isControllerConnected": true, "channels": channels(),
-            ]
-        }
-        return [
+        [
             camera("camera01", "nvrcamera01", "Dock door 1", isOnline: true),
             camera("camera02", "nvrcamera02", "Pick station 3", isOnline: true),
             camera("camera03", "nvrcamera03", "Aisle 4 overhead", isOnline: true),
@@ -201,14 +204,29 @@ enum DemoCameras {
         ]
     }
 
+    /// The cameras of the demo's other sites, which the surveillance wall shows beside the first site's.
+    static var others: [[String: Any]] {
+        [
+            camera("camera05", "nvrcamera05", "Loading bay", isOnline: true, site: "site02"),
+            camera("camera06", "nvrcamera06", "Oven hall", isOnline: true, site: "site03", organization: "organization02"),
+            camera("camera07", "nvrcamera07", "Packing table", isOnline: true, site: "site03", organization: "organization02"),
+            camera("camera08", "nvrcamera08", "Freezer aisle", isOnline: false, site: "site04", organization: "organization02"),
+        ]
+    }
+
+    /// Every camera of the demo, in the order the pictures are varied.
+    static var everything: [[String: Any]] { all + others }
+
     static func respond(operation: String, variables: [String: Any]) -> [String: Any]? {
         switch operation {
         case "ListCameras":
-            let isSite = (variables["siteId"] as? String) == "site01"
-            return ["ListCameras": ["cameras": isSite ? all : [[String: Any]]()]]
+            // A customer sees the cameras of its own organization; a Mujin user sees every camera, or one site's when asked.
+            let visible = everything.filter { DemoOptions.isStaff || ($0["organizationId"] as? String) == "organization01" }
+            let siteId = variables["siteId"] as? String
+            return ["ListCameras": ["cameras": visible.filter { siteId == nil || ($0["siteId"] as? String) == siteId }]]
         case "GetCamera":
             let identifier = variables["cameraId"] as? String ?? ""
-            if let found = all.first(where: { ($0["id"] as? String) == identifier }) { return ["GetCamera": ["camera": found]] }
+            if let found = everything.first(where: { ($0["id"] as? String) == identifier }) { return ["GetCamera": ["camera": found]] }
             return ["GetCamera": ["camera": NSNull()]]
         case "ListIncidentCameras":
             let detected = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-2_400 - 10))

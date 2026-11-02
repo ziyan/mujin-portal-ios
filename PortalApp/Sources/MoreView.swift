@@ -15,10 +15,13 @@ enum MoreDestination: Hashable {
     case assistantSettings
     case incidents
     case releases
+    case surveillance
     case release(String)
     case releaseImage(String)
     /// A screen of the person's account or of an organization's people.
     case account(AccountDestination)
+    /// A screen of Platform settings.
+    case platform(PlatformDestination)
 }
 
 /// MoreView is the last tab: the account, and what does not need a tab of its own.
@@ -34,6 +37,7 @@ struct MoreView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
+            ScrollViewReader { proxy in
             List { PortalRows {
                 Section {
                     Button {
@@ -75,6 +79,7 @@ struct MoreView: View {
                     }
                 }
                 AccountMoreSections()
+                PlatformMoreSection()
                 Section("Assistant") {
                     NavigationLink(value: MoreDestination.goals) {
                         Label("Goals", systemImage: "scope")
@@ -107,6 +112,10 @@ struct MoreView: View {
                             Label("Incidents", systemImage: "exclamationmark.shield")
                                 .foregroundStyle(.primary)
                         }
+                    }
+                    if session.surveillance.hasCameras {
+                        NavigationLink(value: MoreDestination.surveillance) { SurveillanceRow() }
+                            .id("surveillanceRow")
                     }
                     NavigationLink(value: MoreDestination.releases) {
                         Label("Releases", systemImage: "shippingbox")
@@ -152,15 +161,20 @@ struct MoreView: View {
                 case .assistantSettings: AssistantSettingsView()
                 case .incidents: IncidentsView()
                 case .releases: ReleasesView()
+                case .surveillance: SurveillanceView()
                 case .release(let id): ReleaseDetailView(releaseId: id)
                 case .releaseImage(let id): ReleaseImageView(imageId: id)
                 case .account(let destination): AccountDestinationView(destination: destination)
+                case .platform(let destination): PlatformDestinationView(destination: destination)
                 }
                 }
                 .toolbarVisibility(.hidden, for: .tabBar)
             }
             .sheet(isPresented: $isShowingAccounts) {
                 AccountsView()
+            }
+            .task {
+                try? await session.surveillance.load()
             }
             .task {
                 // The demo opens the releases list and taps the first row, as a person does.
@@ -183,6 +197,13 @@ struct MoreView: View {
                 guard let goalId else { return }
                 session.goalToOpen = nil
                 path = NavigationPath([MoreDestination.goals, MoreDestination.goal(goalId)])
+            }
+            .task {
+                // The screenshot run scrolls to the row it photographs.
+                guard appModel.isDemo, let row = DemoOptions.moreRowToShow else { return }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                proxy.scrollTo(row, anchor: .center)
+            }
             }
         }
     }
