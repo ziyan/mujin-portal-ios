@@ -176,7 +176,10 @@ struct MoreView: View {
                 guard let ticketId, !onBar.contains(.tickets) else { return }
                 session.ticketToOpen = nil
                 session.moreScreenToOpen = nil
-                path = NavigationPath([MoreDestination.tickets, PortalRoute.ticket(id: ticketId)])
+                var ticketPath = NavigationPath()
+                ticketPath.append(MoreDestination.tickets)
+                ticketPath.append(PortalRoute.ticket(id: ticketId))
+                path = ticketPath
             }
             .onChange(of: session.goalToOpen, initial: true) { _, goalId in
                 guard let goalId else { return }
