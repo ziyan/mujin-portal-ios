@@ -77,6 +77,7 @@ struct ConversationListView: View {
                 if screen == "voice" || screen == "message-actions" || screen == "select-text" || screen == "title-event" { selectedConversationId = "conversation01" }
                 if screen == "side-chat-links" { selectedConversationId = "conversation05" }
                 if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-message-actions" { selectedConversationId = "chatconv01" }
+                if let conversationId = CallDemo.conversationId(for: screen) { selectedConversationId = conversationId }
                 if screen.hasPrefix("chats-new") { isComposing = true }
             }
         }

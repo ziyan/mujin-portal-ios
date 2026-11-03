@@ -79,6 +79,8 @@ struct CallScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(CallBackground().ignoresSafeArea())
         .foregroundStyle(.white)
+        // The call's own text stops growing at the first accessibility size, so the tiles and controls keep their room.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .environment(\.colorScheme, .dark)
         .sheet(isPresented: $isRinging) {
             CallPeoplePicker(
@@ -96,7 +98,7 @@ struct CallScreen: View {
         HStack(alignment: .top, spacing: 12) {
             GlassIconButton(symbol: "chevron.down", label: "Minimize") { center.minimize() }
             VStack(spacing: 2) {
-                Text(call.chatTitle).font(.headline).lineLimit(2).multilineTextAlignment(.center)
+                Text(call.chatTitle).font(.headline).lineLimit(3).multilineTextAlignment(.center)
                 Text(call.statusText).font(.subheadline.monospacedDigit()).foregroundStyle(.white.opacity(0.75))
             }
             .frame(maxWidth: .infinity)
@@ -256,6 +258,7 @@ struct ParticipantTile: View {
                             .lineLimit(2)
                             .multilineTextAlignment(isVideo ? .leading : .center)
                     }
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(.black.opacity(isVideo ? 0.45 : 0), in: .capsule)

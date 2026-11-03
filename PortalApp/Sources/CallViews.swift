@@ -9,7 +9,7 @@ struct CallBar: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 10))
+        let layout = AnyLayout(HStackLayout(spacing: 10))
         layout {
             Button { center.show() } label: {
                 HStack(spacing: 10) {
@@ -52,6 +52,8 @@ struct CallBar: View {
                 .accessibilityLabel("Leave call")
             }
         }
+        // The bar keeps to one line of controls: its text stops growing at the largest ordinary size.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .glassEffect(.regular, in: .rect(cornerRadius: 24, style: .continuous))
@@ -183,6 +185,7 @@ struct CallPeoplePicker: View {
     let onConfirm: ([String], Bool) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selected: Set<String> = DemoOptions.screen == "call-picker" ? ["user03"] : []
     @State private var isVideo = false
 
@@ -211,9 +214,9 @@ struct CallPeoplePicker: View {
                                     Image(systemName: selected.contains(person.userId) ? "checkmark.circle.fill" : "circle")
                                         .foregroundStyle(selected.contains(person.userId) ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                                         .accessibilityHidden(true)
-                                    UserAvatar(userId: person.userId, name: person.shownName, size: 32)
+                                    if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: person.userId, name: person.shownName, size: 32) }
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(person.shownName).foregroundStyle(.primary)
+                                        Text(person.shownName).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
                                         if let organization = person.organizationName, !organization.isEmpty {
                                             Text(organization).font(.footnote).foregroundStyle(.secondary)
                                         }
