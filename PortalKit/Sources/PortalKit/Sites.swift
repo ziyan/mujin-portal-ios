@@ -211,6 +211,7 @@ public struct IncidentSummary: Codable, Equatable, Hashable, Identifiable, Senda
     public let description: String?
     public let kind: String?
     public let siteId: String?
+    public let cellId: String?
     public let controllerId: String?
     public let organizationId: String?
     /// `new`, `confirmed`, `dismissed` or `resolved`.
@@ -223,7 +224,7 @@ public struct IncidentSummary: Codable, Equatable, Hashable, Identifiable, Senda
     public let viewerCapabilities: [String]?
 
     public init(
-        id: String, title: String? = nil, description: String? = nil, kind: String? = nil, siteId: String? = nil, controllerId: String? = nil,
+        id: String, title: String? = nil, description: String? = nil, kind: String? = nil, siteId: String? = nil, cellId: String? = nil, controllerId: String? = nil,
         organizationId: String? = nil, reviewStatus: String? = nil, activityStatus: String? = nil, detectedAt: String? = nil,
         confidence: Double? = nil, previewAttachmentId: String? = nil, viewerCapabilities: [String]? = nil
     ) {
@@ -232,6 +233,7 @@ public struct IncidentSummary: Codable, Equatable, Hashable, Identifiable, Senda
         self.description = description
         self.kind = kind
         self.siteId = siteId
+        self.cellId = cellId
         self.controllerId = controllerId
         self.organizationId = organizationId
         self.reviewStatus = reviewStatus
@@ -273,8 +275,8 @@ public enum SiteData {
     }
 
     /// Incidents of one site: the ones that need review and are active first.
-    public static func incidents(_ all: [IncidentSummary], siteId: String?) -> [IncidentSummary] {
-        all.filter { siteId == nil || $0.siteId == siteId }.sorted {
+    public static func incidents(_ all: [IncidentSummary], siteId: String?, cellId: String? = nil) -> [IncidentSummary] {
+        all.filter { (siteId == nil || $0.siteId == siteId) && (cellId == nil || $0.cellId == cellId) }.sorted {
             if $0.needsReview != $1.needsReview { return $0.needsReview }
             return ($0.detectedDate ?? .distantPast) > ($1.detectedDate ?? .distantPast)
         }
@@ -283,8 +285,8 @@ public enum SiteData {
 
 extension Documents {
     public static let listSiteAlarms = """
-        query ListSiteActiveAlarms($siteId: String) {
-          ListSiteActiveAlarms(siteId: $siteId) {
+        query ListSiteActiveAlarms($siteId: String, $cellId: String) {
+          ListSiteActiveAlarms(siteId: $siteId, cellId: $cellId) {
             controllerId isAvailable
             alarms { alarms { logEntryId alarmLevel alarmMessage alarmStatus occurredAt originLabel } }
           }
@@ -292,8 +294,8 @@ extension Documents {
         """
 
     public static let listSiteRobots = """
-        query ListSiteMobileRobots($siteId: String) {
-          ListSiteMobileRobots(siteId: $siteId) {
+        query ListSiteMobileRobots($siteId: String, $cellId: String) {
+          ListSiteMobileRobots(siteId: $siteId, cellId: $cellId) {
             controllerId isAvailable
             mobileRobots { robots { name status isOnline hasError error powerLevel isCharging isLoaded } }
           }
@@ -301,8 +303,8 @@ extension Documents {
         """
 
     public static let listControllers = """
-        query ListControllers($organizationId: String, $options: ListOptionsInput) {
-          ListControllers(organizationId: $organizationId, options: $options) {
+        query ListControllers($organizationId: String, $cellId: String, $options: ListOptionsInput) {
+          ListControllers(organizationId: $organizationId, cellId: $cellId, options: $options) {
             controllers { id comment siteId organizationId region viewerCapabilities releaseId releaseImageId connection { id } hypervisorState { version publishedAt } }
             meta { totalCount }
           }
@@ -327,7 +329,7 @@ extension Documents {
         query ListIncidents($organizationId: String, $options: ListOptionsInput) {
           ListIncidents(organizationId: $organizationId, options: $options) {
             incidents {
-              id title description kind siteId controllerId organizationId reviewStatus activityStatus detectedAt confidence previewAttachmentId
+              id title description kind siteId cellId controllerId organizationId reviewStatus activityStatus detectedAt confidence previewAttachmentId
               viewerCapabilities
             }
             meta { totalCount }
@@ -353,9 +355,16 @@ extension Documents {
 }
 
 extension Connection {
+    /// The variables of a read narrowed to a site, and to one of its cells when `cellId` is set.
+    static func siteScope(siteId: String, cellId: String?) -> [String: JSONValue] {
+        var variables: [String: JSONValue] = ["siteId": .string(siteId)]
+        if let cellId { variables["cellId"] = .string(cellId) }
+        return variables
+    }
+
     /// Active alarms across a site's controllers, worst first. Controllers
     /// that could not be reached are counted apart.
-    public func siteAlarms(siteId: String) async throws -> (alarms: [SiteAlarm], unavailableControllerCount: Int) {
+    public func siteAlarms(siteId: String, cellId: String? = nil) async throws -> (alarms: [SiteAlarm], unavailableControllerCount: Int) {
         struct Answer: Decodable, Sendable {
             struct Row: Decodable, Sendable {
                 struct Holder: Decodable, Sendable {
@@ -375,7 +384,7 @@ extension Connection {
             }
             let ListSiteActiveAlarms: [Row]?
         }
-        let rows = try await execute(Documents.listSiteAlarms, variables: ["siteId": .string(siteId)], as: Answer.self).ListSiteActiveAlarms ?? []
+        let rows = try await execute(Documents.listSiteAlarms, variables: Self.siteScope(siteId: siteId, cellId: cellId), as: Answer.self).ListSiteActiveAlarms ?? []
         let grouped = rows.map { row in
             (
                 controllerId: row.controllerId ?? "",
@@ -389,7 +398,7 @@ extension Connection {
         return (SiteData.alarms(grouped), rows.filter { $0.isAvailable == false }.count)
     }
 
-    public func siteRobots(siteId: String) async throws -> SiteRobots {
+    public func siteRobots(siteId: String, cellId: String? = nil) async throws -> SiteRobots {
         struct Answer: Decodable, Sendable {
             struct Row: Decodable, Sendable {
                 struct Holder: Decodable, Sendable {
@@ -411,7 +420,7 @@ extension Connection {
             }
             let ListSiteMobileRobots: [Row]?
         }
-        let rows = try await execute(Documents.listSiteRobots, variables: ["siteId": .string(siteId)], as: Answer.self).ListSiteMobileRobots ?? []
+        let rows = try await execute(Documents.listSiteRobots, variables: Self.siteScope(siteId: siteId, cellId: cellId), as: Answer.self).ListSiteMobileRobots ?? []
         var result = SiteRobots()
         for row in rows {
             if row.isAvailable == false { result.unavailableControllerCount += 1 }
@@ -426,7 +435,7 @@ extension Connection {
         return result
     }
 
-    public func controllers(organizationId: String? = nil) async throws -> [ControllerSummary] {
+    public func controllers(organizationId: String? = nil, cellId: String? = nil) async throws -> [ControllerSummary] {
         struct Answer: Decodable, Sendable {
             struct Meta: Decodable, Sendable { let totalCount: Int? }
             struct List: Decodable, Sendable {
@@ -440,6 +449,7 @@ extension Connection {
         while true {
             var variables: [String: JSONValue] = ["options": .object(["first": .number(200), "after": .number(Double(rows.count))])]
             if let organizationId { variables["organizationId"] = .string(organizationId) }
+            if let cellId { variables["cellId"] = .string(cellId) }
             let list = try await execute(Documents.listControllers, variables: variables, as: Answer.self).ListControllers
             let page = list?.controllers ?? []
             rows += page

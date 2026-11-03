@@ -238,7 +238,8 @@ enum DemoCameras {
             // A customer sees the cameras of its own organization; a Mujin user sees every camera, or one site's when asked.
             let visible = everything.filter { DemoOptions.isStaff || ($0["organizationId"] as? String) == "organization01" }
             let siteId = variables["siteId"] as? String
-            return ["ListCameras": ["cameras": visible.filter { siteId == nil || ($0["siteId"] as? String) == siteId }]]
+            let cell = DemoCells.cell(variables)
+            return ["ListCameras": ["cameras": visible.filter { (siteId == nil || ($0["siteId"] as? String) == siteId) && (cell == nil || cell!.cameraIds.contains($0["id"] as? String ?? "")) }]]
         case "GetCamera":
             let identifier = variables["cameraId"] as? String ?? ""
             if let found = everything.first(where: { ($0["id"] as? String) == identifier }) { return ["GetCamera": ["camera": found]] }

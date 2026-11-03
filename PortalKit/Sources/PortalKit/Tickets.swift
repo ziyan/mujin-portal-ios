@@ -278,8 +278,8 @@ extension Documents {
     static let commentFields = "id authorUserId body isInternal isOriginalRequest createdAt deletedAt redactedAt"
 
     public static let listTickets = """
-        query ListTickets($organizationId: String, $siteId: String, $controllerId: String, $virtualControllerId: String, $options: ListOptionsInput) {
-          ListTickets(organizationId: $organizationId, siteId: $siteId, controllerId: $controllerId, virtualControllerId: $virtualControllerId, options: $options) {
+        query ListTickets($organizationId: String, $siteId: String, $cellId: String, $controllerId: String, $virtualControllerId: String, $options: ListOptionsInput) {
+          ListTickets(organizationId: $organizationId, siteId: $siteId, cellId: $cellId, controllerId: $controllerId, virtualControllerId: $virtualControllerId, options: $options) {
             tickets { \(ticketFields) }
             meta { totalCount }
           }
@@ -381,7 +381,7 @@ public struct PersonSummary: Codable, Equatable, Identifiable, Sendable {
 extension Connection {
     /// Tickets the person may see, newest change first. For staff with no
     /// organization it is the queue across organizations.
-    public func tickets(organizationId: String? = nil, siteId: String? = nil, controllerId: String? = nil, virtualControllerId: String? = nil, first: Int = 200) async throws -> [Ticket] {
+    public func tickets(organizationId: String? = nil, siteId: String? = nil, cellId: String? = nil, controllerId: String? = nil, virtualControllerId: String? = nil, first: Int = 200) async throws -> [Ticket] {
         struct Answer: Decodable, Sendable {
             struct List: Decodable, Sendable { let tickets: [Ticket]? }
             let ListTickets: List?
@@ -389,6 +389,7 @@ extension Connection {
         var variables: [String: JSONValue] = ["options": .object(["first": .number(Double(first))])]
         if let organizationId { variables["organizationId"] = .string(organizationId) }
         if let siteId { variables["siteId"] = .string(siteId) }
+        if let cellId { variables["cellId"] = .string(cellId) }
         if let controllerId { variables["controllerId"] = .string(controllerId) }
         if let virtualControllerId { variables["virtualControllerId"] = .string(virtualControllerId) }
         let rows = try await execute(Documents.listTickets, variables: variables, as: Answer.self).ListTickets?.tickets ?? []
