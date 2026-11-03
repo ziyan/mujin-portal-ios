@@ -319,8 +319,11 @@ final class AppModel {
         for account in ring.accounts {
             let connection = connection(for: account)
             do {
-                try await connection.registerPushDevice(
+                if let deviceId = try await connection.registerPushDevice(
                     deviceToken: token, environment: environment, deviceName: name, appVersion: version, voipToken: VoipDeviceToken.stored())
+                {
+                    PushDeviceIdentity.store(deviceId, accountKey: account.accountKey)
+                }
             } catch {
                 handle(error, account: account)
             }

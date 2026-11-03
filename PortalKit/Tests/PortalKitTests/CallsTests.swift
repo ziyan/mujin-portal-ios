@@ -278,7 +278,7 @@ import Testing
 @Suite struct VoipPushTests {
     @Test func aRingingPushNamesTheCallAndTheCaller() {
         let payload = VoipPushPayload(userInfo: [
-            "portal": ["kind": "chat_call", "userId": "user01", "callId": "call1", "chatId": "chat1", "callerName": "Sam Sample", "isVideoOn": true]
+            "portal": ["kind": "chat_call", "userId": "user01", "callId": "call1", "chatId": "chat1", "callerName": "Sam Sample", "isVideo": true]
         ])
         #expect(payload?.kind == .ringing)
         #expect(payload?.callId == "call1")
@@ -301,6 +301,14 @@ import Testing
     @Test func aCallAlertOpensTheChat() {
         let payload = PushPayload(userId: "u", kind: "chat_call", conversationId: "conv1")
         #expect(payload.route == .chat(conversationId: "conv1"))
+    }
+
+    @Test func thePushDeviceIdIsKeptPerAccount() {
+        let defaults = UserDefaults(suiteName: "push-device-test")!
+        defaults.removePersistentDomain(forName: "push-device-test")
+        PushDeviceIdentity.store("device1", accountKey: "a", in: defaults)
+        #expect(PushDeviceIdentity.stored(accountKey: "a", in: defaults) == "device1")
+        #expect(PushDeviceIdentity.stored(accountKey: "b", in: defaults) == nil)
     }
 
     @Test func theVoipTokenIsStoredAsHex() {

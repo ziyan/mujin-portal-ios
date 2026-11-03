@@ -233,9 +233,17 @@ extension Documents {
 extension Connection {
     /// Tells the server this phone's token, at every launch and whenever the
     /// token changes. It is idempotent per person and token.
+    @discardableResult
     public func registerPushDevice(
         deviceToken: String, environment: PushEnvironment, deviceName: String, appVersion: String, voipToken: String? = nil
-    ) async throws {
+    ) async throws -> String? {
+        struct Answer: Decodable, Sendable {
+            struct Registered: Decodable, Sendable {
+                struct Device: Decodable, Sendable { let id: String? }
+                let pushDevice: Device?
+            }
+            let RegisterPushDevice: Registered?
+        }
         var variables: [String: JSONValue] = [
             "deviceToken": .string(deviceToken), "environment": .string(environment.rawValue), "deviceName": .string(deviceName),
             "appVersion": .string(appVersion),
@@ -244,15 +252,14 @@ extension Connection {
             // A server that does not know `voipToken` refuses the document: the phone then registers its alert token alone.
             variables["voipToken"] = .string(voipToken)
             do {
-                _ = try await execute(Documents.registerPushDeviceWithVoip, variables: variables, as: JSONValue.self)
-                return
+                return try await execute(Documents.registerPushDeviceWithVoip, variables: variables, as: Answer.self).RegisterPushDevice?.pushDevice?.id
             } catch let error as PortalError where error == .signedOut {
                 throw error
             } catch {
                 variables["voipToken"] = nil
             }
         }
-        _ = try await execute(Documents.registerPushDevice, variables: variables, as: JSONValue.self)
+        return try await execute(Documents.registerPushDevice, variables: variables, as: Answer.self).RegisterPushDevice?.pushDevice?.id
     }
 
     /// Stops this account's pushes to this phone while the other accounts
@@ -324,7 +331,7 @@ public struct VoipPushPayload: Equatable, Sendable {
         self.conversationId = text("conversationId")
         self.callerName = text("callerName") ?? text("authorName")
         self.chatName = text("chatName")
-        self.isVideoOn = text("isVideoOn") == "true" || (portal["isVideoOn"] as? Bool) == true
+        self.isVideoOn = ["isVideo", "isVideoOn"].contains { text($0) == "true" || (portal[$0] as? Bool) == true }
     }
 
     /// The name CallKit shows: the caller, else the chat.
@@ -345,5 +352,19 @@ public enum VoipDeviceToken {
 
     public static func stored(in defaults: UserDefaults = AppGroup.defaults) -> String? {
         defaults.string(forKey: key)
+    }
+}
+
+/// PushDeviceIdentity is the id the server gave this phone's push registration for an account, which a call's join or decline names
+/// so the server leaves this phone out of the stop-ringing push.
+public enum PushDeviceIdentity {
+    static func key(_ accountKey: String) -> String { "pushDeviceId.\(accountKey)" }
+
+    public static func store(_ id: String, accountKey: String, in defaults: UserDefaults = AppGroup.defaults) {
+        defaults.set(id, forKey: key(accountKey))
+    }
+
+    public static func stored(accountKey: String, in defaults: UserDefaults = AppGroup.defaults) -> String? {
+        defaults.string(forKey: key(accountKey))
     }
 }

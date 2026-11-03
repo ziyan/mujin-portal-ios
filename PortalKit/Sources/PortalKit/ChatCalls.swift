@@ -324,13 +324,13 @@ extension Documents {
 
     public static let startChatCall = """
         mutation StartChatCall($chatId: String, $userIds: [String], $isVideoOn: Boolean) {
-          StartChatCall(chatId: $chatId, userIds: $userIds, isVideoOn: $isVideoOn) { call { \(callFields) } }
+          StartChatCall(chatId: $chatId, userIds: $userIds, isVideoOn: $isVideoOn) { call { \(callFields) } isExistingCall }
         }
         """
 
-    public static let joinChatCall = "mutation JoinChatCall($callId: String) { JoinChatCall(callId: $callId) { call { \(callFields) } } }"
+    public static let joinChatCall = "mutation JoinChatCall($callId: String, $pushDeviceId: String) { JoinChatCall(callId: $callId, pushDeviceId: $pushDeviceId) { call { \(callFields) } } }"
 
-    public static let declineChatCall = "mutation DeclineChatCall($callId: String) { DeclineChatCall(callId: $callId) { call { id } } }"
+    public static let declineChatCall = "mutation DeclineChatCall($callId: String, $pushDeviceId: String) { DeclineChatCall(callId: $callId, pushDeviceId: $pushDeviceId) { call { id } } }"
 
     public static let leaveChatCall = "mutation LeaveChatCall($callId: String) { LeaveChatCall(callId: $callId) { call { id } } }"
 
@@ -414,18 +414,21 @@ extension Connection {
         return call
     }
 
-    /// Starts a call, ringing `userIds`, or every member when nil. A chat that already has a going call returns that call.
-    public func startChatCall(chatId: String, userIds: [String]?, isVideoOn: Bool) async throws -> ChatCall {
+    /// Starts a call, ringing `userIds`, or every member when nil. A chat that already has a going call returns that call, and
+    /// `isExisting` is true: the person is not on it yet and must join it.
+    public func startChatCall(chatId: String, userIds: [String]?, isVideoOn: Bool) async throws -> (call: ChatCall, isExisting: Bool) {
         struct Answer: Decodable, Sendable {
-            struct Started: Decodable, Sendable { let call: ChatCall? }
+            struct Started: Decodable, Sendable {
+                let call: ChatCall?
+                let isExistingCall: Bool?
+            }
             let StartChatCall: Started?
         }
         var variables: [String: JSONValue] = ["chatId": .string(chatId), "isVideoOn": .bool(isVideoOn)]
         if let userIds { variables["userIds"] = .array(userIds.map { .string($0) }) }
-        guard let call = try await execute(Documents.startChatCall, variables: variables, as: Answer.self).StartChatCall?.call else {
-            throw PortalError.unreadableAnswer
-        }
-        return call
+        let started = try await execute(Documents.startChatCall, variables: variables, as: Answer.self).StartChatCall
+        guard let call = started?.call else { throw PortalError.unreadableAnswer }
+        return (call, started?.isExistingCall == true)
     }
 
     public func joinChatCall(id: String) async throws -> ChatCall {
@@ -433,14 +436,18 @@ extension Connection {
             struct Joined: Decodable, Sendable { let call: ChatCall? }
             let JoinChatCall: Joined?
         }
-        guard let call = try await execute(Documents.joinChatCall, variables: ["callId": .string(id)], as: Answer.self).JoinChatCall?.call else {
+        var variables: [String: JSONValue] = ["callId": .string(id)]
+        if let deviceId = PushDeviceIdentity.stored(accountKey: accountKey) { variables["pushDeviceId"] = .string(deviceId) }
+        guard let call = try await execute(Documents.joinChatCall, variables: variables, as: Answer.self).JoinChatCall?.call else {
             throw PortalError.unreadableAnswer
         }
         return call
     }
 
     public func declineChatCall(id: String) async throws {
-        _ = try await execute(Documents.declineChatCall, variables: ["callId": .string(id)], as: JSONValue.self)
+        var variables: [String: JSONValue] = ["callId": .string(id)]
+        if let deviceId = PushDeviceIdentity.stored(accountKey: accountKey) { variables["pushDeviceId"] = .string(deviceId) }
+        _ = try await execute(Documents.declineChatCall, variables: variables, as: JSONValue.self)
     }
 
     public func leaveChatCall(id: String) async throws {

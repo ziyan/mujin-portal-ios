@@ -71,6 +71,7 @@ final class ChatCallSession: Identifiable {
     private var clockTask: Task<Void, Never>?
     private var routeObserver: NSObjectProtocol?
     private var hasLeft = false
+    private var lastAnsweredSequence: Int?
     private let socketFactory: FeedSocketFactory?
 
     init(
@@ -158,7 +159,9 @@ final class ChatCallSession: Identifiable {
             let joined: ChatCall
             switch entry {
             case .start(let userIds):
-                joined = try await connection.startChatCall(chatId: chatId, userIds: userIds, isVideoOn: isCameraOn)
+                let started = try await connection.startChatCall(chatId: chatId, userIds: userIds, isVideoOn: isCameraOn)
+                // A chat that already had a call returns it: the person joins it before the media.
+                joined = started.isExisting ? try await connection.joinChatCall(id: started.call.id) : started.call
             case .join(let callId):
                 joined = try await connection.joinChatCall(id: callId)
             }
@@ -256,6 +259,11 @@ final class ChatCallSession: Identifiable {
         if signal.signalKind == "closed" {
             finish()
             return
+        }
+        // The server sends the latest unanswered offer again after a resubscribe: one already answered is ignored.
+        if let sequence = signal.sequenceNumber {
+            if let answered = lastAnsweredSequence, sequence <= answered { return }
+            lastAnsweredSequence = sequence
         }
         guard let offer = signal.offerSdp, let media, let connection, let callId else { return }
         do {
