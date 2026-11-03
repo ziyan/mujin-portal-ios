@@ -70,7 +70,7 @@ struct ChatView: View {
             if let model {
                 CallPeoplePicker(
                     title: "Choose who to call", confirmTitle: "Call", people: (model.room?.currentMembers ?? []).filter { $0.userId != model.currentUserId },
-                    showsVideoChoice: true
+                    showsVideoChoice: true, maximumPeople: session.callMaximumPersonCount
                 ) { userIds, isVideoOn in startCall(model, userIds: userIds, isVideoOn: isVideoOn) }
             }
         }

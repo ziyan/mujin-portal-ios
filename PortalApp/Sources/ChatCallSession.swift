@@ -79,6 +79,11 @@ final class ChatCallSession: Identifiable {
     private var hasLeft = false
     private var lastAnsweredSequence: Int?
     @ObservationIgnored private var speaker = ActiveSpeaker()
+    @ObservationIgnored private var lastSentPlan: [String: VideoQuality] = [:]
+    @ObservationIgnored private var subscriptionTask: Task<Void, Never>?
+    @ObservationIgnored private var isVideoSelectionUnsupported = false
+    /// Whether the call screen is in front. A minimized call asks for no video.
+    private(set) var isScreenShown = true
     private let socketFactory: FeedSocketFactory?
 
     init(
@@ -128,9 +133,6 @@ final class ChatCallSession: Identifiable {
         return activeSpeakerId
     }
 
-    /// The most people a call holds, until the server says.
-    var callLimit: Int { ChatCallRules.maximumParticipants }
-
     func pin(_ userId: String) { pinnedUserId = userId }
     func followSpeaker() { pinnedUserId = nil }
 
@@ -144,12 +146,51 @@ final class ChatCallSession: Identifiable {
         if chosen != activeSpeakerId { activeSpeakerId = chosen }
     }
 
-    /// What the screen shows: the speaker view with its strip tiles in view, or the stage and grid. The plan is kept for the server's
-    /// subscription, which is not sent yet.
-    func reportVisibility(isSpeakerView: Bool, visibleStripUserIds: Set<String>) {
+    /// What the screen shows: the speaker view with its strip tiles in view, or the stage and grid with their sizes. The server is told what
+    /// changed after a short pause, once the media is up.
+    func reportLayout(isSpeakerView: Bool, visibleStripUserIds: Set<String>, tileSizes: [String: CallSubscriptionPlan.TileSize]) {
         let plan = CallSubscriptionPlan.plan(
-            remoteUserIds: presentUserIds.filter { $0 != userId }, mainUserId: mainUserId, visibleStripUserIds: visibleStripUserIds, isSpeakerView: isSpeakerView)
-        if plan != subscriptionPlan { subscriptionPlan = plan }
+            remoteUserIds: presentUserIds.filter { $0 != userId }, mainUserId: mainUserId, visibleStripUserIds: visibleStripUserIds, isSpeakerView: isSpeakerView,
+            tileSizes: tileSizes)
+        if plan != subscriptionPlan {
+            subscriptionPlan = plan
+            scheduleSubscriptions()
+        }
+    }
+
+    func setScreenShown(_ isShown: Bool) {
+        guard isScreenShown != isShown else { return }
+        isScreenShown = isShown
+        scheduleSubscriptions()
+    }
+
+    /// The plan as the server should have it now: everyone off while minimized.
+    private var effectivePlan: [String: VideoQuality] {
+        isScreenShown ? subscriptionPlan : subscriptionPlan.mapValues { _ in VideoQuality.off }
+    }
+
+    private func scheduleSubscriptions(resendAll: Bool = false) {
+        guard !isDemo, !isVideoSelectionUnsupported else { return }
+        subscriptionTask?.cancel()
+        subscriptionTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.sendSubscriptions(resendAll: resendAll)
+        }
+    }
+
+    private func sendSubscriptions(resendAll: Bool) async {
+        guard phase == .connected, let connection, let callId else { return }
+        let plan = effectivePlan
+        let changes = CallSubscriptionPlan.changes(from: lastSentPlan, to: plan, resendAll: resendAll)
+        guard !changes.isEmpty else { return }
+        do {
+            try await connection.setChatCallVideoSubscriptions(id: callId, subscriptions: changes)
+            lastSentPlan = plan
+        } catch {
+            // A server without the mutation refuses it once and is not asked again.
+            if (error as? PortalError) != .signedOut { isVideoSelectionUnsupported = true }
+        }
     }
 
     var hasVideoTiles: Bool { participants.contains { $0.isVideoOn } }
@@ -240,7 +281,8 @@ final class ChatCallSession: Identifiable {
         let offer = try await created.makeOffer()
         let answer = try await connection.joinChatCallMedia(id: callId, offerSdp: offer)
         try await created.acceptAnswer(answer)
-        if isMuted || !isCameraOn { try? await connection.setChatCallMedia(id: callId, isMuted: isMuted, isVideoOn: isCameraOn) }
+        // The others are told the camera is on (or off) once the media is joined: the server does not know it from the media alone.
+        try? await connection.setChatCallMedia(id: callId, isMuted: isMuted, isVideoOn: isCameraOn)
     }
 
     private func askForMicrophone() async -> Bool {
@@ -270,6 +312,7 @@ final class ChatCallSession: Identifiable {
                     if let changed = event.call { self.apply(changed) } else { await self.refresh() }
                 case .connected:
                     await self.refresh()
+                    self.scheduleSubscriptions(resendAll: true)
                 default:
                     break
                 }
@@ -323,6 +366,8 @@ final class ChatCallSession: Identifiable {
             connectedAt = connectedAt ?? Date()
             onConnected?(self)
         }
+        // Each time the media comes up, first or after a reconnect, the server hears the whole plan again.
+        if isConnected, phase == .connected { scheduleSubscriptions(resendAll: true) }
         if isFailed, phase != .ended { fail(String(localized: "The connection to the call was lost.")) }
     }
 
@@ -415,6 +460,7 @@ final class ChatCallSession: Identifiable {
     private func finish() {
         guard phase != .ended else { return }
         phase = .ended
+        subscriptionTask?.cancel()
         eventTask?.cancel()
         signalTask?.cancel()
         clockTask?.cancel()

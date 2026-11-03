@@ -138,3 +138,60 @@ import Testing
         #expect(plan == ["a": .full, "b": .full])
     }
 }
+
+@Suite struct CallVideoSelectionTests {
+    @Test func aGridTileAsksForFullOnlyWhenItIsLargeEnough() {
+        let plan = CallSubscriptionPlan.plan(
+            remoteUserIds: ["a", "b", "c"], mainUserId: nil, visibleStripUserIds: [], isSpeakerView: false,
+            tileSizes: [
+                "a": .init(width: 360, height: 270), "b": .init(width: 359, height: 400), "c": .init(width: 400, height: 269),
+            ])
+        #expect(plan == ["a": .full, "b": .small, "c": .small])
+    }
+
+    @Test func aMinimizedCallAsksForNothing() {
+        let plan = CallSubscriptionPlan.plan(remoteUserIds: ["a", "b"], mainUserId: "a", visibleStripUserIds: ["b"], isSpeakerView: true, isMinimized: true)
+        #expect(plan == ["a": .off, "b": .off])
+    }
+
+    @Test func onlyAChangedChoiceIsSentAndEveryoneStartsAtSmall() {
+        let plan: [String: VideoQuality] = ["a": .full, "b": .small, "c": .off]
+        let first = CallSubscriptionPlan.changes(from: [:], to: plan)
+        #expect(first.map(\.userId) == ["a", "c"] && first.map(\.videoQuality) == [.full, .off])
+        #expect(CallSubscriptionPlan.changes(from: plan, to: plan).isEmpty)
+        #expect(CallSubscriptionPlan.changes(from: plan, to: plan, resendAll: true).count == 3)
+        #expect(CallSubscriptionPlan.changes(from: ["a": .full], to: ["a": .small]).map(\.videoQuality) == [.small])
+    }
+
+    @Test func theMutationCarriesEachPersonAndTheirQuality() async throws {
+        let transport = ScriptedTransport { _ in (200, ScriptedTransport.json(["data": ["SetChatCallVideoSubscriptions": NSNull()]])) }
+        let connection = Connection(account: makeAccount(), transport: transport)
+        try await connection.setChatCallVideoSubscriptions(id: "call1", subscriptions: [("a", .full), ("b", .off)])
+        let sent = try JSONDecoder().decode(JSONValue.self, from: try #require(transport.requests.last?.httpBody))
+        #expect(sent["variables"]?["callId"]?.stringValue == "call1")
+        let entries = try #require(sent["variables"]?["subscriptions"]?.arrayValue)
+        #expect(entries.count == 2)
+        #expect(entries[0]["userId"]?.stringValue == "a" && entries[0]["videoQuality"]?.stringValue == "full")
+        #expect(entries[1]["userId"]?.stringValue == "b" && entries[1]["videoQuality"]?.stringValue == "off")
+    }
+
+    @Test func aLongListGoesInRequestsOfAtMostSixtyFour() async throws {
+        let transport = ScriptedTransport { _ in (200, ScriptedTransport.json(["data": ["SetChatCallVideoSubscriptions": NSNull()]])) }
+        let connection = Connection(account: makeAccount(), transport: transport)
+        let many = (0..<70).map { (userId: "u\($0)", videoQuality: VideoQuality.small) }
+        try await connection.setChatCallVideoSubscriptions(id: "call1", subscriptions: many)
+        #expect(transport.requests.count == 2)
+    }
+
+    @Test func theMaximumPersonCountComesFromTheServerOrFallsBack() async {
+        let answering = ScriptedTransport { _ in (200, ScriptedTransport.json(["data": ["GetChatCallMaximumPersonCount": 12]])) }
+        #expect(await Connection(account: makeAccount(), transport: answering).chatCallMaximumPersonCount() == 12)
+        let failing = ScriptedTransport { _ in (200, ScriptedTransport.json(["errors": [["message": "unknown"]]])) }
+        #expect(await Connection(account: makeAccount(), transport: failing).chatCallMaximumPersonCount() == ChatCallRules.maximumParticipants)
+    }
+
+    @Test func theServerOffersVideoSelectionWhenItHasTheMutation() {
+        #expect(ServerCapabilities(mutationNames: ["SetChatCallVideoSubscriptions"]).offersVideoSelection)
+        #expect(!ServerCapabilities().offersVideoSelection)
+    }
+}
