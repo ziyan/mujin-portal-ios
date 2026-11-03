@@ -70,7 +70,7 @@ struct PortalNameLineModifier: ViewModifier {
 
 extension View {
     /// A name or short label that must never break mid-word at the accessibility text sizes.
-    func portalNameLine() -> some View {
+    nonisolated func portalNameLine() -> some View {
         modifier(PortalNameLineModifier())
     }
 
