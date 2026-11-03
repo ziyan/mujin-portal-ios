@@ -36,7 +36,7 @@ final class MessageLinkTests: XCTestCase {
         guard element.exists, element.isHittable else { return false }
         let window = app.windows.firstMatch.frame
         let frame = element.frame
-        return frame.minY > window.minY + 150 && frame.maxY < window.maxY - 230
+        return frame.minY > window.minY + 150 && frame.maxY < window.maxY - 110
     }
 
     /// A point on the first letters of the element's text, which is where the link of a one-link message starts.
