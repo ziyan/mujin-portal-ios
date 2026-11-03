@@ -386,8 +386,8 @@ final class SessionModel {
             let (newProfile, newCapabilities) = try await (loadedProfile, loadedCapabilities)
             profile = newProfile
             capabilities = newCapabilities
-            // A server with calls takes the voice and call fields of a chat message; an older one refuses them.
-            await connection.setOffersChatMedia(newCapabilities.offersChatCalls)
+            // A server with voice messages or calls takes their fields of a chat message; an older one refuses them.
+            await connection.setChatMedia(hasVoice: newCapabilities.offersVoiceMessages, hasCalls: newCapabilities.offersChatCalls)
             await refreshCalls()
             phase = .loaded
             await refreshWaiting()

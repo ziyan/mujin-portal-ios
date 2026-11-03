@@ -118,8 +118,10 @@ import Testing
     @Test func voiceFieldsAreAskedForOnlyWhereAMessageIsAsked() {
         let base = Documents.listMessages
         let withMedia = Documents.withChatMedia(base)
-        #expect(!base.contains("call {"))
-        #expect(withMedia.contains("call {"))
+        #expect(!base.contains("call {") && !base.contains("voiceMessage {"))
+        #expect(withMedia.contains("call {") && withMedia.contains("voiceMessage {"))
+        #expect(!Documents.withChatMedia(base, hasVoice: false, hasCalls: true).contains("voiceMessage {"))
+        #expect(Documents.withChatMedia(base, hasVoice: false, hasCalls: false) == base)
         #expect(Documents.withChatMedia(Documents.me) == Documents.me)
     }
 }

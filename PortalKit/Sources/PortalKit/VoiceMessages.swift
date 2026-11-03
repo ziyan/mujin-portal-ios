@@ -158,11 +158,11 @@ public struct PlayedVoiceMessages: Codable, Equatable, Sendable {
 }
 
 extension Documents {
-    /// SendMessage with a voice message. The input type's name is the one the backend plan gives; the app uses this
+    /// SendMessage with a voice message. The text is left out: the server refuses text with a voice message. The app uses this
     /// document only when the schema shows a `voiceMessage` argument.
     public static let sendChatVoiceMessage = """
-        mutation SendMessage($conversationId: String!, $message: String!, $replyToMessageId: String, $surface: ConversationSurface, $voiceMessage: ConversationVoiceMessageInput) {
-          SendMessage(conversationId: $conversationId, message: $message, replyToMessageId: $replyToMessageId, surface: $surface, voiceMessage: $voiceMessage) {
+        mutation SendMessage($conversationId: String!, $replyToMessageId: String, $surface: ConversationSurface, $voiceMessage: ConversationVoiceAudioInput) {
+          SendMessage(conversationId: $conversationId, replyToMessageId: $replyToMessageId, surface: $surface, voiceMessage: $voiceMessage) {
             runId
             message { id role content createdAt \(chatMessageFields) }
           }
@@ -180,7 +180,7 @@ extension Connection {
             let SendMessage: Sent
         }
         var variables: [String: JSONValue] = [
-            "conversationId": .string(conversationId), "message": .string(""), "surface": .string("ios"),
+            "conversationId": .string(conversationId), "surface": .string("ios"),
             "voiceMessage": .object([
                 "attachmentId": .string(attachmentId), "durationMS": .number(Double(durationMS)),
                 "waveformLevels": .array(waveformLevels.map { .number(Double($0)) }),

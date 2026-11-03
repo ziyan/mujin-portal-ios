@@ -306,13 +306,14 @@ extension Documents {
         """
 
     /// What a chat message adds when the server has voice messages and calls. Sent only to a server that offers them.
-    static let chatMediaFields = """
-        call { \(callFields) }
-        """
+    static let chatVoiceFields = "voiceMessage { attachmentId durationMS waveformLevels transcriptText transcriptState }"
+    static let chatCallLineFields = "call { \(callFields) }"
 
     /// A document with the voice and call fields added wherever it asks for a chat message's fields.
-    public static func withChatMedia(_ document: String) -> String {
-        document.replacingOccurrences(of: "linkPreviewsRemovedAt", with: "linkPreviewsRemovedAt \(chatMediaFields)")
+    public static func withChatMedia(_ document: String, hasVoice: Bool = true, hasCalls: Bool = true) -> String {
+        let fields = [hasVoice ? chatVoiceFields : nil, hasCalls ? chatCallLineFields : nil].compactMap { $0 }.joined(separator: " ")
+        guard !fields.isEmpty else { return document }
+        return document.replacingOccurrences(of: "linkPreviewsRemovedAt", with: "linkPreviewsRemovedAt \(fields)")
     }
 
     public static let isChatCallAvailable = "query IsChatCallAvailable { IsChatCallAvailable }"
