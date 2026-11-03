@@ -23,11 +23,20 @@ final class MessageLinkTests: XCTestCase {
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         _ = element.waitForExistence(timeout: 20)
         var attempts = 0
-        while !(element.exists && element.isHittable) && attempts < 16 {
+        while !isClearOfBars(element, in: app) && attempts < 16 {
             if attempts < 8 { app.swipeDown() } else { app.swipeUp() }
             attempts += 1
         }
-        XCTAssertTrue(element.exists && element.isHittable, "\(element) cannot be tapped.\n\(app.debugDescription)", file: file, line: line)
+        XCTAssertTrue(isClearOfBars(element, in: app), "\(element) cannot be tapped.\n\(app.debugDescription)", file: file, line: line)
+    }
+
+    /// Whether the element can be tapped and is not under the navigation bar or the composer, which draw over the messages
+    /// and still count it as hittable.
+    private func isClearOfBars(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        guard element.exists, element.isHittable else { return false }
+        let window = app.windows.firstMatch.frame
+        let frame = element.frame
+        return frame.minY > window.minY + 150 && frame.maxY < window.maxY - 230
     }
 
     /// A point on the first letters of the element's text, which is where the link of a one-link message starts.
