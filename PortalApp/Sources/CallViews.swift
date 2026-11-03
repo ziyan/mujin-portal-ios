@@ -80,12 +80,14 @@ struct CallBanner: View {
         let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 10))
         layout {
             HStack(spacing: 10) {
-                Image(systemName: "phone.fill")
-                    .foregroundStyle(Color.onAccent)
-                    .frame(width: 32, height: 32)
-                    .background(Color.statusSuccess, in: .circle)
-                    .fixedSize()
-                    .accessibilityHidden(true)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Image(systemName: "phone.fill")
+                        .foregroundStyle(Color.onAccent)
+                        .frame(width: 32, height: 32)
+                        .background(Color.statusSuccess, in: .circle)
+                        .fixedSize()
+                        .accessibilityHidden(true)
+                }
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Call in progress").font(.subheadline.weight(.semibold))
                     if !names.isEmpty { Text(names).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
