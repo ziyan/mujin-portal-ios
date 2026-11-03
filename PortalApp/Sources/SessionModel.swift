@@ -33,6 +33,8 @@ final class SessionModel {
     private(set) var callBook = ChatCallBook()
     /// Whether a media host is alive. False hides the call buttons.
     private(set) var isChatCallAvailable = false
+    /// The most people a call holds, from the server.
+    private(set) var callMaximumPersonCount = ChatCallRules.maximumParticipants
     private var callFeedTask: Task<Void, Never>?
     /// Told when a ring on this account stopped, such as a call answered on another device.
     var onRingStopped: ((String) -> Void)?
@@ -265,6 +267,7 @@ final class SessionModel {
     func refreshCalls() async {
         guard capabilities.offersChatCalls else { return }
         isChatCallAvailable = await connection.isChatCallAvailable()
+        callMaximumPersonCount = await connection.chatCallMaximumPersonCount()
         if let calls = try? await connection.goingChatCalls() { callBook.replaceAll(calls) }
     }
 

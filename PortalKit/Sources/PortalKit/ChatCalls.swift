@@ -358,6 +358,14 @@ extension Documents {
         mutation AnswerChatCallMedia($callId: String, $answerSdp: String) { AnswerChatCallMedia(callId: $callId, answerSdp: $answerSdp) }
         """
 
+    public static let getChatCallMaximumPersonCount = "query GetChatCallMaximumPersonCount { GetChatCallMaximumPersonCount }"
+
+    public static let setChatCallVideoSubscriptions = """
+        mutation SetChatCallVideoSubscriptions($callId: String!, $subscriptions: [ChatCallVideoSubscriptionInput!]!) {
+          SetChatCallVideoSubscriptions(callId: $callId, subscriptions: $subscriptions)
+        }
+        """
+
     public static let onChatCallEvent = """
         subscription OnChatCallEvent {
           OnChatCallEvent { eventType callId chatId actorUserId actorUserName ringedUserIds call { \(callFields) } }
@@ -373,6 +381,7 @@ extension Documents {
         [
             isChatCallAvailable, listGoingChatCalls, getChatCall, startChatCall, joinChatCall, declineChatCall, leaveChatCall, ringChatCallMembers,
             setChatCallMedia, setChatCallTranscription, joinChatCallMedia, answerChatCallMedia, onChatCallEvent, onChatCallSignal,
+            getChatCallMaximumPersonCount, setChatCallVideoSubscriptions,
         ]
     }
 
@@ -390,6 +399,9 @@ extension ServerCapabilities {
             && offersSubscription("OnChatCallSignal")
     }
 
+    /// Whether the phone may choose which video it receives.
+    public var offersVideoSelection: Bool { offersMutation("SetChatCallVideoSubscriptions") }
+
     /// Whether messages in a chat carry voice and call fields.
     public var offersChatMedia: Bool { offersVoiceMessages || offersChatCalls }
 }
@@ -399,6 +411,26 @@ extension Connection {
     public func isChatCallAvailable() async -> Bool {
         struct Answer: Decodable, Sendable { let IsChatCallAvailable: Bool? }
         return (try? await execute(Documents.isChatCallAvailable, as: Answer.self).IsChatCallAvailable) ?? false
+    }
+
+    /// The most people a call holds, which the server decides. The app's own number stands in when it does not say.
+    public func chatCallMaximumPersonCount() async -> Int {
+        struct Answer: Decodable, Sendable { let GetChatCallMaximumPersonCount: Int? }
+        let count = try? await execute(Documents.getChatCallMaximumPersonCount, as: Answer.self).GetChatCallMaximumPersonCount
+        return (count ?? 0) > 0 ? count! : ChatCallRules.maximumParticipants
+    }
+
+    /// Tells the server how much of each person's video this phone wants. People not named keep their earlier choice. A long list goes in
+    /// requests of at most 64.
+    public func setChatCallVideoSubscriptions(id: String, subscriptions: [(userId: String, videoQuality: VideoQuality)]) async throws {
+        var start = 0
+        while start < subscriptions.count {
+            let chunk = subscriptions[start..<min(start + CallSubscriptionPlan.maximumEntriesPerRequest, subscriptions.count)]
+            let entries: [JSONValue] = chunk.map { .object(["userId": .string($0.userId), "videoQuality": .string($0.videoQuality.rawValue)]) }
+            _ = try await execute(
+                Documents.setChatCallVideoSubscriptions, variables: ["callId": .string(id), "subscriptions": .array(entries)], as: JSONValue.self)
+            start += CallSubscriptionPlan.maximumEntriesPerRequest
+        }
     }
 
     public func goingChatCalls() async throws -> [ChatCall] {

@@ -148,6 +148,7 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
   offer goes out once the phone's candidates are gathered. Incoming calls ring through CallKit from a PushKit VoIP push (the second
   token, `voipToken`, goes to the server with the alert token); the audio session is CallKit's and WebRTC takes it only when CallKit
   activates it. A call can be minimized to a bar over every tab.
+- **Video selection.** The phone sends one video track in two simulcast layers (rid `small` at a quarter size, 150 kbps, 15 fps; rid `full` up to 720p, 1.5 Mbps, 30 fps), VP8 preferred, H.264 allowed. It tells the server how much of each person's video it wants (`SetChatCallVideoSubscriptions`): full for the main stage, small for strip tiles in view, off for tiles scrolled out and for everyone while the call is minimized. The plan is sent once the media is up, again after a reconnect, and after every change, debounced by 300 ms. A call's size limit comes from `GetChatCallMaximumPersonCount`.
 - **Without a server that has them**, none of it shows: `ServerCapabilities` reads the schema once per sign-in.
 
 ## TestFlight

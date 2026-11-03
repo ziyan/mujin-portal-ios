@@ -104,11 +104,42 @@ final class CallMedia: NSObject, RTCPeerConnectionDelegate, @unchecked Sendable 
         let videoInit = RTCRtpTransceiverInit()
         videoInit.direction = .sendRecv
         videoInit.streamIds = [localUserId]
+        // One track, two encodings: the server forwards the layer each viewer asked for.
+        videoInit.sendEncodings = Self.simulcastEncodings()
         // The video line is always in the offer, so turning the camera on later needs no new negotiation.
         let transceiver = connection.addTransceiver(of: .video, init: videoInit)
         videoSender = transceiver?.sender
+        if let transceiver { Self.preferVideoCodecs(transceiver) }
         capturer = RTCCameraVideoCapturer(delegate: source)
         startStatistics()
+    }
+
+    /// The two layers: rid `small` at a quarter of the size (320 by 180 from 720p) up to 150 kbps and 15 frames a second, and rid `full` at the
+    /// camera's size up to 1.5 Mbps and 30 frames a second.
+    private static func simulcastEncodings() -> [RTCRtpEncodingParameters] {
+        let small = RTCRtpEncodingParameters()
+        small.rid = "small"
+        small.isActive = true
+        small.scaleResolutionDownBy = NSNumber(value: 4.0)
+        small.maxBitrateBps = NSNumber(value: 150_000)
+        small.maxFramerate = NSNumber(value: 15)
+        let full = RTCRtpEncodingParameters()
+        full.rid = "full"
+        full.isActive = true
+        full.scaleResolutionDownBy = NSNumber(value: 1.0)
+        full.maxBitrateBps = NSNumber(value: 1_500_000)
+        full.maxFramerate = NSNumber(value: 30)
+        return [small, full]
+    }
+
+    /// The server takes VP8 and H.264 only, and software VP8 is the codec WebRTC simulcasts most dependably, so VP8 comes first.
+    private static func preferVideoCodecs(_ transceiver: RTCRtpTransceiver) {
+        let capabilities = factory.rtpReceiverCapabilities(forKind: kRTCMediaStreamTrackKindVideo)
+        var ordered: [RTCRtpCodecCapability] = []
+        for name in ["vp8", "h264"] { ordered += capabilities.codecs.filter { $0.name.lowercased() == name } }
+        guard !ordered.isEmpty else { return }
+        ordered += capabilities.codecs.filter { $0.name.lowercased() == "rtx" }
+        try? transceiver.setCodecPreferences(ordered)
     }
 
     // MARK: negotiation
@@ -231,7 +262,8 @@ final class CallMedia: NSObject, RTCPeerConnectionDelegate, @unchecked Sendable 
     private func startCapture(position: AVCaptureDevice.Position) async -> Bool {
         guard let capturer, let device = RTCCameraVideoCapturer.captureDevices().first(where: { $0.position == position }) else { return false }
         let formats = RTCCameraVideoCapturer.supportedFormats(for: device)
-        let wanted = 960
+        // 720p, so the full layer is 1280 by 720 and the small one 320 by 180.
+        let wanted = 1280
         guard let format = formats.min(by: {
             abs(Int(CMVideoFormatDescriptionGetDimensions($0.formatDescription).width) - wanted)
                 < abs(Int(CMVideoFormatDescriptionGetDimensions($1.formatDescription).width) - wanted)

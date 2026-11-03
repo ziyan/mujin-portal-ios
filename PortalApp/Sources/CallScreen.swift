@@ -84,7 +84,8 @@ struct CallScreen: View {
         .environment(\.colorScheme, .dark)
         .sheet(isPresented: $isRinging) {
             CallPeoplePicker(
-                title: "Ring more people", confirmTitle: "Ring", people: call.peopleToRing(among: room?.currentMembers ?? []), showsVideoChoice: false
+                title: "Ring more people", confirmTitle: "Ring", people: call.peopleToRing(among: room?.currentMembers ?? []), showsVideoChoice: false,
+                maximumPeople: sessionModel.callMaximumPersonCount
             ) { userIds, _ in
                 Task { _ = await call.ring(userIds) }
             }
@@ -206,6 +207,7 @@ struct ParticipantGrid: View {
     @State private var isSwapped = false
     @State private var stripPosition: String?
     @State private var visibleStripIds: Set<String> = []
+    @State private var stageSize = CGSize.zero
 
     var body: some View {
         let people = call.participants
@@ -227,11 +229,29 @@ struct ParticipantGrid: View {
             .onChange(of: present.map(\.userId), initial: true) { _, _ in reportVisibility(present) }
             .onChange(of: call.mainUserId) { _, _ in reportVisibility(present) }
             .onChange(of: visibleStripIds) { _, _ in reportVisibility(present) }
+            .onChange(of: proxy.size, initial: true) { _, size in
+                stageSize = size
+                reportVisibility(present)
+            }
         }
     }
 
     private func reportVisibility(_ present: [CallParticipant]) {
-        call.reportVisibility(isSpeakerView: CallTiling.usesSpeakerView(count: present.count), visibleStripUserIds: visibleStripIds)
+        call.reportLayout(isSpeakerView: CallTiling.usesSpeakerView(count: present.count), visibleStripUserIds: visibleStripIds, tileSizes: tileSizes(present))
+    }
+
+    /// The size each other person's tile has outside the speaker view, so a tile too small for full video asks for a small one.
+    private func tileSizes(_ present: [CallParticipant]) -> [String: CallSubscriptionPlan.TileSize] {
+        guard !CallTiling.usesSpeakerView(count: present.count), stageSize.width > 0 else { return [:] }
+        var sizes: [String: CallSubscriptionPlan.TileSize] = [:]
+        if present.count == 2 {
+            // The other person fills the stage.
+            for person in present where !person.isSelf { sizes[person.userId] = .init(width: Double(stageSize.width), height: Double(stageSize.height)) }
+            return sizes
+        }
+        let frames = CallTiling.tiles(count: present.count, width: Double(stageSize.width), height: Double(stageSize.height), isWide: horizontalSizeClass == .regular)
+        for frame in frames where !present[frame.index].isSelf { sizes[present[frame.index].userId] = .init(width: frame.width, height: frame.height) }
+        return sizes
     }
 
     @ViewBuilder

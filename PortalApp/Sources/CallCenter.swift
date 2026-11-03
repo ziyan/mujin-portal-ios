@@ -17,7 +17,9 @@ final class CallCenter: CallKitHandling {
 
     private(set) var session: ChatCallSession?
     /// Whether the call screen covers the app. A call that is on but not shown is the minimized bar.
-    var isScreenShown = false
+    var isScreenShown = false {
+        didSet { session?.setScreenShown(isScreenShown) }
+    }
     /// What the last attempt to start a call said, for the screen that asked.
     var startErrorText: String?
 

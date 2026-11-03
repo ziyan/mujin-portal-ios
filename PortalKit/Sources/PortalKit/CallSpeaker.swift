@@ -8,14 +8,37 @@ public enum VideoQuality: String, Equatable, Sendable {
 }
 
 /// CallSubscriptionPlan says which video this phone wants from each other person, from what is on the screen: full for the main stage,
-/// small for the strip tiles in view, off for tiles scrolled out of view and for everyone not shown.
+/// small for the strip tiles in view, off for tiles scrolled out of view and for everyone not shown. Outside the speaker view a tile asks
+/// for full when it is at least 360 by 270 points, else small. A minimized call asks for nothing.
 public enum CallSubscriptionPlan {
-    public static func plan(remoteUserIds: [String], mainUserId: String?, visibleStripUserIds: Set<String>, isSpeakerView: Bool) -> [String: VideoQuality] {
+    /// The size of a tile on the screen, in points.
+    public struct TileSize: Equatable, Sendable {
+        public let width: Double
+        public let height: Double
+        public init(width: Double, height: Double) {
+            self.width = width
+            self.height = height
+        }
+    }
+
+    public static let fullTileWidth = 360.0
+    public static let fullTileHeight = 270.0
+
+    public static func plan(
+        remoteUserIds: [String], mainUserId: String?, visibleStripUserIds: Set<String>, isSpeakerView: Bool, tileSizes: [String: TileSize] = [:],
+        isMinimized: Bool = false
+    ) -> [String: VideoQuality] {
         var result: [String: VideoQuality] = [:]
         for userId in remoteUserIds {
-            if !isSpeakerView {
-                // The stage and the grid's tiles are large.
-                result[userId] = .full
+            if isMinimized {
+                result[userId] = .off
+            } else if !isSpeakerView {
+                // The stage is large; a grid tile asks for full only when it is large enough to show it.
+                if let size = tileSizes[userId] {
+                    result[userId] = size.width >= fullTileWidth && size.height >= fullTileHeight ? .full : .small
+                } else {
+                    result[userId] = .full
+                }
             } else if userId == mainUserId {
                 result[userId] = .full
             } else {
@@ -23,6 +46,19 @@ public enum CallSubscriptionPlan {
             }
         }
         return result
+    }
+
+    /// The most entries one request holds.
+    public static let maximumEntriesPerRequest = 64
+
+    /// What to tell the server: only the people whose choice differs from what it already has (everyone starts at small), or every one when
+    /// `resendAll` is set, as after a reconnect.
+    public static func changes(from sent: [String: VideoQuality], to plan: [String: VideoQuality], resendAll: Bool = false) -> [(userId: String, videoQuality: VideoQuality)] {
+        plan.keys.sorted().compactMap { userId in
+            guard let wanted = plan[userId] else { return nil }
+            if resendAll || (sent[userId] ?? .small) != wanted { return (userId, wanted) }
+            return nil
+        }
     }
 }
 
