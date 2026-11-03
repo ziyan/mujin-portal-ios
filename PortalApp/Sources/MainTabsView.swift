@@ -156,7 +156,7 @@ struct MainTabsView: View {
         guard !resolution.isSheet else { return }
         appModel.openedLink = nil
         switch resolution {
-        case .conversation(let id): session.open(.conversation(id))
+        case .conversation(let id): session.open(.conversation(id: id))
         case .tab(let section): session.selectedSection = section
         case .notifications: session.isShowingNotifications = true
         case .web:
