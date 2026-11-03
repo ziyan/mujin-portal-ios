@@ -79,10 +79,6 @@ struct RootView: View {
         .fullScreenCover(item: $model.presentedWeb) { session in
             WebBrowserView(session: session) { model.presentedWeb = nil }
         }
-        .sheet(item: Binding(get: { model.openedCitation.map(IdentifiableCitation.init) }, set: { model.openedCitation = $0?.citation })) { item in
-            MemoryCitationSheet(citation: item.citation)
-                .environment(model)
-        }
         .fullScreenCover(item: $model.safariPage) { page in
             if model.isDemo {
                 DemoSafariPage(url: page.url)

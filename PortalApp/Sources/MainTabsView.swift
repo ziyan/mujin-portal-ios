@@ -186,6 +186,12 @@ struct MainTabsView: View {
                 .environment(appModel)
                 .environment(session)
         }
+        // Beside the linked page sheet: a memory page reads the signed-in session, which RootView does not have.
+        .sheet(item: Binding(get: { appModel.openedCitation.map(IdentifiableCitation.init) }, set: { appModel.openedCitation = $0?.citation })) { item in
+            MemoryCitationSheet(citation: item.citation)
+                .environment(appModel)
+                .environment(session)
+        }
         .onChange(of: appModel.pendingRoute) { _, _ in
             if let route = appModel.takeRoute(for: account) { session.open(route) }
         }
