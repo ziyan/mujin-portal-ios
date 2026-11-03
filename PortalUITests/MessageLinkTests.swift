@@ -54,7 +54,7 @@ final class MessageLinkTests: XCTestCase {
         let link = messageText(app, text)
         reveal(link, in: app, file: file, line: line)
         if let holdSeconds { start(of: link).press(forDuration: holdSeconds) } else { start(of: link).tap() }
-        XCTAssertTrue(isShown(app, "safariPageAddress"), "Tapping the link \"\(text)\" opened nothing", file: file, line: line)
+        XCTAssertTrue(isShown(app, "safariPageAddress"), "Tapping the link \"\(text)\" opened nothing. The link is at \(link.frame) in a window of \(app.windows.firstMatch.frame).\n\(app.debugDescription)", file: file, line: line)
         XCTAssertEqual(DemoApp.element(app, "safariPageAddress").label, address, file: file, line: line)
         DemoApp.element(app, "safariPageDone").tap()
     }
