@@ -611,14 +611,20 @@ jobs:
           xcrun simctl install "${DEVICE}" build/MujinPortal.app
           for APPEARANCE in dark light; do
             xcrun simctl ui "${DEVICE}" appearance "${APPEARANCE}"
-            xcrun simctl io "${DEVICE}" recordVideo --codec h264 --force "recordings/push-pop-${APPEARANCE}.mp4" &
-            RECORDER=$!
-            sleep 2
-            SIMCTL_CHILD_PORTAL_DEMO_SCREEN=sites-push-pop SIMCTL_CHILD_PORTAL_DEMO_PERSONA=staff xcrun simctl launch "${DEVICE}" com.ziyan.mujinportal -demo
-            sleep 20
-            kill -INT "${RECORDER}"
-            wait "${RECORDER}" || true
-            xcrun simctl terminate "${DEVICE}" com.ziyan.mujinportal
+            sleep 3
+            # The first recording after a boot or an appearance change can stop within seconds, so a clip
+            # under a megabyte is recorded again.
+            for ATTEMPT in 1 2 3; do
+              xcrun simctl io "${DEVICE}" recordVideo --codec h264 --force "recordings/push-pop-${APPEARANCE}.mp4" &
+              RECORDER=$!
+              sleep 3
+              SIMCTL_CHILD_PORTAL_DEMO_SCREEN=sites-push-pop SIMCTL_CHILD_PORTAL_DEMO_PERSONA=staff xcrun simctl launch "${DEVICE}" com.ziyan.mujinportal -demo
+              sleep 22
+              kill -INT "${RECORDER}" || true
+              wait "${RECORDER}" || true
+              xcrun simctl terminate "${DEVICE}" com.ziyan.mujinportal
+              [ "$(stat -f%z "recordings/push-pop-${APPEARANCE}.mp4")" -gt 1000000 ] && break
+            done
           done
 
       - name: Keep the recordings
