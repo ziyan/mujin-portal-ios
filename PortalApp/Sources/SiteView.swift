@@ -1037,8 +1037,8 @@ enum SiteRows {
                     }
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(alarm.controllerId)
-                    if let label = alarm.originLabel, !label.isEmpty, label != alarm.controllerId { Text(label) }
+                    Text(alarm.controllerId).portalNameLine()
+                    if let label = alarm.originLabel, !label.isEmpty, label != alarm.controllerId { Text(label).portalNameLine() }
                     if let date = alarm.occurredDate {
                         Text(date, format: .relative(presentation: .named))
                     }
@@ -1116,7 +1116,7 @@ struct SiteListScreen: View {
                     HStack(spacing: 12) {
                         UserAvatar(userId: member.id, name: member.shownName, hasAvatar: member.hasAvatar, modifiedAt: member.modifiedAt, size: 36)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(member.shownName)
+                            Text(member.shownName).portalNameLine()
                             if let email = member.email, !email.isEmpty, email != member.shownName { Text(email).font(.footnote).foregroundStyle(.secondary) }
                         }
                     }
