@@ -130,6 +130,7 @@ private struct WebAppGrid: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text(verbatim: app.displayName))
+                .accessibilityIdentifier("webApp.\(app.webAppId)")
             }
         }
         .padding(.vertical, 4)

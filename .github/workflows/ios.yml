@@ -112,6 +112,37 @@ jobs:
           path: build/Build/Products/Debug-iphonesimulator/MujinPortal.app
           retention-days: 3
 
+  # Drives the app in its demo mode on an iPhone simulator and taps through the
+  # screens whose rows hold several controls: one tap must open one screen.
+  ui-tests:
+    name: UI tests on macOS
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Generate the project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Run the UI tests
+        run: |
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone [0-9]+ Pro \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          xcrun simctl boot "${DEVICE}"
+          xcrun simctl bootstatus "${DEVICE}" -b
+          xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
+            -only-testing:MujinPortalUITests -parallel-testing-enabled NO -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO
+
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-test-results
+          path: ui-tests.xcresult
+          retention-days: 3
+
   # The screens of the demo server, as pictures to look at: an iPhone and a
   # 13-inch iPad, each in light, dark and the largest text size. Not required.
   screenshots:

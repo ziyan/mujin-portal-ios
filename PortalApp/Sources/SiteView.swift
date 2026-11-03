@@ -358,6 +358,7 @@ struct SiteView: View {
                     ticketSection(model)
                 } }
 .portalRootList()
+                .accessibilityIdentifier("sitePage")
                 .refreshable { await model.loadDetails(force: true) }
             }
         }
@@ -431,17 +432,22 @@ struct SiteView: View {
             tileGrid {
                 NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.sessionKey)) { StatTile(label: "Controllers", value: model.controllers.count.formatted(), symbol: "server.rack") }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("statTile.controllers")
                     .navigationLinkIndicatorVisibility(.hidden)
                 if model.virtualControllerCount > 0 {
                     NavigationLink(value: PortalRoute.siteList(.virtualControllers, organizationKey: model.sessionKey)) { StatTile(label: "Virtual controllers", value: model.virtualControllerCount.formatted(), symbol: "square.stack.3d.up") }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("statTile.virtualControllers")
                 }
                 NavigationLink(value: PortalRoute.siteList(.alarms, organizationKey: model.sessionKey)) { StatTile(label: "Active alarms", value: model.alarms.count.formatted(), symbol: "bell.badge", tint: model.alarms.isEmpty ? nil : Color.statusError) }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("statTile.alarms")
                 NavigationLink(value: PortalRoute.siteList(.incidents, organizationKey: model.sessionKey)) { StatTile(label: "Incidents", value: model.incidents.count.formatted(), symbol: "exclamationmark.triangle") }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("statTile.incidents")
                 NavigationLink(value: PortalRoute.siteList(.tickets, organizationKey: model.sessionKey)) { StatTile(label: "Open tickets", value: model.openTickets.count.formatted(), symbol: "tray.full") }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("statTile.tickets")
                     .navigationLinkIndicatorVisibility(.hidden)
             }
         }
@@ -1243,6 +1249,7 @@ struct SiteListScreen: View {
             }
         } }
         .portalList()
+        .accessibilityIdentifier("siteList.\(String(describing: kind))")
         .navigationTitle(kind.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)

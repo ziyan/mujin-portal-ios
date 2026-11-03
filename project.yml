@@ -176,11 +176,31 @@ targets:
         APPLICATION_EXTENSION_API_ONLY: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
 
+  # Drives the app in its demo mode (-demo), which needs no server. See
+  # PortalUITests/ and the ui-tests job of .github/workflows/ios.yml.
+  MujinPortalUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - PortalUITests
+    dependencies:
+      - target: MujinPortal
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(MUJINPORTAL_BUNDLE_IDENTIFIER).uitests
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+
 schemes:
   MujinPortal:
     build:
       targets:
         MujinPortal: all
+    test:
+      config: Debug
+      targets:
+        - MujinPortalUITests
     run:
       config: Debug
     archive:
