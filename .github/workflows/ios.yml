@@ -321,6 +321,10 @@ jobs:
           shoot tab-bar tab-bar
           shoot tab-bar-staff tab-bar staff
           shoot surveillance-tab surveillance-tab
+          shoot search search
+          shoot search-controller search-controller staff
+          shoot search-shortcuts search-shortcuts
+          shoot search-no-results search-no-results
           shoot settings settings
           shoot settings-staff settings staff
           shoot tab-bar-edit tab-bar-edit
@@ -448,6 +452,10 @@ jobs:
           shoot more-staff-dark section:more staff
           shoot tab-bar-dark tab-bar
           shoot surveillance-tab-dark surveillance-tab
+          shoot search-dark search
+          shoot search-controller-dark search-controller staff
+          shoot search-shortcuts-dark search-shortcuts
+          shoot search-no-results-dark search-no-results
           shoot settings-dark settings
           shoot tab-bar-edit-dark tab-bar-edit
           shoot tab-bar-edit-staff-dark tab-bar-edit staff
@@ -540,6 +548,10 @@ jobs:
           shoot large-text-more-staff section:more staff
           shoot large-text-tab-bar tab-bar
           shoot large-text-surveillance-tab surveillance-tab
+          shoot large-text-search search
+          shoot large-text-search-controller search-controller staff
+          shoot large-text-search-shortcuts search-shortcuts
+          shoot large-text-search-no-results search-no-results
           shoot large-text-settings settings
           shoot large-text-tab-bar-edit tab-bar-edit
           shoot large-text-tab-bar-edit-staff tab-bar-edit staff
