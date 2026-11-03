@@ -335,6 +335,7 @@ struct CandidateRow: View {
     let person: ChatCandidate
     let showsOrganization: Bool
     let isSelected: Bool?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(spacing: 10) {
@@ -343,10 +344,11 @@ struct CandidateRow: View {
                     .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                     .accessibilityHidden(true)
             }
-            UserAvatar(userId: person.userId, name: person.shownName, size: 32)
+            if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: person.userId, name: person.shownName, size: 32) }
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(person.shownName).foregroundStyle(.primary)
+                let nameLayout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 6))
+                nameLayout {
+                    Text(person.shownName).foregroundStyle(.primary).portalNameLine()
                     if person.isMujinUser == true {
                         Text("Staff")
                             .font(.caption2.weight(.semibold))
@@ -357,7 +359,7 @@ struct CandidateRow: View {
                     }
                 }
                 if showsOrganization, let organization = person.organizationName, !organization.isEmpty {
-                    Text(organization).font(.footnote).foregroundStyle(.secondary)
+                    Text(organization).font(.footnote).foregroundStyle(.secondary).portalNameLine()
                 }
             }
             Spacer(minLength: 0)

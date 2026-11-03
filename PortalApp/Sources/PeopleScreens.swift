@@ -125,6 +125,7 @@ struct PersonRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(member.shownName)
                     .foregroundStyle(Color.primary)
+                    .portalNameLine()
                 if let email = member.email, !email.isEmpty, email != member.shownName {
                     Text(email)
                         .font(.footnote)
@@ -305,6 +306,7 @@ struct UserDetailView: View {
                             Text(profile.shownName)
                                 .font(.title3.weight(.semibold))
                                 .foregroundStyle(Color.primary)
+                                .portalNameLine()
                             if let email = profile.email, !email.isEmpty {
                                 Text(email)
                                     .font(.footnote)
