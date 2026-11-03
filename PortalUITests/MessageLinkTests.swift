@@ -18,15 +18,16 @@ final class MessageLinkTests: XCTestCase {
         return app.staticTexts[text]
     }
 
-    /// Scrolls the chat, up to the older messages first, until the element can be tapped.
+    /// Scrolls the chat, to the older messages first, until the element can be tapped. A row that is off screen is not in the
+    /// accessibility hierarchy at all, so there is no waiting for it before scrolling.
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(element.waitForExistence(timeout: 45), "\(element) never appeared.\n\(app.debugDescription)", file: file, line: line)
+        _ = element.waitForExistence(timeout: 20)
         var attempts = 0
-        while !element.isHittable && attempts < 16 {
+        while !(element.exists && element.isHittable) && attempts < 16 {
             if attempts < 8 { app.swipeDown() } else { app.swipeUp() }
             attempts += 1
         }
-        XCTAssertTrue(element.isHittable, "\(element) cannot be tapped", file: file, line: line)
+        XCTAssertTrue(element.exists && element.isHittable, "\(element) cannot be tapped.\n\(app.debugDescription)", file: file, line: line)
     }
 
     /// A point on the first letters of the element's text, which is where the link of a one-link message starts.
@@ -39,11 +40,11 @@ final class MessageLinkTests: XCTestCase {
     }
 
     /// Taps the link whose text is `text` and checks that the web page `address` was opened in the Safari view.
-    private func checkWebLink(screen: String, text: String, address: String, file: StaticString = #filePath, line: UInt = #line) {
+    private func checkWebLink(screen: String, text: String, address: String, holdSeconds: Double? = nil, file: StaticString = #filePath, line: UInt = #line) {
         let app = DemoApp.launch(screen: screen)
         let link = messageText(app, text)
         reveal(link, in: app, file: file, line: line)
-        start(of: link).tap()
+        if let holdSeconds { start(of: link).press(forDuration: holdSeconds) } else { start(of: link).tap() }
         XCTAssertTrue(isShown(app, "safariPageAddress"), "Tapping the link \"\(text)\" opened nothing", file: file, line: line)
         XCTAssertEqual(DemoApp.element(app, "safariPageAddress").label, address, file: file, line: line)
         DemoApp.element(app, "safariPageDone").tap()
@@ -92,10 +93,23 @@ final class MessageLinkTests: XCTestCase {
 
     func testChatLongPressOpensActions() {
         let app = DemoApp.launch(screen: "chat-links")
-        let words = app.staticTexts["Hi Alex, I saw the gripper ticket. Can you send the pressure log?"]
+        let words = app.staticTexts["A plain item"]
         reveal(words, in: app)
         words.press(forDuration: 1.0)
         XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 10), "A long press on a message did not open its actions")
+    }
+
+    /// A finger rests on the screen longer than a synthesized tap does, but still shorter than the long press that opens the actions.
+    func testChatMarkdownLinkHeldForAFifthOfASecond() {
+        checkWebLink(screen: "chat-links", text: "Pressure checklist", address: "https://example.test/docs/markdown", holdSeconds: 0.2)
+    }
+
+    func testChatMarkdownLinkHeldForAThirdOfASecond() {
+        checkWebLink(screen: "chat-links", text: "Pressure checklist", address: "https://example.test/docs/markdown", holdSeconds: 0.3)
+    }
+
+    func testChatBareAddressHeldForAFifthOfASecond() {
+        checkWebLink(screen: "chat-links", text: "https://example.test/docs/plain", address: "https://example.test/docs/plain", holdSeconds: 0.2)
     }
 
     func testChatLongPressNextToALinkOpensActions() {
@@ -109,7 +123,7 @@ final class MessageLinkTests: XCTestCase {
 
     func testChatTapOnPlainTextDoesNothing() {
         let app = DemoApp.launch(screen: "chat-links")
-        let words = app.staticTexts["Hi Alex, I saw the gripper ticket. Can you send the pressure log?"]
+        let words = app.staticTexts["A plain item"]
         reveal(words, in: app)
         words.tap()
         sleep(2)
@@ -120,6 +134,14 @@ final class MessageLinkTests: XCTestCase {
 
     func testConversationMarkdownLink() {
         checkWebLink(screen: "conversation-links", text: "Assistant checklist", address: "https://example.test/docs/assistant")
+    }
+
+    func testConversationMarkdownLinkHeldForAFifthOfASecond() {
+        checkWebLink(screen: "conversation-links", text: "Assistant checklist", address: "https://example.test/docs/assistant", holdSeconds: 0.2)
+    }
+
+    func testConversationMarkdownLinkHeldForAThirdOfASecond() {
+        checkWebLink(screen: "conversation-links", text: "Assistant checklist", address: "https://example.test/docs/assistant", holdSeconds: 0.3)
     }
 
     func testConversationBareAddress() {
