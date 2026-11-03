@@ -217,7 +217,6 @@ struct ParticipantGrid: View {
                 stage(present: present, isVideo: isVideo, size: proxy.size)
                 if !ringing.isEmpty {
                     RingingRow(people: ringing)
-                        .frame(maxWidth: .infinity)
                         .padding(.top, 10)
                         .padding(.horizontal, 8)
                         .frame(maxHeight: .infinity, alignment: isVideo && present.count != 2 ? .top : .bottom)
@@ -368,23 +367,26 @@ struct ParticipantGrid: View {
 struct RingingRow: View {
     let people: [CallParticipant]
 
+    private var avatars: some View {
+        HStack(alignment: .top, spacing: 14) {
+            ForEach(people) { person in
+                VStack(spacing: 4) {
+                    UserAvatar(userId: person.userId, name: person.name, size: 44)
+                    Text(person.name).font(.caption2).lineLimit(2).multilineTextAlignment(.center).frame(maxWidth: 84)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             Text("Ringing\u{2026}").font(.footnote.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 14) {
-                    ForEach(people) { person in
-                        VStack(spacing: 4) {
-                            UserAvatar(userId: person.userId, name: person.name, size: 44)
-                            Text(person.name).font(.caption2).lineLimit(2).multilineTextAlignment(.center).frame(maxWidth: 84)
-                        }
-                    }
-                }
-                .padding(.horizontal, 12)
-                .frame(minWidth: 0)
+            // A few people sit side by side in a panel that fits them; more scroll sideways.
+            ViewThatFits(in: .horizontal) {
+                avatars
+                ScrollView(.horizontal, showsIndicators: false) { avatars }
             }
-            .frame(maxHeight: 96)
-            .scrollBounceBehavior(.basedOnSize)
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .padding(.vertical, 8)
