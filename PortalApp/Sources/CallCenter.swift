@@ -117,7 +117,7 @@ final class CallCenter: CallKitHandling {
 
     // MARK: a ring from the server
 
-    func handleVoipPush(_ payload: VoipPushPayload?, completion: @escaping () -> Void) {
+    func handleVoipPush(_ payload: VoipPushPayload?, completion: @escaping @Sendable () -> Void) {
         guard let callKit else {
             completion()
             return
@@ -148,7 +148,7 @@ final class CallCenter: CallKitHandling {
         }
     }
 
-    private func reportAndEnd(callKit: CallKitController, completion: @escaping () -> Void) {
+    private func reportAndEnd(callKit: CallKitController, completion: @escaping @Sendable () -> Void) {
         let uuid = UUID()
         callKit.reportIncoming(uuid: uuid, name: "Portal", hasVideo: false) { _ in
             Task { @MainActor in callKit.reportEnded(uuid: uuid, reason: .remoteEnded) }

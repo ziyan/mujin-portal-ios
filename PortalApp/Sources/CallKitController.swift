@@ -159,12 +159,19 @@ final class VoipRegistry: NSObject, PKPushRegistryDelegate {
         _ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void
     ) {
         let parsed = VoipPushPayload(userInfo: payload.dictionaryPayload)
+        // PushKit's own block, finished once from the main queue.
+        let finish = UncheckedCompletion(run: completion)
         MainActor.assumeIsolated {
             guard let center else {
-                completion()
+                finish.run()
                 return
             }
-            center.handleVoipPush(parsed, completion: completion)
+            center.handleVoipPush(parsed) { finish.run() }
         }
     }
+}
+
+/// UncheckedCompletion carries a system completion block that is only ever called once.
+struct UncheckedCompletion: @unchecked Sendable {
+    let run: () -> Void
 }
