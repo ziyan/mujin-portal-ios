@@ -78,6 +78,8 @@ final class SessionModel {
         self.avatars = AvatarStore(connection: connection, directory: directory)
         self.surveillance = SurveillanceModel(connection: connection, cache: cache, accountKey: account.accountKey)
         self.savedTabBar = tabBarStore.load(accountKey: account.accountKey)
+        // The screenshot of Surveillance as a tab is taken for someone who chose it, since the default bar no longer has it.
+        if DemoOptions.screen == "surveillance-tab" { savedTabBar = [AppSection.site.rawValue, AppSection.surveillance.rawValue] }
     }
 
     /// The sections on the tab bar, More last, for what the person may use now.
@@ -412,6 +414,7 @@ enum DemoOptions {
     /// The tab to open on, from `section:<name>`.
     static var section: AppSection? {
         guard let screen else { return nil }
+        if SearchDemo.owns(screen) { return .search }
         if screen.hasPrefix("more-") { return .more }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         if AccountDemo.owns(screen) || PlatformDemo.owns(screen) { return .more }
