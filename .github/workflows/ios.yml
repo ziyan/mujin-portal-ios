@@ -153,6 +153,7 @@ jobs:
           }
           shoot list list
           shoot list-started list-started
+          shoot title-event title-event
           shoot approval conversation:conversation02
           shoot answer conversation:conversation01
           shoot share share
@@ -203,9 +204,16 @@ jobs:
           shoot release-tap release-tap
           shoot controller-menu controller-menu
           shoot virtual-controller-menu virtual-controller-menu
+          shoot controller-apps controller-apps
+          shoot controller-apps-offline controller-apps-offline
+          shoot controller-app-open controller-app-open
+          shoot virtual-controller-apps virtual-controller-apps
           shoot ticket-menu ticket-menu
           shoot release-menu release-menu
           shoot chat-link-tap chat-link-tap
+          shoot message-actions message-actions
+          shoot chat-message-actions chat-message-actions
+          shoot select-text select-text
           shoot voice voice
           shoot site-orchestrators site-orchestrators
           shoot site-mobile-robots site-mobile-robots
@@ -225,6 +233,8 @@ jobs:
           shoot camera-incident camera-incident
           shoot camera-jump camera-jump
           shoot camera-share camera-share
+          shoot camera-sound camera-sound
+          shoot camera-unsupported camera-unsupported
           shoot notifications notifications
           shoot about about
           shoot sites-staff sites-staff staff
@@ -271,6 +281,13 @@ jobs:
           shoot more-surveillance-staff more-surveillance staff
           shoot more-platform more-platform
           shoot more-surveillance more-surveillance
+          shoot tab-bar tab-bar
+          shoot tab-bar-staff tab-bar staff
+          shoot surveillance-tab surveillance-tab
+          shoot settings settings
+          shoot settings-staff settings staff
+          shoot tab-bar-edit tab-bar-edit
+          shoot tab-bar-edit-staff tab-bar-edit staff
           shoot platform-hub platform-hub
           shoot platform-hub-staff platform-hub staff
           shoot platform-organizations platform-organizations staff
@@ -290,6 +307,9 @@ jobs:
           shoot platform-grants platform-grants staff
           shoot platform-registrations platform-registrations staff
           shoot platform-alerts platform-alerts
+          shoot link-scan link-scan
+          shoot link-confirm link-confirm
+          shoot link-denied link-denied
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
           shoot virtual-controller-dark virtual-controller
@@ -307,6 +327,10 @@ jobs:
           shoot chat-composer-dark chat-composer
           shoot side-chat-links-dark side-chat-links
           shoot dark conversation:conversation02
+          shoot answer-dark conversation:conversation01
+          shoot message-actions-dark message-actions
+          shoot chat-message-actions-dark chat-message-actions
+          shoot select-text-dark select-text
           shoot share-dark share
           shoot artifacts-dark conversation:conversation04
           shoot automations-activity-dark automations-activity
@@ -328,6 +352,8 @@ jobs:
           shoot cameras-failed-dark cameras-failed
           shoot camera-dark camera
           shoot camera-recorded-dark camera-recorded
+          shoot camera-sound-dark camera-sound
+          shoot camera-unsupported-dark camera-unsupported
           shoot chat-dark chat:chatconv01
           shoot chats-dark chats
           shoot speaks-first-dark conversation:conversation06
@@ -337,6 +363,9 @@ jobs:
           shoot release-tap-dark release-tap
           shoot controller-menu-dark controller-menu
           shoot virtual-controller-menu-dark virtual-controller-menu
+          shoot controller-apps-dark controller-apps
+          shoot controller-app-open-dark controller-app-open
+          shoot virtual-controller-apps-dark virtual-controller-apps
           shoot ticket-menu-dark ticket-menu
           shoot release-menu-dark release-menu
           shoot chat-link-tap-dark chat-link-tap
@@ -360,12 +389,20 @@ jobs:
           shoot surveillance-dark surveillance
           shoot surveillance-staff-dark surveillance-staff staff
           shoot more-staff-dark section:more staff
+          shoot tab-bar-dark tab-bar
+          shoot surveillance-tab-dark surveillance-tab
+          shoot settings-dark settings
+          shoot tab-bar-edit-dark tab-bar-edit
+          shoot tab-bar-edit-staff-dark tab-bar-edit staff
           shoot platform-hub-staff-dark platform-hub staff
           shoot platform-organization-dark platform-organization staff
           shoot platform-audit-dark platform-audit
           shoot platform-usage-dark platform-usage staff
           shoot platform-billing-dark platform-billing staff
           shoot platform-provider-dark platform-provider staff
+          shoot link-scan-dark link-scan
+          shoot link-confirm-dark link-confirm
+          shoot link-denied-dark link-denied
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
@@ -377,6 +414,10 @@ jobs:
           shoot large-text-controllers-staff controllers-staff staff
           shoot large-text-virtual-controllers-staff virtual-controllers-staff staff
           shoot large-text conversation:conversation02
+          shoot large-text-answer conversation:conversation01
+          shoot large-text-message-actions message-actions
+          shoot large-text-chat-message-actions chat-message-actions
+          shoot large-text-select-text select-text
           shoot large-text-conversation-composer conversation-composer
           shoot large-text-chat-composer chat-composer
           shoot large-text-artifacts conversation:conversation04
@@ -385,6 +426,10 @@ jobs:
           shoot large-text-ticket ticket
           shoot large-text-controller-menu controller-menu
           shoot large-text-virtual-controller-menu virtual-controller-menu
+          shoot large-text-controller-apps controller-apps
+          shoot large-text-controller-apps-offline controller-apps-offline
+          shoot large-text-controller-app-open controller-app-open
+          shoot large-text-virtual-controller-apps virtual-controller-apps
           shoot large-text-ticket-menu ticket-menu
           shoot large-text-release-menu release-menu
           shoot large-text-chat-link-tap chat-link-tap
@@ -397,6 +442,9 @@ jobs:
           shoot large-text-cameras cameras
           shoot large-text-cameras-failed cameras-failed
           shoot large-text-camera camera
+          shoot large-text-camera-recorded camera-recorded
+          shoot large-text-camera-sound camera-sound
+          shoot large-text-camera-unsupported camera-unsupported
           shoot large-text-chat chat:chatconv01
           shoot large-text-speaks-first conversation:conversation06
           shoot large-text-goals goals
@@ -413,6 +461,11 @@ jobs:
           shoot large-text-sites-staff-people sites-staff staff
           shoot large-text-surveillance surveillance
           shoot large-text-more-staff section:more staff
+          shoot large-text-tab-bar tab-bar
+          shoot large-text-surveillance-tab surveillance-tab
+          shoot large-text-settings settings
+          shoot large-text-tab-bar-edit tab-bar-edit
+          shoot large-text-tab-bar-edit-staff tab-bar-edit staff
           shoot large-text-platform-hub platform-hub
           shoot large-text-platform-hub-staff platform-hub staff
           shoot large-text-platform-organization platform-organization staff
@@ -420,6 +473,9 @@ jobs:
           shoot large-text-platform-audit-event platform-audit-event
           shoot large-text-platform-billing platform-billing staff
           shoot large-text-platform-provider platform-provider staff
+          shoot large-text-link-scan link-scan
+          shoot large-text-link-confirm link-confirm
+          shoot large-text-link-denied link-denied
 
       - name: Keep the screenshots
         if: always()

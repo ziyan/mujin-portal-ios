@@ -60,20 +60,33 @@ extension SessionModel {
     }
 }
 
-/// AccountMoreSections is what More adds for the person's account and for people management.
+/// AccountSettingsSection is what Settings lists for the person's own account.
+struct AccountSettingsSection: View {
+    var body: some View {
+        Section("Account") {
+            accountLink(.profile, "Profile and preferences", "person.crop.circle")
+            accountLink(.sessions, "Sessions", "iphone")
+            accountLink(.passkeys, "Passkeys", "person.badge.key")
+            accountLink(.tokens, "API tokens", "key")
+            accountLink(.authorizedApps, "Authorized apps", "app.badge.checkmark")
+            accountLink(.vpn, "VPN", "network")
+            accountLink(.sshKeys, "SSH keys", "terminal")
+        }
+    }
+}
+
+private func accountLink(_ destination: AccountDestination, _ title: LocalizedStringKey, _ symbol: String) -> some View {
+    NavigationLink(value: MoreDestination.account(destination)) {
+        Label(title, systemImage: symbol)
+            .foregroundStyle(.primary)
+    }
+}
+
+/// AccountMoreSections is what More adds for people management.
 struct AccountMoreSections: View {
     @Environment(SessionModel.self) private var session
 
     var body: some View {
-        Section("Account") {
-            link(.profile, "Profile and preferences", "person.crop.circle")
-            link(.sessions, "Sessions", "iphone")
-            link(.passkeys, "Passkeys", "person.badge.key")
-            link(.tokens, "API tokens", "key")
-            link(.authorizedApps, "Authorized apps", "app.badge.checkmark")
-            link(.vpn, "VPN", "network")
-            link(.sshKeys, "SSH keys", "terminal")
-        }
         let access = session.peopleAccess
         if access.hasPeopleEntry {
             Section("People") {
@@ -89,10 +102,7 @@ struct AccountMoreSections: View {
     }
 
     private func link(_ destination: AccountDestination, _ title: LocalizedStringKey, _ symbol: String) -> some View {
-        NavigationLink(value: MoreDestination.account(destination)) {
-            Label(title, systemImage: symbol)
-                .foregroundStyle(.primary)
-        }
+        accountLink(destination, title, symbol)
     }
 }
 

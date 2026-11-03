@@ -72,7 +72,7 @@ import Testing
         #expect(Reactions.emojiToSend(chosen: "\u{1F44D}", in: mine, currentUserId: "user01") == "")
         #expect(Reactions.emojiToSend(chosen: "\u{1F64F}", in: mine, currentUserId: "user01") == "\u{1F64F}")
         #expect(Reactions.emojiToSend(chosen: "\u{1F44D}", in: [], currentUserId: "user01") == "\u{1F44D}")
-        #expect(Reactions.palette.count == 6)
+        #expect(Reactions.palette.count == 8)
     }
 
     @Test func onlyOneOrTwoEmojiAreAcceptable() {

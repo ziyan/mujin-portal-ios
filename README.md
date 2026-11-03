@@ -35,9 +35,17 @@ recording from just before it was detected. Video is decoded by the system, not 
 camera's fragmented MP4 stream (H.264 or H.265) is cut into frames by PortalKit and shown by an
 `AVSampleBufferDisplayLayer`, whose clock gives pause and speed. The timeline, the date jump and
 shared clips use the NVR's own clock and say so. Recorded playback uses the controller's playback
-websocket when it has one (found with a probe that expects a 400) and downloads clips from
-`video/export` when it does not. The demo server plays a generated test pattern
+websocket only, a minute at a time; a controller too old to have the route (its upgrade is answered with a web page) says so and offers a clip download; clips from `video/export` are only downloaded to be shared. Sound
+starts off; the speaker button on the camera screen plays the stream's AAC track on the same clock,
+and the audio session is only taken while sound is on. The demo server plays a generated test pattern
 (`PortalApp/Resources/DemoCamera.mp4`, made with a software encoder; nothing recorded by a camera).
+
+## Web apps
+
+A controller's page and a virtual controller's page list the web apps installed on it as a grid of tiles with each app's icon and name
+(`ListControllerWebApps`, shown only when the server offers it). A tile opens the app's page in the built-in browser through the same web
+session handoff as the controller's web UI, so it lands signed in. Icons come from a Portal route that takes the app's token, since the
+controller's own host refuses it. Most apps ship an SVG, which UIKit cannot decode, so the app draws each one once with WebKit.
 
 ## Layout
 

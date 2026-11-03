@@ -4,12 +4,12 @@ import Testing
 @testable import PortalKit
 
 @Suite struct NavigationTests {
-    @Test func customersGetMessagesSitesTicketsAndMore() {
+    @Test func customersGetChatSitesTicketsAndMore() {
         #expect(Navigation.sections(for: .customer) == [.assistant, .site, .tickets, .more])
         #expect(Navigation.home(for: .customer) == .assistant)
     }
 
-    @Test func mujinUsersGetMessagesTicketsAllSitesAndMore() {
+    @Test func mujinUsersGetChatTicketsAllSitesAndMore() {
         #expect(Navigation.sections(for: .staff) == [.assistant, .tickets, .site, .more])
         #expect(Navigation.home(for: .staff) == .assistant)
     }

@@ -13,6 +13,8 @@ import UIKit
 @MainActor
 enum DemoServer {
     static let server = try! ServerAddress("https://demo.example.test")
+    /// The code on the link address the demo's scan screen pretends to read.
+    static let linkCode = "ZGVtby1saW5rLWNvZGUtMDEyMzQ1Njc4OQ"
 
     static func makeModel(isSignedIn: Bool = !["welcome", "demo-entered"].contains(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] ?? "")) -> AppModel {
         let account = Account(
@@ -111,6 +113,31 @@ final class DemoState: @unchecked Sendable {
                     > Nothing needs your action today.
                     """,
             ],
+            ["id": "m03", "role": "user", "content": "Show me the stations, and where the checklist is.", "createdAt": stamp(3_000)],
+            [
+                "id": "m04", "role": "assistant", "createdAt": stamp(2_950),
+                "content": """
+                    The checklist is at [Suction cup checklist](https://example.test/docs/suction) and the raw log is at https://example.test/logs/pressure.
+
+                    | Station | State | Picks |
+                    | :--- | :---: | ---: |
+                    | Station 1 | Running | 1,204 |
+                    | Station 2 | Idle | 87 |
+                    | Station 3 | **Fault** | 12 |
+                    """,
+            ],
+            [
+                "id": "m05", "role": "assistant", "createdAt": stamp(2_900),
+                "content": """
+                    The longer view, from `controller02`:
+
+                    | Station | Operator | Last pick | Picks today | Average cycle | Drops | Note |
+                    | --- | --- | --- | ---: | ---: | ---: | --- |
+                    | Station 1 | Robin Demo | 09:41:07 | 1,204 | 3.2 s | 2 | Hose replaced |
+                    | Station 2 | Jordan Placeholder | 08:15:52 | 87 | 4.8 s | 0 | Waiting for stock |
+                    | Station 3 | Not assigned | 07:02:30 | 12 | 9.6 s | 5 | See ticket #1 |
+                    """,
+            ],
         ]
         data.messages["conversation02"] = [
             ["id": "m10", "role": "user", "content": "Restart the planner on controller01.", "createdAt": stamp(200)],
@@ -196,6 +223,8 @@ final class DemoState: @unchecked Sendable {
             said("c6", "user02", "Sam Sample", "", 900, extra: ["deletedAt": stamp(880)]),
             said("c7", "user02", "Sam Sample", "That matches what I saw. I will schedule a hose replacement.", 700, extra: ["editedAt": stamp(650)]),
             said("c8", "user01", "Alex Example", "Thanks, please do.", 620),
+            said("c9", "user02", "Sam Sample", "Notes: [Suction cup checklist](https://example.test/docs/suction) and the log https://example.test/logs/pressure.", 540),
+            said("c10", "user02", "Sam Sample", "Dips this week:\n\n| Station | Dips | Lowest kPa |\n| :--- | ---: | ---: |\n| Station 3 | 4 | 31 |\n| Station 1 | 1 | 38 |", 500),
         ]
         data.messages["chatconv02"] = [
             said("d1", "user03", "Robin Demo", "Shift change at 14:00.", 7_200),
@@ -323,16 +352,27 @@ final class DemoState: @unchecked Sendable {
                 }
             }
             broadcast(conversationId: conversationId, event: ["type": "run_complete", "runId": "run-demo", "runComplete": ["stopReason": "end_turn"]])
-            // As on the server: the title it writes from the first exchange comes a few seconds after the turn ends, with no event.
+            // As on the server: the title it writes from the first exchange comes a few seconds after the turn ends, as an event.
             if conversationId.hasPrefix("conversation-new-") {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
-                withData { data in
-                    if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
-                        data.conversations[index]["title"] = "A first question for the assistant"
-                    }
-                }
+                announceTitle(conversationId: conversationId, title: "A first question for the assistant")
             }
         }
+    }
+
+    /// Stores a conversation's title and tells every open feed about it, as the server does for each title it writes.
+    func announceTitle(conversationId: String, title: String, isTitleCustom: Bool = false) {
+        withData { data in
+            if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
+                data.conversations[index]["title"] = title
+            }
+        }
+        broadcast(
+            conversationId: conversationId,
+            event: [
+                "type": "conversation_updated",
+                "conversationUpdated": ["conversationId": conversationId, "conversationTitle": title, "isTitleCustom": isTitleCustom],
+            ])
     }
 }
 
@@ -342,6 +382,12 @@ struct DemoTransport: HTTPTransport {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         if let path = request.url?.path, path.hasPrefix("/api/v1/unifiprotect/") {
             return DemoCameraPaths.respond(to: request)
+        }
+        if let path = request.url?.path, path.contains("/webapp/"), path.hasSuffix("/icon") {
+            // Most demo apps have an icon (one of them an SVG, as real apps ship); one is listed with an icon the server does not have.
+            let icon = DemoWebApps.icon(forPath: path)
+            let response = HTTPURLResponse(url: request.url!, statusCode: icon == nil ? 404 : 200, httpVersion: nil, headerFields: ["Content-Type": icon?.contentType ?? "text/plain"])!
+            return (icon?.data ?? Data(), response)
         }
         if let path = request.url?.path, path.hasPrefix("/api/v1/user/") || path.hasPrefix("/api/v1/organization/") || path.hasPrefix("/api/v1/attachment/") {
             // Two demo people and one organization have a picture; everyone else gets a 404 and keeps their initials.
@@ -391,7 +437,7 @@ struct DemoTransport: HTTPTransport {
         case "ServerCapabilities":
             return [
                 "__schema": [
-                    "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"]]],
+                    "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"]]],
                     "mutationType": ["fields": [["name": "sendMessage"], ["name": "registerPushDevice"], ["name": "startDirectChat"]]],
                     "subscriptionType": ["fields": [["name": "onConversationEvent"]]],
                 ]
@@ -587,6 +633,8 @@ struct DemoTransport: HTTPTransport {
                     ["controllerId": "controller02", "isAvailable": false],
                 ]
             ]
+        case "ListControllerWebApps":
+            return ["ListControllerWebApps": DemoWebApps.list(controllerId: variables["controllerId"] as? String, virtualControllerId: variables["virtualControllerId"] as? String)]
         case "ListSiteUserIDs":
             return ["ListSiteUserIDs": ["user01", "user02", "user03"]]
         case "ListOrganizationUsers":
@@ -904,8 +952,14 @@ struct DemoTransport: HTTPTransport {
                 ])
                 if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
                     data.conversations[index]["activeRunId"] = "run-demo"
-                    if data.conversations[index]["title"] is NSNull { data.conversations[index]["title"] = String(message.prefix(40)) }
                 }
+            }
+            // As on the server: the first message gives the conversation a placeholder title, announced at once.
+            let isUntitled = state.withData { data in
+                data.conversations.first { ($0["id"] as? String) == conversationId }?["title"] is NSNull
+            }
+            if isUntitled, let placeholder = ConversationListUpdate.placeholderTitle(for: message) {
+                state.announceTitle(conversationId: conversationId, title: placeholder)
             }
             state.playAnswer(
                 conversationId: conversationId,
@@ -1087,6 +1141,14 @@ final class DemoSocket: FeedSocket, @unchecked Sendable {
         case .subscribe(_, _, let variables):
             inner.withValue { $0.conversationId = variables["conversationId"]?.stringValue ?? "" }
             state.withData { $0.sockets.append(self) }
+            // The title-event screen: a conversation is open when the server renames it, and the title changes at once.
+            if DemoOptions.screen == "title-event", conversationId == "conversation01" {
+                let demoState = state
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    demoState.announceTitle(conversationId: "conversation01", title: "Slow dock doors this week")
+                }
+            }
         default: break
         }
     }
@@ -1203,5 +1265,72 @@ enum DemoPictures {
                 UIBezierPath(ovalIn: CGRect(x: 35, y: 115, width: 130, height: 130)).fill()
             }
         }
+    }
+}
+
+
+/// DemoWebApps is the invented apps of the demo controller and virtual controller, and the icons the demo server serves for them.
+enum DemoWebApps {
+    private struct App {
+        let id: String
+        let name: String
+        /// An SF Symbol drawn white on a colored square, or nil for the app that has no icon.
+        let symbol: String?
+        let color: UIColor
+        let isIconMissing: Bool
+    }
+
+    private static let apps: [App] = [
+        App(id: "pick-monitor", name: "Pick Monitor", symbol: "gauge.with.dots.needle.bottom.50percent", color: .systemOrange, isIconMissing: false),
+        App(id: "line-statistics", name: "Line Statistics", symbol: nil, color: .systemBlue, isIconMissing: false),
+        App(id: "station-setup", name: "Station Setup", symbol: "slider.horizontal.3", color: .systemGreen, isIconMissing: false),
+        App(id: "calibration-helper", name: "Calibration Helper", symbol: "scope", color: .systemPurple, isIconMissing: false),
+        App(id: "device-console", name: "Device Console", symbol: "terminal", color: .systemGray, isIconMissing: false),
+        App(id: "order-board", name: "Order Board", symbol: "list.bullet.rectangle", color: .systemTeal, isIconMissing: false),
+        App(id: "inbound-and-outbound-station-manager", name: "Inbound and Outbound Station Manager", symbol: nil, color: .systemIndigo, isIconMissing: true),
+        App(id: "packing-review", name: "Packing Review", symbol: "shippingbox", color: .systemBrown, isIconMissing: true),
+    ]
+
+    /// The apps ListControllerWebApps answers for the demo's controllers: the online controller has eight, the virtual controller four,
+    /// and the offline one has none to offer.
+    static func list(controllerId: String?, virtualControllerId: String?) -> [String: Any] {
+        let isVirtual = virtualControllerId != nil
+        if controllerId == "controller02" { return ["isAvailable": false, "source": NSNull(), "webApps": []] }
+        let shown = isVirtual ? apps.filter { ["pick-monitor", "station-setup", "device-console", "calibration-helper"].contains($0.id) } : apps
+        let prefix = isVirtual ? "/api/v1/virtualcontroller/\(virtualControllerId ?? "")" : "/api/v1/controller/\(controllerId ?? "")"
+        return [
+            "isAvailable": true, "source": isVirtual ? "virtual" : "live",
+            "webApps": shown.map { app -> [String: Any] in
+                // The one with no icon at all has no icon address; "Packing Review" has an address the server cannot serve.
+                let hasIconAddress = app.symbol != nil || app.id == "line-statistics"
+                return [
+                    "webAppId": app.id, "name": app.name, "versionString": "1.0.0", "openPath": "/app/\(app.id)",
+                    "iconUrl": hasIconAddress ? "\(prefix)/webapp/\(app.id)/icon" : NSNull(),
+                ]
+            },
+        ]
+    }
+
+    static func icon(forPath path: String) -> (data: Data, contentType: String)? {
+        let parts = path.split(separator: "/")
+        guard let index = parts.firstIndex(of: "webapp"), index + 1 < parts.count, let app = apps.first(where: { $0.id == String(parts[index + 1]) }), !app.isIconMissing else { return nil }
+        guard let symbol = app.symbol else {
+            let svg = """
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="#2f6fde"/>\
+                <rect x="22" y="48" width="12" height="28" fill="white"/><rect x="42" y="32" width="12" height="44" fill="white"/>\
+                <rect x="62" y="20" width="12" height="56" fill="white"/></svg>
+                """
+            return (Data(svg.utf8), "image/svg+xml")
+        }
+        let size = CGSize(width: 128, height: 128)
+        let data = UIGraphicsImageRenderer(size: size).pngData { _ in
+            app.color.setFill()
+            UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 28).fill()
+            let configuration = UIImage.SymbolConfiguration(pointSize: 64, weight: .semibold)
+            if let image = UIImage(systemName: symbol, withConfiguration: configuration)?.withTintColor(.white, renderingMode: .alwaysOriginal) {
+                image.draw(in: CGRect(x: (size.width - image.size.width) / 2, y: (size.height - image.size.height) / 2, width: image.size.width, height: image.size.height))
+            }
+        }
+        return (data, "image/png")
     }
 }

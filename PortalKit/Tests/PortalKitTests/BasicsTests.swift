@@ -157,3 +157,93 @@ import Testing
         #expect(MarkdownBlocks.parse("```\nabc") == [.code(language: "", text: "abc")])
     }
 }
+
+@Suite struct MarkdownTableTests {
+    @Test func aTableHasHeaderAlignmentsAndRows() {
+        let blocks = MarkdownBlocks.parse(
+            """
+            Before
+
+            | Station | State | Picks |
+            | :--- | :---: | ---: |
+            | One | Running | 120 |
+            | Two | Idle | 8 |
+
+            After
+            """)
+        #expect(
+            blocks == [
+                .paragraph("Before"),
+                .table(
+                    headerCells: ["Station", "State", "Picks"], columnAlignments: [.leading, .center, .trailing],
+                    bodyRows: [["One", "Running", "120"], ["Two", "Idle", "8"]]),
+                .paragraph("After"),
+            ])
+    }
+
+    @Test func theOuterPipesAreOptional() {
+        let blocks = MarkdownBlocks.parse("Station | Picks\n--- | ---:\nOne | 120\nTwo | 8")
+        #expect(
+            blocks == [
+                .table(headerCells: ["Station", "Picks"], columnAlignments: [.leading, .trailing], bodyRows: [["One", "120"], ["Two", "8"]])
+            ])
+    }
+
+    @Test func anEscapedPipeStaysInTheCell() {
+        let blocks = MarkdownBlocks.parse("| Name | Note |\n| --- | --- |\n| a\\|b | c |")
+        #expect(blocks == [.table(headerCells: ["Name", "Note"], columnAlignments: [.leading, .leading], bodyRows: [["a|b", "c"]])])
+    }
+
+    @Test func aPipeInsideCodeDoesNotSplit() {
+        let blocks = MarkdownBlocks.parse("| Command | Note |\n| --- | --- |\n| `a | b` | text |")
+        #expect(blocks == [.table(headerCells: ["Command", "Note"], columnAlignments: [.leading, .leading], bodyRows: [["`a | b`", "text"]])])
+    }
+
+    @Test func shortRowsArePaddedAndLongRowsTrimmed() {
+        let blocks = MarkdownBlocks.parse("| A | B |\n| --- | --- |\n| 1 |\n| 1 | 2 | 3 |\n| |")
+        #expect(
+            blocks == [
+                .table(headerCells: ["A", "B"], columnAlignments: [.leading, .leading], bodyRows: [["1", ""], ["1", "2"], ["", ""]])
+            ])
+    }
+
+    @Test func emptyCellsAreKept() {
+        let blocks = MarkdownBlocks.parse("| A | B |\n| --- | --- |\n| | 2 |")
+        #expect(blocks == [.table(headerCells: ["A", "B"], columnAlignments: [.leading, .leading], bodyRows: [["", "2"]])])
+    }
+
+    @Test func pipesWithoutADelimiterRowStayAParagraph() {
+        #expect(MarkdownBlocks.parse("| a | b |\n| c | d |") == [.paragraph("| a | b |\n| c | d |")])
+        #expect(MarkdownBlocks.parse("a | b\n\n--- | ---") == [.paragraph("a | b"), .paragraph("--- | ---")])
+        #expect(MarkdownBlocks.parse("| a | b |\n| --- |\n| 1 | 2 |") == [.paragraph("| a | b |\n| --- |\n| 1 | 2 |")])
+        #expect(!MarkdownBlocks.hasTable("Use a | b to pipe."))
+    }
+
+    @Test func aTableEndsAtALineWithoutPipesOrAFence() {
+        let blocks = MarkdownBlocks.parse("| A |\n| --- |\n| 1 |\nplain\n\n| B |\n| --- |\n| 2 |\n```\ncode\n```")
+        #expect(
+            blocks == [
+                .table(headerCells: ["A"], columnAlignments: [.leading], bodyRows: [["1"]]),
+                .paragraph("plain"),
+                .table(headerCells: ["B"], columnAlignments: [.leading], bodyRows: [["2"]]),
+                .code(language: "", text: "code"),
+            ])
+    }
+
+    @Test func aTableInsideACodeFenceIsCode() {
+        #expect(MarkdownBlocks.parse("```\n| a |\n| --- |\n```") == [.code(language: "", text: "| a |\n| --- |")])
+    }
+
+    @Test func aTableStreamingInKeepsBeingATable() {
+        let header = "| Station | State |"
+        // The header alone is still text.
+        #expect(MarkdownBlocks.parse(header) == [.paragraph(header)])
+        // A delimiter row that has only begun already makes the table.
+        for partial in ["| -", "| ---", "| --- |", "| --- | :", "| --- | ---"] where partial.contains("-") {
+            let blocks = MarkdownBlocks.parse(header + "\n" + partial)
+            #expect(blocks == [.table(headerCells: ["Station", "State"], columnAlignments: [.leading, .leading], bodyRows: [])], "\(partial)")
+        }
+        let blocks = MarkdownBlocks.parse(header + "\n| --- | ---: |\n| One | Run")
+        #expect(blocks == [.table(headerCells: ["Station", "State"], columnAlignments: [.leading, .trailing], bodyRows: [["One", "Run"]])])
+    }
+}

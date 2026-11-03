@@ -1,6 +1,6 @@
 import Foundation
 
-/// ConversationOrdering decides the order of the Messages list. Every path that
+/// ConversationOrdering decides the order of the Chat list. Every path that
 /// fills the list (a fresh read and a held copy) goes through `ordered`, so the
 /// order never depends on where the rows came from.
 public enum ConversationOrdering {

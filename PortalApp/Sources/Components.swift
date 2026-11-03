@@ -371,19 +371,6 @@ struct StableBubble<Key: Equatable, Content: View>: View, Equatable {
     nonisolated static func == (first: StableBubble, second: StableBubble) -> Bool { first.key == second.key }
 }
 
-/// ReactionMenuRow is the six quick reactions in one horizontal row at the top of a message's menu, as in Messages.
-struct ReactionMenuRow: View {
-    let onReact: (String) -> Void
-
-    var body: some View {
-        ControlGroup {
-            ForEach(Reactions.palette, id: \.self) { emoji in
-                Button(emoji) { onReact(emoji) }
-            }
-        }
-    }
-}
-
 /// StatusValueRow is a title with a status beside it: a symbol and one word. At the large text sizes, where the two do not fit on a
 /// line, the status goes under the title, whole; a word is never broken. Its separator starts at the row's edge.
 struct StatusValueRow: View {

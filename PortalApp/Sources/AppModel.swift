@@ -17,8 +17,6 @@ final class AppModel {
     let socketFactory: FeedSocketFactory
     /// Opens the websockets of camera streams: the real network, or the demo's recording.
     let cameraSocketFactory: CameraSocketFactory
-    /// Which controllers serve recorded footage over a websocket, learned once per launch.
-    let cameraTransports = CameraTransportMemory()
     let isDemo: Bool
 
     /// The demo a person entered from the welcome screen, with its own fake server: nothing in it reaches a network host,
@@ -45,6 +43,8 @@ final class AppModel {
     var openedLink: OpenedLink?
     /// Said once at the top of the screen, such as a sign-in the server ended.
     var notice: String?
+    /// The controller link screen being shown, from the Sites screen, a tapped link or a universal link.
+    var linkRequest: ControllerLinkRequest?
 
     /// The built-in browser being shown, and the page in Safari's view.
     var presentedWeb: WebSession?
@@ -126,6 +126,11 @@ final class AppModel {
             return .handled
         }
         guard let account = activeAccount else { return .systemAction }
+        // A controller's link address opens the approval here, not the web page.
+        if case .link(let code) = ControllerLinkPayload.read(url, server: account.server) {
+            linkRequest = ControllerLinkRequest(code: code)
+            return .handled
+        }
         switch LinkClassifier.classify(url, server: account.server) {
         case .portal, .controller:
             if let link = PortalLink(url: url, server: account.server) {
@@ -139,6 +144,16 @@ final class AppModel {
             return .handled
         case .other:
             return .systemAction
+        }
+    }
+
+    /// Handles an address the system opened the app with, such as the link a controller shows as a QR code.
+    func handleIncoming(_ url: URL) {
+        guard let account = activeAccount else { return }
+        switch ControllerLinkPayload.read(url, server: account.server) {
+        case .link(let code): linkRequest = ControllerLinkRequest(code: code)
+        case .otherServer(let host): linkRequest = ControllerLinkRequest(otherServerHost: host)
+        case .notControllerCode: break
         }
     }
 
@@ -417,4 +432,12 @@ final class PresenceReporting {
             }
         }
     }
+}
+
+/// ControllerLinkRequest asks for the controller link screen: with a code to confirm, with the name of another server the code is
+/// for, or with neither, to scan.
+struct ControllerLinkRequest: Identifiable, Equatable {
+    let id = UUID()
+    var code: String?
+    var otherServerHost: String?
 }

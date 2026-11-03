@@ -61,6 +61,9 @@ final class ConversationModel {
     private var pollTask: Task<Void, Never>?
     private var titleTask: Task<Void, Never>?
     private var isTitleCustom = false
+    /// Whether the summary, and so the server's own title, has been written already.
+    private var hasSummary = false
+    private var hasHeardTitleEvent = false
     private var cards: (questions: [QuestionCard], approvals: [ApprovalCard]) = ([], [])
 
     init(
@@ -139,6 +142,11 @@ final class ConversationModel {
         case .event(let event):
             transcript.apply(event)
             noteSpeech(event)
+            if let announced = event.announcedTitle(for: conversationId) {
+                hasHeardTitleEvent = true
+                isTitleCustom = announced.isCustom
+                applyTitle(announced.title)
+            }
             switch event.kind {
             case .runComplete, .runError: await reload(isRunFinished: true)
             case .pendingQuestion, .pendingApproval: await reload()
@@ -200,6 +208,7 @@ final class ConversationModel {
             window.replace(with: loadedMessages, totalCount: await total)
             cards = loadedCards
             isTitleCustom = loadedSummary.isTitleCustom == true
+            hasSummary = !(loadedSummary.summary ?? "").isEmpty
             applyTitle(loadedSummary.title)
             isMain = loadedSummary.isMain == true
             ownerUserId = loadedSummary.userId
@@ -216,29 +225,29 @@ final class ConversationModel {
         }
     }
 
+    /// A conversation keeps the title it has: a read that comes back without one, from a replica that is
+    /// a moment behind, does not take it away.
     private func applyTitle(_ newTitle: String?) {
-        guard newTitle != title else { return }
+        guard let newTitle, !newTitle.isEmpty, newTitle != title else { return }
         title = newTitle
-        if let newTitle, !newTitle.isEmpty { onTitleChanged?(newTitle) }
+        onTitleChanged?(newTitle)
     }
 
-    /// The server writes a conversation's title a few seconds after the first answer ends, and sends no
-    /// event for it. So the title is read again a few times after a turn ends, until it changes.
-    /// A title the person set is never replaced, so nothing is read for it.
+    /// The server announces every title it writes as an event, so the title shows at once. This one read,
+    /// ten seconds after the first turn ends, is for the case where no event came: the feed was down just
+    /// then, or the server is older than the event. It is skipped once an event was heard, for a title the
+    /// person set, and after the summary exists (later turns never retitle).
     private func watchForServerTitle() {
-        guard !isTitleCustom, titleTask == nil else { return }
-        let titleWhenTurnEnded = title
+        guard !isTitleCustom, !hasSummary, titleTask == nil else { return }
+        hasHeardTitleEvent = false
         titleTask = Task { [weak self] in
-            for seconds in [2, 3, 5, 8, 12] as [UInt64] {
-                try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
-                guard let self, !Task.isCancelled else { return }
-                if let read = try? await connection.conversation(id: conversationId), read.title != titleWhenTurnEnded {
-                    self.isTitleCustom = read.isTitleCustom == true
-                    self.applyTitle(read.title)
-                    break
-                }
+            try? await Task.sleep(nanoseconds: 10 * 1_000_000_000)
+            guard let self, !Task.isCancelled else { return }
+            if !self.hasHeardTitleEvent, let read = try? await self.connection.conversation(id: self.conversationId) {
+                self.isTitleCustom = read.isTitleCustom == true
+                self.applyTitle(read.title)
             }
-            self?.titleTask = nil
+            self.titleTask = nil
         }
     }
 

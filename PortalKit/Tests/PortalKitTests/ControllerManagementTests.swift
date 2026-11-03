@@ -115,7 +115,7 @@ import Testing
 
 @Suite struct ControllerLinkApprovalTests {
     @Test func theCodeIsNormalizedAndTheOfferFollowsThePermissions() {
-        #expect(ControllerLinkAccess.normalized(" ab12 cd34 ") == "AB12CD34")
+        #expect(ControllerLinkAccess.normalized(" ab12 Cd34 ") == "ab12Cd34")
         #expect(ControllerLinkAccess.canOffer(permissions: ["controller:link"]))
         #expect(!ControllerLinkAccess.canOffer(permissions: ["site:assign"]))
     }
@@ -129,9 +129,9 @@ import Testing
         let account = Account(
             server: try ServerAddress("https://portal.example.test"), clientId: "client01", userId: "user01", displayName: "Alex", email: "alex@example.test",
             accessToken: "token", refreshToken: "refresh", accessTokenExpiresAt: Date().addingTimeInterval(3600))
-        try await Connection(account: account, transport: transport).approveControllerLink(code: "ab12 cd34", siteId: "site01")
+        try await Connection(account: account, transport: transport).approveControllerLink(code: "ab12 Cd34", siteId: "site01")
         let sent = bodies.withValue { $0 }
-        #expect(sent[0]["variables"]?["code"]?.stringValue == "AB12CD34")
+        #expect(sent[0]["variables"]?["code"]?.stringValue == "ab12Cd34")
         #expect(sent[0]["variables"]?["siteId"]?.stringValue == "site01")
     }
 }

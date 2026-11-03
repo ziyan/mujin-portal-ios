@@ -41,6 +41,8 @@ final class SessionModel {
     /// Whether the notification feed is up. While it is not, the lists are polled.
     private(set) var isNotificationFeedLive = false
     private var notificationFeedTask: Task<Void, Never>?
+    /// A screen More should open at once, for a place that is not on the tab bar.
+    var moreScreenToOpen: MoreDestination?
     /// A goal to show in More, from a notification.
     var goalToOpen: String?
     /// Set when a notification about an incident asks More to show the incidents.
@@ -53,6 +55,9 @@ final class SessionModel {
     let avatarImages = AvatarImageMemory()
     /// Every camera the person can see, for the Surveillance wall.
     let surveillance: SurveillanceModel
+    private let tabBarStore = TabBarStore()
+    /// The sections the person chose for the tab bar, or nil while they never did.
+    private(set) var savedTabBar: [String]?
     private var siteModels: [String: SiteModel] = [:]
     private var ticketModels: [String: TicketsModel] = [:]
 
@@ -63,6 +68,23 @@ final class SessionModel {
         let directory = Self.avatarDirectory(accountKey: account.accountKey)
         self.avatars = AvatarStore(connection: connection, directory: directory)
         self.surveillance = SurveillanceModel(connection: connection, cache: cache, accountKey: account.accountKey)
+        self.savedTabBar = tabBarStore.load(accountKey: account.accountKey)
+    }
+
+    /// The sections on the tab bar, More last, for what the person may use now.
+    var tabSections: [AppSection] {
+        TabBar.tabs(saved: savedTabBar, persona: persona, hasCameras: surveillance.hasCameras)
+    }
+
+    /// The sections the person may put on the bar.
+    var choosableSections: [AppSection] {
+        TabBar.choosable(persona: persona, hasCameras: surveillance.hasCameras)
+    }
+
+    /// Saves the sections of the bar. Nil brings the defaults back.
+    func setTabBar(_ sections: [AppSection]?) {
+        savedTabBar = sections?.map(\.rawValue)
+        tabBarStore.save(savedTabBar, accountKey: account.accountKey)
     }
 
     /// Where an account's pictures are kept on disk.
@@ -342,11 +364,12 @@ enum DemoOptions {
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         if AccountDemo.owns(screen) || PlatformDemo.owns(screen) { return .more }
         // Screens that live under More.
-        if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image", "accounts"].contains(where: { screen.hasPrefix($0) }) { return .more }
+        if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image", "accounts", "tab-bar-edit"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") || screen.hasPrefix("attachment-viewer") { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
         if screen.hasPrefix("site-staff") || screen == "sites-staff" || screen == "surveillance-staff" { return .site }
         if screen == "surveillance" { return .more }
+        if screen == "surveillance-tab" { return .surveillance }
         if screen.hasPrefix("site") || screen.hasPrefix("incident") || screen.hasPrefix("controller") || screen.hasPrefix("virtual-controller") || screen.hasPrefix("camera") { return .site }
         return nil
     }
@@ -356,6 +379,8 @@ enum DemoOptions {
         switch screen ?? "" {
         case let name where name.hasPrefix("automations"): [.automations]
         case "about": [.about]
+        case "settings", "accounts": [.settings]
+        case "tab-bar-edit": [.settings, .tabBarEditor]
         case "goals": [.goals]
         case "goal": [.goals, .goal("goal01")]
         case "ideas": [.ideas]
