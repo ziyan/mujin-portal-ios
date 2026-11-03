@@ -16,6 +16,8 @@ enum PortalRoute: Hashable {
     case incident(IncidentSummary)
     /// One specific site of an organization, which never changes to another site.
     case site(id: String, organizationId: String)
+    /// One cell of a site: the site page narrowed to the cell's machines and cameras.
+    case cell(id: String, siteId: String, organizationId: String?)
     case release(id: String)
     case releaseUsers(id: String, kind: ReleaseUsageKind)
     case releaseImage(id: String)
@@ -76,6 +78,8 @@ struct PortalRouteView: View {
             IncidentDetailView(incident: incident)
         case .site(let id, let organizationId):
             SiteView(organizationId: organizationId, siteId: id, embedsNavigation: false)
+        case .cell(let id, let siteId, let organizationId):
+            CellView(cellId: id, siteId: siteId, organizationId: organizationId)
         case .release(let id):
             ReleaseDetailView(releaseId: id)
         case .releaseUsers(let id, let kind):

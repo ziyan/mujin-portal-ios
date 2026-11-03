@@ -166,9 +166,9 @@ extension Documents {
 }
 
 extension Connection {
-    public func siteOrchestrators(siteId: String) async throws -> [SiteOrchestrators] {
+    public func siteOrchestrators(siteId: String, cellId: String? = nil) async throws -> [SiteOrchestrators] {
         struct Answer: Decodable, Sendable { let ListSiteOrchestrators: [SiteOrchestrators]? }
-        return try await execute(Documents.listSiteOrchestrators, variables: ["siteId": .string(siteId)], as: Answer.self).ListSiteOrchestrators ?? []
+        return try await execute(Documents.listSiteOrchestrators, variables: Self.siteScope(siteId: siteId, cellId: cellId), as: Answer.self).ListSiteOrchestrators ?? []
     }
 
     /// The people of a site: its user ids, named from the site organization's

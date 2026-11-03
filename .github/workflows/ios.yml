@@ -31,6 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - run: scripts/check-public-content.sh
+      - run: scripts/check-row-controls.sh
 
   # Whether a pull request touches the app. A required check that never
   # reports holds a pull request forever, so the workflow runs on every one
@@ -110,6 +111,37 @@ jobs:
         with:
           name: simulator-app
           path: build/Build/Products/Debug-iphonesimulator/MujinPortal.app
+          retention-days: 3
+
+  # Drives the app in its demo mode on an iPhone simulator and taps through the
+  # screens whose rows hold several controls: one tap must open one screen.
+  ui-tests:
+    name: UI tests on macOS
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Generate the project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Run the UI tests
+        run: |
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone [0-9]+ Pro \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          xcrun simctl boot "${DEVICE}"
+          xcrun simctl bootstatus "${DEVICE}" -b
+          xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
+            -only-testing:MujinPortalUITests -parallel-testing-enabled NO -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO
+
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-test-results
+          path: ui-tests.xcresult
           retention-days: 3
 
   # The screens of the demo server, as pictures to look at: an iPhone and a
@@ -223,6 +255,10 @@ jobs:
           shoot site-members site-members
           shoot site-controllers site-controllers
           shoot site-back site-back
+          shoot site-cells site-cells
+          shoot cell cell
+          shoot cell-lower cell-lower
+          shoot cell-empty cell-empty
           shoot site-staff site-staff staff
           shoot site-staff-controllers site-staff-controllers staff
           shoot site-loading site-loading
@@ -235,6 +271,7 @@ jobs:
           shoot camera-share camera-share
           shoot camera-sound camera-sound
           shoot camera-unsupported camera-unsupported
+          shoot camera-unreachable camera-unreachable
           shoot notifications notifications
           shoot about about
           shoot sites-staff sites-staff staff
@@ -320,6 +357,11 @@ jobs:
           shoot call-minimized call-minimized
           shoot call-picker call-picker
           shoot call-ring-more call-ring-more
+          shoot call-ringing call-ringing
+          shoot call-two call-two
+          shoot call-three call-three
+          shoot call-five call-five
+          shoot call-twelve call-twelve
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
           shoot virtual-controller-dark virtual-controller
@@ -354,6 +396,10 @@ jobs:
           shoot site-alarms-dark site-alarms
           shoot site-alarm-detail-dark site-alarm-detail
           shoot site-alarm-metadata-dark site-alarm-metadata
+          shoot site-cells-dark site-cells
+          shoot cell-dark cell
+          shoot cell-lower-dark cell-lower
+          shoot cell-empty-dark cell-empty
           shoot site-staff-dark site-staff staff
           shoot release-dark release
           shoot voice-dark voice
@@ -364,6 +410,7 @@ jobs:
           shoot camera-recorded-dark camera-recorded
           shoot camera-sound-dark camera-sound
           shoot camera-unsupported-dark camera-unsupported
+          shoot camera-unreachable-dark camera-unreachable
           shoot chat-dark chat:chatconv01
           shoot chats-dark chats
           shoot speaks-first-dark conversation:conversation06
@@ -423,6 +470,11 @@ jobs:
           shoot call-minimized-dark call-minimized
           shoot call-picker-dark call-picker
           shoot call-ring-more-dark call-ring-more
+          shoot call-ringing-dark call-ringing
+          shoot call-two-dark call-two
+          shoot call-three-dark call-three
+          shoot call-five-dark call-five
+          shoot call-twelve-dark call-twelve
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
@@ -459,12 +511,17 @@ jobs:
           shoot large-text-site-alarms site-alarms
           shoot large-text-site-alarm-detail site-alarm-detail
           shoot large-text-site-alarm-metadata site-alarm-metadata
+          shoot large-text-site-cells site-cells
+          shoot large-text-cell cell
+          shoot large-text-cell-lower cell-lower
+          shoot large-text-cell-empty cell-empty
           shoot large-text-cameras cameras
           shoot large-text-cameras-failed cameras-failed
           shoot large-text-camera camera
           shoot large-text-camera-recorded camera-recorded
           shoot large-text-camera-sound camera-sound
           shoot large-text-camera-unsupported camera-unsupported
+          shoot large-text-camera-unreachable camera-unreachable
           shoot large-text-chat chat:chatconv01
           shoot large-text-speaks-first conversation:conversation06
           shoot large-text-goals goals
@@ -506,6 +563,11 @@ jobs:
           shoot large-text-call-minimized call-minimized
           shoot large-text-call-picker call-picker
           shoot large-text-call-ring-more call-ring-more
+          shoot large-text-call-ringing call-ringing
+          shoot large-text-call-two call-two
+          shoot large-text-call-three call-three
+          shoot large-text-call-five call-five
+          shoot large-text-call-twelve call-twelve
 
       - name: Keep the screenshots
         if: always()

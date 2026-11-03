@@ -183,7 +183,7 @@ enum DemoCameraScreens {
         switch screen {
         case "camera", "camera-jump", "camera-share", "camera-sound":
             return CameraTarget(camera: camera)
-        case "camera-recorded", "camera-unsupported":
+        case "camera-recorded", "camera-unsupported", "camera-unreachable":
             return CameraTarget(camera: camera, startAtMS: now - 25 * 60_000)
         case "camera-incident":
             guard let incidentDetectedAt else { return nil }

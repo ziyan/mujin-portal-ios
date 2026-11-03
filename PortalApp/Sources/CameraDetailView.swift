@@ -378,11 +378,18 @@ struct StreamChip: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// "Offline" only for a camera or controller that is offline. An online camera whose video failed says what kind of failure it was.
+    private var failedText: LocalizedStringKey {
+        if player.isRecordingUnsupported { return "No recording" }
+        if !player.camera.isStreamable { return "Offline" }
+        return player.failure == .notAllowed ? "Not allowed" : "Unavailable"
+    }
+
     private var text: LocalizedStringKey {
         switch player.status {
         case .stalled: "No data"
         case .reconnecting: "Reconnecting"
-        case .failed: player.isRecordingUnsupported ? "No recording" : "Offline"
+        case .failed: failedText
         case .connecting, .idle: player.isLive ? "Connecting" : "Loading"
         case .ended: "No recording"
         case .playing: player.isPaused ? "Paused" : (player.isLive ? "Live" : "Recorded")

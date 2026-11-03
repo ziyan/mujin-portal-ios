@@ -15,6 +15,32 @@ private func channel(_ id: Int, _ width: Int, enabled: Bool = true) -> CameraCha
         #expect(CameraQuality.low.channelId(of: channels) == 2)
     }
 
+    @Test func recordedPlaybackAsksForAChannelTheNVRRecords() {
+        // The NVR records the sharpest and the least sharp channel and none in between, so the middle quality plays the sharpest recording.
+        let channels = [channel(2, 640), channel(0, 2688), channel(1, 1280)]
+        #expect(CameraQuality.high.recordedChannelId(of: channels) == 0)
+        #expect(CameraQuality.medium.recordedChannelId(of: channels) == 0)
+        #expect(CameraQuality.low.recordedChannelId(of: channels) == 2)
+        #expect(CameraQuality.medium.recordedChannelId(of: [channel(0, 1920), channel(2, 640)]) == 0)
+        #expect(CameraQuality.medium.recordedChannelId(of: nil) == 0)
+        // Live video keeps the middle channel.
+        #expect(CameraQuality.medium.channelId(of: channels) == 1)
+    }
+
+    @Test func thePlaybackRequestNamesTheCameraTheRecordedChannelAndTheWindowInWholeMilliseconds() throws {
+        let camera = Camera(
+            id: "registry01", controllerId: "controller01", originCameraId: "nvrcamera01", status: "online", isControllerConnected: true,
+            channels: [channel(0, 1920), channel(1, 1024), channel(2, 640)])
+        let path = CameraRoutes.playbackPath(camera: camera, quality: .medium, startMS: 1_700_000_000_000.4, endMS: 1_700_000_060_000.6)
+        #expect(path == "/api/v1/unifiprotect/controller01/playback/nvrcamera01?channel=0&start=1700000000000&end=1700000060001")
+        #expect(CameraRoutes.playbackPath(camera: camera, quality: .low, startMS: 1000, endMS: 2000).contains("channel=2&"))
+        // The NVR's id is sent, not the registry's.
+        #expect(!path.contains("registry01"))
+        let url = CameraRoutes.socketURL(server: try ServerAddress("https://portal.example.com"), path: path)
+        #expect(url.scheme == "wss")
+        #expect(url.host == "portal.example.com")
+    }
+
     @Test func aCameraWithOneStreamOffersNoChoice() {
         #expect(CameraQuality.offered(by: [channel(0, 1920)]).isEmpty)
         #expect(CameraQuality.offered(by: [channel(0, 1920), channel(2, 640)]) == [.low, .high])

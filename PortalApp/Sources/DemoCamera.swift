@@ -98,6 +98,7 @@ final class DemoCameraSocket: CameraSocket, @unchecked Sendable {
         var queue: [Data] = []
         var nextFragment = 0
         var isClosed = false
+        var end: CameraSocketEnd?
     }
 
     private let clip = DemoCameraClip.shared
@@ -122,9 +123,28 @@ final class DemoCameraSocket: CameraSocket, @unchecked Sendable {
             state.withValue {
                 $0.queue = []
                 $0.isClosed = true
+                $0.end = .refused(statusCode: 200)
+            }
+        }
+        // The unreachable screenshot has a controller that Portal cannot get an answer from.
+        if !live, ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "camera-unreachable" {
+            state.withValue {
+                $0.queue = []
+                $0.isClosed = true
+                $0.end = .refused(statusCode: 503)
+            }
+        }
+        // Like a real NVR, which records the sharpest and the least sharp channel only: asked for the middle one it closes the socket.
+        if !live, value("channel") == 1 {
+            state.withValue {
+                $0.queue = []
+                $0.isClosed = true
+                $0.end = .closed(code: 1011, reason: "no recorded footage for the requested window")
             }
         }
     }
+
+    var end: CameraSocketEnd? { state.withValue { $0.end } }
 
     func receive() async throws -> Data? {
         while true {
@@ -183,6 +203,9 @@ enum DemoCameraPaths {
             if ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "camera-unsupported" {
                 return reply(200, Data("<html></html>".utf8), contentType: "text/html")
             }
+            if ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "camera-unreachable" {
+                return reply(502, Data(), contentType: "text/plain")
+            }
             return reply(400, Data(), contentType: "text/plain")
         default:
             return reply(404, Data(), contentType: "text/plain")
@@ -238,7 +261,8 @@ enum DemoCameras {
             // A customer sees the cameras of its own organization; a Mujin user sees every camera, or one site's when asked.
             let visible = everything.filter { DemoOptions.isStaff || ($0["organizationId"] as? String) == "organization01" }
             let siteId = variables["siteId"] as? String
-            return ["ListCameras": ["cameras": visible.filter { siteId == nil || ($0["siteId"] as? String) == siteId }]]
+            let cell = DemoCells.cell(variables)
+            return ["ListCameras": ["cameras": visible.filter { (siteId == nil || ($0["siteId"] as? String) == siteId) && (cell == nil || cell!.cameraIds.contains($0["id"] as? String ?? "")) }]]
         case "GetCamera":
             let identifier = variables["cameraId"] as? String ?? ""
             if let found = everything.first(where: { ($0["id"] as? String) == identifier }) { return ["GetCamera": ["camera": found]] }
