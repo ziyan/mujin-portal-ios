@@ -53,6 +53,12 @@ final class ChatCallSession: Identifiable {
     private(set) var remoteVideo: [String: VideoTrackBox] = [:]
     private(set) var localVideo: VideoTrackBox?
     private(set) var speakingUserIds: Set<String> = []
+    /// Who is on the main stage of the speaker view while the phone follows the speaker.
+    private(set) var activeSpeakerId: String?
+    /// The person the viewer tapped to keep on the main stage, or nil to follow the speaker.
+    private(set) var pinnedUserId: String?
+    /// How much of each person's video the screen wants now: full for the main stage, small for the strip tiles in view, off for the rest.
+    private(set) var subscriptionPlan: [String: VideoQuality] = [:]
     private(set) var now = Date()
     private(set) var routeSymbol = "iphone"
     private(set) var errorText: String?
@@ -72,6 +78,7 @@ final class ChatCallSession: Identifiable {
     private var routeObserver: NSObjectProtocol?
     private var hasLeft = false
     private var lastAnsweredSequence: Int?
+    @ObservationIgnored private var speaker = ActiveSpeaker()
     private let socketFactory: FeedSocketFactory?
 
     init(
@@ -110,6 +117,39 @@ final class ChatCallSession: Identifiable {
 
     func videoBox(for participant: CallParticipant) -> VideoTrackBox? {
         participant.isSelf ? localVideo : remoteVideo[participant.userId]
+    }
+
+    /// The people on the call now (not those being rung), the viewer first.
+    var presentUserIds: [String] { participants.filter { !$0.isRinging }.map(\.userId) }
+
+    /// Who is on the main stage of the speaker view: the pinned person, else the speaker.
+    var mainUserId: String? {
+        if let pinnedUserId, presentUserIds.contains(pinnedUserId) { return pinnedUserId }
+        return activeSpeakerId
+    }
+
+    /// The most people a call holds, until the server says.
+    var callLimit: Int { ChatCallRules.maximumParticipants }
+
+    func pin(_ userId: String) { pinnedUserId = userId }
+    func followSpeaker() { pinnedUserId = nil }
+
+    func updateSpeaking(_ ids: Set<String>) {
+        if speakingUserIds != ids { speakingUserIds = ids }
+        refreshSpeaker()
+    }
+
+    func refreshSpeaker() {
+        let chosen = speaker.update(speaking: speakingUserIds, candidates: presentUserIds, selfUserId: userId)
+        if chosen != activeSpeakerId { activeSpeakerId = chosen }
+    }
+
+    /// What the screen shows: the speaker view with its strip tiles in view, or the stage and grid. The plan is kept for the server's
+    /// subscription, which is not sent yet.
+    func reportVisibility(isSpeakerView: Bool, visibleStripUserIds: Set<String>) {
+        let plan = CallSubscriptionPlan.plan(
+            remoteUserIds: presentUserIds.filter { $0 != userId }, mainUserId: mainUserId, visibleStripUserIds: visibleStripUserIds, isSpeakerView: isSpeakerView)
+        if plan != subscriptionPlan { subscriptionPlan = plan }
     }
 
     var hasVideoTiles: Bool { participants.contains { $0.isVideoOn } }
@@ -188,9 +228,7 @@ final class ChatCallSession: Identifiable {
                 Task { @MainActor in self?.mediaChanged(isConnected: isConnected, isFailed: isFailed) }
             },
             onSpeaking: { [weak self] ids in
-                Task { @MainActor in
-                    if self?.speakingUserIds != ids { self?.speakingUserIds = ids }
-                }
+                Task { @MainActor in self?.updateSpeaking(ids) }
             })
         let created = CallMedia(localUserId: userId, callbacks: callbacks)
         try created.prepare(isVideoOn: isCameraOn)
@@ -251,6 +289,7 @@ final class ChatCallSession: Identifiable {
 
     func apply(_ fresh: ChatCall) {
         call = fresh
+        refreshSpeaker()
         if !fresh.isGoing { finish() }
     }
 
@@ -448,6 +487,7 @@ final class ChatCallSession: Identifiable {
         session.phase = .connected
         session.connectedAt = Date().addingTimeInterval(-elapsed)
         session.speakingUserIds = speaking
+        session.refreshSpeaker()
         session.routeSymbol = "speaker.wave.3.fill"
         session.startClock()
         return session

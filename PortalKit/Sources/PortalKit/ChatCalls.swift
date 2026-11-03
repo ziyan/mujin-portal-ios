@@ -123,7 +123,7 @@ public struct ChatCall: Codable, Equatable, Identifiable, Sendable {
 /// ChatCallRules are the numbers and wording of a call.
 public enum ChatCallRules {
     /// A call holds at most this many people at once.
-    public static let maximumParticipants = 8
+    public static let maximumParticipants = 16
     /// Nobody answering within this long makes the call missed.
     public static let ringTimeout: TimeInterval = 60
 

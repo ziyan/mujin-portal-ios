@@ -378,6 +378,8 @@ struct SiteView: View {
                     SiteSectionViews.tickets(model)
                 } }
 .portalRootList()
+                .accessibilityIdentifier("sitePage")
+                .routePushing()
                 .refreshable { await model.loadDetails(force: true) }
             }
         }
@@ -478,14 +480,29 @@ struct StatGrid<Content: View>: View {
 
 /// StatTile is one number on the site page: a label, a large figure in
 /// tabular digits, a line of detail and a symbol, on the cards' surface.
+///
+/// With a `route` the tile opens that screen. It is not a `NavigationLink`, which activates every other link of the
+/// List row the tile grid is in (see RowControls.swift), so every grid of tiles that open screens gets it by passing
+/// `route`, and its List applies `routePushing()`.
 struct StatTile: View {
+    @Environment(\.openRoute) private var openRoute
     let label: LocalizedStringKey
     let value: String
     var detail: LocalizedStringKey?
     let symbol: String
     var tint: Color?
+    var route: PortalRoute?
+    var identifier: String?
 
     var body: some View {
+        if let route {
+            card.rowTapTarget { openRoute(route) }.accessibilityIdentifier(identifier ?? "")
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: 4) {
             Label(label, systemImage: symbol)
                 .font(.caption.weight(.semibold))
@@ -1115,6 +1132,7 @@ struct SiteListScreen: View {
             }
         } }
         .portalList()
+        .accessibilityIdentifier("siteList.\(String(describing: kind))")
         .navigationTitle(kind.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)
