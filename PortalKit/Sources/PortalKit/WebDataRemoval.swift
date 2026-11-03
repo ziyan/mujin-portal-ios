@@ -1,7 +1,7 @@
 import Foundation
 
 /// WebDataRemoval remembers which web data stores belong to accounts that were removed.
-/// A store is deleted at the next launch, before any web view of the process exists,
+/// A store is emptied at the next launch, before any web view of the process exists,
 /// because WebKit crashes when a store is removed while a web view still uses it.
 public struct WebDataRemoval: @unchecked Sendable {
     private let defaults: UserDefaults
