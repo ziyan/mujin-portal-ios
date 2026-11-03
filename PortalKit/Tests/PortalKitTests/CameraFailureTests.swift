@@ -39,8 +39,29 @@ import Testing
         #expect(CameraPlaybackFailure.classify(statusCode: 502) == .unreachable)
         #expect(CameraPlaybackFailure.classify(statusCode: 504) == .unreachable)
         #expect(CameraPlaybackFailure.classify(statusCode: nil) == .unreachable)
-        // The route exists and the dial failed anyway: the controller is not answering.
-        #expect(CameraPlaybackFailure.classify(statusCode: 400) == .unreachable)
+        // The route exists and the dial failed anyway: nothing says the controller is offline.
+        #expect(CameraPlaybackFailure.classify(statusCode: 400) == .undetermined)
+        #expect(CameraPlaybackFailure.classify(statusCode: 500) == .undetermined)
+    }
+
+    @Test func aSocketThatTheControllerClosedForWantOfFootageIsAGapNotAFault() {
+        let noFootage = CameraSocketEnd.closed(code: 1011, reason: "no recorded footage for the requested window")
+        #expect(CameraPlaybackFailure.classify(socketEnd: noFootage) == .noRecording)
+        #expect(CameraPlaybackFailure.classify(socketEnd: .closed(code: 1011, reason: "No recorded footage in this window")) == .noRecording)
+        // Other closes say too little, so the plain GET is asked.
+        #expect(CameraPlaybackFailure.classify(socketEnd: .closed(code: 1011, reason: "upstream failed")) == nil)
+        #expect(CameraPlaybackFailure.classify(socketEnd: .closed(code: 1000, reason: "no recorded footage")) == nil)
+        #expect(CameraPlaybackFailure.classify(socketEnd: .broken) == nil)
+        #expect(CameraPlaybackFailure.classify(socketEnd: nil) == nil)
+    }
+
+    @Test func aRefusedUpgradeIsToldApartByItsStatus() {
+        #expect(CameraPlaybackFailure.classify(socketEnd: .refused(statusCode: 401)) == .notAllowed)
+        #expect(CameraPlaybackFailure.classify(socketEnd: .refused(statusCode: 403)) == .notAllowed)
+        #expect(CameraPlaybackFailure.classify(socketEnd: .refused(statusCode: 200)) == .unsupported)
+        #expect(CameraPlaybackFailure.classify(socketEnd: .refused(statusCode: 404)) == .unsupported)
+        #expect(CameraPlaybackFailure.classify(socketEnd: .refused(statusCode: 503)) == .unreachable)
+        #expect(CameraPlaybackFailure.classify(socketEnd: .refused(statusCode: 400)) == nil)
     }
 
     @Test func theFailureIsFoundWithOneGetToThePlaybackRoute() async {
@@ -52,5 +73,8 @@ import Testing
         #expect(await Connection(account: makeAccount(refreshToken: ""), transport: refused).playbackFailure(controllerId: "controller01", cameraId: "nvrcamera01") == .notAllowed)
         let down = ScriptedTransport { _ in (502, Data()) }
         #expect(await Connection(account: makeAccount(), transport: down).playbackFailure(controllerId: "controller01", cameraId: "nvrcamera01") == .unreachable)
+        // A route that exists answers a plain GET with 400, which never says the controller is offline.
+        let exists = ScriptedTransport { _ in (400, Data()) }
+        #expect(await Connection(account: makeAccount(), transport: exists).playbackFailure(controllerId: "controller01", cameraId: "nvrcamera01") == .undetermined)
     }
 }

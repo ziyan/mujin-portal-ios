@@ -92,6 +92,16 @@ public enum CameraQuality: String, CaseIterable, Equatable, Sendable {
         }
     }
 
+    /// The channel to ask the playback route for. An NVR records the sharpest and the least sharp channel of a camera and none in between,
+    /// so a middle channel has live video and no recording: its playback socket is closed with "no recorded footage" for any window. Low
+    /// plays the least sharp recording and the other two play the sharpest.
+    public func recordedChannelId(of channels: [CameraChannel]?) -> Int {
+        switch self {
+        case .low: return channelId(of: channels)
+        case .medium, .high: return CameraQuality.high.channelId(of: channels)
+        }
+    }
+
     /// The qualities a camera offers: one per distinct channel, so a camera with a single stream offers none to choose.
     public static func offered(by channels: [CameraChannel]?) -> [CameraQuality] {
         let count = enabledChannels(channels).count

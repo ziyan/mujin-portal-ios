@@ -50,6 +50,14 @@ public enum CameraRoutes {
         "\(base(controllerId))/playback/\(segment(cameraId))?channel=\(channel)&start=\(Int64(startMS.rounded()))&end=\(Int64(endMS.rounded()))"
     }
 
+    /// The playback request for a window of a camera's recording at the quality the person chose. The channel is one the NVR records
+    /// (`CameraQuality.recordedChannelId`), which is not always the channel the same quality has when watching live.
+    public static func playbackPath(camera: Camera, quality: CameraQuality, startMS: Double, endMS: Double) -> String {
+        playbackPath(
+            controllerId: camera.controllerId, cameraId: camera.originCameraId, channel: quality.recordedChannelId(of: camera.channels), startMS: startMS,
+            endMS: endMS)
+    }
+
     /// The address a websocket dials for a path: the server's, with `wss` for `https`.
     public static func socketURL(server: ServerAddress, path: String) -> URL {
         var components = URLComponents(url: server.endpoint(path), resolvingAgainstBaseURL: false)!
@@ -78,6 +86,23 @@ public protocol CameraSocket: Sendable {
     /// The next message's bytes, or nil once the socket has ended, whoever ended it.
     func receive() async throws -> Data?
     func close()
+    /// How the socket ended, once `receive` has returned nil; nil while it is open or when nothing is known.
+    var end: CameraSocketEnd? { get }
+}
+
+extension CameraSocket {
+    public var end: CameraSocketEnd? { nil }
+}
+
+/// CameraSocketEnd is how a websocket ended, as far as the system says: the close frame the server sent, the HTTP answer that refused the
+/// upgrade, or nothing more than that the connection broke.
+public enum CameraSocketEnd: Equatable, Sendable {
+    /// The server closed the socket with this code and reason (1011 is a server error).
+    case closed(code: Int, reason: String)
+    /// The upgrade was answered with this HTTP status instead of 101.
+    case refused(statusCode: Int)
+    /// The connection broke or never opened, and the system says no more.
+    case broken
 }
 
 /// Opens a socket to an address of the server with the bearer token on the upgrade request.
@@ -102,6 +127,16 @@ public typealias CameraSocketFactory = @Sendable (_ url: URL, _ accessToken: Str
             } catch {
                 return nil
             }
+        }
+
+        /// A refused upgrade leaves the HTTP answer on the task; a close frame leaves its code and reason. A socket the app closed itself
+        /// has neither of the server's.
+        public var end: CameraSocketEnd? {
+            if let response = task.response as? HTTPURLResponse, response.statusCode != 101 { return .refused(statusCode: response.statusCode) }
+            if task.closeCode != .invalid, task.closeCode != .goingAway {
+                return .closed(code: task.closeCode.rawValue, reason: task.closeReason.flatMap { String(data: $0, encoding: .utf8) } ?? "")
+            }
+            return task.state == .running ? nil : .broken
         }
 
         public func close() {

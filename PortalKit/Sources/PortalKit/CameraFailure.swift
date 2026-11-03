@@ -37,16 +37,37 @@ extension Connection {
     }
 }
 
-/// CameraPlaybackFailure is why the playback websocket of a recorded stream could not be opened, in the three kinds a person can tell
-/// apart.
+/// CameraPlaybackFailure is why the playback websocket of a recorded stream could not be opened, in the kinds a person can tell apart.
 public enum CameraPlaybackFailure: Equatable, Sendable {
     /// Portal refused the request (401 or 403).
     case notAllowed
     /// The controller is online but its software has no playback route: the upgrade is answered with its web page, or Portal has no
     /// such route at all.
     case unsupported
-    /// The controller or the network did not answer (502 to 504, or nothing), or the route exists and the dial failed anyway.
+    /// The controller or the network did not answer (502 to 504, or nothing).
     case unreachable
+    /// The controller answered and has no recording in the window it was asked for. That is a gap in the footage, not a fault.
+    case noRecording
+    /// The route exists and the socket still failed, and nothing says why.
+    case undetermined
+
+    /// The text the NVR's playback route gives when it has nothing in a window.
+    static let noRecordingReason = "no recorded footage"
+
+    /// What the end of the socket itself says, or nil when it says too little and a plain GET should be asked.
+    public static func classify(socketEnd: CameraSocketEnd?) -> CameraPlaybackFailure? {
+        switch socketEnd {
+        case .refused(let statusCode)?:
+            let failure = classify(statusCode: statusCode)
+            // A 400 is what a route that exists says to a request that is not an upgrade; it tells nothing about why the dial failed.
+            return statusCode == 400 ? nil : failure
+        case .closed(let code, let reason)?:
+            if code == 1011, reason.lowercased().contains(noRecordingReason) { return .noRecording }
+            return nil
+        case .broken?, nil:
+            return nil
+        }
+    }
 
     /// What one plain GET to the playback route says about a dial that failed. A route that exists answers a plain GET with 400 (the
     /// upgrade header is missing); an older controller answers any unknown address with its page (200), and a Portal without the proxy
@@ -55,12 +76,15 @@ public enum CameraPlaybackFailure: Equatable, Sendable {
         guard let statusCode else { return .unreachable }
         if statusCode == 401 || statusCode == 403 { return .notAllowed }
         if statusCode == 200 || statusCode == 404 { return .unsupported }
-        return .unreachable
+        if statusCode == 502 || statusCode == 503 || statusCode == 504 { return .unreachable }
+        return .undetermined
     }
 }
 
 extension Connection {
-    /// Finds out why a playback socket did not open, with one plain GET. Asked only after a dial failed, never ahead of one.
+    /// Finds out why a playback socket did not open, with one plain GET. Asked only after a dial failed, and only when the socket's own
+    /// end did not say. It can tell a refusal, a route the controller does not have and a controller that does not answer; a route that
+    /// exists answers 400, which leaves the cause undetermined.
     public func playbackFailure(controllerId: String, cameraId: String) async -> CameraPlaybackFailure {
         var request = URLRequest(url: server.endpoint(CameraRoutes.playbackPath(controllerId: controllerId, cameraId: cameraId, channel: 0, startMS: 1, endMS: 2)))
         request.timeoutInterval = 15
