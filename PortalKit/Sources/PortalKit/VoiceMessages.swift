@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+
 /// VoiceMessage is the audio a chat message carries: the attachment holding
 /// the recording, how long it runs, the 48 bars drawn for it, and the words
 /// the server heard in it.
