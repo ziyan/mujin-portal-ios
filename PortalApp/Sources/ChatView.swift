@@ -333,6 +333,7 @@ struct ChatView: View {
                     }
                 }
                 if isShowingVoiceHint { VoiceHintView().transition(.opacity) }
+                Group {
                 if isVoiceMode, canUseVoice(model) {
                     VoiceHoldBar(
                         recorder: recorder, isEnabled: model.canWrite && !model.isSendingVoice, onKeyboard: { isVoiceModePreferred = false },
@@ -371,6 +372,7 @@ struct ChatView: View {
                         .accessibilityLabel("Record a voice message")
                         .accessibilityIdentifier("voiceModeButton")
                     }
+                }
                 }
                 }
                 .onChange(of: draft) { _, text in
