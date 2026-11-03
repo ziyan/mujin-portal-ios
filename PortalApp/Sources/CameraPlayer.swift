@@ -43,6 +43,8 @@ final class CameraPlayer {
     private(set) var isSoundOn = false
     /// Whether the controller's software is too old to have recorded playback, so only live video and downloaded clips work.
     private(set) var isRecordingUnsupported = false
+    /// Why the recorded stream could not be had, once it failed; nil while it has not, and for a live stream.
+    private(set) var failure: CameraPlaybackFailure?
     /// A sentence for the person when something is not as expected: no recording here, the controller is offline.
     private(set) var notice: String?
     private(set) var clock: CameraClock
@@ -115,6 +117,7 @@ final class CameraPlayer {
         generation += 1
         notice = nil
         isRecordingUnsupported = false
+        failure = nil
         failures = 0
         isPaused = false
         let now = Self.nowMS
@@ -330,47 +333,68 @@ final class CameraPlayer {
         stitcher?.beginWindow()
         let id = windowId
         let generationAtOpen = generation
-        let path = CameraRoutes.playbackPath(controllerId: camera.controllerId, cameraId: camera.originCameraId, channel: channel, startMS: startMS, endMS: endMS)
+        let path = CameraRoutes.playbackPath(camera: camera, quality: quality, startMS: startMS, endMS: endMS)
         readTask = Task { [weak self] in
             guard let self else { return }
-            let didReceive = await self.readSocket(path: path, generation: generationAtOpen)
-            self.windowSocketEnded(id: id, generation: generationAtOpen, didReceiveFrame: didReceive)
+            let reading = await self.readSocket(path: path, generation: generationAtOpen)
+            self.windowSocketEnded(id: id, generation: generationAtOpen, reading: reading)
         }
     }
 
     /// The window's socket ended by itself: the NVR closed it, or it dropped, or it was refused.
-    private func windowSocketEnded(id: Int, generation generationAtOpen: Int, didReceiveFrame: Bool) {
+    private func windowSocketEnded(id: Int, generation generationAtOpen: Int, reading: SocketReading) {
         guard generationAtOpen == generation, id == windowId, isWindowOpen else { return }
-        guard !didReceiveFrame else {
+        guard !reading.didReceive else {
             endWindow()
             return
         }
-        // A socket that ended without a single byte was refused or never reached the controller. An empty stretch of the recording is
-        // different: the NVR leaves that socket open and silent, and it is ended from here when it has been quiet long enough.
+        // A socket that ended without a single byte was refused, never reached the controller, or was closed by the controller because
+        // the window holds no footage. That last one is a gap in the recording and the windows go on past it. A quiet socket that stays
+        // open is also an empty stretch, and is ended from here when it has been quiet long enough.
+        let socketFailure = CameraPlaybackFailure.classify(socketEnd: reading.end)
+        if socketFailure == .noRecording {
+            endWindow()
+            return
+        }
         isWindowOpen = false
         closeSocket()
-        failRecordedSession()
+        failRecordedSession(knownFailure: socketFailure)
     }
 
-    /// The recorded stream cannot be had. One plain GET to the playback route, made only now that the dial failed, says why: Portal refused
-    /// it, the controller's software has no such route, or the controller does not answer.
-    private func failRecordedSession() {
+    /// The recorded stream cannot be had. What the socket's own end said decides it when it said enough; otherwise one plain GET to the
+    /// playback route, made only now that the dial failed, says whether Portal refused it, the controller's software has no such route, or
+    /// the controller does not answer. A route that exists and still failed is reported as that, not as an offline controller.
+    private func failRecordedSession(knownFailure: CameraPlaybackFailure?) {
         status = .failed
-        notice = String(localized: "The controller is offline.")
+        if let knownFailure {
+            apply(playbackFailure: knownFailure)
+            return
+        }
+        apply(playbackFailure: .undetermined)
         let generationAtFailure = generation
         Task { [weak self] in
             guard let self else { return }
-            let failure = await self.connection.playbackFailure(controllerId: self.camera.controllerId, cameraId: self.camera.originCameraId)
+            let found = await self.connection.playbackFailure(controllerId: self.camera.controllerId, cameraId: self.camera.originCameraId)
             guard generationAtFailure == self.generation, self.status == .failed else { return }
-            switch failure {
-            case .notAllowed:
-                self.notice = Self.refusedNotice
-            case .unsupported:
-                self.isRecordingUnsupported = true
-                self.notice = String(localized: "Recorded video needs a newer controller version.")
-            case .unreachable:
-                break
-            }
+            self.apply(playbackFailure: found)
+        }
+    }
+
+    private func apply(playbackFailure found: CameraPlaybackFailure) {
+        failure = found
+        isRecordingUnsupported = found == .unsupported
+        switch found {
+        case .notAllowed:
+            notice = Self.refusedNotice
+        case .unsupported:
+            notice = String(localized: "Recorded video needs a newer controller version.")
+        case .unreachable:
+            notice = camera.isControllerConnected == false
+                ? String(localized: "The controller is offline.") : String(localized: "The controller did not answer. Try again in a moment.")
+        case .noRecording:
+            notice = String(localized: "No recording was found after this time.")
+        case .undetermined:
+            notice = String(localized: "Recorded video could not be loaded. Try again.")
         }
     }
 
@@ -408,18 +432,24 @@ final class CameraPlayer {
 
     // MARK: the socket
 
-    /// Reads one socket until it ends. Returns whether any bytes came.
-    private func readSocket(path: String, generation id: Int) async -> Bool {
+    /// What reading a socket came to: whether any bytes came, and how the socket ended when it said.
+    private struct SocketReading {
+        var didReceive: Bool
+        var end: CameraSocketEnd?
+    }
+
+    /// Reads one socket until it ends.
+    private func readSocket(path: String, generation id: Int) async -> SocketReading {
         let opened: any CameraSocket
         do {
             let token = try await connection.accessToken()
             opened = try await socketFactory(CameraRoutes.socketURL(server: server, path: path), token)
         } catch {
-            return false
+            return SocketReading(didReceive: false, end: .broken)
         }
         guard id == generation else {
             opened.close()
-            return false
+            return SocketReading(didReceive: false, end: nil)
         }
         socket = opened
         var decoder = CameraFrameDecoder()
@@ -434,7 +464,7 @@ final class CameraPlayer {
             }
             guard id == generation else {
                 opened.close()
-                return didReceive
+                return SocketReading(didReceive: didReceive, end: nil)
             }
             guard let message else { break }
             didReceive = true
@@ -443,7 +473,7 @@ final class CameraPlayer {
                 if let event = assembler.accept(frame) { handle(event) }
             }
         }
-        return didReceive
+        return SocketReading(didReceive: didReceive, end: opened.end)
     }
 
     private func closeSocket() {

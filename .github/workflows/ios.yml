@@ -235,6 +235,7 @@ jobs:
           shoot camera-share camera-share
           shoot camera-sound camera-sound
           shoot camera-unsupported camera-unsupported
+          shoot camera-unreachable camera-unreachable
           shoot notifications notifications
           shoot about about
           shoot sites-staff sites-staff staff
@@ -364,6 +365,7 @@ jobs:
           shoot camera-recorded-dark camera-recorded
           shoot camera-sound-dark camera-sound
           shoot camera-unsupported-dark camera-unsupported
+          shoot camera-unreachable-dark camera-unreachable
           shoot chat-dark chat:chatconv01
           shoot chats-dark chats
           shoot speaks-first-dark conversation:conversation06
@@ -465,6 +467,7 @@ jobs:
           shoot large-text-camera-recorded camera-recorded
           shoot large-text-camera-sound camera-sound
           shoot large-text-camera-unsupported camera-unsupported
+          shoot large-text-camera-unreachable camera-unreachable
           shoot large-text-chat chat:chatconv01
           shoot large-text-speaks-first conversation:conversation06
           shoot large-text-goals goals
