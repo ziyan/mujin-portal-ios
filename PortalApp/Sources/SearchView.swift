@@ -89,6 +89,7 @@ struct SearchTabView: View {
     var body: some View {
         NavigationStack {
             content
+                .background(Color.portalPage)
                 .navigationTitle("Search")
                 .scrollDismissesKeyboard(.interactively)
         }
@@ -273,11 +274,12 @@ private struct SearchResultRow: View {
                     Text(result.subtitle).font(.footnote).foregroundStyle(.secondary).portalNameLine()
                 }
                 if let organization = result.foreignOrganizationName {
-                    Label(organization, systemImage: "building.2")
-                        .labelStyle(.titleAndIcon)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .portalNameLine()
+                    HStack(spacing: 4) {
+                        Image(systemName: "building.2").imageScale(.small).accessibilityHidden(true)
+                        Text(organization).portalNameLine()
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 }
             }
         } icon: {
@@ -292,7 +294,7 @@ private struct SearchResultRow: View {
 enum SearchSymbol {
     static func name(for result: GlobalSearchResult) -> String {
         switch result.resultKind {
-        case .shortcut: shortcut(result.iconName)
+        case .shortcut: ShortcutSymbols.symbol(shortcutId: result.id, iconName: result.iconName, fallback: shortcut)
         case .controller: "server.rack"
         case .virtualController: "desktopcomputer"
         case .site: "building.2"

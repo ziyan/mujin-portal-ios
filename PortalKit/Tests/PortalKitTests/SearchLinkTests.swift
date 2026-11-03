@@ -160,4 +160,16 @@ import Testing
         let (connection, _) = scriptedConnection { _, _ in ["GetIncident": ["incident": NSNull()]] }
         await #expect(throws: PortalError.self) { try await connection.incident(id: "missing") }
     }
+
+    @Test func everyShortcutHasItsOwnSymbol() {
+        let identifiers = Self.shortcuts.map(\.0)
+        #expect(Set(ShortcutSymbols.byShortcutId.keys) == Set(identifiers))
+        let symbols = identifiers.compactMap { ShortcutSymbols.byShortcutId[$0] }
+        #expect(Set(symbols).count == identifiers.count, "two shortcuts share a symbol")
+        #expect(ShortcutSymbols.byShortcutId["settings.notifications"] != ShortcutSymbols.byShortcutId["page.notificationInbox"])
+    }
+
+    @Test func aShortcutAddedLaterFallsBackToItsIconName() {
+        #expect(ShortcutSymbols.symbol(shortcutId: "future.page", iconName: "x", fallback: { "fallback.\($0 ?? "")" }) == "fallback.x")
+    }
 }
