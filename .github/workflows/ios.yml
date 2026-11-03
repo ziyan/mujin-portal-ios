@@ -320,6 +320,10 @@ jobs:
           shoot call-minimized call-minimized
           shoot call-picker call-picker
           shoot call-ring-more call-ring-more
+          shoot call-ringing call-ringing
+          shoot call-two call-two
+          shoot call-three call-three
+          shoot call-five call-five
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
           shoot virtual-controller-dark virtual-controller
@@ -423,6 +427,10 @@ jobs:
           shoot call-minimized-dark call-minimized
           shoot call-picker-dark call-picker
           shoot call-ring-more-dark call-ring-more
+          shoot call-ringing-dark call-ringing
+          shoot call-two-dark call-two
+          shoot call-three-dark call-three
+          shoot call-five-dark call-five
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
@@ -506,6 +514,10 @@ jobs:
           shoot large-text-call-minimized call-minimized
           shoot large-text-call-picker call-picker
           shoot large-text-call-ring-more call-ring-more
+          shoot large-text-call-ringing call-ringing
+          shoot large-text-call-two call-two
+          shoot large-text-call-three call-three
+          shoot large-text-call-five call-five
 
       - name: Keep the screenshots
         if: always()

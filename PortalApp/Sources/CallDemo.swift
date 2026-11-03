@@ -6,8 +6,13 @@ import PortalKit
 enum CallDemo {
     static let screens: Set<String> = [
         "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner", "call-voice", "call-video", "call-transcription",
-        "call-minimized", "call-picker", "call-ring-more",
+        "call-minimized", "call-picker", "call-ring-more", "call-ringing", "call-two", "call-three", "call-five",
     ]
+
+    /// The screens that show people on camera.
+    static func isVideoScreen(_ screen: String) -> Bool {
+        ["call-video", "call-ringing", "call-two", "call-three", "call-five"].contains(screen)
+    }
 
     static func owns(_ screen: String?) -> Bool { screen.map { screens.contains($0) } ?? false }
 
@@ -29,13 +34,26 @@ enum CallDemo {
     // MARK: the call
 
     nonisolated static func call(for screen: String) -> ChatCall {
-        let isVideo = screen == "call-video"
-        var members = [
-            ChatCallMember(userId: "user01", userName: "Alex Example", ringState: "none", isInCall: true, isMuted: false, isVideoOn: isVideo),
-            ChatCallMember(userId: "user03", userName: "Robin Demo", ringState: "answered", isInCall: true, isMuted: false, isVideoOn: isVideo),
-        ]
-        if screen == "call-voice" || screen == "call-video" {
-            members.append(ChatCallMember(userId: "user04", userName: "Jordan Placeholder", ringState: "answered", isInCall: true, isMuted: true, isVideoOn: false))
+        let isVideo = ["call-video", "call-ringing", "call-two", "call-three", "call-five"].contains(screen)
+        var members = [ChatCallMember(userId: "user01", userName: "Alex Example", ringState: "none", isInCall: true, isMuted: false, isVideoOn: isVideo)]
+        func joined(_ id: String, _ name: String, muted: Bool = false, video: Bool? = nil) -> ChatCallMember {
+            ChatCallMember(userId: id, userName: name, ringState: "answered", isInCall: true, isMuted: muted, isVideoOn: video ?? isVideo)
+        }
+        switch screen {
+        case "call-ringing":
+            members.append(ChatCallMember(userId: "user04", userName: "Jordan Placeholder", ringState: "ringing", isInCall: false, isMuted: false, isVideoOn: false))
+        case "call-two":
+            members.append(joined("user03", "Robin Demo"))
+        case "call-three":
+            members += [joined("user03", "Robin Demo"), joined("user04", "Jordan Placeholder", muted: true)]
+        case "call-five":
+            members += [
+                joined("user03", "Robin Demo"), joined("user04", "Jordan Placeholder", muted: true), joined("user05", "Casey Demo"), joined("user06", "Riley Example"),
+            ]
+        case "call-voice", "call-video":
+            members += [joined("user03", "Robin Demo"), joined("user04", "Jordan Placeholder", muted: true, video: false)]
+        default:
+            members.append(joined("user03", "Robin Demo"))
         }
         return ChatCall(
             id: "call01", chatId: "chat02", startedByUserId: "user03", startedByUserName: "Robin Demo", chatDisplayName: "Pick station team",
@@ -47,7 +65,7 @@ enum CallDemo {
     @MainActor
     static func session(for screen: String) -> ChatCallSession {
         ChatCallSession.demo(
-            call: call(for: screen), chatTitle: "Pick station team", isCameraOn: screen == "call-video", elapsed: 754,
+            call: call(for: screen), chatTitle: "Pick station team", isCameraOn: isVideoScreen(screen), elapsed: 754,
             speaking: ["user03"])
     }
 
