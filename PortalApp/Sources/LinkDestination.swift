@@ -43,8 +43,8 @@ extension SessionModel {
         case .site(let id):
             guard let organization else { return .web }
             return .screen(.route(.site(id: id, organizationId: organization)))
-        case .cell:
-            return .web
+        case .cell(let id, let siteId):
+            return .screen(.route(.cell(id: id, siteId: siteId, organizationId: organization)))
         case .sitePage:
             return .web
         case .conversation(let id):
