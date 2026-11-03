@@ -611,7 +611,7 @@ struct StatGrid<Content: View>: View {
 /// List row the tile grid is in (see RowControls.swift), so every grid of tiles that open screens gets it by passing
 /// `route`, and its List applies `routePushing()`.
 struct StatTile: View {
-    @Environment(\.pushRoute) private var pushRoute
+    @Environment(\.openRoute) private var openRoute
     let label: LocalizedStringKey
     let value: String
     var detail: LocalizedStringKey?
@@ -622,7 +622,7 @@ struct StatTile: View {
 
     var body: some View {
         if let route {
-            card.rowTapTarget { pushRoute(route) }.accessibilityIdentifier(identifier ?? "")
+            card.rowTapTarget { openRoute(route) }.accessibilityIdentifier(identifier ?? "")
         } else {
             card
         }
