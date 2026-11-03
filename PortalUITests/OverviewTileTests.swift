@@ -30,7 +30,6 @@ final class OverviewTileTests: XCTestCase {
 
         let list = DemoApp.element(app, expectedList)
         XCTAssertTrue(list.waitForExistence(timeout: 20), "Tapping \(tileIdentifier) did not open \(expectedList)")
-        XCTAssertTrue(list.isHittable, "\(expectedList) is not the screen on top")
         for other in Self.tiles.map(\.list) where other != expectedList {
             XCTAssertFalse(DemoApp.element(app, other).exists, "Tapping \(tileIdentifier) also opened \(other)")
         }

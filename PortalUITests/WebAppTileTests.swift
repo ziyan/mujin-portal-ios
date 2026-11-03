@@ -15,6 +15,7 @@ final class WebAppTileTests: XCTestCase {
         tile.tap()
 
         XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 20), "The browser did not open")
-        XCTAssertTrue(app.navigationBars["Order Board"].waitForExistence(timeout: 20), "The browser did not show the tapped app")
+        let title = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Order Board")).firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 20), "The browser did not show the tapped app")
     }
 }

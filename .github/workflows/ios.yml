@@ -31,6 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - run: scripts/check-public-content.sh
+      - run: scripts/check-row-controls.sh
 
   # Whether a pull request touches the app. A required check that never
   # reports holds a pull request forever, so the workflow runs on every one

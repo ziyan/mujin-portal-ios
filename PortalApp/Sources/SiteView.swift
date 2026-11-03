@@ -359,6 +359,7 @@ struct SiteView: View {
                 } }
 .portalRootList()
                 .accessibilityIdentifier("sitePage")
+                .routePushing()
                 .refreshable { await model.loadDetails(force: true) }
             }
         }
@@ -430,25 +431,18 @@ struct SiteView: View {
     private func overviewTiles(_ model: SiteModel) -> some View {
         Group {
             tileGrid {
-                NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.sessionKey)) { StatTile(label: "Controllers", value: model.controllers.count.formatted(), symbol: "server.rack") }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("statTile.controllers")
-                    .navigationLinkIndicatorVisibility(.hidden)
+                StatTile(label: "Controllers", value: model.controllers.count.formatted(), symbol: "server.rack",
+                    route: .siteList(.controllers, organizationKey: model.sessionKey), identifier: "statTile.controllers")
                 if model.virtualControllerCount > 0 {
-                    NavigationLink(value: PortalRoute.siteList(.virtualControllers, organizationKey: model.sessionKey)) { StatTile(label: "Virtual controllers", value: model.virtualControllerCount.formatted(), symbol: "square.stack.3d.up") }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("statTile.virtualControllers")
+                    StatTile(label: "Virtual controllers", value: model.virtualControllerCount.formatted(), symbol: "square.stack.3d.up",
+                        route: .siteList(.virtualControllers, organizationKey: model.sessionKey), identifier: "statTile.virtualControllers")
                 }
-                NavigationLink(value: PortalRoute.siteList(.alarms, organizationKey: model.sessionKey)) { StatTile(label: "Active alarms", value: model.alarms.count.formatted(), symbol: "bell.badge", tint: model.alarms.isEmpty ? nil : Color.statusError) }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("statTile.alarms")
-                NavigationLink(value: PortalRoute.siteList(.incidents, organizationKey: model.sessionKey)) { StatTile(label: "Incidents", value: model.incidents.count.formatted(), symbol: "exclamationmark.triangle") }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("statTile.incidents")
-                NavigationLink(value: PortalRoute.siteList(.tickets, organizationKey: model.sessionKey)) { StatTile(label: "Open tickets", value: model.openTickets.count.formatted(), symbol: "tray.full") }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("statTile.tickets")
-                    .navigationLinkIndicatorVisibility(.hidden)
+                StatTile(label: "Active alarms", value: model.alarms.count.formatted(), symbol: "bell.badge", tint: model.alarms.isEmpty ? nil : Color.statusError,
+                    route: .siteList(.alarms, organizationKey: model.sessionKey), identifier: "statTile.alarms")
+                StatTile(label: "Incidents", value: model.incidents.count.formatted(), symbol: "exclamationmark.triangle",
+                    route: .siteList(.incidents, organizationKey: model.sessionKey), identifier: "statTile.incidents")
+                StatTile(label: "Open tickets", value: model.openTickets.count.formatted(), symbol: "tray.full",
+                    route: .siteList(.tickets, organizationKey: model.sessionKey), identifier: "statTile.tickets")
             }
         }
     }
@@ -501,7 +495,6 @@ struct SiteView: View {
 
     private func tileGrid<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         StatGrid { content() }
-            .navigationLinkIndicatorVisibility(.hidden)
             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
             .listRowBackground(Color.clear)
     }
@@ -613,14 +606,29 @@ struct StatGrid<Content: View>: View {
 
 /// StatTile is one number on the site page: a label, a large figure in
 /// tabular digits, a line of detail and a symbol, on the cards' surface.
+///
+/// With a `route` the tile opens that screen. It is not a `NavigationLink`, which activates every other link of the
+/// List row the tile grid is in (see RowControls.swift), so every grid of tiles that open screens gets it by passing
+/// `route`, and its List applies `routePushing()`.
 struct StatTile: View {
+    @Environment(\.pushRoute) private var pushRoute
     let label: LocalizedStringKey
     let value: String
     var detail: LocalizedStringKey?
     let symbol: String
     var tint: Color?
+    var route: PortalRoute?
+    var identifier: String?
 
     var body: some View {
+        if let route {
+            card.rowTapTarget { pushRoute(route) }.accessibilityIdentifier(identifier ?? "")
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: 4) {
             Label(label, systemImage: symbol)
                 .font(.caption.weight(.semibold))

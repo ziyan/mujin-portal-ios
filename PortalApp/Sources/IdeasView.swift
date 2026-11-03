@@ -161,7 +161,8 @@ private struct IdeaCard: View {
                     HStack(spacing: 6) {
                         ForEach(evidence) { item in
                             if item.isLinkable {
-                                Button { open(item) } label: { chip(item) }.buttonStyle(.plain)
+                                // The chips share a List row with the buttons below, so a chip is a tap target and not a Button (see RowControls.swift).
+                                chip(item).rowTapTarget { open(item) }
                             } else {
                                 chip(item)
                             }
