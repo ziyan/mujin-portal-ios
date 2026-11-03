@@ -2,7 +2,7 @@ import Observation
 import PortalKit
 import SwiftUI
 
-/// SiteModel is one site's picture: its alarms, robots, controllers and incidents.
+/// SiteModel is one site's picture: its alarms, robots, controllers and incidents. With a `cellId` it is one cell's picture of the same things.
 @MainActor
 @Observable
 final class SiteModel {
@@ -26,6 +26,8 @@ final class SiteModel {
     }
     /// A site a screen was opened for, which never changes to another.
     let pinnedSiteId: String?
+    /// A cell of the pinned site, for the cell page: every read below is narrowed to its machines and cameras.
+    let cellId: String?
     private let selectionStore = SiteSelectionStore()
     /// Screenshot runs do not remember a selection between launches.
     private let remembersSelection = DemoOptions.screen == nil
@@ -56,10 +58,11 @@ final class SiteModel {
     let cache: ResponseCache?
     let accountKey: String
 
-    init(connection: Connection, organizationId: String?, pinnedSiteId: String? = nil, cache: ResponseCache? = nil, accountKey: String = "", onError: @escaping @MainActor (Error) -> Void) {
+    init(connection: Connection, organizationId: String?, pinnedSiteId: String? = nil, cellId: String? = nil, cache: ResponseCache? = nil, accountKey: String = "", onError: @escaping @MainActor (Error) -> Void) {
         self.connection = connection
         self.organizationId = organizationId
         self.pinnedSiteId = pinnedSiteId
+        self.cellId = cellId
         self.cache = cache
         self.accountKey = accountKey
         self.onError = onError
@@ -69,8 +72,20 @@ final class SiteModel {
     /// Names the model in the session's store and in a route: the organization, or empty for the person's own.
     var organizationKey: String { organizationId ?? "" }
 
-    /// Names the model in the session's store: the organization, plus the site for a screen opened for one site.
-    var sessionKey: String { organizationKey + (pinnedSiteId.map { "|" + $0 } ?? "") }
+    /// Names the model in the session's store: the organization, plus the site for a screen opened for one site, plus the cell for a cell page.
+    var sessionKey: String { Self.sessionKey(organizationId: organizationId, siteId: pinnedSiteId, cellId: cellId) }
+
+    static func sessionKey(organizationId: String?, siteId: String?, cellId: String? = nil) -> String {
+        (organizationId ?? "") + (siteId.map { "|" + $0 } ?? "") + (cellId.map { "|cell:" + $0 } ?? "")
+    }
+
+    /// The cell this model is scoped to, once the site's cells are read.
+    var cell: SiteCell? { cellId.flatMap { id in cells.first { $0.id == id } } }
+
+    /// The cell page that one of the site's cells opens.
+    func route(to cell: SiteCell) -> PortalRoute {
+        .cell(id: cell.id, siteId: selectedSiteId ?? "", organizationId: organizationId)
+    }
 
     /// Keeps the current site while it is listed, else restores the remembered one, else takes the first.
     private func resolveSelection() {
@@ -139,7 +154,7 @@ final class SiteModel {
     /// placeholders show only the first time.
     func loadDetails(force: Bool = false) async {
         guard let siteId = selectedSiteId else { return }
-        let snapshotKey = key("site", "\(organizationKey)|\(siteId)")
+        let snapshotKey = key("site", "\(organizationKey)|\(siteId)|\(cellId ?? "")")
         if let cache, let held = cache.hit(snapshotKey, as: Snapshot.self) {
             apply(held.value)
             phase = .loaded
@@ -155,16 +170,16 @@ final class SiteModel {
         let scopeId = organizationId ?? selectedSite?.organizationId
         let connection = connection
         var snapshot = Snapshot()
-        async let alarmResult = try? connection.siteAlarms(siteId: siteId)
-        async let robotResult = try? connection.siteRobots(siteId: siteId)
-        async let controllerRows = try? connection.controllers(organizationId: scopeId)
+        async let alarmResult = try? connection.siteAlarms(siteId: siteId, cellId: cellId)
+        async let robotResult = try? connection.siteRobots(siteId: siteId, cellId: cellId)
+        async let controllerRows = try? connection.controllers(organizationId: scopeId, cellId: cellId)
         async let incidentRows = try? connection.incidents(organizationId: scopeId)
         let (alarmAnswer, robotAnswer, controllerAnswer, incidentAnswer) = await (alarmResult, robotResult, controllerRows, incidentRows)
         snapshot.alarms = alarmAnswer?.alarms ?? []
         snapshot.unavailableControllerCount = alarmAnswer?.unavailableControllerCount ?? 0
         snapshot.robots = robotAnswer ?? SiteRobots()
         snapshot.controllers = (controllerAnswer ?? []).filter { $0.siteId == siteId }
-        snapshot.incidents = SiteData.incidents(incidentAnswer ?? [], siteId: siteId)
+        snapshot.incidents = SiteData.incidents(incidentAnswer ?? [], siteId: siteId, cellId: cellId)
         if !hasLoadedStats {
             // The first time, what is read first shows as it arrives; the rest stays placeholders.
             alarms = snapshot.alarms
@@ -176,15 +191,15 @@ final class SiteModel {
         phase = .loaded
         // The overview's other parts arrive as they are read; each may be missing without failing the page.
         async let cellRows = try? connection.cells(siteId: siteId)
-        async let ticketRows = try? connection.tickets(organizationId: scopeId, siteId: siteId)
-        async let virtualRows = try? connection.virtualControllers(siteId: siteId, organizationId: scopeId)
-        async let cameraRows = try? connection.cameras(siteId: siteId)
+        async let ticketRows = try? connection.tickets(organizationId: scopeId, siteId: siteId, cellId: cellId)
+        async let virtualRows = try? connection.virtualControllers(siteId: siteId, organizationId: scopeId, cellId: cellId)
+        async let cameraRows = try? connection.cameras(siteId: siteId, cellId: cellId)
         snapshot.cameras = await cameraRows ?? []
-        snapshot.cells = await cellRows ?? []
+        snapshot.cells = (await cellRows ?? []).filter { cellId == nil || $0.id == cellId }
         snapshot.openTickets = (await ticketRows ?? []).filter { $0.siteId == siteId && $0.isOpenForWork }
         snapshot.virtualControllers = await virtualRows ?? []
-        snapshot.orchestrators = (try? await connection.siteOrchestrators(siteId: siteId)) ?? []
-        if canSeeMembers, let memberOrganizationId = selectedSite?.organizationId ?? scopeId {
+        snapshot.orchestrators = (try? await connection.siteOrchestrators(siteId: siteId, cellId: cellId)) ?? []
+        if cellId == nil, canSeeMembers, let memberOrganizationId = selectedSite?.organizationId ?? scopeId {
             snapshot.members = (try? await connection.siteMembers(siteId: siteId, organizationId: memberOrganizationId, viewerOrganizationId: viewerOrganizationId)) ?? []
         }
         snapshot.telemetry = try? await connection.siteTelemetry(controllerIds: snapshot.controllers.map(\.id), virtualControllerIds: snapshot.virtualControllers.map(\.id))
@@ -312,6 +327,11 @@ struct SiteView: View {
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
                     path.removeAll()
                 }
+                if DemoOptions.screen == "site-cells" { path.append(.siteList(.cells, organizationKey: siteModel.sessionKey)) }
+                if let screen = DemoOptions.screen, screen == "cell" || screen == "cell-lower" || screen == "cell-empty" {
+                    let demoCellId = screen == "cell-empty" ? "cell03" : "cell01"
+                    if let cell = siteModel.cells.first(where: { $0.id == demoCellId }) { path.append(siteModel.route(to: cell)) }
+                }
                 if DemoOptions.screen == "site-controllers" { path.append(.siteList(.controllers, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "cameras" || DemoOptions.screen == "cameras-failed" { path.append(.siteList(.cameras, organizationKey: siteModel.sessionKey)) }
                 if let camera = siteModel.cameras.first,
@@ -348,14 +368,14 @@ struct SiteView: View {
                 }
             } else {
                 List { PortalRows {
-                    telemetrySection(model)
+                    SiteSectionViews.telemetry(model, showsViewAll: true)
                     cellsSection(model)
-                    tilesSection(model)
+                    SiteSectionViews.overview(model)
                     resourcesSection(model)
-                    cameraSection(model)
-                    alarmSection(model)
-                    incidentSection(model)
-                    ticketSection(model)
+                    SiteSectionViews.cameras(model)
+                    SiteSectionViews.alarms(model)
+                    SiteSectionViews.incidents(model)
+                    SiteSectionViews.tickets(model)
                 } }
 .portalRootList()
                 .refreshable { await model.loadDetails(force: true) }
@@ -363,49 +383,17 @@ struct SiteView: View {
         }
     }
 
-    // MARK: overview
+// MARK: overview
 
-    /// The last 24 hours, as the web page's telemetry cards show them.
-    @ViewBuilder
-    private func telemetrySection(_ model: SiteModel) -> some View {
-        if let telemetry = model.telemetry, telemetry.machinesTotal > 0 {
-            Section {
-                tileGrid { telemetryTiles(telemetry) }
-            } header: {
-                Text("Last 24 hours")
-            }
-            // "View all" is a row of its own, below the tiles.
-            if !model.cells.isEmpty {
-                Section {
-                    NavigationLink(value: PortalRoute.siteList(.telemetry, organizationKey: model.sessionKey)) { Text("View all").foregroundStyle(.tint) }
-                }
-            }
-        } else if model.telemetry == nil, model.isLoadingStats {
-            // The real layout, redacted, until the numbers arrive.
-            Section {
-                tileGrid { telemetryTiles(SiteTelemetry.placeholder) }
-                    .placeholderWhileLoading(true)
-            } header: {
-                Text("Last 24 hours")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func telemetryTiles(_ telemetry: SiteTelemetry) -> some View {
-        StatTile(label: "Picked parts", value: telemetry.pickedParts.formatted(), detail: "\(telemetry.pickOperations) pick operations", symbol: "shippingbox")
-        StatTile(label: "Error rate", value: telemetry.errorRateText(), detail: "\(telemetry.interventions) of \(telemetry.pickedParts) picks needed a person", symbol: "exclamationmark.arrow.triangle.2.circlepath")
-        StatTile(label: "Robot throughput", value: telemetry.throughputText(), detail: "parts per hour", symbol: "speedometer")
-        StatTile(label: "Machines", value: telemetry.machinesTotal.formatted(), detail: "\(telemetry.machinesReporting) reporting", symbol: "server.rack")
-    }
-
-    /// One card per cell with the machines it groups, the first few and the rest on a page of their own.
+    /// One card per cell with the machines it groups, the first few and the rest on a page of their own. Each opens the cell's page.
     @ViewBuilder
     private func cellsSection(_ model: SiteModel) -> some View {
         if !model.cells.isEmpty {
             Section("Cells") {
-                ForEach(SiteSections.top(model.cells)) { cell in SiteRows.cell(cell) }
-                showAll(.cells, model: model, count: model.cells.count, isShown: SiteSections.hasMore(model.cells))
+                ForEach(SiteSections.top(model.cells)) { cell in
+                    NavigationLink(value: model.route(to: cell)) { SiteRows.cell(cell) }
+                }
+                SiteSectionViews.showAll(.cells, model: model, count: model.cells.count, isShown: SiteSections.hasMore(model.cells))
             }
         } else if model.isLoadingStats, !model.hasLoadedStats {
             Section("Cells") {
@@ -416,64 +404,13 @@ struct SiteView: View {
         }
     }
 
-
-    /// The counts, each a tile that opens its full list.
-    private func tilesSection(_ model: SiteModel) -> some View {
-        Section("Overview") {
-            overviewTiles(model)
-                .placeholderWhileLoading(model.isLoadingStats && !model.hasLoadedStats)
-        }
-    }
-
-    @ViewBuilder
-    private func overviewTiles(_ model: SiteModel) -> some View {
-        Group {
-            tileGrid {
-                NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.sessionKey)) { StatTile(label: "Controllers", value: model.controllers.count.formatted(), symbol: "server.rack") }
-                    .buttonStyle(.plain)
-                    .navigationLinkIndicatorVisibility(.hidden)
-                if model.virtualControllerCount > 0 {
-                    NavigationLink(value: PortalRoute.siteList(.virtualControllers, organizationKey: model.sessionKey)) { StatTile(label: "Virtual controllers", value: model.virtualControllerCount.formatted(), symbol: "square.stack.3d.up") }
-                        .buttonStyle(.plain)
-                }
-                NavigationLink(value: PortalRoute.siteList(.alarms, organizationKey: model.sessionKey)) { StatTile(label: "Active alarms", value: model.alarms.count.formatted(), symbol: "bell.badge", tint: model.alarms.isEmpty ? nil : Color.statusError) }
-                    .buttonStyle(.plain)
-                NavigationLink(value: PortalRoute.siteList(.incidents, organizationKey: model.sessionKey)) { StatTile(label: "Incidents", value: model.incidents.count.formatted(), symbol: "exclamationmark.triangle") }
-                    .buttonStyle(.plain)
-                NavigationLink(value: PortalRoute.siteList(.tickets, organizationKey: model.sessionKey)) { StatTile(label: "Open tickets", value: model.openTickets.count.formatted(), symbol: "tray.full") }
-                    .buttonStyle(.plain)
-                    .navigationLinkIndicatorVisibility(.hidden)
-            }
-        }
-    }
-
     private func resourcesSection(_ model: SiteModel) -> some View {
         Section("Resources") {
             NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.sessionKey)) {
                 LabeledContent("Controllers") { Text(model.controllers.count.formatted()).monospacedDigit() }
             }
-            if model.robots.robotCount == 0 {
-                LabeledContent("Mobile robots") { Text("None reported").foregroundStyle(.secondary) }
-            } else {
-                NavigationLink(value: PortalRoute.siteList(.mobileRobots, organizationKey: model.sessionKey)) {
-                    LabeledContent("Mobile robots") { Text("\(model.robots.onlineCount) of \(model.robots.robotCount) online").monospacedDigit() }
-                }
-            }
-            NavigationLink(value: PortalRoute.siteList(.orchestrators, organizationKey: model.sessionKey)) {
-                LabeledContent("Orchestrators") {
-                    let summary = SiteOrchestratorSummary(model.orchestrators)
-                    HStack(spacing: 6) {
-                        if summary.hasError { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.statusError).accessibilityLabel(Text("Has an error")) }
-                        if summary.totalCount == 0 && summary.withoutOwnStatusCount == 0 {
-                            Text("None reported").foregroundStyle(.secondary)
-                        } else if summary.totalCount == 0 {
-                            Text("\(summary.withoutOwnStatusCount) without a line status").foregroundStyle(.secondary)
-                        } else {
-                            Text("\(summary.runningCount) of \(summary.totalCount) running").monospacedDigit()
-                        }
-                    }
-                }
-            }
+            SiteSectionViews.mobileRobotsRow(model)
+            SiteSectionViews.orchestratorsRow(model)
             if model.canSeeMembers {
                 NavigationLink(value: PortalRoute.siteList(.members, organizationKey: model.sessionKey)) {
                     LabeledContent("Members") { Text(model.members.count.formatted()).monospacedDigit() }
@@ -489,72 +426,6 @@ struct SiteView: View {
             }
             if model.robots.errorCount > 0 {
                 LabeledContent("Robots with errors") { Text(model.robots.errorCount.formatted()).monospacedDigit().foregroundStyle(Color.statusError) }
-            }
-        }
-    }
-
-    private func tileGrid<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        StatGrid { content() }
-            .navigationLinkIndicatorVisibility(.hidden)
-            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-            .listRowBackground(Color.clear)
-    }
-
-    /// The last row of a capped section: all of them on a page of their own.
-    @ViewBuilder
-    private func showAll(_ kind: SiteListKind, model: SiteModel, count: Int, isShown: Bool) -> some View {
-        if isShown {
-            NavigationLink(value: PortalRoute.siteList(kind, organizationKey: model.sessionKey)) { Text("Show all (\(count))").foregroundStyle(.tint) }
-        }
-    }
-
-    // MARK: the few worst of each
-
-    @ViewBuilder
-    private func alarmSection(_ model: SiteModel) -> some View {
-        if !model.alarms.isEmpty {
-            Section("Alarms") {
-                ForEach(SiteSections.top(model.alarms)) { alarm in SiteRows.alarmLink(alarm, controllers: model.controllers) }
-                showAll(.alarms, model: model, count: model.alarms.count, isShown: SiteSections.hasMore(model.alarms))
-            }
-        }
-    }
-
-
-    /// The site's cameras: the first few with a picture, and all of them on a page of their own.
-    @ViewBuilder
-    private func cameraSection(_ model: SiteModel) -> some View {
-        if !model.cameras.isEmpty {
-            Section("Cameras") {
-                ForEach(SiteSections.top(model.cameras)) { camera in
-                    NavigationLink(value: PortalRoute.camera(CameraTarget(camera: camera))) { CameraRow(camera: camera) }
-                }
-                showAll(.cameras, model: model, count: model.cameras.count, isShown: SiteSections.hasMore(model.cameras))
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func incidentSection(_ model: SiteModel) -> some View {
-        if !model.incidents.isEmpty {
-            Section("Incidents") {
-                ForEach(SiteSections.top(model.incidents)) { incident in
-                    NavigationLink(value: PortalRoute.incident(incident)) { SiteRows.incident(incident) }
-                }
-                showAll(.incidents, model: model, count: model.incidents.count, isShown: SiteSections.hasMore(model.incidents))
-            }
-        }
-    }
-
-
-    @ViewBuilder
-    private func ticketSection(_ model: SiteModel) -> some View {
-        if !model.openTickets.isEmpty {
-            Section("Tickets") {
-                ForEach(SiteSections.top(model.openTickets)) { ticket in
-                    NavigationLink(value: PortalRoute.ticket(id: ticket.id)) { TicketRow(ticket: ticket) }
-                }
-                showAll(.tickets, model: model, count: model.openTickets.count, isShown: SiteSections.hasMore(model.openTickets))
             }
         }
     }
@@ -989,12 +860,7 @@ struct SiteTelemetryView: View {
     }
 
     private func tiles(_ telemetry: SiteTelemetry) -> some View {
-        StatGrid {
-            StatTile(label: "Picked parts", value: telemetry.pickedParts.formatted(), detail: "\(telemetry.pickOperations) pick operations", symbol: "shippingbox")
-            StatTile(label: "Error rate", value: telemetry.errorRateText(), detail: "\(telemetry.interventions) of \(telemetry.pickedParts) picks needed a person", symbol: "exclamationmark.arrow.triangle.2.circlepath")
-            StatTile(label: "Robot throughput", value: telemetry.throughputText(), detail: "parts per hour", symbol: "speedometer")
-            StatTile(label: "Machines", value: telemetry.machinesTotal.formatted(), detail: "\(telemetry.machinesReporting) reporting", symbol: "server.rack")
-        }
+        StatGrid { SiteSectionViews.telemetryTiles(telemetry) }
         .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
         .listRowBackground(Color.clear)
     }
@@ -1111,6 +977,27 @@ enum SiteRows {
     }
 
     @ViewBuilder
+    static func controller(_ controller: ControllerSummary) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: controller.isOnline ? "checkmark.circle" : "circle.slash")
+                .foregroundStyle(.secondary)
+                .accessibilityLabel(controller.isOnline ? Text("Online") : Text("Offline"))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(controller.displayName).foregroundStyle(.primary)
+                if let detail = controller.detail { Text(detail).font(.footnote).foregroundStyle(.secondary) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    static func virtualController(_ virtual: VirtualControllerSummary) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(virtual.displayName).foregroundStyle(.primary)
+            Text(virtual.isRunning ? LocalizedStringKey("Running") : LocalizedStringKey(virtual.status ?? "")).font(.footnote).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
     static func alarm(_ alarm: SiteAlarm) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Label {
@@ -1191,7 +1078,7 @@ struct SiteListScreen: View {
             case .tickets:
                 ForEach(model.openTickets) { ticket in NavigationLink(value: PortalRoute.ticket(id: ticket.id)) { TicketRow(ticket: ticket) } }
             case .cells:
-                ForEach(model.cells) { SiteRows.cell($0) }
+                ForEach(model.cells) { cell in NavigationLink(value: model.route(to: cell)) { SiteRows.cell(cell) } }
             case .telemetry, .cameras:
                 EmptyView()
             case .mobileRobots:
@@ -1219,26 +1106,11 @@ struct SiteListScreen: View {
                 }
             case .virtualControllers:
                 ForEach(model.virtualControllers) { virtual in
-                    NavigationLink(value: PortalRoute.virtualController(virtual)) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(virtual.displayName).foregroundStyle(.primary)
-                            Text(virtual.isRunning ? LocalizedStringKey("Running") : LocalizedStringKey(virtual.status ?? "")).font(.footnote).foregroundStyle(.secondary)
-                        }
-                    }
+                    NavigationLink(value: PortalRoute.virtualController(virtual)) { SiteRows.virtualController(virtual) }
                 }
             case .controllers:
                 ForEach(model.controllers) { controller in
-                    NavigationLink(value: PortalRoute.controller(controller)) {
-                        HStack(spacing: 10) {
-                            Image(systemName: controller.isOnline ? "checkmark.circle" : "circle.slash")
-                                .foregroundStyle(.secondary)
-                                .accessibilityLabel(controller.isOnline ? Text("Online") : Text("Offline"))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(controller.displayName).foregroundStyle(.primary)
-                                if let detail = controller.detail { Text(detail).font(.footnote).foregroundStyle(.secondary) }
-                            }
-                        }
-                    }
+                    NavigationLink(value: PortalRoute.controller(controller)) { SiteRows.controller(controller) }
                 }
             }
         } }
@@ -1247,7 +1119,7 @@ struct SiteListScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)
         .toolbar {
-            if kind == .virtualControllers {
+            if kind == .virtualControllers, model.cellId == nil {
                 ToolbarItem(placement: .topBarTrailing) { VirtualControllerCreateButton(model: model) }
             }
         }

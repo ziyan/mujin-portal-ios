@@ -102,10 +102,10 @@ final class SessionModel {
     }
 
     /// A site screen's model lives as long as the session, so a push and a pop, or a switch of tabs, keeps its data.
-    func siteModel(for organizationId: String?, siteId: String? = nil) -> SiteModel {
-        let key = (organizationId ?? "") + (siteId.map { "|" + $0 } ?? "")
+    func siteModel(for organizationId: String?, siteId: String? = nil, cellId: String? = nil) -> SiteModel {
+        let key = SiteModel.sessionKey(organizationId: organizationId, siteId: siteId, cellId: cellId)
         if let existing = siteModels[key] { return existing }
-        let model = SiteModel(connection: connection, organizationId: organizationId, pinnedSiteId: siteId, cache: cache, accountKey: account.accountKey, onError: onError)
+        let model = SiteModel(connection: connection, organizationId: organizationId, pinnedSiteId: siteId, cellId: cellId, cache: cache, accountKey: account.accountKey, onError: onError)
         model.viewerIsMujinUser = isStaff
         model.viewerPermissions = profile?.me.permissions ?? []
         model.viewerOrganizationId = self.organizationId
@@ -419,7 +419,7 @@ enum DemoOptions {
         if screen.hasPrefix("site-staff") || screen == "sites-staff" || screen == "surveillance-staff" { return .site }
         if screen == "surveillance" { return .more }
         if screen == "surveillance-tab" { return .surveillance }
-        if screen.hasPrefix("site") || screen.hasPrefix("incident") || screen.hasPrefix("controller") || screen.hasPrefix("virtual-controller") || screen.hasPrefix("camera") { return .site }
+        if screen.hasPrefix("site") || screen.hasPrefix("cell") || screen.hasPrefix("incident") || screen.hasPrefix("controller") || screen.hasPrefix("virtual-controller") || screen.hasPrefix("camera") { return .site }
         return nil
     }
 

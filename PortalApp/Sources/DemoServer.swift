@@ -566,7 +566,7 @@ struct DemoTransport: HTTPTransport {
         case "ListSiteActiveAlarms":
             let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
             return [
-                "ListSiteActiveAlarms": [
+                "ListSiteActiveAlarms": DemoCells.narrow([
                     [
                         "controllerId": "controller01", "isAvailable": true,
                         "alarms": ["alarms": [
@@ -575,7 +575,7 @@ struct DemoTransport: HTTPTransport {
                         ]],
                     ],
                     ["controllerId": "controller02", "isAvailable": false, "alarms": NSNull()],
-                ]
+                ], variables: variables)
             ]
         case "GetAlarmDetail":
             // A controller's clock: the offset is part of the timestamp, as the real server sends it.
@@ -597,7 +597,7 @@ struct DemoTransport: HTTPTransport {
             ]
         case "ListSiteMobileRobots":
             return [
-                "ListSiteMobileRobots": [
+                "ListSiteMobileRobots": DemoCells.narrow([
                     [
                         "controllerId": "controller01", "isAvailable": true,
                         "mobileRobots": ["robots": [
@@ -606,37 +606,38 @@ struct DemoTransport: HTTPTransport {
                             ["name": "robot_3", "status": "Offline", "isOnline": false, "hasError": false, "powerLevel": 0.1, "isCharging": true, "isLoaded": false],
                         ]],
                     ]
-                ]
+                ], variables: variables)
             ]
         case "ListControllers":
-            return [
-                "ListControllers": [
-                    "controllers": [
-                        ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write", "controller:edit", "backup:delete"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
-                        ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
-                    ], "meta": ["totalCount": 2],
-                ]
+            let controllers: [[String: Any]] = [
+                ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write", "controller:edit", "backup:delete"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
+                ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
+                ["id": "controller03", "comment": "Palletizer controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": ["id": "connection03"], "hypervisorState": ["version": "2026.10.2"]],
             ]
+            let shown = DemoCells.narrow(controllers, key: "id", variables: variables)
+            return ["ListControllers": ["controllers": shown, "meta": ["totalCount": shown.count]]]
         case "GetController":
             let controllerId = variables["controllerId"] as? String ?? ""
             let known: [[String: Any]] = [
                 ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write", "controller:edit", "backup:delete"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
                 ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
+                ["id": "controller03", "comment": "Palletizer controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": ["id": "connection03"], "hypervisorState": ["version": "2026.10.2"]],
             ]
             if let controller = known.first(where: { ($0["id"] as? String) == controllerId }) { return ["GetController": controller] }
             return ["GetController": NSNull()]
         case "ListControllerTelemetrySummaries":
-            return [
-                "ListControllerTelemetrySummaries": [
-                    ["controllerId": "controller01", "isAvailable": true, "activeAlarmCount": 1, "totals": ["pickOperationCount": 1_480, "pickedPartCount": 1_392, "humanInterventionCount": 21, "directRobotThroughputPartsPerHour": 58.0]],
-                    ["controllerId": "controller02", "isAvailable": false],
-                ]
+            let requestedIds = variables["controllerIds"] as? [String]
+            let summaries: [[String: Any]] = [
+                ["controllerId": "controller01", "isAvailable": true, "activeAlarmCount": 1, "totals": ["pickOperationCount": 1_480, "pickedPartCount": 1_392, "humanInterventionCount": 21, "directRobotThroughputPartsPerHour": 58.0]],
+                ["controllerId": "controller02", "isAvailable": false],
+                ["controllerId": "controller03", "isAvailable": true, "activeAlarmCount": 0, "totals": ["pickOperationCount": 620, "pickedPartCount": 604, "humanInterventionCount": 3, "directRobotThroughputPartsPerHour": 31.5]],
             ]
+            return ["ListControllerTelemetrySummaries": summaries.filter { requestedIds == nil || requestedIds!.contains($0["controllerId"] as? String ?? "") }]
         case "ListCells":
-            return ["ListCells": ["cells": [["id": "cell01", "name": "Pick cell A", "controllerIds": ["controller01"]], ["id": "cell02", "name": "Packing line", "controllerIds": ["controller02"]]]]]
+            return ["ListCells": ["cells": DemoCells.rows]]
         case "ListSiteOrchestrators":
             return [
-                "ListSiteOrchestrators": [
+                "ListSiteOrchestrators": DemoCells.narrow([
                     [
                         "controllerId": "controller01", "isAvailable": true,
                         "orchestrators": ["activeRunModeName": "Normal", "orchestrators": [
@@ -646,7 +647,7 @@ struct DemoTransport: HTTPTransport {
                         ]],
                     ],
                     ["controllerId": "controller02", "isAvailable": false],
-                ]
+                ], variables: variables)
             ]
         case "ListControllerWebApps":
             return ["ListControllerWebApps": DemoWebApps.list(controllerId: variables["controllerId"] as? String, virtualControllerId: variables["virtualControllerId"] as? String)]
@@ -734,7 +735,9 @@ struct DemoTransport: HTTPTransport {
         case "ListVirtualControllerAlarms":
             return ["ListControllerActiveAlarms": ["alarms": [["alarmLevel": "warning", "alarmMessage": "Disk usage above 80 percent", "alarmStatus": "active", "occurredAt": "2026-10-31T08:00:00Z"]]]]
         case "ListSiteVirtualControllers":
+            let cell = DemoCells.cell(variables)
             let rows = state.withData { data -> [[String: Any]] in data.isVirtualControllerDestroyed ? [] : [Self.virtualControllerRow(data)] }
+                .filter { cell == nil || cell!.virtualControllerIds.contains($0["id"] as? String ?? "") }
             return ["ListVirtualControllers": ["virtualControllers": rows]]
         case "GetVirtualController":
             return ["GetVirtualController": state.withData { Self.virtualControllerRow($0) }]
@@ -763,7 +766,7 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListIncidents": [
                     "incidents": [
-                        ["id": "incident01", "title": "Person near the conveyor", "description": "A person stood inside the marked zone while the conveyor ran.", "kind": "safety", "siteId": "site01", "controllerId": "controller01", "organizationId": "organization01", "reviewStatus": "new", "activityStatus": "active", "detectedAt": stamp(2_400), "confidence": 0.87],
+                        ["id": "incident01", "title": "Person near the conveyor", "description": "A person stood inside the marked zone while the conveyor ran.", "kind": "safety", "siteId": "site01", "cellId": "cell01", "controllerId": "controller01", "organizationId": "organization01", "reviewStatus": "new", "activityStatus": "active", "detectedAt": stamp(2_400), "confidence": 0.87],
                         ["id": "incident02", "title": "Pallet left in aisle", "kind": "obstruction", "siteId": "site01", "organizationId": "organization01", "reviewStatus": "confirmed", "activityStatus": "cleared", "detectedAt": stamp(90_000), "confidence": 0.74],
                     ], "meta": ["totalCount": 2],
                 ]
@@ -795,7 +798,9 @@ struct DemoTransport: HTTPTransport {
         case "SetNotificationPreference":
             return ["SetNotificationPreference": ["kind": variables["kind"] as? String ?? "", "channel": variables["channel"] as? String ?? "", "isEnabled": variables["isEnabled"] as? Bool ?? true]]
         case "ListTickets":
-            return ["ListTickets": ["tickets": state.withData { $0.tickets }, "meta": ["totalCount": 5]]]
+            let cell = DemoCells.cell(variables)
+            let tickets = state.withData { data in cell.map { Array(data.tickets.prefix($0.ticketCount)) } ?? data.tickets }
+            return ["ListTickets": ["tickets": tickets, "meta": ["totalCount": cell == nil ? 5 : tickets.count]]]
         case "GetTicket":
             let ticketId = variables["ticketId"] as? String ?? ""
             return ["GetTicket": state.withData { $0.tickets.first { ($0["id"] as? String) == ticketId } ?? [:] }]
