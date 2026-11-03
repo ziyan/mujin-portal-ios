@@ -281,6 +281,10 @@ final class SVGRasterizer: NSObject, WKNavigationDelegate {
         view.backgroundColor = .clear
         view.scrollView.backgroundColor = .clear
         view.scrollView.isScrollEnabled = false
+        // The view sits in the window, so by default its page is pushed down by the safe area (the status bar and the
+        // Dynamic Island), which drew every icon low and cut off its bottom.
+        view.scrollView.contentInsetAdjustmentBehavior = .never
+        view.insetsLayoutMarginsFromSafeArea = false
         view.isUserInteractionEnabled = false
         view.accessibilityElementsHidden = true
         view.navigationDelegate = self
