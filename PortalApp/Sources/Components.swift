@@ -38,11 +38,11 @@ struct ComposerCard<Accessory: View>: View {
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
-                // Paste of a picture is the card's own: it adds an attachment. With a hardware keyboard, Return sends and Shift+Return adds a line.
+                // Paste or a drop of pictures is the card's own: it adds attachments, and any text that came with them is typed in only when it says something (PasteRule). With a hardware keyboard, Return sends and Shift+Return adds a line.
                 ComposerTextView(
                     text: $text, isFocused: $isFocused, isEnabled: isEnabled,
                     onReturn: { if canSend { onSend() } }, onEscape: onEscape,
-                    onPastePicture: drafts.map { drafts in { drafts.pastePicture() } }
+                    onPasteItems: drafts.map { drafts in { providers in await drafts.paste(itemProviders: providers) } }
                 )
                 .accessibilityLabel(Text(placeholder))
                 .accessibilityIdentifier(fieldIdentifier)
