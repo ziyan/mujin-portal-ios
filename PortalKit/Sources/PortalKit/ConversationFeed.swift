@@ -143,7 +143,8 @@ enum SubscriptionFeed {
                     token = try await connection.accessToken()
                 }
                 let server = await connection.server
-                let ending = await runSocket(socket: try await socketFactory(server, token), request: request, timing: timing, yield: yield)
+                let prepared = SubscriptionRequest(query: await connection.prepared(request.query), variables: request.variables, field: request.field)
+                let ending = await runSocket(socket: try await socketFactory(server, token), request: prepared, timing: timing, yield: yield)
                 switch ending {
                 case .unauthorized:
                     refusedToken = token

@@ -156,7 +156,7 @@ public struct PushPayload: Equatable, Sendable {
         case "agent_waiting", "agent_message":
             if let conversationId { return .conversation(id: conversationId) }
             return .notifications
-        case "chat_message":
+        case "chat_message", "chat_call":
             if let conversationId { return .chat(conversationId: conversationId) }
             return .notifications
         case "agent_goal_needs_you":
@@ -218,19 +218,41 @@ extension Documents {
         mutation UnregisterPushDevice($deviceToken: String) { UnregisterPushDevice(deviceToken: $deviceToken) { isRemoved } }
         """
 
+    /// RegisterPushDevice with the PushKit token, for a server that rings calls through it (it takes `voipToken`).
+    public static let registerPushDeviceWithVoip = """
+        mutation RegisterPushDevice($deviceToken: String, $environment: PushEnvironment, $deviceName: String, $appVersion: String, $voipToken: String) {
+          RegisterPushDevice(deviceToken: $deviceToken, environment: $environment, deviceName: $deviceName, appVersion: $appVersion, voipToken: $voipToken) {
+            pushDevice { id pushEnvironment deviceName appVersion }
+          }
+        }
+        """
+
     static var pushDocuments: [String] { [registerPushDevice, unregisterPushDevice] }
 }
 
 extension Connection {
     /// Tells the server this phone's token, at every launch and whenever the
     /// token changes. It is idempotent per person and token.
-    public func registerPushDevice(deviceToken: String, environment: PushEnvironment, deviceName: String, appVersion: String) async throws {
-        _ = try await execute(
-            Documents.registerPushDevice,
-            variables: [
-                "deviceToken": .string(deviceToken), "environment": .string(environment.rawValue), "deviceName": .string(deviceName),
-                "appVersion": .string(appVersion),
-            ], as: JSONValue.self)
+    public func registerPushDevice(
+        deviceToken: String, environment: PushEnvironment, deviceName: String, appVersion: String, voipToken: String? = nil
+    ) async throws {
+        var variables: [String: JSONValue] = [
+            "deviceToken": .string(deviceToken), "environment": .string(environment.rawValue), "deviceName": .string(deviceName),
+            "appVersion": .string(appVersion),
+        ]
+        if let voipToken, !voipToken.isEmpty {
+            // A server that does not know `voipToken` refuses the document: the phone then registers its alert token alone.
+            variables["voipToken"] = .string(voipToken)
+            do {
+                _ = try await execute(Documents.registerPushDeviceWithVoip, variables: variables, as: JSONValue.self)
+                return
+            } catch let error as PortalError where error == .signedOut {
+                throw error
+            } catch {
+                variables["voipToken"] = nil
+            }
+        }
+        _ = try await execute(Documents.registerPushDevice, variables: variables, as: JSONValue.self)
     }
 
     /// Stops this account's pushes to this phone while the other accounts
@@ -246,5 +268,82 @@ extension Connection {
         case .answerQuestion(let id, let answer): try await answerQuestion(id: id, answer: answer)
         case .reply(let conversationId, let text): try await sendMessage(conversationId: conversationId, text: text)
         }
+    }
+}
+
+/// VoipPushPayload is what a VoIP push says: a call is ringing for a person, or it stopped ringing. Read from the
+/// `portal` object like every push, with the call's keys beside the usual ones.
+public struct VoipPushPayload: Equatable, Sendable {
+    public enum Kind: Equatable, Sendable {
+        case ringing
+        case stopped
+    }
+
+    public let kind: Kind
+    public let userId: String
+    public let callId: String
+    public let chatId: String?
+    public let conversationId: String?
+    public let callerName: String?
+    public let chatName: String?
+    public let isVideoOn: Bool
+
+    public init(
+        kind: Kind, userId: String, callId: String, chatId: String? = nil, conversationId: String? = nil, callerName: String? = nil,
+        chatName: String? = nil, isVideoOn: Bool = false
+    ) {
+        self.kind = kind
+        self.userId = userId
+        self.callId = callId
+        self.chatId = chatId
+        self.conversationId = conversationId
+        self.callerName = callerName
+        self.chatName = chatName
+        self.isVideoOn = isVideoOn
+    }
+
+    /// Nil when the push is not about a call.
+    public init?(userInfo: [AnyHashable: Any]) {
+        let portal = (userInfo["portal"] as? [String: Any]) ?? userInfo.reduce(into: [String: Any]()) { result, entry in
+            if let key = entry.key as? String { result[key] = entry.value }
+        }
+        func text(_ key: String) -> String? {
+            if let string = portal[key] as? String { return string.isEmpty ? nil : string }
+            if let number = portal[key] as? NSNumber { return number.stringValue }
+            return nil
+        }
+        guard let kindText = text("kind"), let userId = text("userId"), let callId = text("callId") else { return nil }
+        switch kindText {
+        case "chat_call", "chat_call_ringing": self.kind = .ringing
+        case "chat_call_stop", "chat_call_stopped": self.kind = .stopped
+        default: return nil
+        }
+        self.userId = userId
+        self.callId = callId
+        self.chatId = text("chatId")
+        self.conversationId = text("conversationId")
+        self.callerName = text("callerName") ?? text("authorName")
+        self.chatName = text("chatName")
+        self.isVideoOn = text("isVideoOn") == "true" || (portal["isVideoOn"] as? Bool) == true
+    }
+
+    /// The name CallKit shows: the caller, else the chat.
+    public var shownName: String {
+        if let callerName, !callerName.isEmpty { return callerName }
+        if let chatName, !chatName.isEmpty { return chatName }
+        return "Portal"
+    }
+}
+
+/// VoipDeviceToken is the token PushKit gave this phone for calls, kept beside the alert token.
+public enum VoipDeviceToken {
+    static let key = "voipDeviceToken"
+
+    public static func store(_ token: Data, in defaults: UserDefaults = AppGroup.defaults) {
+        defaults.set(PushDeviceToken.hex(token), forKey: key)
+    }
+
+    public static func stored(in defaults: UserDefaults = AppGroup.defaults) -> String? {
+        defaults.string(forKey: key)
     }
 }

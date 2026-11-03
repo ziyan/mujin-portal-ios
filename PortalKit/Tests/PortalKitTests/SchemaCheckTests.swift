@@ -20,6 +20,32 @@ import Testing
         }
     }
 
+    /// Voice messages and calls are built against the contract the server plans. Each group is checked as soon as the
+    /// vendored schema has it, and not before: an older schema is how the app learns the server does not offer them.
+    @Test func theVoiceAndCallDocumentsAreValidOnceTheSchemaHasThem() throws {
+        let schema = Self.schema
+        let mutations = schema.types[schema.mutationType]?.fields ?? []
+        if mutations.contains(where: { $0.name == "StartChatCall" }) {
+            for document in Documents.chatCallDocuments {
+                let problems = try DocumentValidator(schema: schema).problems(in: document)
+                #expect(problems.isEmpty, "\(document.prefix(60)): \(problems)")
+            }
+        }
+        if mutations.first(where: { $0.name == "SendMessage" })?.args.contains(where: { $0.name == "voiceMessage" }) == true {
+            for document in Documents.chatVoiceMessageDocuments {
+                let problems = try DocumentValidator(schema: schema).problems(in: document)
+                #expect(problems.isEmpty, "\(document.prefix(60)): \(problems)")
+            }
+        }
+        let messageFields = (schema.types["ConversationMessage"]?.fields ?? []).map(\.name)
+        if messageFields.contains("voiceMessage") || messageFields.contains("call") {
+            for document in Documents.all where document.contains("linkPreviewsRemovedAt") {
+                let problems = try DocumentValidator(schema: schema).problems(in: Documents.withChatMedia(document))
+                #expect(problems.isEmpty, "\(document.prefix(60)): \(problems)")
+            }
+        }
+    }
+
     @Test func theValidatorCatchesAWrongField() throws {
         let problems = try DocumentValidator(schema: Self.schema).problems(
             in: "query ListConversations($userId: String) { ListConversations(userId: $userId) { conversations { id noSuchField } } }")
