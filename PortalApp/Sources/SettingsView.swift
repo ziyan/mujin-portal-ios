@@ -97,15 +97,19 @@ struct TabBarEditorView: View {
         let others = session.choosableSections.filter { !onBar.contains($0) }
         List { PortalRows {
             Section {
-                // Chat is a row of the same list, without a remove or drag control, so its icon and title line up with the rows below it.
+                // A row whose delete is disabled loses the remove control's indent, so Chat carries a lock in that place to line its
+                // icon and title up with the rows below it.
                 ForEach(rows) { section in
                     Group {
                         if section == TabBar.pinned {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Label(section.titleKey, systemImage: section.symbol)
-                                Text("Always first")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                            HStack(spacing: 12) {
+                                Image(systemName: "lock.circle.fill").foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Label(section.titleKey, systemImage: section.symbol)
+                                    Text("Always first")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         } else {
                             // A single line that shrinks, so a long name is never broken mid-word at the largest text sizes.

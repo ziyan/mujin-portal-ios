@@ -53,9 +53,6 @@ final class ConversationModel {
 
     /// The latest pass that filed this conversation into memory and still has facts.
     private(set) var filingNote: MemoryFiling?
-    private(set) var isRemembering = false
-    /// Whether remembering is on for this person and organization, when the server said.
-    private(set) var memorySetting: AgentMemorySetting?
 
     private var feedTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
@@ -418,28 +415,8 @@ final class ConversationModel {
     // MARK: memory filing
 
     func refreshFiling() async {
-        if memorySetting == nil { memorySetting = try? await connection.memorySetting() }
         if let filings = try? await connection.memoryFilings(conversationId: conversationId) {
             filingNote = MemoryFilingNote.latestWithFacts(filings)
-        }
-    }
-
-    /// Files the conversation into memory now, in the background, and reads the note when it is done.
-    func rememberNow() async {
-        guard !isRemembering else { return }
-        let started = Date()
-        isRemembering = true
-        defer { isRemembering = false }
-        do {
-            try await connection.rememberConversation(id: conversationId)
-            for _ in 0..<20 {
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                if let latest = (try? await connection.memoryFilings(conversationId: conversationId, limit: 1))?.first, (latest.date ?? .distantPast) > started { break }
-            }
-            await refreshFiling()
-        } catch {
-            actionError = error.userMessage
-            onError(error)
         }
     }
 

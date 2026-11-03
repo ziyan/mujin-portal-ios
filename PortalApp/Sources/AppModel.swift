@@ -84,14 +84,18 @@ final class AppModel {
 
     private static let accountLog = Logger(subsystem: "com.ziyan.mujinportal", category: "accounts")
 
-    /// Deletes the cookies of accounts removed earlier. It runs at launch, before any web view exists: WebKit crashes
-    /// when a data store is removed while a web view still uses it.
+    /// Empties the web data stores of accounts removed earlier. It runs at launch, before any web view exists. It clears
+    /// each store's data rather than calling `WKWebsiteDataStore.remove(forIdentifier:)`, which crashed inside WebKit
+    /// when called this early; an empty store left behind costs nothing.
     private func removeStoredWebData() {
         guard !isDemo else { return }
         let identifiers = WebDataRemoval().takeAll()
         guard !identifiers.isEmpty else { return }
         Task { @MainActor in
-            for identifier in identifiers { try? await WKWebsiteDataStore.remove(forIdentifier: identifier) }
+            for identifier in identifiers {
+                await WKWebsiteDataStore(forIdentifier: identifier)
+                    .removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast)
+            }
         }
     }
 

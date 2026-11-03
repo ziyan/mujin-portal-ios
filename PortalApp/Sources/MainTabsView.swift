@@ -1,5 +1,6 @@
 import PortalKit
 import SwiftUI
+import UIKit
 
 extension AppSection {
     var titleKey: LocalizedStringKey {
@@ -139,8 +140,14 @@ struct MainTabsView: View {
     private func tabs(_ session: SessionModel) -> some View {
         TabView(selection: Binding(get: { session.selectedSection }, set: { session.selectedSection = $0 })) {
             ForEach(session.tabSections) { section in
-                Tab(section.titleKey, systemImage: section.symbol, value: section) {
+                Tab(value: section) {
                     SectionContent(section: section, account: account)
+                } label: {
+                    Label {
+                        Text(section.titleKey)
+                    } icon: {
+                        Image(uiImage: TabIcon.image(for: section.symbol))
+                    }
                 }
                 .badge(badge(for: section, session))
             }
@@ -229,5 +236,30 @@ private struct DestinationTab: View {
                         .toolbarVisibility(.hidden, for: .tabBar)
                 }
         }
+    }
+}
+
+/// TabIcon draws a tab's symbol fitted into one square, so a tall symbol (two speech bubbles, a building) and a short
+/// one (a camera, three dots) take the same room on the tab bar instead of following each symbol's own proportions.
+@MainActor
+enum TabIcon {
+    private static let side: CGFloat = 26
+    private static var images: [String: UIImage] = [:]
+
+    static func image(for symbol: String) -> UIImage {
+        if let image = images[symbol] { return image }
+        let configuration = UIImage.SymbolConfiguration(pointSize: 64, weight: .regular)
+        // The tab bar shows filled symbols, so draw the filled variant where there is one.
+        guard let source = UIImage(systemName: symbol + ".fill", withConfiguration: configuration)
+            ?? UIImage(systemName: symbol, withConfiguration: configuration)
+        else { return UIImage() }
+        let scale = min(side / source.size.width, side / source.size.height)
+        let drawnSize = CGSize(width: source.size.width * scale, height: source.size.height * scale)
+        let origin = CGPoint(x: (side - drawnSize.width) / 2, y: (side - drawnSize.height) / 2)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side)).image { _ in
+            source.withTintColor(.black).draw(in: CGRect(origin: origin, size: drawnSize))
+        }.withRenderingMode(.alwaysTemplate)
+        images[symbol] = image
+        return image
     }
 }
