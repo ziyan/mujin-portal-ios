@@ -17,3 +17,23 @@ struct SafariView: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }
+
+/// DemoSafariPage stands in for the system's Safari view in the demo, which runs in another process where a UI test cannot see
+/// it. It shows the address that was opened and a Done button.
+struct DemoSafariPage: View {
+    @Environment(\.dismiss) private var dismiss
+    let url: URL
+
+    var body: some View {
+        NavigationStack {
+            Text(url.absoluteString)
+                .accessibilityIdentifier("safariPageAddress")
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                            .accessibilityIdentifier("safariPageDone")
+                    }
+                }
+        }
+    }
+}

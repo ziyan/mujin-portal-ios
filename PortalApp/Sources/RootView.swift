@@ -84,7 +84,11 @@ struct RootView: View {
                 .environment(model)
         }
         .fullScreenCover(item: $model.safariPage) { page in
-            SafariView(url: page.url).ignoresSafeArea()
+            if model.isDemo {
+                DemoSafariPage(url: page.url)
+            } else {
+                SafariView(url: page.url).ignoresSafeArea()
+            }
         }
         .alert(
             "Signed out", isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } }),

@@ -170,7 +170,7 @@ struct LinkedPageSheet: View {
             }
             .portalDestinations()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.accessibilityIdentifier("linkedPageClose") }
             }
         }
         .task(id: link) { await resolve() }
