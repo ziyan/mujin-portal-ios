@@ -229,7 +229,9 @@ public struct MemoryCitation: Equatable, Sendable {
     /// Reads a link made by `linking`.
     public init?(url: URL) {
         guard url.scheme == Self.linkScheme else { return nil }
-        let text = url.absoluteString.dropFirst(Self.linkScheme.count + 1)
+        // The system's Markdown parser writes the # of a link as %23, so it is read either way.
+        let address = url.absoluteString
+        let text = (address.removingPercentEncoding ?? address).dropFirst(Self.linkScheme.count + 1)
         let parts = text.split(separator: "#", maxSplits: 1)
         guard parts.count == 2, let number = Int(parts[1]) else { return nil }
         self.path = String(parts[0])

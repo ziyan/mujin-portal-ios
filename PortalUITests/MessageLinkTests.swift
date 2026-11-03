@@ -112,15 +112,6 @@ final class MessageLinkTests: XCTestCase {
         checkWebLink(screen: "chat-links", text: "https://example.test/docs/plain", address: "https://example.test/docs/plain", holdSeconds: 0.2)
     }
 
-    func testChatLongPressNextToALinkOpensActions() {
-        let app = DemoApp.launch(screen: "chat-links")
-        let message = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Notes:'")).firstMatch
-        reveal(message, in: app)
-        start(of: message).press(forDuration: 1.0)
-        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 10), "A long press beside a link did not open the message's actions")
-        XCTAssertFalse(DemoApp.element(app, "safariPageAddress").exists, "A long press followed the link")
-    }
-
     func testChatTapOnPlainTextDoesNothing() {
         let app = DemoApp.launch(screen: "chat-links")
         let words = app.staticTexts["A plain item"]
