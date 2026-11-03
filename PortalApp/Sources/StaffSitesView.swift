@@ -65,7 +65,7 @@ struct StaffSitesView: View {
     }
 
     private func openDemoScreen() async {
-        guard appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("site-staff") || screen == "controllers-staff" || screen == "surveillance-staff" || screen == "virtual-controllers-staff" || screen == "sites-push-pop", path.isEmpty,
+        guard appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("site-staff") || screen == "controllers-staff" || screen == "surveillance-staff" || screen == "virtual-controllers-staff", path.isEmpty,
             let first = SiteGroups.group(session.staffSites.sites, organizationNames: session.staffSites.organizationNames).first?.sites.first,
             let organizationId = first.organizationId
         else { return }
@@ -79,16 +79,6 @@ struct StaffSitesView: View {
         }
         if screen == "virtual-controllers-staff" {
             path.append(.allVirtualControllers)
-            return
-        }
-        if screen == "sites-push-pop" {
-            // The screen recording of the transition: push, wait, pop, wait, twice.
-            for _ in 0..<2 {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                path.append(.allVirtualControllers)
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                path.removeAll()
-            }
             return
         }
         path.append(.site(id: first.id, organizationId: organizationId))
