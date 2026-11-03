@@ -148,10 +148,10 @@ struct AlarmDetailView: View {
                 }
                 if let controller {
                     NavigationLink(value: PortalRoute.controller(controller)) {
-                        LabeledContent("Controller") { Text(alarm.controllerId) }
+                        LabeledContent("Controller") { Text(alarm.controllerId).portalNameLine() }
                     }
                 } else {
-                    LabeledContent("Controller") { Text(alarm.controllerId) }
+                    LabeledContent("Controller") { Text(alarm.controllerId).portalNameLine() }
                 }
             }
             Section("Times") {
@@ -170,11 +170,15 @@ struct AlarmDetailView: View {
                 } else if didFail {
                     Label("Could not load the details", systemImage: "exclamationmark.triangle").foregroundStyle(Color.statusError)
                 } else if let detail, !detail.metadataEntries.isEmpty {
-                    Text(detail.metadataJSON)
-                        .font(.footnote.monospaced())
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .id("metadata")
+                    // Code is not wrapped: a long key or value would break mid-word, so a long line scrolls sideways. The code's size is capped so most keys fit.
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        Text(detail.metadataJSON)
+                            .font(.footnote.monospaced())
+                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                    .id("metadata")
                     Button {
                         UIPasteboard.general.string = detail.metadataJSON
                         didCopy = true
@@ -189,15 +193,15 @@ struct AlarmDetailView: View {
                 Section("Origin") {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Log entry").font(.footnote).foregroundStyle(.secondary)
-                        Text(logEntryId).font(.body.monospaced()).textSelection(.enabled)
+                        Text(logEntryId).font(.body.monospaced()).textSelection(.enabled).portalNameLine()
                     }
-                    if let label = nonEmpty(alarm.originLabel) { LabeledContent("Raised by") { Text(label) } }
-                    if let kind = nonEmpty(detail?.originKind) { LabeledContent("Origin kind") { Text(kind) } }
-                    if let origin = nonEmpty(detail?.originControllerId) { LabeledContent("Origin controller") { Text(origin) } }
+                    if let label = nonEmpty(alarm.originLabel) { LabeledContent("Raised by") { Text(label).portalNameLine() } }
+                    if let kind = nonEmpty(detail?.originKind) { LabeledContent("Origin kind") { Text(kind).portalNameLine() } }
+                    if let origin = nonEmpty(detail?.originControllerId) { LabeledContent("Origin controller") { Text(origin).portalNameLine() } }
                     ForEach(detail?.originEntries ?? []) { entry in
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(entry.key).font(.footnote).foregroundStyle(.secondary)
-                            Text(entry.value.isEmpty ? "\u{2014}" : entry.value).font(.body.monospaced()).textSelection(.enabled)
+                            Text(entry.key).font(.footnote).foregroundStyle(.secondary).portalNameLine()
+                            Text(entry.value.isEmpty ? "\u{2014}" : entry.value).font(.body.monospaced()).textSelection(.enabled).portalNameLine()
                         }
                     }
                 }

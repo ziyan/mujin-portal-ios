@@ -220,9 +220,9 @@ struct CallPeoplePicker: View {
                                         .accessibilityHidden(true)
                                     if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: person.userId, name: person.shownName, size: 32) }
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(person.shownName).foregroundStyle(.primary).lineLimit(3).minimumScaleFactor(0.6)
+                                        Text(person.shownName).foregroundStyle(.primary).portalNameLine()
                                         if let organization = person.organizationName, !organization.isEmpty {
-                                            Text(organization).font(.footnote).foregroundStyle(.secondary)
+                                            Text(organization).font(.footnote).foregroundStyle(.secondary).portalNameLine()
                                         }
                                     }
                                     Spacer(minLength: 0)

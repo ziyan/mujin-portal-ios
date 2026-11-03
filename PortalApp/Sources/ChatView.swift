@@ -468,6 +468,7 @@ private struct BubbleKey: Equatable {
 /// MessageRow is one message: the author, a quote when it replies, the words
 /// or a note that it was deleted, reactions, link cards, and who has read it.
 private struct MessageRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(SessionModel.self) private var session
     @Environment(AppModel.self) private var appModel
     let message: ChatMessage
@@ -514,17 +515,19 @@ private struct MessageRow: View {
 
     private var authorLine: some View {
         let member = model.member(message.authorUserId)
-        return HStack(spacing: 6) {
+        let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 6))
+        return layout {
             Text(message.isAssistant ? ((message.authorName ?? "").isEmpty ? String(localized: "Assistant") : message.authorName!) : (message.authorName ?? member?.shownName ?? String(localized: "Someone")))
                 .font(.caption.weight(.semibold))
+                .portalNameLine()
             if message.isAssistant, let name = message.onBehalfOfUserName, !name.isEmpty {
-                Text("for \(name)").font(.caption).foregroundStyle(.secondary)
+                Text("for \(name)").font(.caption).foregroundStyle(.secondary).portalNameLine()
             }
             // The organization is shown beside a person from another one.
             if !message.isAssistant, let organization = message.authorOrganizationName ?? member?.organizationName, !organization.isEmpty,
                 member?.organizationId != nil, member?.organizationId != model.member(model.currentUserId)?.organizationId
             {
-                Text(organization).font(.caption).foregroundStyle(.secondary)
+                Text(organization).font(.caption).foregroundStyle(.secondary).portalNameLine()
             }
             if member?.isMujinUser == true {
                 Text("Staff")
@@ -774,13 +777,15 @@ private struct MemberRow: View {
     let member: ChatMember
     let isViewer: Bool
     let viewerOrganizationId: String?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(spacing: 10) {
-        UserAvatar(userId: member.userId, name: member.shownName, size: 32)
+        if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: member.userId, name: member.shownName, size: 32) }
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Text(isViewer ? String(localized: "You") : member.shownName)
+            let nameLayout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 6))
+            nameLayout {
+                Text(isViewer ? String(localized: "You") : member.shownName).portalNameLine()
                 if member.isMujinUser == true {
                     Text("Staff")
                         .font(.caption2.weight(.semibold))
@@ -793,7 +798,7 @@ private struct MemberRow: View {
                 }
             }
             if !isViewer, member.organizationId != viewerOrganizationId, let organization = member.organizationName, !organization.isEmpty {
-                Text(organization).font(.footnote).foregroundStyle(.secondary)
+                Text(organization).font(.footnote).foregroundStyle(.secondary).portalNameLine()
             }
         }
         }

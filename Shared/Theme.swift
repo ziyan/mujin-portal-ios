@@ -54,7 +54,26 @@ struct PortalRowLabelStyle: LabelStyle {
     }
 }
 
+/// PortalNameLineModifier keeps a name or a short label whole. At the accessibility sizes a word that does not
+/// fit the row would break mid-word with a hyphen, so the text takes one line and shrinks to fit instead.
+struct PortalNameLineModifier: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    func body(content: Content) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            content.lineLimit(1).minimumScaleFactor(0.5)
+        } else {
+            content
+        }
+    }
+}
+
 extension View {
+    /// A name or short label that must never break mid-word at the accessibility text sizes.
+    nonisolated func portalNameLine() -> some View {
+        modifier(PortalNameLineModifier())
+    }
+
     /// A list at the root of a tab: it also leaves room under its last row for the floating tab bar.
     func portalRootList() -> some View {
         portalList().contentMargins(.bottom, 88, for: .scrollContent)
