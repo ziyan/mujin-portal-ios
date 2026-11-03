@@ -126,6 +126,7 @@ struct MessageActionsView: View {
     /// Closes the view, then does what was chosen, if anything.
     let onClose: (((() -> Void)?) -> Void)
     @Environment(\.accessibilityReduceMotion) private var isMotionReduced
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isShown = false
     /// Whether the emoji keyboard is open to choose a reaction that is not in
     /// the bar. The bar gives way to a line saying so.
@@ -158,7 +159,9 @@ struct MessageActionsView: View {
                     .frame(maxHeight: max(120, proxy.size.height - actionsHeight - 150))
                     .fixedSize(horizontal: false, vertical: true)
                     if !isChoosingEmoji {
-                        menu(width: max(240, min(proxy.size.width - 32, 560) * 0.6))
+                        // At the accessibility sizes the menu takes the full width, so no title is broken mid-word.
+                        let availableWidth = min(proxy.size.width - 32, 560)
+                        menu(width: dynamicTypeSize.isAccessibilitySize ? availableWidth : max(240, availableWidth * 0.6))
                     }
                 }
                 .frame(maxWidth: 560)
@@ -301,6 +304,7 @@ struct MessageActionsView: View {
             Image(systemName: systemImage)
                 .frame(width: iconWidth)
             Text(title)
+                .lineLimit(1).minimumScaleFactor(0.5)
             Spacer()
         }
         .font(.body)

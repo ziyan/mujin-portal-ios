@@ -59,10 +59,6 @@ extension Documents {
         }
         """
 
-    public static let rememberConversation = """
-        mutation RememberConversation($conversationId: String) { RememberConversation(conversationId: $conversationId) { isStarted } }
-        """
-
     public static let forgetFiledMemoryFact = """
         mutation ForgetFiledMemoryFact($memoryFilingId: String, $memoryFactId: String) {
           ForgetFiledMemoryFact(memoryFilingId: $memoryFilingId, memoryFactId: $memoryFactId) { memoryFactId memoryPageId }
@@ -78,7 +74,7 @@ extension Documents {
         """
 
     static var memoryFilingDocuments: [String] {
-        [listMemoryFilings, rememberConversation, forgetFiledMemoryFact, getAgentMemorySetting, setAgentMemoryFiling]
+        [listMemoryFilings, forgetFiledMemoryFact, getAgentMemorySetting, setAgentMemoryFiling]
     }
 }
 
@@ -89,11 +85,6 @@ extension Connection {
         return try await execute(
             Documents.listMemoryFilings, variables: ["conversationId": .string(conversationId), "limit": .number(Double(min(limit, 50)))], as: Answer.self
         ).ListMemoryFilings ?? []
-    }
-
-    /// Starts a pass now in the background. It records a `requested` filing when it ends, even with nothing new.
-    public func rememberConversation(id: String) async throws {
-        _ = try await execute(Documents.rememberConversation, variables: ["conversationId": .string(id)], as: JSONValue.self)
     }
 
     public func forgetFiledFact(filingId: String, factId: String) async throws {

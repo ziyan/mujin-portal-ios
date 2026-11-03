@@ -163,10 +163,4 @@ import Testing
         let setting = try await connection.memorySetting()
         #expect(!setting.isFilingActive)
     }
-
-    @Test func rememberingNowNamesTheConversation() async throws {
-        let (connection, transport) = scriptedConnection { _, _ in ["RememberConversation": ["isStarted": true]] }
-        try await connection.rememberConversation(id: "c1")
-        #expect(sentVariables(try #require(transport.requests.last))["conversationId"] as? String == "c1")
-    }
 }
