@@ -133,8 +133,8 @@ extension Documents {
         """
 
     public static let listSiteVirtualControllers = """
-        query ListSiteVirtualControllers($organizationId: String, $options: ListOptionsInput) {
-          ListVirtualControllers(organizationId: $organizationId, options: $options) {
+        query ListSiteVirtualControllers($organizationId: String, $cellId: String, $options: ListOptionsInput) {
+          ListVirtualControllers(organizationId: $organizationId, cellId: $cellId, options: $options) {
             virtualControllers { id name comment siteId region status statusMessage viewerCapabilities releaseId releaseImageId pausedAt size product }
           }
         }
@@ -167,13 +167,14 @@ extension Connection {
     }
 
     /// The site's virtual controllers.
-    public func virtualControllers(siteId: String, organizationId: String?) async throws -> [VirtualControllerSummary] {
+    public func virtualControllers(siteId: String, organizationId: String?, cellId: String? = nil) async throws -> [VirtualControllerSummary] {
         struct Answer: Decodable, Sendable {
             struct List: Decodable, Sendable { let virtualControllers: [VirtualControllerSummary]? }
             let ListVirtualControllers: List?
         }
         var variables: [String: JSONValue] = ["options": .object(["first": .number(200)])]
         if let organizationId { variables["organizationId"] = .string(organizationId) }
+        if let cellId { variables["cellId"] = .string(cellId) }
         let rows = try await execute(Documents.listSiteVirtualControllers, variables: variables, as: Answer.self).ListVirtualControllers?.virtualControllers ?? []
         return rows.filter { $0.siteId == siteId && $0.status != "destroyed" }.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
     }

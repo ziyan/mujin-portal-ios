@@ -143,6 +143,35 @@ import Testing
         #expect(VirtualControllerSummary(id: "virtual01", status: "running").webEntry(server: server) == .blocked(.noConnectPermission))
     }
 
+    @Test func aCellScopedReadSendsTheCellAndAnUnscopedOneDoesNot() async throws {
+        let (connection, transport) = scriptedConnection { _, _ in [:] }
+        _ = try await connection.siteAlarms(siteId: "site01", cellId: "cell01")
+        _ = try await connection.siteRobots(siteId: "site01", cellId: "cell01")
+        _ = try await connection.siteOrchestrators(siteId: "site01", cellId: "cell01")
+        _ = try await connection.cameras(siteId: "site01", cellId: "cell01")
+        _ = try await connection.controllers(organizationId: "organization01", cellId: "cell01")
+        _ = try await connection.virtualControllers(siteId: "site01", organizationId: "organization01", cellId: "cell01")
+        _ = try await connection.tickets(organizationId: "organization01", siteId: "site01", cellId: "cell01")
+        let scoped = transport.requests.map(sentVariables)
+        #expect(scoped.count == 7)
+        #expect(scoped.allSatisfy { $0["cellId"] as? String == "cell01" })
+        #expect(scoped.prefix(4).allSatisfy { $0["siteId"] as? String == "site01" })
+
+        _ = try await connection.siteAlarms(siteId: "site01")
+        _ = try await connection.cameras(siteId: "site01")
+        #expect(transport.requests.suffix(2).allSatisfy { sentVariables($0)["cellId"] == nil })
+    }
+
+    @Test func aCellsIncidentsAreTheOnesFiledUnderItInTheSite() {
+        let all = [
+            IncidentSummary(id: "i1", siteId: "site01", cellId: "cell01", reviewStatus: "confirmed", detectedAt: "2026-03-03T10:00:00Z"),
+            IncidentSummary(id: "i2", siteId: "site01", cellId: "cell02", reviewStatus: "new", detectedAt: "2026-03-01T10:00:00Z"),
+            IncidentSummary(id: "i3", siteId: "site01", reviewStatus: "new", detectedAt: "2026-03-02T10:00:00Z"),
+        ]
+        #expect(SiteData.incidents(all, siteId: "site01", cellId: "cell01").map(\.id) == ["i1"])
+        #expect(SiteData.incidents(all, siteId: "site01").map(\.id) == ["i3", "i2", "i1"])
+    }
+
     @Test func aCellKnowsItsMachines() async throws {
         let (connection, _) = scriptedConnection { _, _ in
             ["ListCells": ["cells": [["id": "cell01", "name": "Cell A", "controllerIds": ["controller01"], "virtualControllerIds": ["virtual01"]], ["id": "cell02", "isArchived": true]]]]
