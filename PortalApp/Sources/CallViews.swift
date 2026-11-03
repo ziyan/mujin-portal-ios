@@ -17,6 +17,7 @@ struct CallBar: View {
                         .foregroundStyle(Color.onAccent)
                         .frame(width: 32, height: 32)
                         .background(Color.statusSuccess, in: .circle)
+                        .fixedSize()
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(call.chatTitle).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
@@ -83,6 +84,7 @@ struct CallBanner: View {
                     .foregroundStyle(Color.onAccent)
                     .frame(width: 32, height: 32)
                     .background(Color.statusSuccess, in: .circle)
+                    .fixedSize()
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Call in progress").font(.subheadline.weight(.semibold))
@@ -216,7 +218,7 @@ struct CallPeoplePicker: View {
                                         .accessibilityHidden(true)
                                     if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: person.userId, name: person.shownName, size: 32) }
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(person.shownName).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
+                                        Text(person.shownName).foregroundStyle(.primary).lineLimit(3).minimumScaleFactor(0.6)
                                         if let organization = person.organizationName, !organization.isEmpty {
                                             Text(organization).font(.footnote).foregroundStyle(.secondary)
                                         }

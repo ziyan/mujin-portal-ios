@@ -69,7 +69,8 @@ struct VoiceMessageBubble: View {
             } else {
                 playerRow
             }
-            HStack(spacing: 8) {
+            let footer = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6)) : AnyLayout(HStackLayout(spacing: 8))
+            footer {
                 if isUnplayable {
                     Text(VoiceMessageRules.clockText(duration)).font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
                 } else {
@@ -78,7 +79,7 @@ struct VoiceMessageBubble: View {
                         Circle().fill(Color.accentColor).frame(width: 8, height: 8).accessibilityLabel("Not played yet")
                     }
                 }
-                Spacer(minLength: 8)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
                 if !isUnplayable {
                     Button { isShowingText.toggle() } label: {
                         Text(isShowingText ? "Hide text" : "Show text").font(.footnote.weight(.medium))
