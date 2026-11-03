@@ -3,51 +3,98 @@
   "version": "1.0",
   "strings": {
     "NSCameraUsageDescription": {
-      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Take a photo to attach to a ticket, or scan the QR code on a controller to link it."
+            "value": "Take photos to attach to a ticket, scan the QR code on a controller to link it, and show yourself on video calls."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "チケットに添付する写真を撮影したり、コントローラーのQRコードをスキャンしてリンクしたりします。"
+            "value": "チケットに添付する写真を撮影したり、コントローラーのQRコードをスキャンしてリンクしたり、ビデオ通話で自分を映したりします。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "拍摄照片以附加到工单，或扫描控制器上的二维码以关联控制器。"
+            "value": "拍摄照片以附加到工单，扫描控制器上的二维码以关联控制器，并在视频通话中显示你自己。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "拍攝照片以附加到工單，或掃描控制器上的 QR 碼以連結控制器。"
+            "value": "拍攝照片以附加到工單，掃描控制器上的 QR 碼以連結控制器，並在視訊通話中顯示你自己。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Foto aufnehmen, um es an ein Ticket anzuhängen, oder den QR-Code auf einem Controller scannen, um ihn zu verknüpfen."
+            "value": "Fotos aufnehmen, um sie an ein Ticket anzuhängen, den QR-Code auf einem Controller scannen, um ihn zu verknüpfen, und sich in Videoanrufen zeigen."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prenez une photo à joindre à un ticket, ou scannez le code QR d'un contrôleur pour le lier."
+            "value": "Prenez des photos à joindre à un ticket, scannez le code QR d'un contrôleur pour le lier et montrez-vous lors des appels vidéo."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Maak een foto om aan een ticket toe te voegen, of scan de QR-code op een controller om hem te koppelen."
+            "value": "Maak foto's om aan een ticket toe te voegen, scan de QR-code op een controller om hem te koppelen en laat jezelf zien in videogesprekken."
           }
         }
-      }
+      },
+      "extractionState": "manual"
+    },
+    "NSMicrophoneUsageDescription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talk to the assistant, record voice messages and speak on calls."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アシスタントと話したり、ボイスメッセージを録音したり、通話で話したりします。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "与助手交谈、录制语音消息并在通话中说话。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "與助手交談、錄製語音訊息並在通話中說話。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit dem Assistenten sprechen, Sprachnachrichten aufnehmen und in Anrufen sprechen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parlez à l'assistant, enregistrez des messages vocaux et parlez pendant les appels."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Praat met de assistent, neem spraakberichten op en spreek in gesprekken."
+          }
+        }
+      },
+      "extractionState": "manual"
     }
   }
 }

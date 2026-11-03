@@ -18,6 +18,8 @@ final class AppModel {
     /// Opens the websockets of camera streams: the real network, or the demo's recording.
     let cameraSocketFactory: CameraSocketFactory
     let isDemo: Bool
+    /// The call this phone is on or is being rung for.
+    let callCenter: CallCenter
 
     /// The demo a person entered from the welcome screen, with its own fake server: nothing in it reaches a network host,
     /// registers a push token or is kept as an account. While set, the app shows it in place of the real one.
@@ -74,7 +76,9 @@ final class AppModel {
         self.socketFactory = socketFactory
         self.cameraSocketFactory = cameraSocketFactory
         self.isDemo = isDemo
+        self.callCenter = CallCenter(isDemo: isDemo)
         self.ring = (try? store.loadRing()) ?? AccountRing()
+        callCenter.appModel = self
         removeStoredWebData()
     }
 
@@ -311,7 +315,8 @@ final class AppModel {
         for account in ring.accounts {
             let connection = connection(for: account)
             do {
-                try await connection.registerPushDevice(deviceToken: token, environment: environment, deviceName: name, appVersion: version)
+                try await connection.registerPushDevice(
+                    deviceToken: token, environment: environment, deviceName: name, appVersion: version, voipToken: VoipDeviceToken.stored())
             } catch {
                 handle(error, account: account)
             }

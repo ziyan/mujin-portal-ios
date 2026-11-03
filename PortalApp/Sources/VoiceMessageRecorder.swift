@@ -122,6 +122,13 @@ final class VoiceMessageRecorder {
         return .recording(VoiceRecording(fileURL: fileURL, durationMS: Int((min(length, VoiceMessageRules.maximumDuration) * 1000).rounded()), levels: levels))
     }
 
+    /// Looks as if a recording is under way, for the demo's screenshot.
+    func stageDemo() {
+        isRecording = true
+        elapsed = 7.4
+        liveAmplitudes = (0..<36).map { Float(abs(sin(Double($0) * 0.55)) * 0.8 + 0.1) }
+    }
+
     private func startMetering() {
         meterTask?.cancel()
         meterTask = Task { [weak self] in

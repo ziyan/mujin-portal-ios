@@ -190,3 +190,14 @@ extension Connection {
         return try await execute(Documents.sendChatVoiceMessage, variables: variables, as: Answer.self).SendMessage.message
     }
 }
+
+extension Connection {
+    /// The type the server stores an attachment as, from a HEAD request. Nil when it cannot be read.
+    public func attachmentContentType(id: String) async -> String? {
+        var request = URLRequest(url: account.server.endpoint("/api/v1/attachment/\(id)"))
+        request.httpMethod = "HEAD"
+        request.timeoutInterval = 15
+        guard let (_, response) = try? await send(authorizing: request), (200..<300).contains(response.statusCode) else { return nil }
+        return response.value(forHTTPHeaderField: "Content-Type")
+    }
+}

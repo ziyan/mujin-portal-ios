@@ -87,6 +87,8 @@ final class ChatModel {
     var offersStructuredMentions = false
     /// Whether a turn of the assistant the person started is running.
     private(set) var isOwnTurnRunning = false
+    /// Whether a voice message is going up.
+    private(set) var isSendingVoice = false
     private(set) var questions: [QuestionCard] = []
     private(set) var approvals: [ApprovalCard] = []
     /// A clock the typing lines read, so they fade out by themselves.
@@ -321,6 +323,29 @@ final class ChatModel {
             actionError = error.userMessage
             onError(error)
             return false
+        }
+    }
+
+    /// Uploads a finished recording and says it to the room as a voice message. The file is deleted afterwards.
+    func sendVoice(_ recording: VoiceRecording) async {
+        isSendingVoice = true
+        actionError = nil
+        defer {
+            isSendingVoice = false
+            try? FileManager.default.removeItem(at: recording.fileURL)
+        }
+        do {
+            let data = try Data(contentsOf: recording.fileURL)
+            let file = try await connection.uploadAttachment(data: data, filename: VoiceMessageRules.filename(at: Date()), contentType: VoiceMessageRules.contentType)
+            let row = try await connection.sendChatVoiceMessage(
+                conversationId: conversationId, attachmentId: file.id, durationMS: recording.durationMS, waveformLevels: recording.levels,
+                replyToMessageId: replyTarget?.id)
+            replyTarget = nil
+            if let row { timeline.upsert(row) }
+            await markRead()
+        } catch {
+            actionError = error.userMessage
+            onError(error)
         }
     }
 

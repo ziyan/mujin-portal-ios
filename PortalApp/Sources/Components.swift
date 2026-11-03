@@ -117,6 +117,20 @@ struct ComposerCard<Accessory: View>: View {
     }
 }
 
+extension ComposerCard {
+    /// The card with a view of the screen's own beside the attach button.
+    init(
+        placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,
+        isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", fieldIdentifier: String = "messageField",
+        sendIdentifier: String = "sendButton", onEscape: (() -> Bool)? = nil, onSend: @escaping () -> Void, @ViewBuilder accessory: () -> Accessory
+    ) {
+        self.init(
+            placeholder: placeholder, text: text, drafts: drafts, isEnabled: isEnabled, canSend: canSend, isSending: isSending, sendSymbol: sendSymbol,
+            sendLabel: sendLabel, onVoice: nil, onStop: nil, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
+            onSend: onSend, accessory: accessory)
+    }
+}
+
 extension ComposerCard where Accessory == EmptyView {
     init(
         placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,

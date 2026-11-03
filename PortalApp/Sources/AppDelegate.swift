@@ -27,6 +27,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             Task { await backend.resumeAll() }
             UNUserNotificationCenter.current().delegate = self
             Task { await Self.registerCategories() }
+            // PushKit must be up at launch: a VoIP push wakes the app only if it asked for them.
+            AppModel.shared.callCenter.startPushKit()
         }
         return true
     }

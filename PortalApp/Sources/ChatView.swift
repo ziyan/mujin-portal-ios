@@ -19,7 +19,13 @@ struct ChatView: View {
     @State private var isShowingInfo = DemoOptions.screen == "chat-info"
     @State private var isAddingPeople = DemoOptions.screen == "chat-add-people"
     @State private var drafts = AttachmentDrafts()
+    @State private var recorder = VoiceMessageRecorder()
+    @State private var isShowingVoiceHint = false
+    @State private var isChoosingWhoToCall = DemoOptions.screen == "call-picker"
+    @AppStorage("chatVoiceMode") private var isVoiceModePreferred = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var callCenter: CallCenter { appModel.callCenter }
 
     var body: some View {
         Group {
@@ -31,6 +37,16 @@ struct ChatView: View {
         }
         .conversationBar(title: model?.title ?? String(localized: "Chat"), onTitleTap: model?.room == nil ? nil : { isShowingInfo = true })
         .toolbar {
+            if let model, canCall(model) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button { startCall(model, userIds: nil, isVideoOn: false) } label: { Label("Voice call", systemImage: "phone") }
+                        Button { startCall(model, userIds: nil, isVideoOn: true) } label: { Label("Video call", systemImage: "video") }
+                        Button { isChoosingWhoToCall = true } label: { Label("Choose who to call", systemImage: "person.2") }
+                    } label: { Label("Call", systemImage: "phone") }
+                    .accessibilityIdentifier("chatCallMenu")
+                }
+            }
             if let model, model.room != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -50,6 +66,17 @@ struct ChatView: View {
         .sheet(isPresented: $isShowingInfo) {
             if let model { ChatInfoView(model: model) }
         }
+        .sheet(isPresented: $isChoosingWhoToCall) {
+            if let model {
+                CallPeoplePicker(
+                    title: "Choose who to call", confirmTitle: "Call", people: (model.room?.currentMembers ?? []).filter { $0.userId != model.currentUserId },
+                    showsVideoChoice: true
+                ) { userIds, isVideoOn in startCall(model, userIds: userIds, isVideoOn: isVideoOn) }
+            }
+        }
+        .alert(
+            "Could not start the call", isPresented: Binding(get: { callCenter.startErrorText != nil }, set: { if !$0 { callCenter.startErrorText = nil } }),
+            actions: { Button("OK", role: .cancel) {} }, message: { Text(callCenter.startErrorText ?? "") })
         .confirmationDialog(
             "Delete this message?", isPresented: Binding(get: { messageToDelete != nil }, set: { if !$0 { messageToDelete = nil } }),
             titleVisibility: .visible, presenting: messageToDelete
@@ -66,6 +93,7 @@ struct ChatView: View {
             model = chatModel
             chatModel.start()
             if appModel.isDemo, DemoOptions.screen == "chat-composer" { drafts.stageDemo() }
+            if appModel.isDemo, CallDemo.owns(DemoOptions.screen) { CallDemo.markPlayed() }
             if appModel.isDemo, DemoOptions.screen == "chat-reply" {
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 chatModel.replyTarget = chatModel.timeline.messages.first { $0.authorUserId == "user02" }
@@ -90,6 +118,7 @@ struct ChatView: View {
             }
         case .loaded:
             messages(model)
+                .safeAreaInset(edge: .top, spacing: 0) { callBanner(model) }
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer(model) }
         }
     }
@@ -177,6 +206,69 @@ struct ChatView: View {
         }
     }
 
+    // MARK: calls
+
+    private func canCall(_ model: ChatModel) -> Bool {
+        session.capabilities.offersChatCalls && session.isChatCallAvailable && ChatCallRules.canStart(in: model.room, userId: model.currentUserId)
+            && session.callBook.goingCall(inChat: model.chatId) == nil && !callCenter.isInCall
+    }
+
+    private func startCall(_ model: ChatModel, userIds: [String]?, isVideoOn: Bool) {
+        guard let chatId = model.chatId else { return }
+        callCenter.begin(
+            entry: .start(userIds: userIds), chatId: chatId, chatTitle: model.title, isVideoOn: isVideoOn, account: account, connection: model.connection)
+    }
+
+    private func joinCall(_ model: ChatModel, _ call: ChatCall) {
+        guard let chatId = model.chatId else { return }
+        callCenter.begin(entry: .join(callId: call.id), chatId: chatId, chatTitle: model.title, isVideoOn: false, account: account, connection: model.connection)
+    }
+
+    @ViewBuilder
+    private func callBanner(_ model: ChatModel) -> some View {
+        if session.capabilities.offersChatCalls, let call = session.callBook.goingCall(inChat: model.chatId) {
+            CallBanner(
+                call: call, isOnThisCall: callCenter.session?.callId == call.id && callCenter.isInCall, onJoin: { joinCall(model, call) },
+                onReturn: { callCenter.show() })
+        }
+    }
+
+    // MARK: voice messages
+
+    private var isVoiceMode: Bool {
+        if appModel.isDemo { return DemoOptions.screen == "chat-voice-composer" || DemoOptions.screen == "chat-voice-recording" }
+        return isVoiceModePreferred
+    }
+
+    private func beginRecording(_ model: ChatModel) async -> VoiceMessageRecorder.StartResult {
+        if callCenter.isInCall {
+            model.actionError = String(localized: "You cannot record a voice message during a call.")
+            return .failed
+        }
+        let result = await recorder.begin()
+        switch result {
+        case .denied: model.actionError = String(localized: "Allow the microphone in Settings to record voice messages.")
+        case .failed: model.actionError = String(localized: "The recording could not be started.")
+        default: model.actionError = nil
+        }
+        return result
+    }
+
+    private func finishRecording(_ model: ChatModel, cancel: Bool) {
+        switch recorder.finish(cancel: cancel) {
+        case .recording(let recording):
+            Task { await model.sendVoice(recording) }
+        case .tooShort:
+            isShowingVoiceHint = true
+            Task {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                isShowingVoiceHint = false
+            }
+        case .cancelled:
+            break
+        }
+    }
+
     private func lastOwnMessageId(_ model: ChatModel) -> String? {
         model.timeline.messages.last { $0.authorUserId == model.currentUserId && !$0.isDeleted }?.id
     }
@@ -240,6 +332,17 @@ struct ChatView: View {
                         Text(attachError).font(.footnote).foregroundStyle(Color.statusError).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
                     }
                 }
+                if isShowingVoiceHint { VoiceHintView().transition(.opacity) }
+                if isVoiceMode, canUseVoice(model) {
+                    VoiceHoldBar(
+                        recorder: recorder, isEnabled: model.canWrite && !model.isSendingVoice, onKeyboard: { isVoiceModePreferred = false },
+                        onStart: { await beginRecording(model) }, onFinish: { isCancelled in finishRecording(model, cancel: isCancelled) }
+                    )
+                    .task {
+                        recorder.onLimitReached = { finishRecording(model, cancel: false) }
+                        if appModel.isDemo, DemoOptions.screen == "chat-voice-recording" { recorder.stageDemo() }
+                    }
+                } else {
                 ComposerCard(
                     placeholder: fieldPrompt(model), text: $draft, drafts: model.editTarget == nil ? drafts : nil, isEnabled: model.canWrite,
                     canSend: !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (model.editTarget == nil && !drafts.items.isEmpty),
@@ -255,7 +358,21 @@ struct ChatView: View {
                         draft = ""
                         Task { if await !model.send(text, attachments: drafts) { draft = text } }
                     }
-                )
+                ) {
+                    if canUseVoice(model) {
+                        Button { isVoiceModePreferred = true } label: {
+                            Image(systemName: "mic.fill")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36, height: 36)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(.rect)
+                        }
+                        .accessibilityLabel("Record a voice message")
+                        .accessibilityIdentifier("voiceModeButton")
+                    }
+                }
+                }
                 .onChange(of: draft) { _, text in
                     if !text.isEmpty && model.editTarget == nil { model.noteTyping() }
                 }
@@ -266,6 +383,12 @@ struct ChatView: View {
         .onChange(of: model.editTarget) { _, target in
             if let target { draft = target.text }
         }
+    }
+
+    /// Voice messages are for a chat the person can write in, when the server has them and nothing else is being written.
+    private func canUseVoice(_ model: ChatModel) -> Bool {
+        (session.capabilities.offersVoiceMessages || (appModel.isDemo && DemoOptions.screen?.hasPrefix("chat-voice") == true)) && model.canWrite
+            && model.editTarget == nil && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && drafts.items.isEmpty
     }
 
     private func fieldPrompt(_ model: ChatModel) -> LocalizedStringKey {
@@ -344,6 +467,7 @@ private struct BubbleKey: Equatable {
 /// or a note that it was deleted, reactions, link cards, and who has read it.
 private struct MessageRow: View {
     @Environment(SessionModel.self) private var session
+    @Environment(AppModel.self) private var appModel
     let message: ChatMessage
     let model: ChatModel
     let isLastOwn: Bool
@@ -445,6 +569,13 @@ private struct MessageRow: View {
                 canEdit: model.canEdit(message), canDelete: model.canDelete(message), hasPreviews: !(model.previews[message.id] ?? []).isEmpty)
             ) {
             HoldableMessage(actions: heldActions) {
+            if let voice = message.voice {
+                VoiceMessageBubble(
+                    messageId: message.id, voice: voice, isMine: isMine, connection: model.connection, isDemo: appModel.isDemo,
+                    isShowingTextAtStart: DemoOptions.screen == "chat-voice" && message.id == "v3")
+            } else if let call = message.call {
+                CallLineView(call: call, currentUserId: model.currentUserId)
+            } else {
             VStack(alignment: .leading, spacing: 2) {
                 // People write plain text; a table or a Markdown link in it is laid out as Markdown, which gives up the name chips.
                 if message.isAssistant || MarkdownBlocks.hasTable(message.text) || message.text.contains("](") {
@@ -467,6 +598,7 @@ private struct MessageRow: View {
                 in: RoundedRectangle(cornerRadius: 20, style: .continuous)
             )
             .foregroundStyle(.primary)
+            }
             }
             // The reactions sit on the bubble's corner; a tap toggles the person's own.
             .reactionCorner(model.timeline.reactions(for: message.id), currentUserId: model.currentUserId, isLeading: isMine) { emoji in

@@ -99,6 +99,8 @@ struct MainTabsView: View {
             }
             if !appModel.isDemo {
                 newSession.startNotificationFeed(socketFactory: appModel.socketFactory)
+                newSession.startCallFeed(socketFactory: appModel.socketFactory)
+                newSession.onRingStopped = { [appModel] callId in appModel.callCenter.stopRinging(callId: callId) }
                 if let route = appModel.takeRoute(for: account) { newSession.open(route) }
             }
             var start = DemoOptions.section ?? Navigation.home(for: newSession.persona)
@@ -106,6 +108,9 @@ struct MainTabsView: View {
             if start == .chats { start = .assistant }
             if !newSession.tabSections.contains(start) { start = Navigation.home(for: newSession.persona) }
             newSession.selectedSection = start
+            if appModel.isDemo, let screen = DemoOptions.screen, CallDemo.owns(screen), screen.hasPrefix("call-"), screen != "call-picker" {
+                appModel.callCenter.showDemo(CallDemo.session(for: screen), isScreenShown: screen != "call-minimized")
+            }
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("link-") {
                 appModel.linkRequest = ControllerLinkRequest(code: screen == "link-confirm" ? DemoServer.linkCode : nil)
             }
@@ -152,6 +157,15 @@ struct MainTabsView: View {
         .onChange(of: session.tabSections) { _, sections in
             if !sections.contains(session.selectedSection) { session.selectedSection = .more }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded {
+                CallBar(center: appModel.callCenter, call: call)
+            }
+        }
+        .fullScreenCover(isPresented: Binding(get: { appModel.callCenter.isScreenShown }, set: { appModel.callCenter.isScreenShown = $0 })) {
+            CallScreen(center: appModel.callCenter)
+                .environment(session)
+        }
         .sheet(isPresented: Binding(get: { session.isShowingNotifications }, set: { session.isShowingNotifications = $0 })) {
             NotificationsView()
                 .environment(session)
@@ -168,7 +182,10 @@ struct MainTabsView: View {
         .onChange(of: appModel.pendingRoute) { _, _ in
             if let route = appModel.takeRoute(for: account) { session.open(route) }
         }
-        .onDisappear { session.stopNotificationFeed() }
+        .onDisappear {
+            session.stopNotificationFeed()
+            session.stopCallFeed()
+        }
         .task {
             // The notification feed tells the app when something changes. Without it
             // (an older server, or while it reconnects) the web app's 30 second poll is kept.

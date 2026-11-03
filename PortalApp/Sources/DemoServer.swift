@@ -230,6 +230,10 @@ final class DemoState: @unchecked Sendable {
             said("d1", "user03", "Robin Demo", "Shift change at 14:00.", 7_200),
             said("d2", "user04", "Jordan Placeholder", "I can take the pick station.", 7_100),
         ]
+        if CallDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
+            data.chats.append(CallDemo.chatRow(stamp: stamp))
+            data.messages["chatconv03"] = CallDemo.messages(screen: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] ?? "", stamp: stamp)
+        }
         data.tickets = [
             ticket("ticket01", 1, "Gripper drops boxes at pick station 3", "open", "high", requester: "user01", organization: "organization01", secondsAgo: 7_200),
             ticket("ticket02", 2, "Network drops on controller02", "pending", "normal", requester: "user03", organization: "organization02", secondsAgo: 20_000),
@@ -389,6 +393,10 @@ struct DemoTransport: HTTPTransport {
             let response = HTTPURLResponse(url: request.url!, statusCode: icon == nil ? 404 : 200, httpVersion: nil, headerFields: ["Content-Type": icon?.contentType ?? "text/plain"])!
             return (icon?.data ?? Data(), response)
         }
+        if let url = request.url, url.path.hasSuffix("voicewebm") {
+            // A browser's recording, which the phone cannot play.
+            return (Data(), HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "audio/webm;codecs=opus"])!)
+        }
         if let path = request.url?.path, path.hasPrefix("/api/v1/user/") || path.hasPrefix("/api/v1/organization/") || path.hasPrefix("/api/v1/attachment/") {
             // Two demo people and one organization have a picture; everyone else gets a 404 and keeps their initials.
             let image = DemoPictures.jpeg(forPath: path)
@@ -423,6 +431,7 @@ struct DemoTransport: HTTPTransport {
     private func respond(operation: String, variables: [String: Any]) -> [String: Any] {
         if let answer = AccountDemo.respond(operation: operation, variables: variables) { return answer }
         if let answer = PlatformDemo.respond(operation: operation, variables: variables) { return answer }
+        if let answer = CallDemo.respond(operation: operation, variables: variables) { return answer }
         let conversationId = variables["conversationId"] as? String ?? ""
         switch operation {
         case "Me":
@@ -435,11 +444,17 @@ struct DemoTransport: HTTPTransport {
         case "GetOrganization":
             return ["GetOrganization": ["id": "organization01", "name": DemoOptions.isStaff ? "Support" : "Example Logistics", "isMujin": DemoOptions.isStaff]]
         case "ServerCapabilities":
+            // The call screens are shot against a server that has voice messages and calls; the others against one that does not.
+            let hasCalls = CallDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
             return [
                 "__schema": [
                     "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"]]],
-                    "mutationType": ["fields": [["name": "sendMessage"], ["name": "registerPushDevice"], ["name": "startDirectChat"]]],
-                    "subscriptionType": ["fields": [["name": "onConversationEvent"]]],
+                    "mutationType": [
+                        "fields": [
+                            ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"],
+                        ] + (hasCalls ? [["name": "startChatCall"], ["name": "joinChatCallMedia"]] : [])
+                    ],
+                    "subscriptionType": ["fields": [["name": "onConversationEvent"]] + (hasCalls ? [["name": "onChatCallEvent"], ["name": "onChatCallSignal"]] : [])],
                 ]
             ]
         case "GetMainAgent":
