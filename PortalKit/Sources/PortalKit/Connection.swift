@@ -22,6 +22,20 @@ public actor Connection {
     /// token, or refused a request again with a token loaded afresh.
     public private(set) var isSignedOut = false
 
+    /// Whether this server's chat messages carry voice and call fields, which an older server refuses. Set from its capabilities.
+    public private(set) var hasVoiceMessages = false
+    public private(set) var hasChatCalls = false
+
+    public func setChatMedia(hasVoice: Bool, hasCalls: Bool) {
+        hasVoiceMessages = hasVoice
+        hasChatCalls = hasCalls
+    }
+
+    /// The document as this server takes it.
+    public func prepared(_ document: String) -> String {
+        Documents.withChatMedia(document, hasVoice: hasVoiceMessages, hasCalls: hasChatCalls)
+    }
+
     /// How long before a token runs out it is renewed. Access tokens last
     /// five minutes, so this is a margin for the request in flight.
     static let renewBefore: TimeInterval = 30
@@ -149,7 +163,7 @@ public actor Connection {
         request.httpMethod = "POST"
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(["query": JSONValue.string(document), "variables": .object(variables)])
+        request.httpBody = try JSONEncoder().encode(["query": JSONValue.string(prepared(document)), "variables": .object(variables)])
         let (data, _) = try await send(authorizing: request)
         // The errors are read on their own first: a refused field comes back
         // as null beside them, which the answer's own shape does not allow.

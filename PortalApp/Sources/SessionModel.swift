@@ -29,6 +29,13 @@ final class SessionModel {
     var chatToOpen: String?
     /// Unread messages across the person's chats.
     private(set) var chatUnreadCount = 0
+    /// The going calls of the person's chats, kept current by the call feed.
+    private(set) var callBook = ChatCallBook()
+    /// Whether a media host is alive. False hides the call buttons.
+    private(set) var isChatCallAvailable = false
+    private var callFeedTask: Task<Void, Never>?
+    /// Told when a ring on this account stopped, such as a call answered on another device.
+    var onRingStopped: ((String) -> Void)?
     /// A ticket the Tickets tab should open, from a notification.
     var ticketToOpen: String?
     /// Set when a notification asks More to show the Automations screen.
@@ -222,6 +229,45 @@ final class SessionModel {
         }
     }
 
+    /// Keeps the going calls current through OnChatCallEvent, which does not replay what happened while it was down: every
+    /// reconnect reads the calls again.
+    func startCallFeed(socketFactory: @escaping FeedSocketFactory) {
+        guard callFeedTask == nil, capabilities.offersChatCalls else { return }
+        callFeedTask = Task { [weak self] in
+            guard let self else { return }
+            for await update in ChatCallFeed.events(connection: connection, socketFactory: socketFactory) {
+                switch update {
+                case .connected:
+                    await refreshCalls()
+                case .event(let event):
+                    switch callBook.apply(event, userId: userId) {
+                    case .stopped(let callId): onRingStopped?(callId)
+                    case .refetch(let callId):
+                        if let call = try? await connection.chatCall(id: callId) {
+                            callBook.apply(ChatCallEvent(eventType: "refetched", callId: call.id, call: call), userId: userId)
+                        }
+                    case .ringing, .none: break
+                    }
+                case .signedOut:
+                    onError(PortalError.signedOut)
+                default:
+                    break
+                }
+            }
+        }
+    }
+
+    func stopCallFeed() {
+        callFeedTask?.cancel()
+        callFeedTask = nil
+    }
+
+    func refreshCalls() async {
+        guard capabilities.offersChatCalls else { return }
+        isChatCallAvailable = await connection.isChatCallAvailable()
+        if let calls = try? await connection.goingChatCalls() { callBook.replaceAll(calls) }
+    }
+
     func stopNotificationFeed() {
         notificationFeedTask?.cancel()
         notificationFeedTask = nil
@@ -340,6 +386,9 @@ final class SessionModel {
             let (newProfile, newCapabilities) = try await (loadedProfile, loadedCapabilities)
             profile = newProfile
             capabilities = newCapabilities
+            // A server with voice messages or calls takes their fields of a chat message; an older one refuses them.
+            await connection.setChatMedia(hasVoice: newCapabilities.offersVoiceMessages, hasCalls: newCapabilities.offersChatCalls)
+            await refreshCalls()
             phase = .loaded
             await refreshWaiting()
             await loadPlaces()

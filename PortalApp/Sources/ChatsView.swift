@@ -71,6 +71,7 @@ struct ChatsView: View {
                 if screen.hasPrefix("chat:") { selectedConversationId = String(screen.dropFirst("chat:".count)) }
                 if screen == "chat-info" { selectedConversationId = "chatconv02" }
                 if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-message-actions" { selectedConversationId = "chatconv01" }
+                if let conversationId = CallDemo.conversationId(for: screen) { selectedConversationId = conversationId }
                 if screen == "chats-new" { newChatMode = .direct }
                 if screen == "chats-new-group" { newChatMode = .group }
             }

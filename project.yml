@@ -18,6 +18,10 @@ configFiles:
 packages:
   PortalKit:
     path: PortalKit
+  # The WebRTC engine for calls, as a prebuilt framework.
+  WebRTC:
+    url: https://github.com/stasel/WebRTC.git
+    exactVersion: 140.0.0
 
 targets:
   MujinPortal:
@@ -29,6 +33,7 @@ targets:
       - Shared
     dependencies:
       - package: PortalKit
+      - package: WebRTC
       - target: MujinPortalNotification
       - target: PortalShare
     info:
@@ -39,7 +44,8 @@ targets:
         # Which of Apple's push services issues this build's token: sandbox for
         # a build run from Xcode, production for TestFlight and the App Store.
         PortalPushEnvironment: $(MUJINPORTAL_PUSH_ENVIRONMENT)
-        UIBackgroundModes: [remote-notification]
+        # voip: PushKit wakes the app for an incoming call. audio: a call goes on with the screen off.
+        UIBackgroundModes: [remote-notification, voip, audio]
         # Apple requires one of these for the communication notifications entitlement.
         NSUserActivityTypes: [INSendMessageIntent]
         CFBundleURLTypes:
@@ -75,8 +81,8 @@ targets:
         # only to an app that supports all four orientations.
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.business
-        INFOPLIST_KEY_NSCameraUsageDescription: Take a photo to attach to a ticket, or scan the QR code on a controller to link it.
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: Talk to the assistant by voice.
+        INFOPLIST_KEY_NSCameraUsageDescription: Take photos to attach to a ticket, scan the QR code on a controller to link it, and show yourself on video calls.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Talk to the assistant, record voice messages and speak on calls.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         LOCALIZATION_PREFERS_STRING_CATALOGS: YES

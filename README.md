@@ -138,6 +138,18 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
   transcription (`not_configured`) uses recorded utterances and the older
   transcribe and synthesize endpoints.
 
+## Voice messages and calls
+
+- **Voice messages.** In a chat with people, the microphone button beside the text box switches it to a bar to hold: hold to
+  record (AAC in an m4a file, mono, up to two minutes, counting down from 1:50), slide up to cancel, let go to send. The 48 bars and the
+  length are worked out on the phone. A bubble plays one message at a time, shows the waveform as a slider, and "Show text" reveals the
+  transcript. A browser's WebM recording cannot be played here; its text is shown instead.
+- **Calls.** WebRTC (the `stasel/WebRTC` package) to the server's media host, which is ICE-lite, so no ICE servers are given and the
+  offer goes out once the phone's candidates are gathered. Incoming calls ring through CallKit from a PushKit VoIP push (the second
+  token, `voipToken`, goes to the server with the alert token); the audio session is CallKit's and WebRTC takes it only when CallKit
+  activates it. A call can be minimized to a bar over every tab.
+- **Without a server that has them**, none of it shows: `ServerCapabilities` reads the schema once per sign-in.
+
 ## TestFlight
 
 TestFlight builds come from the `TestFlight` job of `.github/workflows/ios.yml`,

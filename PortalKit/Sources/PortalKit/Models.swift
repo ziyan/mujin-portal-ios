@@ -130,6 +130,10 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
     public let editedAt: String?
     public let deletedAt: String?
     public let linkPreviewsRemovedAt: String?
+    /// The audio of a voice message, when the server has them.
+    public let voiceMessage: VoiceMessage?
+    /// The call this message is the line of, when the server has calls.
+    public let call: ChatCall?
 
     public init(
         id: String, role: String, content: JSONValue? = nil, toolCalls: JSONValue? = nil, toolCallId: String? = nil,
@@ -138,8 +142,11 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
         isChatMessage: Bool? = nil, authorUserId: String? = nil, authorName: String? = nil, authorOrganizationId: String? = nil,
         authorOrganizationName: String? = nil, onBehalfOfUserId: String? = nil, onBehalfOfUserName: String? = nil,
         replyToMessageId: String? = nil, replyToExcerpt: String? = nil, replyToAuthorName: String? = nil,
-        isAddressingAssistant: Bool? = nil, editedAt: String? = nil, deletedAt: String? = nil, linkPreviewsRemovedAt: String? = nil
+        isAddressingAssistant: Bool? = nil, editedAt: String? = nil, deletedAt: String? = nil, linkPreviewsRemovedAt: String? = nil,
+        voiceMessage: VoiceMessage? = nil, call: ChatCall? = nil
     ) {
+        self.voiceMessage = voiceMessage
+        self.call = call
         self.isChatMessage = isChatMessage
         self.authorUserId = authorUserId
         self.authorName = authorName

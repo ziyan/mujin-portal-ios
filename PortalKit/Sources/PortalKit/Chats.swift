@@ -336,8 +336,12 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
     public let replyToAuthorName: String?
     public let isAddressingAssistant: Bool
     public let hasPreviewsRemoved: Bool
+    public let voice: VoiceMessage?
+    public let call: ChatCall?
 
     public init(_ message: ConversationMessage) {
+        voice = message.voiceMessage
+        call = message.call
         id = message.id
         authorUserId = message.authorUserId
         authorName = message.authorName
@@ -356,6 +360,8 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
     }
 
     public var date: Date? { PortalDate.parse(createdAt) }
+    public var isVoiceMessage: Bool { voice != nil }
+    public var isCallLine: Bool { call != nil }
     public var isReply: Bool { !(replyToMessageId ?? "").isEmpty }
     /// A reply whose quoted message was said before the person joined has no excerpt.
     public var hasQuotedText: Bool { !(replyToExcerpt ?? "").isEmpty }
