@@ -170,10 +170,11 @@ struct AlarmDetailView: View {
                 } else if didFail {
                     Label("Could not load the details", systemImage: "exclamationmark.triangle").foregroundStyle(Color.statusError)
                 } else if let detail, !detail.metadataEntries.isEmpty {
-                    // Code is not wrapped: a long key or value would break mid-word, so a long line scrolls sideways.
+                    // Code is not wrapped: a long key or value would break mid-word, so a long line scrolls sideways. The code's size is capped so most keys fit.
                     ScrollView(.horizontal, showsIndicators: false) {
                         Text(detail.metadataJSON)
                             .font(.footnote.monospaced())
+                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                             .textSelection(.enabled)
                             .fixedSize(horizontal: true, vertical: false)
                     }
