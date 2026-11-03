@@ -204,6 +204,8 @@ struct ParticipantGrid: View {
     @State private var corner = CallTiling.Corner.topTrailing
     @State private var drag = CGSize.zero
     @State private var isSwapped = false
+    @State private var stripPosition: String?
+    @State private var visibleStripIds: Set<String> = []
 
     var body: some View {
         let people = call.participants
@@ -223,12 +225,21 @@ struct ParticipantGrid: View {
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
+            .onChange(of: present.map(\.userId), initial: true) { _, _ in reportVisibility(present) }
+            .onChange(of: call.mainUserId) { _, _ in reportVisibility(present) }
+            .onChange(of: visibleStripIds) { _, _ in reportVisibility(present) }
         }
+    }
+
+    private func reportVisibility(_ present: [CallParticipant]) {
+        call.reportVisibility(isSpeakerView: CallTiling.usesSpeakerView(count: present.count), visibleStripUserIds: visibleStripIds)
     }
 
     @ViewBuilder
     private func stage(present: [CallParticipant], isVideo: Bool, size: CGSize) -> some View {
-        if !isVideo {
+        if CallTiling.usesSpeakerView(count: present.count) {
+            speakerLayout(present, size: size)
+        } else if !isVideo {
             voiceLayout(present, size: size)
         } else if present.count <= 1 {
             if let only = present.first {
@@ -253,6 +264,59 @@ struct ParticipantGrid: View {
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
         }
+    }
+
+    /// Five people or more: one person fills the main stage (the speaker, or whoever the viewer pinned) and everyone else is a small tile in a strip
+    /// under it, which scrolls sideways. A tap on a tile pins that person.
+    private func speakerLayout(_ present: [CallParticipant], size: CGSize) -> some View {
+        let main = present.first { $0.userId == call.mainUserId } ?? present.first { !$0.isSelf } ?? present[0]
+        let strip = present.filter { $0.userId != main.userId }
+        let stripHeight: CGFloat = 108
+        let stageHeight = max(120, size.height - stripHeight - CallTiling.spacing)
+        return VStack(spacing: CallTiling.spacing) {
+            ZStack(alignment: .bottomTrailing) {
+                tile(main, style: .stage)
+                if call.pinnedUserId != nil {
+                    Button { withAnimation(.snappy) { call.followSpeaker() } } label: {
+                        Label("Follow the speaker", systemImage: "pin.slash.fill")
+                            .font(.footnote.weight(.semibold))
+                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .padding(10)
+                    .accessibilityIdentifier("followSpeakerButton")
+                }
+            }
+            .frame(width: size.width, height: stageHeight)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(strip) { person in
+                        tile(person, style: .strip)
+                            .frame(width: 76, height: stripHeight)
+                            .id(person.userId)
+                            .onTapGesture { withAnimation(.snappy) { call.pin(person.userId) } }
+                            .accessibilityHint(Text("Tap to keep this person on the main stage."))
+                            .accessibilityAddTraits(.isButton)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollPosition(id: $stripPosition)
+            .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in visibleStripIds = Set(ids) }
+            .frame(width: size.width, height: stripHeight)
+            .task {
+                // The screenshot run scrolls the strip to its end.
+                if DemoOptions.screen == "call-twelve" {
+                    try? await Task.sleep(nanoseconds: 800_000_000)
+                    withAnimation { stripPosition = strip.last?.userId }
+                }
+            }
+        }
+        .frame(width: size.width, height: size.height, alignment: .top)
     }
 
     /// A call nobody's camera is on: the people's pictures, in the same columns the tiles would take.
@@ -344,6 +408,8 @@ struct ParticipantTile: View {
         case picture
         /// A call with no cameras: a picture and a name on no ground.
         case avatarOnly
+        /// A small tile in the strip under the main stage.
+        case strip
     }
 
     let person: CallParticipant
@@ -357,6 +423,7 @@ struct ParticipantTile: View {
         case .tile: 22
         case .picture: 16
         case .avatarOnly: 0
+        case .strip: 14
         }
     }
 
@@ -368,6 +435,7 @@ struct ParticipantTile: View {
                 case .stage: return min(max(shortSide * 0.4, 72), 180)
                 case .tile: return min(max(shortSide * 0.42, 44), 120)
                 case .picture: return min(max(shortSide * 0.5, 32), 56)
+                case .strip: return 40
                 case .avatarOnly: return min(max(shortSide * 0.6, 56), 150)
                 }
             }()
@@ -387,13 +455,13 @@ struct ParticipantTile: View {
                         UserAvatar(userId: person.userId, name: person.name, size: avatarSize)
                     }
                 }
-                if style != .picture { label(isFramed: style != .avatarOnly) } else if person.isMuted { mutedBadge }
+                if style == .strip { stripLabel } else if style != .picture { label(isFramed: style != .avatarOnly) } else if person.isMuted { mutedBadge }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .overlay {
                 if style != .avatarOnly {
                     RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .strokeBorder(person.isSpeaking ? Color.statusSuccess : Color.clear, lineWidth: style == .picture ? 3 : 4)
+                        .strokeBorder(person.isSpeaking ? Color.statusSuccess : Color.clear, lineWidth: style == .picture || style == .strip ? 3 : 4)
                 }
             }
         }
@@ -418,6 +486,21 @@ struct ParticipantTile: View {
             .background(.black.opacity(isFramed ? 0.45 : 0), in: .capsule)
             .frame(maxWidth: .infinity, alignment: isFramed ? .leading : .center)
             .padding(isFramed ? 10 : 0)
+        }
+    }
+
+    private var stripLabel: some View {
+        VStack {
+            Spacer(minLength: 0)
+            HStack(spacing: 3) {
+                if person.isMuted { Image(systemName: "mic.slash.fill").font(.system(size: 9)) }
+                Text(person.name).font(.caption2.weight(.semibold)).lineLimit(1)
+            }
+            .dynamicTypeSize(...DynamicTypeSize.large)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(.black.opacity(0.45), in: .capsule)
+            .padding(4)
         }
     }
 

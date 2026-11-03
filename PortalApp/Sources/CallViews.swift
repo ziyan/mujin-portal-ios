@@ -186,6 +186,8 @@ struct CallPeoplePicker: View {
     let confirmTitle: LocalizedStringKey
     let people: [ChatMember]
     let showsVideoChoice: Bool
+    /// The most people a call holds. Until the server says, the app's own number.
+    var maximumPeople = ChatCallRules.maximumParticipants
     let onConfirm: ([String], Bool) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -233,7 +235,7 @@ struct CallPeoplePicker: View {
                             .accessibilityAddTraits(selected.contains(person.userId) ? .isSelected : [])
                         }
                     } footer: {
-                        Text(String(localized: "A call holds up to \(ChatCallRules.maximumParticipants) people."))
+                        Text(String(localized: "A call holds up to \(maximumPeople) people."))
                     }
                 }
             }

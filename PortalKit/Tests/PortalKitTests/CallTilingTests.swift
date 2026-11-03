@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import PortalKit
@@ -82,5 +83,58 @@ import Testing
         #expect(CallTiling.nearestCorner(centerX: 300, centerY: 100, stageWidth: 361, stageHeight: 560) == .topTrailing)
         #expect(CallTiling.nearestCorner(centerX: 100, centerY: 100, stageWidth: 361, stageHeight: 560) == .topLeading)
         #expect(CallTiling.nearestCorner(centerX: 200, centerY: 300, stageWidth: 361, stageHeight: 560) == .bottomTrailing)
+    }
+}
+
+@Suite struct CallSpeakerTests {
+    let start = Date(timeIntervalSince1970: 1_000)
+
+    @Test func theSpeakerViewStartsAtFivePeople() {
+        #expect(!CallTiling.usesSpeakerView(count: 4))
+        #expect(CallTiling.usesSpeakerView(count: 5))
+        #expect(CallTiling.usesSpeakerView(count: 16))
+    }
+
+    @Test func theFirstOtherPersonIsOnTheStageUntilSomeoneSpeaks() {
+        var speaker = ActiveSpeaker()
+        let first = speaker.update(speaking: [], candidates: ["me", "a", "b"], selfUserId: "me", now: start)
+        #expect(first == "a")
+    }
+
+    @Test func theStageFollowsWhoIsSpeakingButNotAtOnce() {
+        var speaker = ActiveSpeaker()
+        _ = speaker.update(speaking: ["a"], candidates: ["me", "a", "b"], selfUserId: "me", now: start)
+        #expect(speaker.update(speaking: ["b"], candidates: ["me", "a", "b"], selfUserId: "me", now: start.addingTimeInterval(0.5)) == "a")
+        #expect(speaker.update(speaking: ["b"], candidates: ["me", "a", "b"], selfUserId: "me", now: start.addingTimeInterval(2)) == "b")
+    }
+
+    @Test func aSpeakerStaysOnTheStageWhileTheyKeepTalkingAndAfterTheyStop() {
+        var speaker = ActiveSpeaker()
+        _ = speaker.update(speaking: ["a"], candidates: ["me", "a", "b"], selfUserId: "me", now: start)
+        #expect(speaker.update(speaking: ["a", "b"], candidates: ["me", "a", "b"], selfUserId: "me", now: start.addingTimeInterval(5)) == "a")
+        #expect(speaker.update(speaking: [], candidates: ["me", "a", "b"], selfUserId: "me", now: start.addingTimeInterval(9)) == "a")
+    }
+
+    @Test func thePersonThemselfDoesNotTakeTheStageFromOthers() {
+        var speaker = ActiveSpeaker()
+        _ = speaker.update(speaking: [], candidates: ["me", "a"], selfUserId: "me", now: start)
+        #expect(speaker.update(speaking: ["me"], candidates: ["me", "a"], selfUserId: "me", now: start.addingTimeInterval(9)) == "a")
+    }
+
+    @Test func aPersonWhoLeavesIsReplaced() {
+        var speaker = ActiveSpeaker()
+        _ = speaker.update(speaking: ["a"], candidates: ["me", "a", "b"], selfUserId: "me", now: start)
+        #expect(speaker.update(speaking: [], candidates: ["me", "b"], selfUserId: "me", now: start.addingTimeInterval(0.1)) == "b")
+    }
+
+    @Test func onlyTheMainStageAndTheStripInViewAreAskedFor() {
+        let plan = CallSubscriptionPlan.plan(
+            remoteUserIds: ["a", "b", "c", "d"], mainUserId: "a", visibleStripUserIds: ["b", "c"], isSpeakerView: true)
+        #expect(plan == ["a": .full, "b": .small, "c": .small, "d": .off])
+    }
+
+    @Test func outsideTheSpeakerViewEveryoneShownIsFull() {
+        let plan = CallSubscriptionPlan.plan(remoteUserIds: ["a", "b"], mainUserId: nil, visibleStripUserIds: [], isSpeakerView: false)
+        #expect(plan == ["a": .full, "b": .full])
     }
 }

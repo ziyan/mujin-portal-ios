@@ -6,12 +6,12 @@ import PortalKit
 enum CallDemo {
     static let screens: Set<String> = [
         "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner", "call-voice", "call-video", "call-transcription",
-        "call-minimized", "call-picker", "call-ring-more", "call-ringing", "call-two", "call-three", "call-five",
+        "call-minimized", "call-picker", "call-ring-more", "call-ringing", "call-two", "call-three", "call-five", "call-twelve",
     ]
 
     /// The screens that show people on camera.
     static func isVideoScreen(_ screen: String) -> Bool {
-        ["call-video", "call-ringing", "call-two", "call-three", "call-five"].contains(screen)
+        ["call-video", "call-ringing", "call-two", "call-three", "call-five", "call-twelve"].contains(screen)
     }
 
     static func owns(_ screen: String?) -> Bool { screen.map { screens.contains($0) } ?? false }
@@ -34,7 +34,7 @@ enum CallDemo {
     // MARK: the call
 
     nonisolated static func call(for screen: String) -> ChatCall {
-        let isVideo = ["call-video", "call-ringing", "call-two", "call-three", "call-five"].contains(screen)
+        let isVideo = isVideoScreen(screen)
         var members = [ChatCallMember(userId: "user01", userName: "Alex Example", ringState: "none", isInCall: true, isMuted: false, isVideoOn: isVideo)]
         func joined(_ id: String, _ name: String, muted: Bool = false, video: Bool? = nil) -> ChatCallMember {
             ChatCallMember(userId: id, userName: name, ringState: "answered", isInCall: true, isMuted: muted, isVideoOn: video ?? isVideo)
@@ -50,6 +50,13 @@ enum CallDemo {
             members += [
                 joined("user03", "Robin Demo"), joined("user04", "Jordan Placeholder", muted: true), joined("user05", "Casey Demo"), joined("user06", "Riley Example"),
             ]
+        case "call-twelve":
+            let others = [
+                ("user03", "Robin Demo"), ("user04", "Jordan Placeholder"), ("user05", "Casey Demo"), ("user06", "Riley Example"), ("user07", "Morgan Sample"),
+                ("user08", "Taylor Demo"), ("user09", "Quinn Placeholder"), ("user10", "Avery Example"), ("user11", "Skyler Demo"), ("user12", "Jamie Sample"),
+                ("user13", "Drew Placeholder"),
+            ]
+            members += others.enumerated().map { index, person in joined(person.0, person.1, muted: index % 4 == 1) }
         case "call-voice", "call-video":
             members += [joined("user03", "Robin Demo"), joined("user04", "Jordan Placeholder", muted: true, video: false)]
         default:
