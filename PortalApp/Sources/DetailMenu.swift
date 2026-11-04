@@ -196,7 +196,9 @@ struct LinkedPageSheet: View {
             switch link {
             case .ticket(let sequence): phase = .loaded(.route(.ticket(id: try await connection.ticket(sequence: sequence).id)))
             case .controller(let id): phase = .loaded(.route(.controller(try await connection.controller(id: id))))
+            case .controllerBackups(let id): phase = .loaded(.route(.controllerBackups(try await connection.controller(id: id))))
             case .virtualController(let id): phase = .loaded(.route(.virtualController(try await connection.virtualController(id: id))))
+            case .virtualControllerSnapshots(let id): phase = .loaded(.route(.virtualControllerSnapshots(try await connection.virtualController(id: id))))
             case .camera(let id):
                 guard let camera = try await connection.camera(id: id) else { throw PortalError.refused("Camera not found.") }
                 phase = .loaded(.route(.camera(CameraTarget(camera: camera))))

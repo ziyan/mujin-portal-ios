@@ -76,7 +76,14 @@ public struct GlobalSearchResult: Codable, Equatable, Hashable, Sendable {
     }
 
     /// The screen of the app this row opens, or nil when the app has none and the row opens on the web.
-    public var link: PortalLink? { PortalLink(path: path) }
+    public var link: PortalLink? {
+        // A tab of a page: the app's screen for the page would not open on the tab.
+        if resultKind == .shortcut, path.contains("?") { return nil }
+        return isSubpage ? PortalLink(subpagePath: path) : PortalLink(path: path)
+    }
+
+    /// Whether this is a page below an entity: the server writes the entity's id after the page's.
+    private var isSubpage: Bool { resultKind == .shortcut && id.contains(":") }
 }
 
 /// GlobalSearchGroup is a heading of the results. The two kinds of chat share one.
