@@ -234,6 +234,8 @@ private struct AssistantBubbleKey: Equatable {
     let text: String
     let isStreaming: Bool
     let reactions: [Reaction]
+    let speakFirstReason: String?
+    let speakFirstOutcome: String?
 }
 
 private struct TranscriptRow: View {
@@ -302,9 +304,13 @@ private struct TranscriptRow: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         case .assistant(let id, let text, let isStreaming):
             HStack {
-                StableBubble(key: AssistantBubbleKey(id: id, text: text, isStreaming: isStreaming, reactions: model.transcript.reactions(for: id))) {
+                let speakFirstReason = model.isOwnConversation ? model.transcript.speakFirstReason(for: id) : nil
+                StableBubble(key: AssistantBubbleKey(id: id, text: text, isStreaming: isStreaming, reactions: model.transcript.reactions(for: id), speakFirstReason: speakFirstReason, speakFirstOutcome: model.speakFirstOutcome)) {
                 HoldableMessage(actions: isStreaming ? nil : assistantActions(id: id, text: text)) {
-                    RichBodyView(markdown: text, connection: model.connection, isSelectable: false)
+                    VStack(alignment: .leading, spacing: 6) {
+                        RichBodyView(markdown: text, connection: model.connection, isSelectable: false)
+                        if let speakFirstReason { SpeakFirstChoicesView(model: model, reason: speakFirstReason) }
+                    }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -348,8 +354,6 @@ private struct TranscriptRow: View {
             NoteLine(note: note)
         case .goalNeedsYou(_, let goalId, let title, let question):
             GoalNeedsYouCard(goalId: goalId, title: title, question: question)
-        case .speakFirstChoices(_, let reason):
-            if model.isOwnConversation { SpeakFirstChoicesView(model: model, reason: reason) }
         }
     }
 }
@@ -788,8 +792,8 @@ private struct GoalNeedsYouCard: View {
     }
 }
 
-/// SpeakFirstChoicesView offers "Not now" and "Stop these" under the first
-/// answer after the assistant started a conversation, and says what happened.
+/// SpeakFirstChoicesView offers "Not now" and "Stop these" at the foot of the
+/// first answer after the assistant started a conversation, and says what happened.
 private struct SpeakFirstChoicesView: View {
     let model: ConversationModel
     let reason: String
@@ -800,14 +804,21 @@ private struct SpeakFirstChoicesView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else {
-            Menu {
-                Button("Not now") { Task { await model.snoozeSpeakFirst() } }
-                Button("Stop these") { Task { await model.stopSpeakingFirst(reason: reason) } }
-            } label: {
-                Label("More", systemImage: "ellipsis")
-                    .labelStyle(.iconOnly)
-                    .foregroundStyle(.secondary)
-                    .frame(minWidth: 44, minHeight: 44)
+            HStack {
+                Spacer(minLength: 0)
+                Menu {
+                    Button("Not now") { Task { await model.snoozeSpeakFirst() } }
+                    Button("Stop these") { Task { await model.stopSpeakingFirst(reason: reason) } }
+                } label: {
+                    Label("More", systemImage: "ellipsis")
+                        .labelStyle(.iconOnly)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .tint(.secondary)
+                // The target stays 44 points; the footer of the message does not grow by it.
+                .padding(.vertical, -10)
+                .padding(.trailing, -10)
             }
         }
     }
