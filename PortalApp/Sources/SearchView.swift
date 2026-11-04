@@ -363,6 +363,18 @@ enum SearchSymbol {
         case "audit": "list.bullet.clipboard"
         case "billing": "creditcard"
         case "legal": "doc.plaintext"
+        case "telemetry": "chart.line.uptrend.xyaxis"
+        case "backups": "externaldrive"
+        case "sync": "arrow.triangle.2.circlepath"
+        case "details": "info.circle"
+        case "mobileRobots": "car.side"
+        case "orchestrators": "point.3.connected.trianglepath.dotted"
+        case "screen": "display"
+        case "snapshots": "camera.viewfinder"
+        case "cells": "square.grid.2x2"
+        case "documentation": "doc.text"
+        case "playback": "play.circle"
+        case "images": "square.stack.3d.up"
         default: "arrow.right"
         }
     }

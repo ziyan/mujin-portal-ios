@@ -2,9 +2,9 @@ import Foundation
 import PortalKit
 
 /// SearchDemo is the demo's global search: invented rows, and the screens the screenshots show (recents and suggestions, a
-/// controller id typed, a word that matches shortcuts, and a word that matches nothing).
+/// controller id typed, a controller and one of its pages, a word that matches shortcuts, and a word that matches nothing).
 enum SearchDemo {
-    static let screens: Set<String> = ["search", "search-controller", "search-shortcuts", "search-no-results"]
+    static let screens: Set<String> = ["search", "search-controller", "search-subpage", "search-shortcuts", "search-no-results"]
 
     static func owns(_ screen: String?) -> Bool { screen.map { screens.contains($0) } ?? false }
 
@@ -12,6 +12,7 @@ enum SearchDemo {
     static func query(for screen: String?) -> String {
         switch screen {
         case "search-controller": "controller01"
+        case "search-subpage": "controller01 backups"
         case "search-shortcuts": "notifications"
         case "search-no-results": "zzqx"
         default: ""
@@ -78,6 +79,10 @@ enum SearchDemo {
         shortcut("settings.incidents", "Incident subscriptions", "Account", "/settings/incidents", "incidents", "incident notifications incident alerts"),
         shortcut("settings.tokens", "API tokens", "Security and access", "/settings/tokens", "tokens", "tokens access tokens api keys"),
         shortcut("settings.sessions", "Sessions", "Security and access", "/settings/sessions", "sessions", "devices sign out"),
+        shortcut("controller.alarms:controller01", "Alarms", "controller01", "/controller/controller01/alarms", "alarms", "controller01 alarms"),
+        shortcut("controller.telemetry:controller01", "Telemetry", "controller01", "/controller/controller01/telemetry", "telemetry", "controller01 telemetry"),
+        shortcut("controller.backups:controller01", "Backups", "controller01", "/controller/controller01/backups", "backups", "controller01 backups"),
+        shortcut("controller.sync:controller01", "Sync", "controller01", "/controller/controller01/sync", "sync", "controller01 sync"),
         Row(kind: "controller", id: "controller01", title: "controller01", subtitle: "Example Yard", path: "/controller/controller01"),
         Row(kind: "virtualController", id: "virtual01", title: "Training cell", subtitle: "Copy of controller01", path: "/virtualcontroller/virtual01"),
         Row(kind: "site", id: "site01", title: "Example Yard", subtitle: "Example Logistics", path: "/site/site01"),

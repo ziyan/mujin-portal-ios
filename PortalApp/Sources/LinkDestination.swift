@@ -36,7 +36,7 @@ extension SessionModel {
     func resolution(for link: PortalLink, organizationId: String?) -> LinkResolution {
         let organization = organizationId ?? self.organizationId
         switch link {
-        case .ticket, .controller, .virtualController, .camera, .incident:
+        case .ticket, .controller, .controllerBackups, .virtualController, .virtualControllerSnapshots, .camera, .incident:
             return .lookup
         case .release(let id):
             return .screen(.route(.release(id: id)))

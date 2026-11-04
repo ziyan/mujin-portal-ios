@@ -323,6 +323,7 @@ jobs:
           shoot surveillance-tab surveillance-tab
           shoot search search
           shoot search-controller search-controller staff
+          shoot search-subpage search-subpage staff
           shoot search-shortcuts search-shortcuts
           shoot search-no-results search-no-results
           shoot settings settings
@@ -454,6 +455,7 @@ jobs:
           shoot surveillance-tab-dark surveillance-tab
           shoot search-dark search
           shoot search-controller-dark search-controller staff
+          shoot search-subpage-dark search-subpage staff
           shoot search-shortcuts-dark search-shortcuts
           shoot search-no-results-dark search-no-results
           shoot settings-dark settings
@@ -550,6 +552,7 @@ jobs:
           shoot large-text-surveillance-tab surveillance-tab
           shoot large-text-search search
           shoot large-text-search-controller search-controller staff
+          shoot large-text-search-subpage search-subpage staff
           shoot large-text-search-shortcuts search-shortcuts
           shoot large-text-search-no-results search-no-results
           shoot large-text-settings settings

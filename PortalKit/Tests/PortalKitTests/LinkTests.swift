@@ -280,6 +280,32 @@ import Testing
         #expect(link("https://portal.example.test//virtualcontroller//virtual01") == .virtualController(id: "virtual01"))
     }
 
+    @Test func aSubpageOpensItsOwnScreenOrNone() {
+        #expect(PortalLink(subpagePath: "/controller/controller01/backups") == .controllerBackups(id: "controller01"))
+        #expect(PortalLink(subpagePath: "/virtualcontroller/virtual01/snapshots") == .virtualControllerSnapshots(id: "virtual01"))
+        #expect(PortalLink(subpagePath: "/surveillance/camera01/playback") == .camera(id: "camera01"))
+        #expect(PortalLink(subpagePath: "/organization/organization01/members") == .organizationPage(.members, organizationId: "organization01"))
+        // The app has no screen for these pages, so they open on the web and not on the entity.
+        #expect(PortalLink(subpagePath: "/controller/controller01/alarms") == nil)
+        #expect(PortalLink(subpagePath: "/site/site01/telemetry") == nil)
+        #expect(PortalLink(subpagePath: "/organization/organization01/sso") == nil)
+    }
+
+    @Test func aSubpageWritesItsPathBack() {
+        #expect(PortalLink.controllerBackups(id: "controller01").path == "/controller/controller01/backups")
+        #expect(PortalLink.virtualControllerSnapshots(id: "virtual01").path == "/virtualcontroller/virtual01/snapshots")
+    }
+
+    @Test func aSearchRowOfASubpageDoesNotOpenTheEntity() {
+        func row(_ id: String, _ path: String) -> GlobalSearchResult {
+            GlobalSearchResult(resultKind: .shortcut, id: id, title: "Page", path: path)
+        }
+        #expect(row("controller.backups:controller01", "/controller/controller01/backups").link == .controllerBackups(id: "controller01"))
+        #expect(row("controller.alarms:controller01", "/controller/controller01/alarms").link == nil)
+        #expect(row("tickets.closed", "/ticket?status=closed").link == nil)
+        #expect(row("settings.tokens", "/settings/tokens").link == .screen(.tokens))
+    }
+
     @Test func aPageBelowTheOneOpensTheOne() {
         #expect(link("https://portal.example.test/controller/controller01/backups") == .controller(id: "controller01"))
         #expect(link("https://portal.example.test/virtualcontroller/virtual01/snapshots/") == .virtualController(id: "virtual01"))
