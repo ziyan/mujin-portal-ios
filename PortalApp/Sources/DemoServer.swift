@@ -149,6 +149,8 @@ final class DemoState: @unchecked Sendable {
 
                     [Assistant ticket](https://demo.example.test/ticket/1)
 
+                    [controller03](/controller/controller03)
+
                     [[site/site01/docks#2]]
 
                     - [Assistant list checklist](https://example.test/docs/assistant-list)
@@ -258,6 +260,11 @@ final class DemoState: @unchecked Sendable {
                 said("l4", "user02", "Sam Sample", "| Document | Link |\n| --- | --- |\n| Hose guide | [Table checklist](https://example.test/docs/table) |", 370),
                 said("l5", "user02", "Sam Sample", "- [List checklist](https://example.test/docs/list)\n- A plain item", 360),
                 said("l6", "user02", "Sam Sample", "> [Quote checklist](https://example.test/docs/quote)", 350),
+                // The assistant writes a Portal page as a path, with no server in it.
+                said("l7", "assistant", "Mujin AI", "[controller01](/controller/controller01)", 340, role: "assistant"),
+                said("l8", "assistant", "Mujin AI", "- [controller02](/controller/controller02) has an open alarm.\n- A plain item", 330, role: "assistant"),
+                said("l9", "assistant", "Mujin AI", "[Site by path](/site/site01)", 320, role: "assistant"),
+                said("l10", "assistant", "Mujin AI", "[Ticket by path](/ticket/1)", 310, role: "assistant"),
             ])
         }
         data.messages["chatconv02"] = [

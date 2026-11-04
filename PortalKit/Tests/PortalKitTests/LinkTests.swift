@@ -16,6 +16,25 @@ import Testing
         #expect(kind("http://portal.example.test/x") == .portal)
     }
 
+    @Test func aPathIsAPageOfTheServer() {
+        let path = URL(string: "/controller/controller01")!
+        let address = LinkClassifier.absolute(path, server: server)
+        #expect(address.absoluteString == "https://portal.example.test/controller/controller01")
+        #expect(LinkClassifier.classify(address, server: server) == .portal)
+        #expect(PortalLink(url: address, server: server) == .controller(id: "controller01"))
+    }
+
+    @Test func aPathKeepsItsQueryAndFragment() {
+        let address = LinkClassifier.absolute(URL(string: "/agent/run/run01?view=full#end")!, server: server)
+        #expect(address.absoluteString == "https://portal.example.test/agent/run/run01?view=full#end")
+    }
+
+    @Test func anAddressWithASchemeIsLeftAlone() {
+        for text in ["https://example.test/docs", "mailto:someone@example.test", "tel:+15550100"] {
+            #expect(LinkClassifier.absolute(URL(string: text)!, server: server).absoluteString == text)
+        }
+    }
+
     @Test func theThreeProxyHostsAreControllers() {
         #expect(kind("https://controller01-live.portal.example.test/") == .controller)
         #expect(kind("https://controller01-cloud.portal.example.test/path?q=1") == .controller)
