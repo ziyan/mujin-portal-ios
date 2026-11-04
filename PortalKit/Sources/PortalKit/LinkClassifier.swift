@@ -27,6 +27,13 @@ public enum LinkClassifier {
         return .external
     }
 
+    /// The full address of a link. The assistant writes a Portal page as a path, such as `/controller/<id>`, which the web app
+    /// reads as a page of its own server. A link with a scheme is left as it is.
+    public static func absolute(_ url: URL, server: ServerAddress) -> URL {
+        guard url.scheme == nil else { return url }
+        return URL(string: url.relativeString, relativeTo: server.url)?.absoluteURL ?? url
+    }
+
     /// Whether the account's session cookie is meant for this link.
     public static func opensInApp(_ kind: LinkKind) -> Bool {
         kind == .portal || kind == .controller
