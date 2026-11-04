@@ -264,8 +264,18 @@ enum DemoCameras {
         ]
     }
 
+    /// More cameras than the wall streams at once, for the screenshots of a long wall.
+    static var many: [[String: Any]] {
+        (1...20).map { number in
+            camera(String(format: "camera%02d", 20 + number), String(format: "nvrcamera%02d", 20 + number), "Dock bay \(number)", isOnline: true)
+        }
+    }
+
+    /// Whether this run shows a wall of more cameras than the limit of streams.
+    static var isLongWall: Bool { DemoOptions.screen == "surveillance-many" || DemoOptions.screen == "surveillance-many-scrolled" }
+
     /// Every camera of the demo, in the order the pictures are varied.
-    static var everything: [[String: Any]] { all + others }
+    static var everything: [[String: Any]] { all + others + (isLongWall ? many : []) }
 
     static func respond(operation: String, variables: [String: Any]) -> [String: Any]? {
         switch operation {
