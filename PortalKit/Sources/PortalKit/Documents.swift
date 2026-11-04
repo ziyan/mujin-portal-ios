@@ -191,6 +191,7 @@ public enum Documents {
         documents += siteResourceDocuments
         documents += releaseDocuments
         documents += cameraDocuments
+        documents += globalSearchDocuments
         documents += platformAccessDocuments
         documents += auditDocuments
         documents += usageDocuments

@@ -18,6 +18,7 @@ extension AppSection {
         case .automations: "Automations"
         case .incidents: "Incidents"
         case .settings: "Settings"
+        case .search: "Search"
         }
     }
 
@@ -36,6 +37,7 @@ extension AppSection {
         case .automations: "clock.arrow.2.circlepath"
         case .incidents: "exclamationmark.shield"
         case .settings: "gearshape"
+        case .search: "magnifyingglass"
         }
     }
 
@@ -52,7 +54,7 @@ extension AppSection {
         case .settings: .settings
         case .site: .sites
         case .tickets: .tickets
-        case .assistant, .chats, .more: nil
+        case .assistant, .chats, .more, .search: nil
         }
     }
 }
@@ -137,9 +139,37 @@ struct MainTabsView: View {
         }
     }
 
-    private func tabs(_ session: SessionModel) -> some View {
-        TabView(selection: Binding(get: { session.selectedSection }, set: { session.selectedSection = $0 })) {
-            ForEach(session.tabSections) { section in
+    /// The link to show in a sheet: only the links that are a screen. The others go where they belong, see `routeLink`.
+    private func linkSheetBinding(_ session: SessionModel) -> Binding<OpenedLink?> {
+        Binding<OpenedLink?>(
+            get: {
+                guard let opened = appModel.openedLink else { return nil }
+                let resolution = session.resolution(for: opened.link, organizationId: opened.organizationId)
+                return resolution.isSheet ? opened : nil
+            },
+            set: { appModel.openedLink = $0 })
+    }
+
+    /// Sends a link that is not a sheet where it belongs: a tab, the inbox, a conversation or the browser.
+    private func routeLink(_ opened: OpenedLink, _ session: SessionModel) {
+        let resolution = session.resolution(for: opened.link, organizationId: opened.organizationId)
+        guard !resolution.isSheet else { return }
+        appModel.openedLink = nil
+        switch resolution {
+        case .conversation(let id): session.open(.conversation(id: id))
+        case .tab(let section): session.selectedSection = section
+        case .notifications: session.isShowingNotifications = true
+        case .web:
+            let address = opened.link.url(server: account.server)
+            Task { await appModel.openInApp(address, account: account) }
+        case .screen, .lookup: break
+        }
+    }
+
+    private func tabBar(_ session: SessionModel) -> some View {
+        let chosenSections = session.tabSections.filter { $0 != .search }
+        return TabView(selection: Binding(get: { session.selectedSection }, set: { session.selectedSection = $0 })) {
+            ForEach(chosenSections) { section in
                 Tab(value: section) {
                     SectionContent(section: section, account: account)
                 } label: {
@@ -151,10 +181,18 @@ struct MainTabsView: View {
                 }
                 .badge(badge(for: section, session))
             }
+            // The system's search tab: set apart at the trailing end of the bar, with the search field at the bottom.
+            Tab(value: AppSection.search, role: .search) {
+                SectionContent(section: .search, account: account)
+            }
         }
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
         .environment(session)
+    }
+
+    private func tabs(_ session: SessionModel) -> some View {
+        tabBar(session)
         .onChange(of: session.selectedSection, initial: true) { _, section in
             // A screen that is not on the tab bar opens under More: a notification may point at it, or the person removed its tab.
             guard !session.tabSections.contains(section) else { return }
@@ -181,10 +219,13 @@ struct MainTabsView: View {
             LinkControllerView(request: request)
                 .environment(session)
         }
-        .sheet(item: Binding(get: { appModel.openedLink }, set: { appModel.openedLink = $0 })) { opened in
-            LinkedPageSheet(link: opened.link)
+        .sheet(item: linkSheetBinding(session)) { opened in
+            LinkedPageSheet(opened: opened)
                 .environment(appModel)
                 .environment(session)
+        }
+        .onChange(of: appModel.openedLink, initial: true) { _, opened in
+            if let opened { routeLink(opened, session) }
         }
         .onChange(of: appModel.pendingRoute) { _, _ in
             if let route = appModel.takeRoute(for: account) { session.open(route) }
@@ -215,6 +256,7 @@ private struct SectionContent: View {
         case .assistant: ConversationListView(account: account)
         case .chats: ConversationListView(account: account)
         case .more: MoreView(account: account)
+        case .search: SearchTabView()
         case .tickets: TicketsView()
         case .site: session.persona == .staff ? AnyView(StaffSitesView()) : AnyView(SiteView())
         case .surveillance, .releases, .goals, .ideas, .knowledge, .automations, .incidents, .settings:

@@ -123,8 +123,8 @@ final class AppModel {
     }
 
     /// Decides where a tapped link opens: a page the app has a screen for
-    /// (a ticket, controller, virtual controller or release on the account's
-    /// own server) in that screen, other Portal pages and the controllers in
+    /// (see `PortalLink`: tickets, controllers, sites, people, settings and
+    /// more, on the account's own server) in that screen, other Portal pages and the controllers in
     /// the built-in browser, other web addresses in Safari's view, anything
     /// else (mail, phone) in the system.
     func handleLink(_ url: URL) -> OpenURLAction.Result {

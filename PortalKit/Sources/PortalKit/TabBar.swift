@@ -1,10 +1,11 @@
 import Foundation
 
-/// TabBar decides which sections are on the tab bar. A phone shows five tabs at most, and More is always the last, so a person
-/// chooses up to four. The iPad's sidebar lists the same sections, so one choice serves both.
+/// TabBar decides which sections are on the tab bar. A phone shows five tabs at most. More and Search are always there, Search
+/// set apart at the trailing end, so a person chooses up to three, Chat included. The iPad's sidebar lists the same sections, so
+/// one choice serves both.
 public enum TabBar {
-    /// How many sections the bar holds besides More, Chat included.
-    public static let capacity = 4
+    /// How many sections the bar holds besides More and Search, Chat included.
+    public static let capacity = 3
 
     /// Chat is always the first tab: conversations, chats and the assistant's questions open there, and it is the screen the
     /// app starts on. The person chooses the rest.
@@ -21,15 +22,16 @@ public enum TabBar {
         return sections
     }
 
-    /// The bar before anyone edits it: Chat, Sites, Surveillance and Tickets. Surveillance is left out without cameras.
+    /// The bar before anyone edits it: Chat, Sites and Tickets (Tickets and Sites swapped for Mujin staff). Surveillance is one
+    /// tap away under More and in search, and a person who wants it on the bar chooses it.
     public static func defaults(persona: Persona, hasCameras: Bool) -> [AppSection] {
-        var sections = Navigation.sections(for: persona).filter { $0 != .more }
-        if hasCameras, let index = sections.firstIndex(of: .site) { sections.insert(.surveillance, at: index + 1) }
-        return Array(sections.prefix(capacity))
+        Array(Navigation.sections(for: persona).filter { $0 != .more }.prefix(capacity))
     }
 
-    /// The sections on the bar, More left out, from what the person saved. Nothing saved gives the defaults. A saved section that
-    /// is no longer allowed is dropped without a word, and the defaults fill the slots it leaves empty.
+    /// The sections on the bar, More and Search left out, from what the person saved. Nothing saved gives the defaults. A saved
+    /// section that is no longer allowed is dropped without a word, and the defaults fill the slots it leaves empty. A choice made
+    /// when the bar held one more section than it does now loses its last one, except Surveillance, which the default bar used to
+    /// hold and now leaves out: a person who chose it keeps it, in the last slot.
     public static func resolve(saved: [String]?, persona: Persona, hasCameras: Bool) -> [AppSection] {
         let defaults = defaults(persona: persona, hasCameras: hasCameras)
         guard let saved else { return defaults }
@@ -41,6 +43,9 @@ public enum TabBar {
             guard let section = AppSection(rawValue: name), allowed.contains(section), !kept.contains(section), kept.count < slots else { continue }
             kept.append(section)
         }
+        if kept.count == slots, !kept.contains(.surveillance), requested.contains(AppSection.surveillance.rawValue), allowed.contains(.surveillance) {
+            kept[slots - 1] = .surveillance
+        }
         var emptySlots = min(requested.count, slots) - kept.count
         for section in defaults where emptySlots > 0 && section != pinned && !kept.contains(section) {
             kept.append(section)
@@ -49,9 +54,9 @@ public enum TabBar {
         return [pinned] + kept
     }
 
-    /// Every tab to show: the chosen sections, then More.
+    /// Every tab to show: the chosen sections, then More, then Search.
     public static func tabs(saved: [String]?, persona: Persona, hasCameras: Bool) -> [AppSection] {
-        resolve(saved: saved, persona: persona, hasCameras: hasCameras) + [.more]
+        resolve(saved: saved, persona: persona, hasCameras: hasCameras) + [.more, .search]
     }
 }
 

@@ -432,6 +432,7 @@ struct DemoTransport: HTTPTransport {
         if let answer = AccountDemo.respond(operation: operation, variables: variables) { return answer }
         if let answer = PlatformDemo.respond(operation: operation, variables: variables) { return answer }
         if let answer = CallDemo.respond(operation: operation, variables: variables) { return answer }
+        if let answer = SearchDemo.respond(operation: operation, variables: variables) { return answer }
         let conversationId = variables["conversationId"] as? String ?? ""
         switch operation {
         case "Me":
@@ -448,7 +449,7 @@ struct DemoTransport: HTTPTransport {
             let hasCalls = CallDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
             return [
                 "__schema": [
-                    "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"]]],
+                    "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"], ["name": "globalSearch"]]],
                     "mutationType": [
                         "fields": [
                             ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"],

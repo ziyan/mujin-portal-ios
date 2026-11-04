@@ -24,9 +24,20 @@ flag (falling back to the permissions):
 | | Customers | Organization picker, then its sites and tickets |
 | More | More | Notifications, settings, automations, about, sign out |
 
-On a wide iPad window the tabs become a sidebar. Features that depend on a
+The default bar is Chat, Sites and Tickets, then More, with Search set apart at the trailing end (a person may choose two
+tabs besides Chat, so a phone never shows more than five). Surveillance lives under More and in search, and a person who put it
+on the bar keeps it. On a wide iPad window the tabs become a sidebar. Features that depend on a
 newer server are built against its contract and shown only when the server
 offers the operation (`ServerCapabilities` reads the schema once per sign-in).
+
+## Search
+
+The Search tab asks the server the same `GlobalSearch` query as the Portal web app's Ctrl-K palette, after a pause in typing, so
+both show the same rows under the same names: controllers, virtual controllers, sites, cells, cameras, organizations, people,
+chats, assistant conversations, tickets, releases, pages and incidents, with shortcuts to settings and other screens first when
+they match. An empty field lists the rows opened before (kept on the phone, per account) and the shortcuts the server suggests.
+A row opens through the same `PortalLink` mapping as a link tapped in a chat: the app's own screen where there is one, and
+otherwise the page in the built-in browser, signed in. Search is shown as unavailable on a server that does not have the query.
 
 ## Cameras
 

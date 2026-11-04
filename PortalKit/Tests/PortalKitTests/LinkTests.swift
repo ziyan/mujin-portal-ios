@@ -306,7 +306,18 @@ import Testing
         #expect(link("https://portal.example.test/ticket/-3") == nil)
         #expect(link("https://portal.example.test/ticket/12abc") == nil)
         #expect(link("https://portal.example.test/ticket/99999999999999999999") == nil)
-        #expect(link("https://portal.example.test/ticket") == nil)
+        #expect(link("https://portal.example.test/ticket") == .screen(.tickets))
+    }
+
+    @Test func theListsAndTheNewKindsOfPageAreRead() {
+        #expect(link("https://portal.example.test/controller") == .screen(.controllers))
+        #expect(link("https://portal.example.test/settings/tokens") == .screen(.tokens))
+        #expect(link("https://portal.example.test/site/site01") == .site(id: "site01"))
+        #expect(link("https://portal.example.test/site/site01/cell/cell01") == .cell(id: "cell01", siteId: "site01"))
+        #expect(link("https://portal.example.test/surveillance/camera01") == .camera(id: "camera01"))
+        #expect(link("https://portal.example.test/agent/conversation01") == .conversation(id: "conversation01"))
+        #expect(link("https://portal.example.test/user/user02") == .user(id: "user02"))
+        #expect(link("https://portal.example.test/incident/incident01") == .incident(id: "incident01"))
     }
 
     @Test func aHostThatIsNotTheServerIsNotRead() {
@@ -326,9 +337,10 @@ import Testing
     @Test func aPathWithNoPageIsNotRead() {
         #expect(link("https://portal.example.test") == nil)
         #expect(link("https://portal.example.test/") == nil)
-        #expect(link("https://portal.example.test/controller") == nil)
-        #expect(link("https://portal.example.test/settings/tokens") == nil)
-        #expect(link("https://portal.example.test/site/site01") == nil)
+        #expect(link("https://portal.example.test/help") == nil)
+        #expect(link("https://portal.example.test/dashboard") == nil)
+        #expect(link("https://portal.example.test/settings/nothing") == nil)
+        #expect(link("https://portal.example.test/ticket/new") == nil)
     }
 
     @Test func theCopiedAddressIsTheWebAppsAddress() {

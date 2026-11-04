@@ -32,6 +32,8 @@ public enum AppSection: String, CaseIterable, Identifiable, Sendable {
     case automations
     case incidents
     case settings
+    /// Search is the system's search tab, last on the bar and not one of the sections a person chooses.
+    case search
 
     public var id: String { rawValue }
 }

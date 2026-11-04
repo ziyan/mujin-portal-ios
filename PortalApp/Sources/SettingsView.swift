@@ -91,7 +91,7 @@ struct TabBarEditorView: View {
     @Environment(SessionModel.self) private var session
 
     var body: some View {
-        let onBar = session.tabSections.filter { $0 != .more && $0 != TabBar.pinned }
+        let onBar = session.tabSections.filter { $0 != .more && $0 != .search && $0 != TabBar.pinned }
         let rows = [TabBar.pinned] + onBar
         let isFull = onBar.count >= TabBar.capacity - 1
         let others = session.choosableSections.filter { !onBar.contains($0) }
