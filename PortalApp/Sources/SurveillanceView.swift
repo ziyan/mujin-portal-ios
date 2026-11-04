@@ -47,6 +47,7 @@ struct SurveillanceView: View {
     @State private var phase = LoadPhase.loading
     @State private var searchText = ""
     @State private var selectedSiteIds: Set<String> = []
+    @State private var budget = CameraWallBudget()
 
     @ScaledMetric(relativeTo: .body) private var minimumTileWidth: CGFloat = 170
 
@@ -122,7 +123,7 @@ struct SurveillanceView: View {
                         header(group)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumTileWidth), spacing: 12, alignment: .top)], alignment: .leading, spacing: 16) {
                             ForEach(group.cameras) { camera in
-                                NavigationLink(value: PortalRoute.camera(CameraTarget(camera: camera))) { CameraTile(camera: camera) }
+                                NavigationLink(value: PortalRoute.camera(CameraTarget(camera: camera))) { CameraTile(camera: camera, budget: budget) }
                                     .buttonStyle(.plain)
                             }
                         }
