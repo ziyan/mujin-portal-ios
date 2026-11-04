@@ -45,6 +45,8 @@ final class CameraPlayer {
     private(set) var isRecordingUnsupported = false
     /// Why the recorded stream could not be had, once it failed; nil while it has not. A live stream sets it only when Portal refused it.
     private(set) var failure: CameraPlaybackFailure?
+    /// Whether a live stream failed in a way that asking again does not change: Portal refused it or has no route for it.
+    private(set) var isFailureFinal = false
     /// A sentence for the person when something is not as expected: no recording here, the controller is offline.
     private(set) var notice: String?
     private(set) var clock: CameraClock
@@ -118,6 +120,7 @@ final class CameraPlayer {
         notice = nil
         isRecordingUnsupported = false
         failure = nil
+        isFailureFinal = false
         failures = 0
         isPaused = false
         let now = Self.nowMS
@@ -263,6 +266,7 @@ final class CameraPlayer {
         generation += 1
         closeSocket()
         reconnectTask?.cancel()
+        isFailureFinal = true
         status = .failed
         if liveFailure == .notAllowed {
             failure = .notAllowed

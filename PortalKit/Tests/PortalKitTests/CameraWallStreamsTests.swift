@@ -48,6 +48,40 @@ struct CameraWallStreamsTests {
         #expect(streams.streamingIds == ["a"])
     }
 
+    @Test func aTileThatFailedForGoodGivesItsStreamToTheLongestWaitingTile() {
+        var streams = CameraWallStreams(limit: 1)
+        for identifier in ["a", "b", "c"] { streams.request(identifier) }
+        streams.fail("a")
+        #expect(streams.streamingIds == ["b"])
+        #expect(streams.waitingIds == ["c"])
+        #expect(streams.hasFailed("a"))
+        #expect(!streams.isStreaming("a"))
+        #expect(!streams.isWaiting("a"))
+    }
+
+    @Test func aFailedTileDoesNotAskAgainUntilItHasLeftTheScreen() {
+        var streams = CameraWallStreams(limit: 2)
+        streams.request("a")
+        streams.fail("a")
+        streams.request("a")
+        #expect(streams.streamingIds.isEmpty)
+        #expect(streams.hasFailed("a"))
+        streams.release("a")
+        #expect(!streams.hasFailed("a"))
+        streams.request("a")
+        #expect(streams.streamingIds == ["a"])
+    }
+
+    @Test func aTileWithoutAStreamCannotFail() {
+        var streams = CameraWallStreams(limit: 1)
+        streams.request("a")
+        streams.request("b")
+        streams.fail("b")
+        streams.fail("zzz")
+        #expect(streams.failedIds.isEmpty)
+        #expect(streams.waitingIds == ["b"])
+    }
+
     @Test func tilesPlayTheLeastSharpChannel() {
         let channels = [
             CameraChannel(id: 0, isEnabled: true, width: 2688, height: 1512),

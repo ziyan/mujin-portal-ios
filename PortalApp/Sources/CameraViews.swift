@@ -93,6 +93,8 @@ final class CameraWallBudget {
 
     func request(_ cameraId: String) { streams.request(cameraId) }
     func release(_ cameraId: String) { streams.release(cameraId) }
+    func fail(_ cameraId: String) { streams.fail(cameraId) }
+    func hasFailed(_ cameraId: String) -> Bool { streams.hasFailed(cameraId) }
     func isStreaming(_ cameraId: String) -> Bool { streams.isStreaming(cameraId) }
 }
 
@@ -109,11 +111,13 @@ struct CameraLiveView: View {
     @State private var player: CameraPlayer?
 
     private var isStreaming: Bool { camera.isStreamable && budget.isStreaming(camera.id) }
+    /// Whether the stream failed for good: the tile keeps that state and holds no stream slot.
+    private var hasFailed: Bool { camera.isStreamable && budget.hasFailed(camera.id) }
 
     var body: some View {
-        CameraSnapshotView(camera: camera, refreshInterval: isStreaming ? nil : 30)
+        CameraSnapshotView(camera: camera, refreshInterval: isStreaming || hasFailed ? nil : 30)
             .overlay {
-                if let player, isStreaming {
+                if let player, isStreaming || hasFailed {
                     CameraSurface(renderer: player.renderer)
                         .opacity(player.status == .playing ? 1 : 0)
                     if player.status == .failed {
@@ -139,7 +143,10 @@ struct CameraLiveView: View {
                 stopPlayer()
             }
             .onChange(of: isStreaming, initial: true) { _, isOn in
-                if isOn { startPlayer() } else { stopPlayer() }
+                if isOn { startPlayer() } else if !hasFailed { stopPlayer() }
+            }
+            .onChange(of: player?.isFailureFinal) { _, isFinal in
+                if isFinal == true { budget.fail(camera.id) }
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { player?.resume() } else { player?.suspend() }
