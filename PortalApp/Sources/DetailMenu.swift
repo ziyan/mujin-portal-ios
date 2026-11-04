@@ -179,7 +179,7 @@ struct LinkedPageSheet: View {
                 MoreDestinationView(destination: destination)
             }
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.accessibilityIdentifier("linkedPageClose") }
             }
         }
         .task(id: opened) { await resolve() }

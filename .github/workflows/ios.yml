@@ -52,7 +52,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [ "${EVENT_NAME}" != pull_request ] || git diff --name-only "${BASE_SHA}...${HEAD_SHA}" | grep -qE '^(PortalKit/|PortalApp/|PortalNotification/|Configuration/|Schema/|project\.yml|\.github/workflows/ios\.yml)'; then
+          if [ "${EVENT_NAME}" != pull_request ] || git diff --name-only "${BASE_SHA}...${HEAD_SHA}" | grep -qE '^(PortalKit/|PortalApp/|PortalUITests/|PortalNotification/|Configuration/|Schema/|project\.yml|\.github/workflows/ios\.yml)'; then
             echo "app=true" >> "${GITHUB_OUTPUT}"
           else
             echo "app=false" >> "${GITHUB_OUTPUT}"
