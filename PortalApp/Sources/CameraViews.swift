@@ -117,17 +117,17 @@ struct CameraLiveView: View {
                     CameraSurface(renderer: player.renderer)
                         .opacity(player.status == .playing ? 1 : 0)
                     if player.status == .failed {
-                        Color.black.opacity(0.55)
-                        Image(systemName: "video.slash").font(.title2).foregroundStyle(.white.opacity(0.85))
-                    }
-                    VStack {
-                        Spacer()
-                        HStack {
-                            StreamChip(player: player)
+                        failedState(player)
+                    } else {
+                        VStack {
                             Spacer()
+                            HStack {
+                                StreamChip(player: player)
+                                Spacer()
+                            }
                         }
+                        .padding(6)
                     }
-                    .padding(6)
                 } else if camera.isStreamable {
                     Image(systemName: "play.circle.fill").font(.title).foregroundStyle(.white.opacity(0.85)).shadow(radius: 2)
                 }
@@ -144,6 +144,23 @@ struct CameraLiveView: View {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { player?.resume() } else { player?.suspend() }
             }
+    }
+
+    /// The one state of a tile whose stream failed for good or ran out of retries. A refusal covers the still, which Portal refused too.
+    private func failedState(_ player: CameraPlayer) -> some View {
+        let isRefused = player.failure == .notAllowed
+        return ZStack {
+            Color.black.opacity(isRefused ? 1 : 0.55)
+            VStack(spacing: 4) {
+                Image(systemName: isRefused ? "lock" : "video.slash").font(.title3)
+                Text(isRefused ? "Not allowed" : "Unavailable")
+                    .font(.caption)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(.white.opacity(0.85))
+            .padding(6)
+        }
     }
 
     private func startPlayer() {
