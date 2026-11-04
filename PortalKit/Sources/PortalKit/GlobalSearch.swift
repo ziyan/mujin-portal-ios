@@ -167,9 +167,9 @@ public enum GlobalSearchRules {
         normalized(text).count >= minimumQueryLength
     }
 
-    /// Groups ranked results by heading. Shortcuts come first when any match; the other headings follow in the order their best row
-    /// appeared, so the server's ranking decides which group leads. A row keeps the server's order within its group, and a row the
-    /// server sent twice is shown once.
+    /// Groups ranked results by heading, in the order their best row appeared, so the server's ranking decides which group leads: a
+    /// controller named exactly comes before its pages. A row keeps the server's order within its group, and a row the server sent
+    /// twice is shown once.
     public static func sections(_ results: [GlobalSearchResult]) -> [GlobalSearchSection] {
         var seen = Set<String>()
         var order: [GlobalSearchGroup] = []
@@ -178,10 +178,6 @@ public enum GlobalSearchRules {
             let group = GlobalSearchGroup(kind: result.resultKind)
             if rows[group] == nil { order.append(group) }
             rows[group, default: []].append(result)
-        }
-        if let index = order.firstIndex(of: .shortcut), index != 0 {
-            order.remove(at: index)
-            order.insert(.shortcut, at: 0)
         }
         return order.map { GlobalSearchSection(group: $0, results: rows[$0] ?? []) }
     }

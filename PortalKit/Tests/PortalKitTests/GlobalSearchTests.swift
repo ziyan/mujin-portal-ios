@@ -64,15 +64,15 @@ import Testing
         #expect(try await nothing.globalSearch(query: "zzz").isEmpty)
     }
 
-    @Test func resultsAreGroupedWithShortcutsFirstAndTheServersOrderKept() {
+    @Test func resultsAreGroupedInTheServersOrder() {
         let rows = [
             result(.ticket, "12"), result(.controller, "controller01"), result(.shortcut, "settings.tokens"), result(.ticket, "13"),
             result(.directChat, "chatconv01"), result(.groupChat, "chatconv02"), result(.shortcut, "settings.vpn"),
         ]
         let sections = GlobalSearchRules.sections(rows)
-        #expect(sections.map(\.group) == [.shortcut, .ticket, .controller, .chat])
-        #expect(sections[0].results.map(\.id) == ["settings.tokens", "settings.vpn"])
-        #expect(sections[1].results.map(\.id) == ["12", "13"])
+        #expect(sections.map(\.group) == [.ticket, .controller, .shortcut, .chat])
+        #expect(sections[2].results.map(\.id) == ["settings.tokens", "settings.vpn"])
+        #expect(sections[0].results.map(\.id) == ["12", "13"])
         #expect(sections[3].results.map(\.id) == ["chatconv01", "chatconv02"])
     }
 
