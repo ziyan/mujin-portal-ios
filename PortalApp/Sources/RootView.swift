@@ -79,12 +79,12 @@ struct RootView: View {
         .fullScreenCover(item: $model.presentedWeb) { session in
             WebBrowserView(session: session) { model.presentedWeb = nil }
         }
-        .sheet(item: Binding(get: { model.openedCitation.map(IdentifiableCitation.init) }, set: { model.openedCitation = $0?.citation })) { item in
-            MemoryCitationSheet(citation: item.citation)
-                .environment(model)
-        }
         .fullScreenCover(item: $model.safariPage) { page in
-            SafariView(url: page.url).ignoresSafeArea()
+            if model.isDemo {
+                DemoSafariPage(url: page.url)
+            } else {
+                SafariView(url: page.url).ignoresSafeArea()
+            }
         }
         .alert(
             "Signed out", isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } }),

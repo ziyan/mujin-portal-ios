@@ -134,6 +134,7 @@ final class AppModel {
             return .handled
         }
         guard let account = activeAccount else { return .systemAction }
+        let url = LinkClassifier.absolute(url, server: account.server)
         // A controller's link address opens the approval here, not the web page.
         if case .link(let code) = ControllerLinkPayload.read(url, server: account.server) {
             linkRequest = ControllerLinkRequest(code: code)

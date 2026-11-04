@@ -352,7 +352,7 @@ struct MemoryCitationSheet: View {
     var body: some View {
         NavigationStack {
             MemoryPageView(reference: MemoryPageReference(path: citation.path, factNumber: citation.number))
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.accessibilityIdentifier("citationPageClose") } }
                 .navigationDestination(for: MoreDestination.self) { destination in
                     if case .memoryPage(let reference) = destination { MemoryPageView(reference: reference) }
                 }

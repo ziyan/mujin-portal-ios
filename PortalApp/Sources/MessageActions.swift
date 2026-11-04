@@ -40,7 +40,8 @@ struct HoldableMessage<Bubble: View>: View {
     var body: some View {
         bubble
             .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in bubbleWidth = width }
-            .onLongPressGesture(minimumDuration: 0.35) { present() }
+            // Simultaneous, so the press never competes with a tap on a link in the text for the same touch.
+            .simultaneousGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in present() })
             .accessibilityActions {
                 if let actions {
                     if let onReply = actions.onReply { Button("Reply", action: onReply) }

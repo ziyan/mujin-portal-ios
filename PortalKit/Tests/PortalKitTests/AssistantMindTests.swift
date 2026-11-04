@@ -67,6 +67,12 @@ import Testing
         #expect(linked.contains("`[[nor/this#2]]`"))
     }
 
+    @Test func aLinkWithTheNumberSignEncodedReadsBackToo() throws {
+        let citation = try #require(MemoryCitation(url: URL(string: "portal-memory:site/dock-3/doors%2312")!))
+        #expect(citation.path == "site/dock-3/doors")
+        #expect(citation.number == 12)
+    }
+
     @Test func aLinkReadsBackAsThePathAndFactNumber() throws {
         let citation = try #require(MemoryCitation(url: URL(string: "portal-memory:site/dock-3/doors#12")!))
         #expect(citation.path == "site/dock-3/doors")
