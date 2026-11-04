@@ -14,7 +14,7 @@ enum SearchDemo {
     /// The text a screen types into the search field.
     static func query(for screen: String?) -> String {
         if let screen, screen.hasPrefix(queryPrefix) { return String(screen.dropFirst(queryPrefix.count)) }
-        switch screen {
+        return switch screen {
         case "search-controller": "controller01"
         case "search-shortcuts": "notifications"
         case "search-no-results": "zzqx"
