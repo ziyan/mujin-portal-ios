@@ -71,7 +71,7 @@ enum SearchDemo {
         shortcut("page.help", "Help", "Pages", "/help", "help"),
     ]
 
-    /// Everything a typed word can match, shortcuts first and then the best rows of each kind.
+    /// Everything a typed word can match, best first.
     private static let rows: [Row] = [
         shortcut("page.notificationInbox", "Notification inbox", "Pages", "/notification", "notifications", "notifications bell unread mentions inbox"),
         shortcut("settings.notifications", "Notification preferences", "Account", "/settings/notifications", "notifications", "notifications email push alerts mute digest"),
@@ -79,11 +79,11 @@ enum SearchDemo {
         shortcut("settings.incidents", "Incident subscriptions", "Account", "/settings/incidents", "incidents", "incident notifications incident alerts"),
         shortcut("settings.tokens", "API tokens", "Security and access", "/settings/tokens", "tokens", "tokens access tokens api keys"),
         shortcut("settings.sessions", "Sessions", "Security and access", "/settings/sessions", "sessions", "devices sign out"),
+        Row(kind: "controller", id: "controller01", title: "controller01", subtitle: "Example Yard", path: "/controller/controller01"),
         shortcut("controller.alarms:controller01", "Alarms", "controller01", "/controller/controller01/alarms", "alarms", "controller01 alarms"),
         shortcut("controller.telemetry:controller01", "Telemetry", "controller01", "/controller/controller01/telemetry", "telemetry", "controller01 telemetry"),
         shortcut("controller.backups:controller01", "Backups", "controller01", "/controller/controller01/backups", "backups", "controller01 backups"),
         shortcut("controller.sync:controller01", "Sync", "controller01", "/controller/controller01/sync", "sync", "controller01 sync"),
-        Row(kind: "controller", id: "controller01", title: "controller01", subtitle: "Example Yard", path: "/controller/controller01"),
         Row(kind: "virtualController", id: "virtual01", title: "Training cell", subtitle: "Copy of controller01", path: "/virtualcontroller/virtual01"),
         Row(kind: "site", id: "site01", title: "Example Yard", subtitle: "Example Logistics", path: "/site/site01"),
         Row(kind: "camera", id: "camera01", title: "Dock door 2", subtitle: "Example Yard", path: "/surveillance/camera01"),
