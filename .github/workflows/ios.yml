@@ -134,7 +134,7 @@ jobs:
           xcrun simctl boot "${DEVICE}"
           xcrun simctl bootstatus "${DEVICE}" -b
           xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
-            -only-testing:MujinPortalUITests -parallel-testing-enabled NO -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO
+            -only-testing:MujinPortalUITests -test-iterations 5 -parallel-testing-enabled NO -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO
 
       - name: Keep the test results
         if: always()
