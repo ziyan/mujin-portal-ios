@@ -114,22 +114,22 @@ private struct WebAppGrid: View {
     var body: some View {
         TileGridLayout(minimumTileWidth: tileWidth, spacing: 12) {
             ForEach(apps) { app in
-                Button { open(app) } label: {
-                    VStack(spacing: 6) {
-                        WebAppIconView(app: app, size: iconSize)
-                        Text(app.displayName)
-                            .font(.caption)
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
+                VStack(spacing: 6) {
+                    WebAppIconView(app: app, size: iconSize)
+                    Text(app.displayName)
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+                // Tiles share one List row, so they are tap targets of their own and not Buttons (see RowControls.swift).
+                .rowTapTarget { open(app) }
+                .accessibilityElement(children: .combine)
                 .accessibilityLabel(Text(verbatim: app.displayName))
+                .accessibilityIdentifier("webApp.\(app.webAppId)")
             }
         }
         .padding(.vertical, 4)

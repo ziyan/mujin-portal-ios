@@ -33,6 +33,8 @@ final class SessionModel {
     private(set) var callBook = ChatCallBook()
     /// Whether a media host is alive. False hides the call buttons.
     private(set) var isChatCallAvailable = false
+    /// The most people a call holds, from the server.
+    private(set) var callMaximumPersonCount = ChatCallRules.maximumParticipants
     private var callFeedTask: Task<Void, Never>?
     /// Told when a ring on this account stopped, such as a call answered on another device.
     var onRingStopped: ((String) -> Void)?
@@ -76,6 +78,8 @@ final class SessionModel {
         self.avatars = AvatarStore(connection: connection, directory: directory)
         self.surveillance = SurveillanceModel(connection: connection, cache: cache, accountKey: account.accountKey)
         self.savedTabBar = tabBarStore.load(accountKey: account.accountKey)
+        // The screenshot of Surveillance as a tab is taken for someone who chose it, since the default bar no longer has it.
+        if DemoOptions.screen == "surveillance-tab" { savedTabBar = [AppSection.site.rawValue, AppSection.surveillance.rawValue] }
     }
 
     /// The sections on the tab bar, More last, for what the person may use now.
@@ -102,10 +106,10 @@ final class SessionModel {
     }
 
     /// A site screen's model lives as long as the session, so a push and a pop, or a switch of tabs, keeps its data.
-    func siteModel(for organizationId: String?, siteId: String? = nil) -> SiteModel {
-        let key = (organizationId ?? "") + (siteId.map { "|" + $0 } ?? "")
+    func siteModel(for organizationId: String?, siteId: String? = nil, cellId: String? = nil) -> SiteModel {
+        let key = SiteModel.sessionKey(organizationId: organizationId, siteId: siteId, cellId: cellId)
         if let existing = siteModels[key] { return existing }
-        let model = SiteModel(connection: connection, organizationId: organizationId, pinnedSiteId: siteId, cache: cache, accountKey: account.accountKey, onError: onError)
+        let model = SiteModel(connection: connection, organizationId: organizationId, pinnedSiteId: siteId, cellId: cellId, cache: cache, accountKey: account.accountKey, onError: onError)
         model.viewerIsMujinUser = isStaff
         model.viewerPermissions = profile?.me.permissions ?? []
         model.viewerOrganizationId = self.organizationId
@@ -265,6 +269,7 @@ final class SessionModel {
     func refreshCalls() async {
         guard capabilities.offersChatCalls else { return }
         isChatCallAvailable = await connection.isChatCallAvailable()
+        callMaximumPersonCount = await connection.chatCallMaximumPersonCount()
         if let calls = try? await connection.goingChatCalls() { callBook.replaceAll(calls) }
     }
 
@@ -409,6 +414,7 @@ enum DemoOptions {
     /// The tab to open on, from `section:<name>`.
     static var section: AppSection? {
         guard let screen else { return nil }
+        if SearchDemo.owns(screen) { return .search }
         if screen.hasPrefix("more-") { return .more }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         if AccountDemo.owns(screen) || PlatformDemo.owns(screen) { return .more }
@@ -419,7 +425,7 @@ enum DemoOptions {
         if screen.hasPrefix("site-staff") || screen == "sites-staff" || screen == "surveillance-staff" { return .site }
         if screen == "surveillance" { return .more }
         if screen == "surveillance-tab" { return .surveillance }
-        if screen.hasPrefix("site") || screen.hasPrefix("incident") || screen.hasPrefix("controller") || screen.hasPrefix("virtual-controller") || screen.hasPrefix("camera") { return .site }
+        if screen.hasPrefix("site") || screen.hasPrefix("cell") || screen.hasPrefix("incident") || screen.hasPrefix("controller") || screen.hasPrefix("virtual-controller") || screen.hasPrefix("camera") { return .site }
         return nil
     }
 

@@ -168,23 +168,40 @@ final class AttachmentDrafts {
             preview: PictureEncoder.thumbnail(encoded.data))
     }
 
-    /// Adds the picture on the clipboard, if there is one.
+    /// Adds the pictures on the clipboard, if there are any. Used by the Paste picture menu item, which attaches only.
     func pastePicture() {
-        guard let data = Self.clipboardPictureData() else { return }
-        loadingCount += 1
-        Task {
-            await addPicture(data: data, source: .pasted)
-            loadingCount -= 1
-        }
+        Task { _ = await paste(itemProviders: UIPasteboard.general.itemProviders) }
     }
 
-    /// The clipboard's picture as the bytes it was copied with, so a JPEG or PNG keeps its format.
-    private static func clipboardPictureData() -> Data? {
-        let board = UIPasteboard.general
-        for identifier in [UTType.jpeg.identifier, UTType.png.identifier, UTType.heic.identifier] {
-            if let data = board.data(forPasteboardType: identifier) { return data }
+    /// Attaches the pictures among the item providers a Paste or a drop hands over, as many as the message has room
+    /// for, each as a placeholder at once and a thumbnail when it is shrunk. Returns the text that came with them
+    /// and should be typed into the message, nil when there is none or it only names a picture (see PasteRule).
+    func paste(itemProviders: [NSItemProvider]) async -> String? {
+        let pictureProviders = itemProviders.filter(PastedPictures.isPicture)
+        guard !pictureProviders.isEmpty else { return nil }
+        let alreadyAttached = items.count + loadingCount
+        let attachable = Array(pictureProviders.prefix(PasteRule.attachableCount(pictureCount: pictureProviders.count, alreadyAttached: alreadyAttached)))
+        loadingCount += attachable.count
+        let hasLeftOut = attachable.count < pictureProviders.count
+        Task {
+            for provider in attachable {
+                if let data = await PastedPictures.data(from: provider) {
+                    await addPicture(data: data, source: .pasted)
+                } else {
+                    errorText = String(localized: "That picture could not be read.")
+                }
+                loadingCount -= 1
+            }
+            if hasLeftOut { errorText = AttachmentLimits.refusal(name: "", byteCount: 0, alreadyAttached: AttachmentLimits.maximumFileCount) }
         }
-        return board.image?.pngData()
+        var texts: [String] = []
+        for provider in itemProviders {
+            if let text = await PastedPictures.text(from: provider) { texts.append(text) }
+        }
+        return PasteRule.decide(
+            pictureCount: pictureProviders.count, texts: texts, pictureNames: itemProviders.compactMap(\.suggestedName),
+            alreadyAttached: alreadyAttached
+        ).textToInsert
     }
 
     func addFiles(from result: Result<[URL], Error>) {

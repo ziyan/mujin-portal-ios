@@ -92,6 +92,16 @@ public enum CameraQuality: String, CaseIterable, Equatable, Sendable {
         }
     }
 
+    /// The channel to ask the playback route for. An NVR records the sharpest and the least sharp channel of a camera and none in between,
+    /// so a middle channel has live video and no recording: its playback socket is closed with "no recorded footage" for any window. Low
+    /// plays the least sharp recording and the other two play the sharpest.
+    public func recordedChannelId(of channels: [CameraChannel]?) -> Int {
+        switch self {
+        case .low: return channelId(of: channels)
+        case .medium, .high: return CameraQuality.high.channelId(of: channels)
+        }
+    }
+
     /// The qualities a camera offers: one per distinct channel, so a camera with a single stream offers none to choose.
     public static func offered(by channels: [CameraChannel]?) -> [CameraQuality] {
         let count = enabledChannels(channels).count
@@ -116,8 +126,8 @@ extension Documents {
         """
 
     public static let listCameras = """
-        query ListCameras($siteId: String, $controllerId: String) {
-          ListCameras(siteId: $siteId, controllerId: $controllerId) { cameras { \(cameraFields) } }
+        query ListCameras($siteId: String, $controllerId: String, $cellId: String) {
+          ListCameras(siteId: $siteId, controllerId: $controllerId, cellId: $cellId) { cameras { \(cameraFields) } }
         }
         """
 
@@ -140,12 +150,13 @@ extension Documents {
 
 extension Connection {
     /// The cameras of a site, the ones that can be streamed first and then by name.
-    public func cameras(siteId: String) async throws -> [Camera] {
+    /// The site's cameras, or with `cellId` the cell's own: the server answers from the cell's camera membership, which can include cameras on controllers outside the cell.
+    public func cameras(siteId: String, cellId: String? = nil) async throws -> [Camera] {
         struct Answer: Decodable, Sendable {
             struct List: Decodable, Sendable { let cameras: [Lossy<Camera>?]? }
             let ListCameras: List?
         }
-        let rows = try await execute(Documents.listCameras, variables: ["siteId": .string(siteId)], as: Answer.self).ListCameras?.cameras ?? []
+        let rows = try await execute(Documents.listCameras, variables: Self.siteScope(siteId: siteId, cellId: cellId), as: Answer.self).ListCameras?.cameras ?? []
         return CameraOrdering.ordered(rows.compactMap { $0?.value })
     }
 

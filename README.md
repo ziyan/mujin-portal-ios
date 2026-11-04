@@ -24,9 +24,20 @@ flag (falling back to the permissions):
 | | Customers | Organization picker, then its sites and tickets |
 | More | More | Notifications, settings, automations, about, sign out |
 
-On a wide iPad window the tabs become a sidebar. Features that depend on a
+The default bar is Chat, Sites and Tickets, then More, with Search set apart at the trailing end (a person may choose two
+tabs besides Chat, so a phone never shows more than five). Surveillance lives under More and in search, and a person who put it
+on the bar keeps it. On a wide iPad window the tabs become a sidebar. Features that depend on a
 newer server are built against its contract and shown only when the server
 offers the operation (`ServerCapabilities` reads the schema once per sign-in).
+
+## Search
+
+The Search tab asks the server the same `GlobalSearch` query as the Portal web app's Ctrl-K palette, after a pause in typing, so
+both show the same rows under the same names: controllers, virtual controllers, sites, cells, cameras, organizations, people,
+chats, assistant conversations, tickets, releases, pages and incidents, with shortcuts to settings and other screens first when
+they match. An empty field lists the rows opened before (kept on the phone, per account) and the shortcuts the server suggests.
+A row opens through the same `PortalLink` mapping as a link tapped in a chat: the app's own screen where there is one, and
+otherwise the page in the built-in browser, signed in. Search is shown as unavailable on a server that does not have the query.
 
 ## Cameras
 
@@ -35,7 +46,7 @@ recording from just before it was detected. Video is decoded by the system, not 
 camera's fragmented MP4 stream (H.264 or H.265) is cut into frames by PortalKit and shown by an
 `AVSampleBufferDisplayLayer`, whose clock gives pause and speed. The timeline, the date jump and
 shared clips use the NVR's own clock and say so. Recorded playback uses the controller's playback
-websocket only, a minute at a time; a controller too old to have the route (its upgrade is answered with a web page) says so and offers a clip download; clips from `video/export` are only downloaded to be shared. Sound
+websocket only, a minute at a time, on a channel the NVR records (the sharpest or the least sharp, never the middle one); a controller too old to have the route (its upgrade is answered with a web page) says so and offers a clip download; clips from `video/export` are only downloaded to be shared. Sound
 starts off; the speaker button on the camera screen plays the stream's AAC track on the same clock,
 and the audio session is only taken while sound is on. The demo server plays a generated test pattern
 (`PortalApp/Resources/DemoCamera.mp4`, made with a software encoder; nothing recorded by a camera).
@@ -148,6 +159,7 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
   offer goes out once the phone's candidates are gathered. Incoming calls ring through CallKit from a PushKit VoIP push (the second
   token, `voipToken`, goes to the server with the alert token); the audio session is CallKit's and WebRTC takes it only when CallKit
   activates it. A call can be minimized to a bar over every tab.
+- **Video selection.** The phone sends one video track in two simulcast layers (rid `small` at a quarter size, 150 kbps, 15 fps; rid `full` up to 720p, 1.5 Mbps, 30 fps), VP8 preferred, H.264 allowed. It tells the server how much of each person's video it wants (`SetChatCallVideoSubscriptions`): full for the main stage, small for strip tiles in view, off for tiles scrolled out and for everyone while the call is minimized. The plan is sent once the media is up, again after a reconnect, and after every change, debounced by 300 ms. A call's size limit comes from `GetChatCallMaximumPersonCount`.
 - **Without a server that has them**, none of it shows: `ServerCapabilities` reads the schema once per sign-in.
 
 ## TestFlight

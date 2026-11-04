@@ -31,6 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - run: scripts/check-public-content.sh
+      - run: scripts/check-row-controls.sh
 
   # Whether a pull request touches the app. A required check that never
   # reports holds a pull request forever, so the workflow runs on every one
@@ -254,6 +255,10 @@ jobs:
           shoot site-members site-members
           shoot site-controllers site-controllers
           shoot site-back site-back
+          shoot site-cells site-cells
+          shoot cell cell
+          shoot cell-lower cell-lower
+          shoot cell-empty cell-empty
           shoot site-staff site-staff staff
           shoot site-staff-controllers site-staff-controllers staff
           shoot site-loading site-loading
@@ -266,6 +271,7 @@ jobs:
           shoot camera-share camera-share
           shoot camera-sound camera-sound
           shoot camera-unsupported camera-unsupported
+          shoot camera-unreachable camera-unreachable
           shoot notifications notifications
           shoot about about
           shoot sites-staff sites-staff staff
@@ -315,6 +321,10 @@ jobs:
           shoot tab-bar tab-bar
           shoot tab-bar-staff tab-bar staff
           shoot surveillance-tab surveillance-tab
+          shoot search search
+          shoot search-controller search-controller staff
+          shoot search-shortcuts search-shortcuts
+          shoot search-no-results search-no-results
           shoot settings settings
           shoot settings-staff settings staff
           shoot tab-bar-edit tab-bar-edit
@@ -351,6 +361,11 @@ jobs:
           shoot call-minimized call-minimized
           shoot call-picker call-picker
           shoot call-ring-more call-ring-more
+          shoot call-ringing call-ringing
+          shoot call-two call-two
+          shoot call-three call-three
+          shoot call-five call-five
+          shoot call-twelve call-twelve
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
           shoot virtual-controller-dark virtual-controller
@@ -385,6 +400,10 @@ jobs:
           shoot site-alarms-dark site-alarms
           shoot site-alarm-detail-dark site-alarm-detail
           shoot site-alarm-metadata-dark site-alarm-metadata
+          shoot site-cells-dark site-cells
+          shoot cell-dark cell
+          shoot cell-lower-dark cell-lower
+          shoot cell-empty-dark cell-empty
           shoot site-staff-dark site-staff staff
           shoot release-dark release
           shoot voice-dark voice
@@ -395,6 +414,7 @@ jobs:
           shoot camera-recorded-dark camera-recorded
           shoot camera-sound-dark camera-sound
           shoot camera-unsupported-dark camera-unsupported
+          shoot camera-unreachable-dark camera-unreachable
           shoot chat-dark chat:chatconv01
           shoot chats-dark chats
           shoot speaks-first-dark conversation:conversation06
@@ -432,6 +452,10 @@ jobs:
           shoot more-staff-dark section:more staff
           shoot tab-bar-dark tab-bar
           shoot surveillance-tab-dark surveillance-tab
+          shoot search-dark search
+          shoot search-controller-dark search-controller staff
+          shoot search-shortcuts-dark search-shortcuts
+          shoot search-no-results-dark search-no-results
           shoot settings-dark settings
           shoot tab-bar-edit-dark tab-bar-edit
           shoot tab-bar-edit-staff-dark tab-bar-edit staff
@@ -454,6 +478,11 @@ jobs:
           shoot call-minimized-dark call-minimized
           shoot call-picker-dark call-picker
           shoot call-ring-more-dark call-ring-more
+          shoot call-ringing-dark call-ringing
+          shoot call-two-dark call-two
+          shoot call-three-dark call-three
+          shoot call-five-dark call-five
+          shoot call-twelve-dark call-twelve
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
@@ -490,12 +519,17 @@ jobs:
           shoot large-text-site-alarms site-alarms
           shoot large-text-site-alarm-detail site-alarm-detail
           shoot large-text-site-alarm-metadata site-alarm-metadata
+          shoot large-text-site-cells site-cells
+          shoot large-text-cell cell
+          shoot large-text-cell-lower cell-lower
+          shoot large-text-cell-empty cell-empty
           shoot large-text-cameras cameras
           shoot large-text-cameras-failed cameras-failed
           shoot large-text-camera camera
           shoot large-text-camera-recorded camera-recorded
           shoot large-text-camera-sound camera-sound
           shoot large-text-camera-unsupported camera-unsupported
+          shoot large-text-camera-unreachable camera-unreachable
           shoot large-text-chat chat:chatconv01
           shoot large-text-speaks-first conversation:conversation06
           shoot large-text-goals goals
@@ -514,6 +548,10 @@ jobs:
           shoot large-text-more-staff section:more staff
           shoot large-text-tab-bar tab-bar
           shoot large-text-surveillance-tab surveillance-tab
+          shoot large-text-search search
+          shoot large-text-search-controller search-controller staff
+          shoot large-text-search-shortcuts search-shortcuts
+          shoot large-text-search-no-results search-no-results
           shoot large-text-settings settings
           shoot large-text-tab-bar-edit tab-bar-edit
           shoot large-text-tab-bar-edit-staff tab-bar-edit staff
@@ -537,6 +575,11 @@ jobs:
           shoot large-text-call-minimized call-minimized
           shoot large-text-call-picker call-picker
           shoot large-text-call-ring-more call-ring-more
+          shoot large-text-call-ringing call-ringing
+          shoot large-text-call-two call-two
+          shoot large-text-call-three call-three
+          shoot large-text-call-five call-five
+          shoot large-text-call-twelve call-twelve
 
       - name: Keep the screenshots
         if: always()
@@ -544,6 +587,52 @@ jobs:
         with:
           name: screenshots-${{ matrix.family }}
           path: screenshots
+
+  # A screenshot cannot show a transition, so this records the simulator while
+  # the demo pushes the Sites list into a search screen and pops back, in dark
+  # and in light. Look at the frames: the search field keeps its fill throughout.
+  transition:
+    name: Transition recording
+    needs: app
+    runs-on: macos-26
+    continue-on-error: true
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: simulator-app
+          path: build/MujinPortal.app
+
+      - name: Record the push and pop
+        run: |
+          mkdir -p recordings
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone [0-9]+ Pro \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          xcrun simctl boot "${DEVICE}"
+          xcrun simctl bootstatus "${DEVICE}" -b
+          xcrun simctl install "${DEVICE}" build/MujinPortal.app
+          for APPEARANCE in dark light; do
+            xcrun simctl ui "${DEVICE}" appearance "${APPEARANCE}"
+            sleep 3
+            # The first recording after a boot or an appearance change can stop within seconds, so a clip
+            # under a megabyte is recorded again.
+            for ATTEMPT in 1 2 3; do
+              xcrun simctl io "${DEVICE}" recordVideo --codec h264 --force "recordings/push-pop-${APPEARANCE}.mp4" &
+              RECORDER=$!
+              sleep 3
+              SIMCTL_CHILD_PORTAL_DEMO_SCREEN=sites-push-pop SIMCTL_CHILD_PORTAL_DEMO_PERSONA=staff xcrun simctl launch "${DEVICE}" com.ziyan.mujinportal -demo
+              sleep 22
+              kill -INT "${RECORDER}" || true
+              wait "${RECORDER}" || true
+              xcrun simctl terminate "${DEVICE}" com.ziyan.mujinportal
+              [ "$(stat -f%z "recordings/push-pop-${APPEARANCE}.mp4")" -gt 1000000 ] && break
+            done
+          done
+
+      - name: Keep the recordings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: transition-recordings
+          path: recordings
 
   # Signs the app and uploads it to App Store Connect, where it appears in
   # TestFlight once Apple has processed it (usually 10 to 30 minutes). Run it

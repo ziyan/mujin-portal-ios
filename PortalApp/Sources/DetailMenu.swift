@@ -123,9 +123,11 @@ private struct LinkCopiedToast: ViewModifier {
     }
 }
 
-/// OpenedLink is a page of Portal that a tapped link asked for, shown in a sheet over whatever the person was reading.
+/// OpenedLink is a page of Portal that a tapped link or a search result asked for, shown over whatever the person was reading.
 struct OpenedLink: Identifiable, Equatable {
     let link: PortalLink
+    /// The organization the page belongs to when it is not the person's own, such as a search result of a Mujin user.
+    var organizationId: String?
     var id: PortalLink { link }
 }
 
@@ -135,15 +137,17 @@ struct LinkedPageSheet: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
     @Environment(\.dismiss) private var dismiss
-    let link: PortalLink
+    let opened: OpenedLink
 
     private enum Phase {
         case loading
-        case loaded(PortalRoute)
+        case loaded(LinkedScreen)
         case failed(String)
     }
 
     @State private var phase = Phase.loading
+
+    private var link: PortalLink { opened.link }
 
     var body: some View {
         NavigationStack {
@@ -151,8 +155,10 @@ struct LinkedPageSheet: View {
                 switch phase {
                 case .loading:
                     ProgressView()
-                case .loaded(let route):
+                case .loaded(.route(let route)):
                     PortalRouteView(route: route)
+                case .loaded(.more(let destination)):
+                    MoreDestinationView(destination: destination)
                 case .failed(let message):
                     ContentUnavailableView {
                         Label("Could not open this page", systemImage: "exclamationmark.triangle")
@@ -169,22 +175,33 @@ struct LinkedPageSheet: View {
                 }
             }
             .portalDestinations()
+            .navigationDestination(for: MoreDestination.self) { destination in
+                MoreDestinationView(destination: destination)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.accessibilityIdentifier("linkedPageClose") }
             }
         }
-        .task(id: link) { await resolve() }
+        .task(id: opened) { await resolve() }
     }
 
     private func resolve() async {
         phase = .loading
+        if case .screen(let screen) = session.resolution(for: link, organizationId: opened.organizationId) {
+            phase = .loaded(screen)
+            return
+        }
         let connection = appModel.connection(for: session.account)
         do {
             switch link {
-            case .ticket(let sequence): phase = .loaded(.ticket(id: try await connection.ticket(sequence: sequence).id))
-            case .controller(let id): phase = .loaded(.controller(try await connection.controller(id: id)))
-            case .virtualController(let id): phase = .loaded(.virtualController(try await connection.virtualController(id: id)))
-            case .release(let id): phase = .loaded(.release(id: id))
+            case .ticket(let sequence): phase = .loaded(.route(.ticket(id: try await connection.ticket(sequence: sequence).id)))
+            case .controller(let id): phase = .loaded(.route(.controller(try await connection.controller(id: id))))
+            case .virtualController(let id): phase = .loaded(.route(.virtualController(try await connection.virtualController(id: id))))
+            case .camera(let id):
+                guard let camera = try await connection.camera(id: id) else { throw PortalError.refused("Camera not found.") }
+                phase = .loaded(.route(.camera(CameraTarget(camera: camera))))
+            case .incident(let id): phase = .loaded(.route(.incident(try await connection.incident(id: id))))
+            default: throw PortalError.refused("The app has no screen for this page.")
             }
         } catch {
             appModel.handle(error, account: session.account)
