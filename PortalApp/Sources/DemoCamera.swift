@@ -134,6 +134,14 @@ final class DemoCameraSocket: CameraSocket, @unchecked Sendable {
                 $0.end = .refused(statusCode: 503)
             }
         }
+        // The failed-picture screenshot has two cameras whose live stream is refused, as their snapshots are.
+        if live, ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "cameras-failed", url.path.hasSuffix("/nvrcamera02") || url.path.hasSuffix("/nvrcamera03") {
+            state.withValue {
+                $0.queue = []
+                $0.isClosed = true
+                $0.end = .refused(statusCode: 403)
+            }
+        }
         // Like a real NVR, which records the sharpest and the least sharp channel only: asked for the middle one it closes the socket.
         if !live, value("channel") == 1 {
             state.withValue {
