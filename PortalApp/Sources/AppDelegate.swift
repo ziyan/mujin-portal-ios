@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     private var isDemo: Bool { ProcessInfo.processInfo.arguments.contains("-demo") }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        SearchFieldFill.install()
         if !isDemo {
             let backend = LiveShareBackend()
             shareBackend = backend
