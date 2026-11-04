@@ -103,7 +103,7 @@ struct MainTabsView: View {
             if !appModel.isDemo {
                 newSession.startNotificationFeed(socketFactory: appModel.socketFactory)
                 newSession.startCallFeed(socketFactory: appModel.socketFactory)
-                newSession.onRingStopped = { [appModel] callId in appModel.callCenter.stopRinging(callId: callId) }
+                newSession.onRingStopped = { [appModel = self.appModel] callId in appModel.callCenter.stopRinging(callId: callId) }
                 if let route = appModel.takeRoute(for: account) { newSession.open(route) }
             }
             var start = DemoOptions.section ?? Navigation.home(for: newSession.persona)
@@ -166,6 +166,12 @@ struct MainTabsView: View {
         }
     }
 
+    private func closeSheets(_ session: SessionModel) {
+        appModel.openedLink = nil
+        appModel.openedCitation = nil
+        session.isShowingNotifications = false
+    }
+
     private func tabBar(_ session: SessionModel) -> some View {
         let chosenSections = session.tabSections.filter { $0 != .search }
         return TabView(selection: Binding(get: { session.selectedSection }, set: { session.selectedSection = $0 })) {
@@ -207,23 +213,32 @@ struct MainTabsView: View {
                 CallBar(center: appModel.callCenter, call: call)
             }
         }
-        .fullScreenCover(isPresented: Binding(get: { appModel.callCenter.isScreenShown }, set: { appModel.callCenter.isScreenShown = $0 })) {
+        // These show over the top screen, so an incoming call, a link or the inbox shows even while a sheet is up.
+        .topPresentation(isPresented: Binding(get: { appModel.callCenter.isScreenShown }, set: { appModel.callCenter.isScreenShown = $0 }), style: .fullScreen) { [appModel = self.appModel] in
             CallScreen(center: appModel.callCenter)
-                .environment(session)
+                .modifier(HostedEnvironment(appModel: appModel, session: session))
         }
-        .sheet(isPresented: Binding(get: { session.isShowingNotifications }, set: { session.isShowingNotifications = $0 })) {
+        .topPresentation(isPresented: Binding(get: { session.isShowingNotifications }, set: { session.isShowingNotifications = $0 }), style: .pageSheet) { [appModel = self.appModel] in
             NotificationsView()
-                .environment(session)
+                .modifier(HostedEnvironment(appModel: appModel, session: session))
         }
-        .fullScreenCover(item: Binding(get: { appModel.linkRequest }, set: { appModel.linkRequest = $0 })) { request in
+        .topPresentation(item: Binding(get: { appModel.linkRequest }, set: { appModel.linkRequest = $0 }), style: .fullScreen) { [appModel = self.appModel] request in
             LinkControllerView(request: request)
-                .environment(session)
+                .modifier(HostedEnvironment(appModel: appModel, session: session))
         }
-        .sheet(item: linkSheetBinding(session)) { opened in
+        .topPresentation(item: linkSheetBinding(session), style: .pageSheet) { [appModel = self.appModel] opened in
             LinkedPageSheet(opened: opened)
-                .environment(appModel)
-                .environment(session)
+                .modifier(HostedEnvironment(appModel: appModel, session: session))
         }
+        // Beside the linked page: a memory page reads the signed-in session, which RootView does not have.
+        .topPresentation(item: Binding(get: { appModel.openedCitation.map(IdentifiableCitation.init) }, set: { appModel.openedCitation = $0?.citation }), style: .pageSheet) { [appModel = self.appModel] item in
+            MemoryCitationSheet(citation: item.citation)
+                .modifier(HostedEnvironment(appModel: appModel, session: session))
+        }
+        // The person asked to go to a tab or a conversation, such as "Ask about" on a page in a sheet: the sheet is over it.
+        .onChange(of: session.selectedSection) { _, _ in closeSheets(session) }
+        .onChange(of: session.conversationToOpen) { _, conversationId in if conversationId != nil { closeSheets(session) } }
+        .onChange(of: session.composeRequest != nil) { _, isComposing in if isComposing { closeSheets(session) } }
         .onChange(of: appModel.openedLink, initial: true) { _, opened in
             if let opened { routeLink(opened, session) }
         }
