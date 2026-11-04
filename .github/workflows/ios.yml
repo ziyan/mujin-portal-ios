@@ -321,6 +321,8 @@ jobs:
           shoot tab-bar tab-bar
           shoot tab-bar-staff tab-bar staff
           shoot surveillance-tab surveillance-tab
+          shoot surveillance-many surveillance-many
+          shoot surveillance-many-scrolled surveillance-many-scrolled
           shoot search search
           shoot search-controller search-controller staff
           shoot search-shortcuts search-shortcuts
@@ -452,6 +454,8 @@ jobs:
           shoot more-staff-dark section:more staff
           shoot tab-bar-dark tab-bar
           shoot surveillance-tab-dark surveillance-tab
+          shoot surveillance-many-dark surveillance-many
+          shoot surveillance-many-scrolled-dark surveillance-many-scrolled
           shoot search-dark search
           shoot search-controller-dark search-controller staff
           shoot search-shortcuts-dark search-shortcuts
@@ -548,6 +552,7 @@ jobs:
           shoot large-text-more-staff section:more staff
           shoot large-text-tab-bar tab-bar
           shoot large-text-surveillance-tab surveillance-tab
+          shoot large-text-surveillance-many-scrolled surveillance-many-scrolled
           shoot large-text-search search
           shoot large-text-search-controller search-controller staff
           shoot large-text-search-shortcuts search-shortcuts

@@ -134,12 +134,16 @@ final class DemoCameraSocket: CameraSocket, @unchecked Sendable {
                 $0.end = .refused(statusCode: 503)
             }
         }
-        // The failed-picture screenshot has two cameras whose live stream is refused, as their snapshots are.
-        if live, ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "cameras-failed", url.path.hasSuffix("/nvrcamera02") || url.path.hasSuffix("/nvrcamera03") {
-            state.withValue {
-                $0.queue = []
-                $0.isClosed = true
-                $0.end = .refused(statusCode: 403)
+        // The failed-picture screenshot has one camera whose live stream Portal refuses, as it refuses its snapshot, and one whose controller
+        // does not answer, which is retried.
+        if live, ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "cameras-failed" {
+            let refusal = url.path.hasSuffix("/nvrcamera03") ? 403 : (url.path.hasSuffix("/nvrcamera02") ? 503 : nil)
+            if let refusal {
+                state.withValue {
+                    $0.queue = []
+                    $0.isClosed = true
+                    $0.end = .refused(statusCode: refusal)
+                }
             }
         }
         // Like a real NVR, which records the sharpest and the least sharp channel only: asked for the middle one it closes the socket.
@@ -260,8 +264,18 @@ enum DemoCameras {
         ]
     }
 
+    /// More cameras than the wall streams at once, for the screenshots of a long wall.
+    static var many: [[String: Any]] {
+        (1...20).map { number in
+            camera(String(format: "camera%02d", 20 + number), String(format: "nvrcamera%02d", 20 + number), "Dock bay \(number)", isOnline: true)
+        }
+    }
+
+    /// Whether this run shows a wall of more cameras than the limit of streams.
+    static var isLongWall: Bool { DemoOptions.screen == "surveillance-many" || DemoOptions.screen == "surveillance-many-scrolled" }
+
     /// Every camera of the demo, in the order the pictures are varied.
-    static var everything: [[String: Any]] { all + others }
+    static var everything: [[String: Any]] { all + others + (isLongWall ? many : []) }
 
     static func respond(operation: String, variables: [String: Any]) -> [String: Any]? {
         switch operation {
