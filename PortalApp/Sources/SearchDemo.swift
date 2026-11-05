@@ -78,6 +78,8 @@ enum SearchDemo {
     /// Everything a typed word can match, best first.
     private static let rows: [Row] = [
         shortcut("page.notificationInbox", "Notification inbox", "Pages", "/notification", "notifications", "notifications bell unread mentions inbox"),
+        shortcut("page.help", "Help", "Pages", "/help", "help", "help documentation guides"),
+        shortcut("assistant.dreams", "Dreams", "Assistant", "/agent/knowledge?view=dreams", "knowledge", "dreaming memory consolidation"),
         shortcut("settings.notifications", "Notification preferences", "Account", "/settings/notifications", "notifications", "notifications email push alerts mute digest"),
         shortcut("settings.alarms", "Alarm subscriptions", "Account", "/settings/alarms", "alarms", "alarm notifications alarm alerts controller alarms"),
         shortcut("settings.incidents", "Incident subscriptions", "Account", "/settings/incidents", "incidents", "incident notifications incident alerts"),
