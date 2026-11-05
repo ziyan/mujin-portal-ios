@@ -62,13 +62,27 @@ enum DemoApp {
     /// Brings the element into the tap band, scrolling the page up or down, and returns once it is still and hittable.
     static func scrollToElement(_ element: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(element.waitForExistence(timeout: 90), "\(element) never appeared", file: file, line: line)
-        for _ in 0..<15 {
+        for attempt in 0..<15 {
             if isInTapBand(element, in: app), waitUntilStill(element), isInTapBand(element, in: app), waitUntilHittable(element) { return }
             guard element.exists else { continue }
             let window = app.windows.firstMatch.frame
-            if element.frame.midY <= window.minY + window.height * 0.15 { app.swipeDown() } else { app.swipeUp() }
+            let isAboveBand = element.frame.midY <= window.minY + window.height * 0.15
+            if attempt >= 4 {
+                dragPage(app, isUp: !isAboveBand)
+            } else if isAboveBand {
+                app.swipeDown()
+            } else {
+                app.swipeUp()
+            }
         }
         XCTFail("\(element) could not be scrolled into the tap band", file: file, line: line)
+    }
+
+    /// A short drag that stops where it ends: a swipe can carry a page past the band in both directions, as in a sheet.
+    private static func dragPage(_ app: XCUIApplication, isUp: Bool) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isUp ? 0.65 : 0.4))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isUp ? 0.4 : 0.65))
+        start.press(forDuration: 0.05, thenDragTo: end)
     }
 
     /// Goes back one screen with the back button of the screen on top.
