@@ -1,5 +1,4 @@
 import PortalKit
-import StoreKit
 import SwiftUI
 import UIKit
 
@@ -30,7 +29,7 @@ final class AppUpdateModel {
         if let lastCheckedAt, Date().timeIntervalSince(lastCheckedAt) < Self.checkIntervalSeconds { return }
         isChecking = true
         defer { isChecking = false }
-        guard let channel = await Self.detectChannel(), let installed = InstalledApp(infoDictionary: Bundle.main.infoDictionary),
+        guard let channel = Self.detectChannel(), let installed = InstalledApp(infoDictionary: Bundle.main.infoDictionary),
             let address = AppUpdateSource.requestUrl(
                 channel: channel, bundleIdentifier: Bundle.main.bundleIdentifier, region: Locale.current.region?.identifier)
         else { return }
@@ -60,14 +59,15 @@ final class AppUpdateModel {
         isDismissed = newest.map { AppUpdateDismissal.isDismissed($0) } ?? false
     }
 
-    /// TestFlight builds run in the sandbox environment, App Store copies in production, and a build from Xcode in neither.
-    private static func detectChannel() async -> AppUpdateChannel? {
-        guard let transaction = try? await AppTransaction.shared else { return nil }
-        switch transaction.unsafePayloadValue.environment {
-        case .production: return .appStore
-        case .sandbox: return .testFlight
-        default: return nil
-        }
+    /// Which store this copy came from. A simulator has no store, whatever its receipt path says.
+    private static func detectChannel() -> AppUpdateChannel? {
+        #if targetEnvironment(simulator)
+            return nil
+        #else
+            return AppUpdateChannel(
+                hasProvisioningProfile: Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision") != nil,
+                receiptName: Bundle.main.appStoreReceiptURL?.lastPathComponent)
+        #endif
     }
 }
 

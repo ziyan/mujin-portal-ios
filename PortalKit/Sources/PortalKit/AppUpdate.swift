@@ -5,6 +5,20 @@ import Foundation
 public enum AppUpdateChannel: String, Sendable {
     case testFlight
     case appStore
+
+    /// Reads the channel from what the install left in the app, which asks nobody anything. StoreKit's app transaction would say
+    /// the same, but asking for it can show a system prompt to sign in to an Apple Account.
+    ///
+    /// A build from Xcode carries its provisioning profile; the two store channels do not. TestFlight names its receipt
+    /// `sandboxReceipt` and the App Store `receipt`.
+    public init?(hasProvisioningProfile: Bool, receiptName: String?) {
+        guard !hasProvisioningProfile else { return nil }
+        switch receiptName {
+        case "sandboxReceipt": self = .testFlight
+        case "receipt": self = .appStore
+        default: return nil
+        }
+    }
 }
 
 /// InstalledApp is the version and build of the running app.
