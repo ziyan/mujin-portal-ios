@@ -76,15 +76,20 @@ struct RootView: View {
         .onChange(of: model.activeAccount?.accountKey) { _, _ in model.scenePhaseChanged(isActive: scenePhase == .active) }
         .background(TouchActivityProbe { model.touched() })
         .environment(\.openURL, OpenURLAction { url in model.handleLink(url) })
-        .fullScreenCover(item: $model.presentedWeb) { session in
+        // Over the top screen, not over this one: a sheet that is up would stop a cover from here from showing.
+        .topPresentation(item: $model.presentedWeb, style: .fullScreen) { [model] session in
             WebBrowserView(session: session) { model.presentedWeb = nil }
+                .modifier(HostedEnvironment(appModel: model, session: nil))
         }
-        .sheet(item: Binding(get: { model.openedCitation.map(IdentifiableCitation.init) }, set: { model.openedCitation = $0?.citation })) { item in
-            MemoryCitationSheet(citation: item.citation)
-                .environment(model)
-        }
-        .fullScreenCover(item: $model.safariPage) { page in
-            SafariView(url: page.url).ignoresSafeArea()
+        .topPresentation(item: $model.safariPage, style: .fullScreen) { [model] page in
+            Group {
+                if model.isDemo {
+                    DemoSafariPage(url: page.url)
+                } else {
+                    SafariView(url: page.url).ignoresSafeArea()
+                }
+            }
+            .modifier(HostedEnvironment(appModel: model, session: nil))
         }
         .alert(
             "Signed out", isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } }),

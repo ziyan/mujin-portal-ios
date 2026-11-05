@@ -6,11 +6,15 @@ import PortalKit
 enum SearchDemo {
     static let screens: Set<String> = ["search", "search-controller", "search-shortcuts", "search-no-results"]
 
-    static func owns(_ screen: String?) -> Bool { screen.map { screens.contains($0) } ?? false }
+    static func owns(_ screen: String?) -> Bool { screen.map { screens.contains($0) || $0.hasPrefix(queryPrefix) } ?? false }
+
+    /// A screen named `search-q:<text>` types <text> into the search field.
+    static let queryPrefix = "search-q:"
 
     /// The text a screen types into the search field.
     static func query(for screen: String?) -> String {
-        switch screen {
+        if let screen, screen.hasPrefix(queryPrefix) { return String(screen.dropFirst(queryPrefix.count)) }
+        return switch screen {
         case "search-controller": "controller01"
         case "search-shortcuts": "notifications"
         case "search-no-results": "zzqx"

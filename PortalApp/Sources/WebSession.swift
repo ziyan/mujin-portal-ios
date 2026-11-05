@@ -219,6 +219,7 @@ struct WebBrowserView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Close", action: onClose)
+                            .accessibilityIdentifier("webBrowserClose")
                     }
                     ToolbarItem(placement: .primaryAction) {
                         if let url = session.url {
