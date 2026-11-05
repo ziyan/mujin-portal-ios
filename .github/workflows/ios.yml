@@ -2,7 +2,8 @@ name: iOS
 
 # Nobody working on the app needs a Mac: the PortalKit tests run on Linux, and
 # the app is built on GitHub's macOS runners, which are free for a public
-# repository. TestFlight is a manual run (workflow_dispatch) of the TestFlight job.
+# repository. TestFlight is a manual run (workflow_dispatch) of the TestFlight job,
+# and every build it uploads goes on to the public group.
 on:
   push:
     branches: [main]
@@ -758,3 +759,26 @@ jobs:
         run: |
           security delete-keychain "${RUNNER_TEMP}/signing.keychain-db" 2>/dev/null || true
           rm -rf "${RUNNER_TEMP}/keys" Configuration/Identity.xcconfig
+
+  # Every build that reaches TestFlight goes to the public group too. It waits on
+  # Apple's processing, so it runs on a cheap runner and not on the Mac.
+  public-testflight:
+    name: Public TestFlight
+    needs: testflight
+    runs-on: ubuntu-latest
+    env:
+      APP_ID: "6829099282"
+      BETA_GROUP_NAME: Public
+      KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Give the build to the public group and submit it for beta review
+        env:
+          KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          export KEY_PATH="${RUNNER_TEMP}/AuthKey.p8"
+          printf '%s' "${KEY}" > "${KEY_PATH}"
+          trap 'rm -f "${KEY_PATH}"' EXIT
+          python3 scripts/publish-testflight.py ${{ github.run_number }}
