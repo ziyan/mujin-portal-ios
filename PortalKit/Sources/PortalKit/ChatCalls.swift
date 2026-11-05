@@ -155,6 +155,36 @@ public struct ChatCall: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+/// ChatCallReconnectOutcome is what the server made of an attempt to reconnect a call's media.
+public enum ChatCallReconnectOutcome: Equatable, Sendable {
+    case reconnected(answerSdp: String, mediaSessionId: String)
+    /// The call is over.
+    case ended
+    /// The person went on from another device or left the call: this phone stops without leaving.
+    case moved
+    /// The call has no room for them now.
+    case full
+}
+
+/// CallReconnectPlan is when a call tries to get its media back, the same on every client.
+public enum CallReconnectPlan {
+    /// A first connection that takes longer than this has failed.
+    public static let firstConnectTimeout: TimeInterval = 30
+    /// How long a connection may stay disconnected before it is replaced: most blips recover by themselves.
+    public static let disconnectedGrace: TimeInterval = 3
+    /// How long a new connection has to come up after its answer.
+    public static let attemptTimeout: TimeInterval = 15
+    /// How long after the drop the call gives up.
+    public static let giveUpAfter: TimeInterval = 60
+
+    /// How long to wait after this many failed attempts: 1, 2, 4, then 8 seconds.
+    public static func delay(afterFailedAttempts count: Int) -> TimeInterval {
+        min(8, pow(2, Double(max(0, count - 1))))
+    }
+
+    public static func shouldGiveUp(elapsed: TimeInterval) -> Bool { elapsed >= giveUpAfter }
+}
+
 /// ChatCallRules are the numbers and wording of a call.
 public enum ChatCallRules {
     /// A call holds at most this many people at once.
@@ -386,7 +416,13 @@ extension Documents {
         """
 
     public static let joinChatCallMedia = """
-        mutation JoinChatCallMedia($callId: String, $offerSdp: String) { JoinChatCallMedia(callId: $callId, offerSdp: $offerSdp) { answerSdp } }
+        mutation JoinChatCallMedia($callId: String, $offerSdp: String) { JoinChatCallMedia(callId: $callId, offerSdp: $offerSdp) { answerSdp mediaSessionId } }
+        """
+
+    public static let reconnectChatCallMedia = """
+        mutation ReconnectChatCallMedia($callId: String, $offerSdp: String, $mediaSessionId: String) {
+          ReconnectChatCallMedia(callId: $callId, offerSdp: $offerSdp, mediaSessionId: $mediaSessionId) { outcome answerSdp mediaSessionId }
+        }
         """
 
     public static let answerChatCallMedia = """
@@ -415,7 +451,7 @@ extension Documents {
     static var chatCallDocuments: [String] {
         [
             isChatCallAvailable, listGoingChatCalls, getChatCall, startChatCall, joinChatCall, declineChatCall, leaveChatCall, ringChatCallMembers,
-            setChatCallMedia, setChatCallTranscription, joinChatCallMedia, answerChatCallMedia, onChatCallEvent, onChatCallSignal,
+            setChatCallMedia, setChatCallTranscription, joinChatCallMedia, reconnectChatCallMedia, answerChatCallMedia, onChatCallEvent, onChatCallSignal,
             getChatCallMaximumPersonCount, setChatCallVideoSubscriptions,
         ]
     }
@@ -536,16 +572,45 @@ extension Connection {
             Documents.setChatCallTranscription, variables: ["callId": .string(id), "isTranscriptionOn": .bool(isTranscriptionOn)], as: JSONValue.self)
     }
 
-    /// Joins the media of a call with the phone's offer (made after its candidates were gathered) and returns the server's answer.
-    public func joinChatCallMedia(id: String, offerSdp: String) async throws -> String {
+    /// Joins the media of a call with the phone's offer (made after its candidates were gathered) and returns the server's answer, with
+    /// the id of the session to reconnect with.
+    public func joinChatCallMedia(id: String, offerSdp: String) async throws -> (answerSdp: String, mediaSessionId: String?) {
         struct Answer: Decodable, Sendable {
-            struct Joined: Decodable, Sendable { let answerSdp: String? }
+            struct Joined: Decodable, Sendable {
+                let answerSdp: String?
+                let mediaSessionId: String?
+            }
             let JoinChatCallMedia: Joined?
         }
         let variables: [String: JSONValue] = ["callId": .string(id), "offerSdp": .string(offerSdp)]
-        guard let sdp = try await execute(Documents.joinChatCallMedia, variables: variables, as: Answer.self).JoinChatCallMedia?.answerSdp, !sdp.isEmpty
-        else { throw PortalError.unreadableAnswer }
-        return sdp
+        let joined = try await execute(Documents.joinChatCallMedia, variables: variables, as: Answer.self).JoinChatCallMedia
+        guard let sdp = joined?.answerSdp, !sdp.isEmpty else { throw PortalError.unreadableAnswer }
+        return (sdp, joined?.mediaSessionId)
+    }
+
+    /// Replaces a lost media connection with a new offer, naming the session this phone had.
+    public func reconnectChatCallMedia(id: String, offerSdp: String, mediaSessionId: String) async throws -> ChatCallReconnectOutcome {
+        struct Answer: Decodable, Sendable {
+            struct Reconnected: Decodable, Sendable {
+                let outcome: String?
+                let answerSdp: String?
+                let mediaSessionId: String?
+            }
+            let ReconnectChatCallMedia: Reconnected?
+        }
+        let variables: [String: JSONValue] = ["callId": .string(id), "offerSdp": .string(offerSdp), "mediaSessionId": .string(mediaSessionId)]
+        let answer = try await execute(Documents.reconnectChatCallMedia, variables: variables, as: Answer.self).ReconnectChatCallMedia
+        switch answer?.outcome {
+        case "reconnected":
+            guard let sdp = answer?.answerSdp, !sdp.isEmpty, let session = answer?.mediaSessionId, !session.isEmpty else {
+                throw PortalError.unreadableAnswer
+            }
+            return .reconnected(answerSdp: sdp, mediaSessionId: session)
+        case "ended": return .ended
+        case "moved": return .moved
+        case "full": return .full
+        default: throw PortalError.unreadableAnswer
+        }
     }
 
     /// Answers an offer the server made to renegotiate.

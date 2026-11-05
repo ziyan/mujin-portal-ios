@@ -398,6 +398,7 @@ jobs:
           shoot call-voice call-voice
           shoot call-video call-video
           shoot call-transcription call-transcription
+          shoot call-reconnecting call-reconnecting
           shoot call-minimized call-minimized
           shoot call-picker call-picker
           shoot call-ring-more call-ring-more
