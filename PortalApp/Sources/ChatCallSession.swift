@@ -80,6 +80,7 @@ final class ChatCallSession: Identifiable {
     private var lastAnsweredSequence: Int?
     @ObservationIgnored private var speaker = ActiveSpeaker()
     @ObservationIgnored private var lastSentPlan: [String: VideoQuality] = [:]
+    @ObservationIgnored private var subscriptionFailureCount = 0
     @ObservationIgnored private var subscriptionTask: Task<Void, Never>?
     @ObservationIgnored private var isVideoSelectionUnsupported = false
     /// Whether the call screen is in front. A minimized call asks for no video.
@@ -169,11 +170,11 @@ final class ChatCallSession: Identifiable {
         isScreenShown ? subscriptionPlan : subscriptionPlan.mapValues { _ in VideoQuality.off }
     }
 
-    private func scheduleSubscriptions(resendAll: Bool = false) {
+    private func scheduleSubscriptions(resendAll: Bool = false, delayNanoseconds: UInt64 = 300_000_000) {
         guard !isDemo, !isVideoSelectionUnsupported else { return }
         subscriptionTask?.cancel()
         subscriptionTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
             guard !Task.isCancelled else { return }
             await self?.sendSubscriptions(resendAll: resendAll)
         }
@@ -187,9 +188,18 @@ final class ChatCallSession: Identifiable {
         do {
             try await connection.setChatCallVideoSubscriptions(id: callId, subscriptions: changes)
             lastSentPlan = plan
+            subscriptionFailureCount = 0
         } catch {
-            // A server without the mutation refuses it once and is not asked again.
-            if (error as? PortalError) != .signedOut { isVideoSelectionUnsupported = true }
+            guard (error as? PortalError) != .signedOut, !Task.isCancelled else { return }
+            // A server without the mutation refuses it once and is not asked again; any other failure is tried again.
+            if CallSubscriptionPlan.isSelectionUnsupported(by: error) {
+                isVideoSelectionUnsupported = true
+            } else {
+                subscriptionFailureCount += 1
+                if let delay = CallSubscriptionPlan.retryDelayNanoseconds(afterFailureCount: subscriptionFailureCount, error: error) {
+                    scheduleSubscriptions(resendAll: resendAll, delayNanoseconds: delay)
+                }
+            }
         }
     }
 
