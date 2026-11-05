@@ -169,11 +169,11 @@ final class ChatCallSession: Identifiable {
         isScreenShown ? subscriptionPlan : subscriptionPlan.mapValues { _ in VideoQuality.off }
     }
 
-    private func scheduleSubscriptions(resendAll: Bool = false) {
+    private func scheduleSubscriptions(resendAll: Bool = false, delayNanoseconds: UInt64 = 300_000_000) {
         guard !isDemo, !isVideoSelectionUnsupported else { return }
         subscriptionTask?.cancel()
         subscriptionTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
             guard !Task.isCancelled else { return }
             await self?.sendSubscriptions(resendAll: resendAll)
         }
@@ -188,8 +188,13 @@ final class ChatCallSession: Identifiable {
             try await connection.setChatCallVideoSubscriptions(id: callId, subscriptions: changes)
             lastSentPlan = plan
         } catch {
-            // A server without the mutation refuses it once and is not asked again.
-            if (error as? PortalError) != .signedOut { isVideoSelectionUnsupported = true }
+            guard (error as? PortalError) != .signedOut, !Task.isCancelled else { return }
+            // A server without the mutation refuses it once and is not asked again; any other failure is tried again.
+            if CallSubscriptionPlan.isSelectionUnsupported(by: error) {
+                isVideoSelectionUnsupported = true
+            } else {
+                scheduleSubscriptions(resendAll: resendAll, delayNanoseconds: 2_000_000_000)
+            }
         }
     }
 
