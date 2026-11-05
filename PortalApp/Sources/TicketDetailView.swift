@@ -176,7 +176,8 @@ struct TicketDetailView: View {
 
     private func thread(_ model: TicketDetailModel, ticket: Ticket) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
+            // Not lazy: scrolling this thread could leave a lazy stack placing its rows forever, with the app frozen at full CPU.
+            VStack(alignment: .leading, spacing: 16) {
                 header(ticket)
                 if model.comments.isEmpty, let description = ticket.description, !description.isEmpty {
                     CommentView(authorName: session.name(ofPerson: ticket.authorUserId), authorUserId: ticket.authorUserId, date: ticket.lastActivity, text: description, isInternal: false, connection: model.connection)
