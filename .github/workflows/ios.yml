@@ -143,7 +143,7 @@ jobs:
               COUNT=$(grep -c 'idle notification not received' ui-tests.log || true)
               if [ "${COUNT}" -gt "${SEEN}" ]; then
                 SEEN=${COUNT}
-                PID=$(pgrep -f 'MujinPortal.app/' | grep -v "$$" | tail -1 || true)
+                PID=$(pgrep -f 'MujinPortal.app/' | tail -1 || true)
                 if [ -n "${PID}" ]; then
                   ps -o pid,%cpu,state,time,command -p "${PID}" > "hang-samples/process-${COUNT}.txt" 2>&1 || true
                   sudo sample "${PID}" 5 -file "${PWD}/hang-samples/sample-${COUNT}.txt" > "hang-samples/sample-${COUNT}.log" 2>&1 || true
