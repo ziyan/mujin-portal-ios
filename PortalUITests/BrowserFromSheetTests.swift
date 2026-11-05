@@ -58,8 +58,13 @@ final class BrowserFromSheetTests: XCTestCase {
         // The link is a paragraph of its own at the end of the page, so it never reaches the tap band and its start is the link.
         let link = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Suction cup checklist")).firstMatch
         XCTAssertTrue(link.waitForExistence(timeout: 30), "The ticket has no link")
-        app.swipeUp()
-        XCTAssertTrue(DemoApp.waitUntilStill(link), "The page did not settle")
+        let reply = DemoApp.element(app, "replyField")
+        XCTAssertTrue(reply.waitForExistence(timeout: 30), "The ticket has no reply box")
+        for _ in 0..<8 where link.frame.maxY >= reply.frame.minY {
+            app.swipeUp()
+            _ = DemoApp.waitUntilStill(link)
+        }
+        XCTAssertLessThan(link.frame.maxY, reply.frame.minY, "The link stays behind the reply box")
         link.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 20, dy: 0)).tap()
         let address = DemoApp.element(app, "safariPageAddress")
         XCTAssertTrue(
