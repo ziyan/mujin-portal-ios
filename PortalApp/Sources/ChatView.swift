@@ -86,6 +86,8 @@ struct ChatView: View {
             Text("Everyone in the chat will see that it was deleted.")
         }
         .task(id: conversationId) {
+            // The task runs again each time the screen comes back: the messages stay while `onAppear` reads them again.
+            if let model, model.conversationId == conversationId { return }
             let chatModel = ChatModel(
                 conversationId: conversationId, chatId: chatId, currentUserId: account.userId, connection: appModel.connection(for: account),
                 socketFactory: appModel.socketFactory, onError: { [appModel, account] error in appModel.handle(error, account: account) })

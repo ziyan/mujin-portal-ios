@@ -9,7 +9,8 @@ struct ChatsView: View {
     let account: Account
 
     @State private var model: ChatListModel?
-    @State private var selectedConversationId: String?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var selection = SplitSelection()
     @State private var searchText = ""
     @State private var newChatMode: NewChatMode?
 
@@ -45,18 +46,18 @@ struct ChatsView: View {
                 }
             }
         } detail: {
-            if let selectedConversationId {
+            if let shownConversationId = selection.detailId(isCompact: horizontalSizeClass == .compact) {
                 NavigationStack {
-                    ChatView(account: account, conversationId: selectedConversationId, chatId: model?.chats.first { $0.id == selectedConversationId }?.chatId)
+                    ChatView(account: account, conversationId: shownConversationId, chatId: model?.chats.first { $0.id == shownConversationId }?.chatId)
                 }
-                .id(selectedConversationId)
+                .id(shownConversationId)
             } else {
                 ContentUnavailableView("Select a chat", systemImage: "bubble.left.and.bubble.right")
             }
         }
         .sheet(item: $newChatMode) { mode in
             NewChatView(mode: mode) { conversationId in
-                selectedConversationId = conversationId
+                selection.selectedId = conversationId
                 Task { await model?.didStart(conversationId: conversationId) }
             }
         }
@@ -68,10 +69,10 @@ struct ChatsView: View {
             await list.load()
             await session.refreshChatUnread()
             if appModel.isDemo, let screen = DemoOptions.screen {
-                if screen.hasPrefix("chat:") { selectedConversationId = String(screen.dropFirst("chat:".count)) }
-                if screen == "chat-info" { selectedConversationId = "chatconv02" }
-                if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selectedConversationId = "chatconv01" }
-                if let conversationId = CallDemo.conversationId(for: screen) { selectedConversationId = conversationId }
+                if screen.hasPrefix("chat:") { selection.selectedId = String(screen.dropFirst("chat:".count)) }
+                if screen == "chat-info" { selection.selectedId = "chatconv02" }
+                if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selection.selectedId = "chatconv01" }
+                if let conversationId = CallDemo.conversationId(for: screen) { selection.selectedId = conversationId }
                 if screen == "chats-new" { newChatMode = .direct }
                 if screen == "chats-new-group" { newChatMode = .group }
             }
@@ -83,11 +84,11 @@ struct ChatsView: View {
         }
         .onChange(of: session.chatToOpen, initial: true) { _, conversationId in
             guard let conversationId else { return }
-            selectedConversationId = conversationId
+            selection.selectedId = conversationId
             session.chatToOpen = nil
             Task { await model?.load() }
         }
-        .onChange(of: selectedConversationId) { _, _ in
+        .onChange(of: selection.selectedId) { _, _ in
             Task {
                 await model?.load()
                 await session.refreshChatUnread()
@@ -123,7 +124,7 @@ struct ChatsView: View {
                     ContentUnavailableView.search(text: model.searchText)
                 }
             } else {
-                List(selection: $selectedConversationId) {
+                List(selection: $selection.selectedId) {
                     let people = model.chats.filter { $0.chat?.isGroup != true }
                     let groups = model.chats.filter { $0.chat?.isGroup == true }
                     if !people.isEmpty {

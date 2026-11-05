@@ -83,6 +83,11 @@ struct ConversationView: View {
         .onChange(of: session.selectedSection) { _, _ in takeReference() }
         .onAppear { takeReference() }
         .task(id: conversationId) {
+            // The task runs again each time the screen comes back: the messages stay while `onAppear` reads them again.
+            if let model, model.conversationId == conversationId {
+                voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
+                return
+            }
             let conversationModel = ConversationModel(
                 conversationId: conversationId, currentUserId: account.userId, connection: appModel.connection(for: account),
                 socketFactory: appModel.socketFactory,
@@ -151,11 +156,15 @@ struct ConversationView: View {
     private func transcript(_ model: ConversationModel) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16) {
+                // Not lazy: rows measured only as they scroll in left the thread blank for a moment on the way to its end, and could
+                // leave a lazy stack placing its rows forever. The window holds one page of messages and grows a page at a time.
+                VStack(alignment: .leading, spacing: 16) {
                     // Earlier messages load as the top comes into view; no strip says so.
                     if model.window.earlierCount > 0 {
                         Color.clear.frame(height: 1)
-                            .onAppear { Task { await model.loadEarlier() } }
+                            .onScrollVisibilityChange(threshold: 0.01) { isVisible in
+                                if isVisible { Task { await model.loadEarlier() } }
+                            }
                     }
                     if model.transcript.entries.isEmpty {
                         ContentUnavailableView {
@@ -193,7 +202,8 @@ struct ConversationView: View {
             .defaultScrollAnchor(.top, for: .alignment)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
-            .onChange(of: model.transcript.entries) { _, _ in
+            // The end of the thread, which an answer being written changes. Reading the same messages again moves nothing.
+            .onChange(of: model.transcript.entries.last) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
             .overlay(alignment: .top) {
