@@ -15,7 +15,10 @@ struct ChatsView: View {
     @State private var newChatMode: NewChatMode?
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(preferredCompactColumn: Binding(
+            get: { selection.isDetailOnTop ? .detail : .sidebar },
+            set: { selection.isDetailOnTop = $0 == .detail })
+        ) {
             Group {
                 if !session.capabilities.offersChats {
                     ContentUnavailableView {

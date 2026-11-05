@@ -17,7 +17,10 @@ struct ConversationListView: View {
     @State private var isComposing = false
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(preferredCompactColumn: Binding(
+            get: { selection.isDetailOnTop ? .detail : .sidebar },
+            set: { selection.isDetailOnTop = $0 == .detail })
+        ) {
             Group {
                 if let model {
                     content(model)

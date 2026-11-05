@@ -16,6 +16,23 @@ struct SplitSelectionTests {
         #expect(selection.detailId(isCompact: true) == "conversation01")
     }
 
+    @Test func goingBackLetsGoOfTheConversation() {
+        var selection = SplitSelection()
+        selection.selectedId = "conversation01"
+        selection.selectedId = nil
+        selection.isDetailOnTop = false
+        #expect(selection.detailId(isCompact: true) == nil)
+    }
+
+    @Test func choosingTheSameConversationAgainShowsIt() {
+        var selection = SplitSelection()
+        selection.selectedId = "conversation01"
+        selection.selectedId = nil
+        selection.isDetailOnTop = false
+        selection.selectedId = "conversation01"
+        #expect(selection.detailId(isCompact: true) == "conversation01")
+    }
+
     @Test func sideBySideTheDetailFollowsTheList() {
         var selection = SplitSelection()
         selection.selectedId = "conversation01"
