@@ -169,6 +169,13 @@ which runs only when started by hand: Actions, iOS, Run workflow, with
 "Upload the build to TestFlight" on. The build number is the workflow run
 number and the version is `MARKETING_VERSION` in `Configuration/Base.xcconfig`.
 
+The app tells people when a newer build can be installed. It reads how it was
+installed from StoreKit: a TestFlight copy reads `testflight.json` from the
+`update-feed` release, and an App Store copy asks Apple's public lookup. The
+feed holds the newest build public testers can install, so a build waiting for
+beta review is not announced. The build's own run writes it, and the
+`Update feed` workflow refreshes it on a schedule for reviews that finish later.
+
 The job needs these repository secrets:
 
 | Secret | Value |

@@ -1,0 +1,37 @@
+name: Update feed
+
+# Apple's beta review can finish long after the build's own run has ended, so the
+# feed is refreshed on a schedule too.
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-feed
+
+jobs:
+  publish:
+    name: Publish the update feed
+    runs-on: ubuntu-latest
+    env:
+      APP_ID: "6829099282"
+      BETA_GROUP_NAME: Public
+      KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Publish the newest installable build
+        env:
+          KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export KEY_PATH="${RUNNER_TEMP}/AuthKey.p8"
+          printf '%s' "${KEY}" > "${KEY_PATH}"
+          trap 'rm -f "${KEY_PATH}"' EXIT
+          python3 scripts/publish-testflight.py --update-feed "${RUNNER_TEMP}/testflight.json"
+          scripts/upload-update-feed.sh "${RUNNER_TEMP}/testflight.json"
