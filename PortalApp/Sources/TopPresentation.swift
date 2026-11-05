@@ -118,6 +118,8 @@ private struct TopPresentation<Item: Identifiable, Screen: View>: ViewModifier {
                     presenter.dismiss()
                 }
             }
+            // UIKit holds what was shown, so nothing closes it with the screen that asked for it, as at signing out.
+            .onDisappear { presenter.dismiss() }
     }
 }
 
