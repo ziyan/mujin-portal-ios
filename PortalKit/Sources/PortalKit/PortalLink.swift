@@ -9,8 +9,12 @@ public enum PortalLink: Equatable, Hashable, Sendable {
     case ticket(sequence: Int64)
     /// `/controller/<id>`
     case controller(id: String)
+    /// `/controller/<id>/backups`
+    case controllerBackups(id: String)
     /// `/virtualcontroller/<id>`
     case virtualController(id: String)
+    /// `/virtualcontroller/<id>/snapshots`
+    case virtualControllerSnapshots(id: String)
     /// `/release/<id>`
     case release(id: String)
     /// `/site/<id>`
@@ -51,6 +55,24 @@ public enum PortalLink: Equatable, Hashable, Sendable {
         var text = path
         if let end = text.firstIndex(where: { $0 == "?" || $0 == "#" }) { text = String(text[..<end]) }
         self.init(segments: Self.segments(ofEncodedPath: text))
+    }
+
+    /// Reads the path of a page below an entity, which is what the server's search offers for "controller01 backups". Nil when
+    /// the app has no screen for that very page: unlike a link, such a row names one page, so it must not open the entity instead.
+    public init?(subpagePath path: String) {
+        var text = path
+        if let end = text.firstIndex(where: { $0 == "?" || $0 == "#" }) { text = String(text[..<end]) }
+        let segments = Self.segments(ofEncodedPath: text)
+        guard segments.count == 3, Self.isIdentifier(segments[1]) else { return nil }
+        switch (segments[0].lowercased(), segments[2].lowercased()) {
+        case ("controller", "backups"): self = .controllerBackups(id: segments[1])
+        case ("virtualcontroller", "snapshots"): self = .virtualControllerSnapshots(id: segments[1])
+        case ("surveillance", "playback"): self = .camera(id: segments[1])
+        case ("organization", let name):
+            guard let page = OrganizationPage(rawValue: name) else { return nil }
+            self = .organizationPage(page, organizationId: segments[1])
+        default: return nil
+        }
     }
 
     private static func segments(ofEncodedPath path: String) -> [String] {
@@ -135,7 +157,9 @@ public enum PortalLink: Equatable, Hashable, Sendable {
         switch self {
         case .ticket(let sequence): "/ticket/\(sequence)"
         case .controller(let id): "/controller/\(id)"
+        case .controllerBackups(let id): "/controller/\(id)/backups"
         case .virtualController(let id): "/virtualcontroller/\(id)"
+        case .virtualControllerSnapshots(let id): "/virtualcontroller/\(id)/snapshots"
         case .release(let id): "/release/\(id)"
         case .site(let id): "/site/\(id)"
         case .cell(let id, let siteId): "/site/\(siteId)/cell/\(id)"
