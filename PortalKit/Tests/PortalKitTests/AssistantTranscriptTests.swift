@@ -426,10 +426,12 @@ import Testing
             transcript.entries == [
                 .note(id: "m1", .speakFirst(reason: "idea")),
                 .assistant(id: "m2", text: "I have an idea about your morning checks.", isStreaming: false),
-                .speakFirstChoices(id: "m2", reason: "idea"),
                 .user(id: "m3", text: "Tell me more", viewing: nil),
                 .assistant(id: "m4", text: "Sure.", isStreaming: false),
             ])
+        // The choices are on the first answer and on no other message.
+        #expect(transcript.speakFirstReason(for: "m2") == "idea")
+        #expect(transcript.speakFirstReason(for: "m4") == nil)
     }
 
     @Test func aMessageThatOnlyMentionsTheMarkerLaterIsThePersonsOwn() {

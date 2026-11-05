@@ -230,8 +230,6 @@ public enum TranscriptEntry: Equatable, Identifiable, Sendable {
     case note(id: String, TranscriptNote)
     /// A goal is blocked and needs the person: the question, and the goal it is about.
     case goalNeedsYou(id: String, goalId: String, title: String, question: String)
-    /// "Not now" and "Stop these", under the first answer after the assistant spoke first.
-    case speakFirstChoices(id: String, reason: String)
 
     public var id: String {
         switch self {
@@ -245,7 +243,6 @@ public enum TranscriptEntry: Equatable, Identifiable, Sendable {
         case .notice(let id, _, _): "notice:\(id)"
         case .turnEnd(let id, _, _, _): "turnend:\(id)"
         case .goalNeedsYou(let id, _, _, _): "goalneedsyou:\(id)"
-        case .speakFirstChoices(let id, _): "speakfirst:\(id)"
         case .note(let id, _): "note:\(id)"
         }
     }
@@ -278,6 +275,8 @@ public struct Transcript: Equatable, Sendable {
     private var pendingUserTexts: [String] = []
     private var noticeCount = 0
     private var replyQuotes: [String: ReplyReference] = [:]
+    /// Why the assistant spoke first, by the message that carries "Not now" and "Stop these": its first answer.
+    private var speakFirstReasons: [String: String] = [:]
     private var persistedReactions: [String: [Reaction]] = [:]
     /// Reactions changed on this phone or by an event. They win over what a
     /// reload brings, because the transcript is read from a replica that can
@@ -310,6 +309,7 @@ public struct Transcript: Equatable, Sendable {
         for message in messages where !(message.reactions ?? []).isEmpty { persistedReactions[message.id] = message.reactions }
 
         var rebuilt: [TranscriptEntry] = []
+        var rebuiltSpeakFirstReasons: [String: String] = [:]
         var argumentsByCall: [String: String] = [:]
         var lastUserText: String?
         var speakFirstReasonAwaitingAnswer: String?
@@ -337,7 +337,7 @@ public struct Transcript: Equatable, Sendable {
                 } else if !text.isEmpty {
                     rebuilt.append(.assistant(id: message.id, text: text, isStreaming: false))
                     if let reason = speakFirstReasonAwaitingAnswer {
-                        rebuilt.append(.speakFirstChoices(id: message.id, reason: reason))
+                        rebuiltSpeakFirstReasons[message.id] = reason
                         speakFirstReasonAwaitingAnswer = nil
                     }
                 } else if message.stopReason == "cancelled" {
@@ -369,6 +369,7 @@ public struct Transcript: Equatable, Sendable {
             pendingUserTexts.removeSubrange(...index)
         }
         entries = rebuilt
+        speakFirstReasons = rebuiltSpeakFirstReasons
         for text in pendingUserTexts { entries.append(.user(id: "pending:\(text)", text: text, viewing: nil)) }
 
         for card in questions where !entries.contains(where: { $0.id == "question:\(card.id)" }) { entries.append(.question(card)) }
@@ -454,6 +455,11 @@ public struct Transcript: Equatable, Sendable {
             }
         }
         return quote
+    }
+
+    /// Why the assistant spoke first, when `messageId` is the first answer after it did.
+    public func speakFirstReason(for messageId: String) -> String? {
+        speakFirstReasons[messageId]
     }
 
     /// The reactions on a message: what the phone or an event changed, else what the history holds.
