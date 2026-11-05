@@ -9,7 +9,6 @@ struct ChatsView: View {
     let account: Account
 
     @State private var model: ChatListModel?
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selection = SplitSelection()
     @State private var searchText = ""
     @State private var newChatMode: NewChatMode?
@@ -49,7 +48,7 @@ struct ChatsView: View {
                 }
             }
         } detail: {
-            if let shownConversationId = selection.detailId(isCompact: horizontalSizeClass == .compact) {
+            if let shownConversationId = selection.detailId {
                 NavigationStack {
                     ChatView(account: account, conversationId: shownConversationId, chatId: model?.chats.first { $0.id == shownConversationId }?.chatId)
                 }
@@ -60,7 +59,7 @@ struct ChatsView: View {
         }
         .sheet(item: $newChatMode) { mode in
             NewChatView(mode: mode) { conversationId in
-                selection.selectedId = conversationId
+                selection.open(conversationId)
                 Task { await model?.didStart(conversationId: conversationId) }
             }
         }
@@ -72,10 +71,10 @@ struct ChatsView: View {
             await list.load()
             await session.refreshChatUnread()
             if appModel.isDemo, let screen = DemoOptions.screen {
-                if screen.hasPrefix("chat:") { selection.selectedId = String(screen.dropFirst("chat:".count)) }
-                if screen == "chat-info" { selection.selectedId = "chatconv02" }
-                if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selection.selectedId = "chatconv01" }
-                if let conversationId = CallDemo.conversationId(for: screen) { selection.selectedId = conversationId }
+                if screen.hasPrefix("chat:") { selection.open(String(screen.dropFirst("chat:".count))) }
+                if screen == "chat-info" { selection.open("chatconv02") }
+                if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selection.open("chatconv01") }
+                if let conversationId = CallDemo.conversationId(for: screen) { selection.open(conversationId) }
                 if screen == "chats-new" { newChatMode = .direct }
                 if screen == "chats-new-group" { newChatMode = .group }
             }
@@ -87,7 +86,7 @@ struct ChatsView: View {
         }
         .onChange(of: session.chatToOpen, initial: true) { _, conversationId in
             guard let conversationId else { return }
-            selection.selectedId = conversationId
+            selection.open(conversationId)
             session.chatToOpen = nil
             Task { await model?.load() }
         }
