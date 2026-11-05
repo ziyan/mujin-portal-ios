@@ -77,11 +77,11 @@ struct RootView: View {
         .background(TouchActivityProbe { model.touched() })
         .environment(\.openURL, OpenURLAction { url in model.handleLink(url) })
         // Over the top screen, not over this one: a sheet that is up would stop a cover from here from showing.
-        .topPresentation(item: $model.presentedWeb, style: .fullScreen) { [model] session in
+        .topPresentation(item: $model.presentedWeb, style: .overFullScreen) { [model] session in
             WebBrowserView(session: session) { model.presentedWeb = nil }
                 .modifier(HostedEnvironment(appModel: model, session: nil))
         }
-        .topPresentation(item: $model.safariPage, style: .fullScreen) { [model] page in
+        .topPresentation(item: $model.safariPage, style: .overFullScreen) { [model] page in
             Group {
                 if model.isDemo {
                     DemoSafariPage(url: page.url)

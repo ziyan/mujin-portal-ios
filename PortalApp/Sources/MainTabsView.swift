@@ -214,7 +214,7 @@ struct MainTabsView: View {
             }
         }
         // These show over the top screen, so an incoming call, a link or the inbox shows even while a sheet is up.
-        .topPresentation(isPresented: Binding(get: { appModel.callCenter.isScreenShown }, set: { appModel.callCenter.isScreenShown = $0 }), style: .fullScreen) { [appModel = self.appModel] in
+        .topPresentation(isPresented: Binding(get: { appModel.callCenter.isScreenShown }, set: { appModel.callCenter.isScreenShown = $0 }), style: .overFullScreen) { [appModel = self.appModel] in
             CallScreen(center: appModel.callCenter)
                 .modifier(HostedEnvironment(appModel: appModel, session: session))
         }
@@ -222,7 +222,7 @@ struct MainTabsView: View {
             NotificationsView()
                 .modifier(HostedEnvironment(appModel: appModel, session: session))
         }
-        .topPresentation(item: Binding(get: { appModel.linkRequest }, set: { appModel.linkRequest = $0 }), style: .fullScreen) { [appModel = self.appModel] request in
+        .topPresentation(item: Binding(get: { appModel.linkRequest }, set: { appModel.linkRequest = $0 }), style: .overFullScreen) { [appModel = self.appModel] request in
             LinkControllerView(request: request)
                 .modifier(HostedEnvironment(appModel: appModel, session: session))
         }
