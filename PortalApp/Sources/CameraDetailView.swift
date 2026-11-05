@@ -73,6 +73,9 @@ struct CameraDetailView: View {
             @unknown default: break
             }
         }
+        .onCoveredChange { isCovered in
+            if isCovered { player?.suspend() } else { player?.resume() }
+        }
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
             AppDelegate.allowsLandscape = true

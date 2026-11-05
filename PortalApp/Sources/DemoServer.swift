@@ -454,6 +454,10 @@ struct DemoTransport: HTTPTransport {
         {
             try await Task.sleep(nanoseconds: 3_600_000_000_000)
         }
+        // A real server takes a moment, and a screen can open before the list it belongs to has arrived.
+        if operation == "ListConversations", let delay = ProcessInfo.processInfo.environment["PORTAL_DEMO_LIST_DELAY_SECONDS"].flatMap(UInt64.init) {
+            try await Task.sleep(nanoseconds: delay * 1_000_000_000)
+        }
         let answer = respond(operation: operation, variables: variables)
         let payload = try JSONSerialization.data(withJSONObject: ["data": answer])
         return (payload, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
@@ -828,7 +832,9 @@ struct DemoTransport: HTTPTransport {
                         ["id": "notification02", "kind": "incident", "createdAt": stamp(2_400), "incidentId": "incident01", "incident": ["id": "incident01", "title": "Person near the conveyor"]],
                         ["id": "notification03", "kind": "alarm", "createdAt": stamp(5_000), "readAt": stamp(4_000), "alarmMessage": "Gripper suction pressure is low", "controllerId": "controller01", "siteName": "site01"],
                         ["id": "notification04", "kind": "agent_job_failed", "createdAt": stamp(20_000), "readAt": stamp(19_000), "agentJobName": "Watch controller01 planner", "agentJobFailureMessage": "The controller did not answer."],
-                    ], "meta": ["totalCount": 4],
+                        ["id": "notification05", "kind": "agent_message", "createdAt": stamp(30_000), "readAt": stamp(29_000), "agentMessageConversationId": "conversation-main", "agentMessageExcerpt": "Main chat has a new answer"],
+                        ["id": "notification06", "kind": "chat_message", "createdAt": stamp(40_000), "readAt": stamp(39_000), "chatConversationId": "chatconv01", "chatId": "chat01", "chatName": "Sam Sample", "chatAuthorName": "Sam Sample", "chatMessageExcerpt": "A new message in the chat"],
+                    ], "meta": ["totalCount": 6],
                 ]
             ]
         case "CountUnreadNotifications":

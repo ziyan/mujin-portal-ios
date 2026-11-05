@@ -87,6 +87,7 @@ extension SessionModel {
         case .goals: return tabOrScreen(.goals, .goals)
         case .ideas: return tabOrScreen(.ideas, .ideas)
         case .knowledge: return tabOrScreen(.knowledge, .knowledge)
+        case .dreams: return moreScreen(.dreams)
         case .automations: return tabOrScreen(.automations, .automations)
         case .incidents: return isStaff ? tabOrScreen(.incidents, .incidents) : .web
         case .settings: return tabOrScreen(.settings, .settings)

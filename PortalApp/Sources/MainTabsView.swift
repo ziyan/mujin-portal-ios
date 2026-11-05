@@ -104,15 +104,24 @@ struct MainTabsView: View {
                 newSession.startNotificationFeed(socketFactory: appModel.socketFactory)
                 newSession.startCallFeed(socketFactory: appModel.socketFactory)
                 newSession.onRingStopped = { [appModel = self.appModel] callId in appModel.callCenter.stopRinging(callId: callId) }
-                if let route = appModel.takeRoute(for: account) { newSession.open(route) }
             }
             var start = DemoOptions.section ?? Navigation.home(for: newSession.persona)
             // Chats are part of Chat: there is no tab of their own.
             if start == .chats { start = .assistant }
             if !newSession.tabSections.contains(start) { start = Navigation.home(for: newSession.persona) }
             newSession.selectedSection = start
+            // After the tab the app starts on: a notification that launched the app chooses its own.
+            if !appModel.isDemo, let route = appModel.takeRoute(for: account) { newSession.open(route) }
             if appModel.isDemo, let screen = DemoOptions.screen, CallDemo.owns(screen), screen.hasPrefix("call-"), screen != "call-picker" {
                 appModel.callCenter.showDemo(CallDemo.session(for: screen), isScreenShown: screen != "call-minimized")
+            }
+            // A notification tapped a few seconds after launch, for a test that sends the app away first.
+            if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("push:") {
+                let conversationId = String(screen.dropFirst("push:".count))
+                Task { [appModel = self.appModel, account] in
+                    try? await Task.sleep(nanoseconds: 8_000_000_000)
+                    appModel.pendingRoute = AppModel.PendingRoute(userId: account.userId, route: .conversation(id: conversationId))
+                }
             }
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("link-") {
                 appModel.linkRequest = ControllerLinkRequest(code: screen == "link-confirm" ? DemoServer.linkCode : nil)
@@ -214,7 +223,7 @@ struct MainTabsView: View {
             }
         }
         // These show over the top screen, so an incoming call, a link or the inbox shows even while a sheet is up.
-        .topPresentation(isPresented: Binding(get: { appModel.callCenter.isScreenShown }, set: { appModel.callCenter.isScreenShown = $0 }), style: .fullScreen) { [appModel = self.appModel] in
+        .topPresentation(isPresented: Binding(get: { appModel.callCenter.isScreenShown }, set: { appModel.callCenter.isScreenShown = $0 }), style: .overFullScreen) { [appModel = self.appModel] in
             CallScreen(center: appModel.callCenter)
                 .modifier(HostedEnvironment(appModel: appModel, session: session))
         }
@@ -222,7 +231,7 @@ struct MainTabsView: View {
             NotificationsView()
                 .modifier(HostedEnvironment(appModel: appModel, session: session))
         }
-        .topPresentation(item: Binding(get: { appModel.linkRequest }, set: { appModel.linkRequest = $0 }), style: .fullScreen) { [appModel = self.appModel] request in
+        .topPresentation(item: Binding(get: { appModel.linkRequest }, set: { appModel.linkRequest = $0 }), style: .overFullScreen) { [appModel = self.appModel] request in
             LinkControllerView(request: request)
                 .modifier(HostedEnvironment(appModel: appModel, session: session))
         }

@@ -42,6 +42,7 @@ import Testing
         ("assistant.goals", "/agent/goals", .screen(.goals)),
         ("assistant.ideas", "/agent/ideas", .screen(.ideas)),
         ("assistant.knowledge", "/agent/knowledge", .screen(.knowledge)),
+        ("assistant.dreams", "/agent/knowledge?view=dreams", .screen(.dreams)),
         ("assistant.automations", "/agent/automations", .screen(.automations)),
         ("assistant.oversight", "/agent/oversight", nil),
         ("assistant.settings", "/agent/settings", .screen(.assistantSettings)),
@@ -94,7 +95,7 @@ import Testing
     }
 
     @Test func everyShortcutOfTheCatalogIsMapped() {
-        #expect(Self.shortcuts.count == 55)
+        #expect(Self.shortcuts.count == 56)
         #expect(Set(Self.shortcuts.map(\.0)).count == Self.shortcuts.count)
         for (identifier, path, expected) in Self.shortcuts {
             let result = GlobalSearchResult(resultKind: .shortcut, id: identifier, title: "Title", path: path, iconName: "settings")

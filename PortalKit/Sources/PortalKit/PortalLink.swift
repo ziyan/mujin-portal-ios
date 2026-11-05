@@ -47,11 +47,19 @@ public enum PortalLink: Equatable, Hashable, Sendable {
         guard let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http" else { return nil }
         guard let host = url.host?.lowercased(), host == (server.url.host ?? "").lowercased() else { return nil }
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        if let query = components.percentEncodedQuery, let screen = PortalScreen(path: "\(components.percentEncodedPath)?\(query)") {
+            self = .screen(screen)
+            return
+        }
         self.init(segments: Self.segments(ofEncodedPath: components.percentEncodedPath))
     }
 
     /// Reads a web path such as `/ticket/12`, which is what the server's search results carry. The same rules as for an address.
     public init?(path: String) {
+        if let screen = PortalScreen(path: path) {
+            self = .screen(screen)
+            return
+        }
         var text = path
         if let end = text.firstIndex(where: { $0 == "?" || $0 == "#" }) { text = String(text[..<end]) }
         self.init(segments: Self.segments(ofEncodedPath: text))
@@ -213,6 +221,8 @@ public enum PortalScreen: String, CaseIterable, Hashable, Sendable {
     case goals = "/agent/goals"
     case ideas = "/agent/ideas"
     case knowledge = "/agent/knowledge"
+    /// A view of the memory page on the web, and a screen of its own in the app.
+    case dreams = "/agent/knowledge?view=dreams"
     case automations = "/agent/automations"
     case assistantSettings = "/agent/settings"
     case settings = "/settings"

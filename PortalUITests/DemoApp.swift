@@ -4,11 +4,12 @@ import XCTest
 /// same one the screenshots job passes as PORTAL_DEMO_SCREEN.
 @MainActor
 enum DemoApp {
-    static func launch(screen: String, persona: String? = nil) -> XCUIApplication {
+    static func launch(screen: String, persona: String? = nil, environment: [String: String] = [:]) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-demo"]
         app.launchEnvironment["PORTAL_DEMO_SCREEN"] = screen
         if let persona { app.launchEnvironment["PORTAL_DEMO_PERSONA"] = persona }
+        app.launchEnvironment.merge(environment) { _, new in new }
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 90), "The app did not come to the foreground")
         return app

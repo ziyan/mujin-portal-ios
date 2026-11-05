@@ -9,12 +9,17 @@ struct ConversationListView: View {
     let account: Account
 
     @State private var model: ConversationListModel?
-    @State private var selectedConversationId: String?
+    @State private var selection = SplitSelection()
+    /// Conversations opened as chats with people, which a notification can do before the list has their row.
+    @State private var chatConversationIds: Set<String> = []
     @State private var searchText = ""
     @State private var isComposing = false
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(preferredCompactColumn: Binding(
+            get: { selection.isDetailOnTop ? .detail : .sidebar },
+            set: { selection.isDetailOnTop = $0 == .detail })
+        ) {
             Group {
                 if let model {
                     content(model)
@@ -37,19 +42,23 @@ struct ConversationListView: View {
                 }
             }
         } detail: {
-            if let selectedConversationId {
+            if let shownConversationId = selection.detailId {
                 NavigationStack {
-                    // A chat with people and a conversation with the assistant are opened the same way.
-                    if let chat = model?.conversation(id: selectedConversationId), chat.conversationKind == "chat" {
-                        ChatView(account: account, conversationId: selectedConversationId, chatId: chat.chatId)
+                    // A chat with people and a conversation with the assistant are opened the same way. Each draws its own
+                    // messages, so the choice is made once: a screen that changed when the list arrived would draw them twice.
+                    let listed = model?.conversation(id: shownConversationId)
+                    if listed?.conversationKind == "chat" || chatConversationIds.contains(shownConversationId) {
+                        ChatView(account: account, conversationId: shownConversationId, chatId: listed?.chatId)
+                    } else if listed == nil, model?.phase ?? .loading == .loading {
+                        ProgressView()
                     } else {
                         ConversationView(
-                            account: account, conversationId: selectedConversationId,
-                            title: model?.conversation(id: selectedConversationId)?.title,
-                            onTitleChanged: { [selectedConversationId] title in model?.retitle(id: selectedConversationId, title: title) })
+                            account: account, conversationId: shownConversationId,
+                            title: model?.conversation(id: shownConversationId)?.title,
+                            onTitleChanged: { [shownConversationId] title in model?.retitle(id: shownConversationId, title: title) })
                     }
                 }
-                .id(selectedConversationId)
+                .id(shownConversationId)
             } else {
                 ContentUnavailableView("Select a conversation", systemImage: "bubble.left.and.bubble.right")
             }
@@ -64,20 +73,20 @@ struct ConversationListView: View {
             model = listModel
             await listModel.load()
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("conversation:") {
-                selectedConversationId = String(screen.dropFirst("conversation:".count))
+                selection.open(String(screen.dropFirst("conversation:".count)))
             }
             if appModel.isDemo, DemoOptions.screen == "list-started" {
                 // A conversation just started: listed at once, at the top, though the demo server does not list it yet.
                 await listModel.didStartAssistantConversation(id: "conversation-started", text: "Which dock doors were slow this week and why?")
             }
             if appModel.isDemo, let screen = DemoOptions.screen {
-                if screen.hasPrefix("chat:") { selectedConversationId = String(screen.dropFirst("chat:".count)) }
-                if screen == "chat-info" { selectedConversationId = "chatconv02" }
-                if screen == "photo-chat" { selectedConversationId = "conversation-photos" }
-                if screen == "voice" || screen == "conversation-links" || screen == "message-actions" || screen == "select-text" || screen == "title-event" { selectedConversationId = "conversation01" }
-                if screen == "side-chat-links" { selectedConversationId = "conversation05" }
-                if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selectedConversationId = "chatconv01" }
-                if let conversationId = CallDemo.conversationId(for: screen) { selectedConversationId = conversationId }
+                if screen.hasPrefix("chat:") { selection.open(String(screen.dropFirst("chat:".count))) }
+                if screen == "chat-info" { selection.open("chatconv02") }
+                if screen == "photo-chat" { selection.open("conversation-photos") }
+                if screen == "voice" || screen == "conversation-links" || screen == "message-actions" || screen == "select-text" || screen == "title-event" { selection.open("conversation01") }
+                if screen == "side-chat-links" { selection.open("conversation05") }
+                if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selection.open("chatconv01") }
+                if let conversationId = CallDemo.conversationId(for: screen) { selection.open(conversationId) }
                 if screen.hasPrefix("chats-new") { isComposing = true }
             }
         }
@@ -87,9 +96,9 @@ struct ConversationListView: View {
             if Task.isCancelled { return }
             await model?.search(searchText)
         }
-        .onChange(of: selectedConversationId) { _, id in model?.openConversationId = id }
+        .onChange(of: selection) { _, selection in model?.openConversationId = selection.detailId }
         .sheet(isPresented: Binding(get: { isComposing || session.composeRequest != nil }, set: { if !$0 { isComposing = false; session.composeRequest = nil } })) {
-            ComposeMessageView(request: session.composeRequest, onSent: { selectedConversationId = $0 }, onStarted: { conversationId, text, isChat in
+            ComposeMessageView(request: session.composeRequest, onSent: { selection.open($0) }, onStarted: { conversationId, text, isChat in
                 // The row is there at once; the server is asked afterwards, and the title comes when it is set.
                 Task {
                     if isChat {
@@ -102,13 +111,14 @@ struct ConversationListView: View {
         }
         .onChange(of: session.chatToOpen, initial: true) { _, conversationId in
             guard let conversationId else { return }
-            selectedConversationId = conversationId
+            chatConversationIds.insert(conversationId)
+            selection.open(conversationId)
             session.chatToOpen = nil
             Task { await model?.load() }
         }
         .onChange(of: session.conversationToOpen, initial: true) { _, conversationId in
             guard let conversationId else { return }
-            selectedConversationId = conversationId
+            selection.open(conversationId)
             session.conversationToOpen = nil
             Task { await model?.load() }
         }
@@ -142,7 +152,7 @@ struct ConversationListView: View {
                     ContentUnavailableView.search(text: model.searchText)
                 }
             } else {
-                List(selection: $selectedConversationId) {
+                List(selection: $selection.selectedId) {
                     PortalRows {
                     Section {
                         ForEach(ConversationOrdering.ordered(model.conversations, waitingIds: Set(model.conversations.map(\.id).filter { (session.waitingCounts[$0] ?? 0) > 0 }))) { conversation in

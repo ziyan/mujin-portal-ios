@@ -51,6 +51,22 @@ final class BrowserFromSheetTests: XCTestCase {
         assertSheetShown(app)
     }
 
+    /// The page under the browser stays as it was: the person goes back to the same place, and it is not read again.
+    func testClosingTheBrowserKeepsTheControllerPageWhereItWas() {
+        let app = openResult("controller|controller01", query: "controller01")
+        let tile = DemoApp.button(app, "webApp.order-board")
+        DemoApp.scrollToElement(tile, in: app)
+        let before = tile.frame
+        tile.tap()
+        let close = DemoApp.element(app, "webBrowserClose")
+        XCTAssertTrue(close.waitForExistence(timeout: 30), "The browser did not open over the sheet")
+        close.tap()
+        assertSheetShown(app)
+        XCTAssertTrue(tile.waitForExistence(timeout: 30), "The page lost the tile.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.waitUntilStill(tile), "The tile keeps moving")
+        XCTAssertEqual(tile.frame.minY, before.minY, accuracy: 2, "The page moved under the browser")
+    }
+
     // MARK: - Safari's view from a ticket sheet
 
     func testTicketSheetOpensWebsiteLinkInSafari() {

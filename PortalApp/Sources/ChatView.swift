@@ -14,6 +14,7 @@ struct ChatView: View {
     let chatId: String?
 
     @State private var model: ChatModel?
+    @State private var isOnScreen = false
     @State private var draft = DemoOptions.screen == "chat-mention" ? "Can @" : ""
     @State private var messageToDelete: ChatMessage?
     @State private var isShowingInfo = DemoOptions.screen == "chat-info"
@@ -86,6 +87,8 @@ struct ChatView: View {
             Text("Everyone in the chat will see that it was deleted.")
         }
         .task(id: conversationId) {
+            // The task runs again each time the screen comes back: the messages stay while `onAppear` reads them again.
+            if let model, model.conversationId == conversationId { return }
             let chatModel = ChatModel(
                 conversationId: conversationId, chatId: chatId, currentUserId: account.userId, connection: appModel.connection(for: account),
                 socketFactory: appModel.socketFactory, onError: { [appModel, account] error in appModel.handle(error, account: account) })
@@ -99,8 +102,19 @@ struct ChatView: View {
                 chatModel.replyTarget = chatModel.timeline.messages.first { $0.authorUserId == "user02" }
             }
         }
-        .onAppear { model?.start() }
-        .onDisappear { model?.stop() }
+        .onAppear {
+            isOnScreen = true
+            model?.start()
+        }
+        .onDisappear {
+            isOnScreen = false
+            model?.stop()
+        }
+        // The feed stays open only while the chat is seen, which is how the server knows to send no notification for it.
+        .onCoveredChange { isCovered in
+            guard isOnScreen else { return }
+            if isCovered { model?.stop() } else { model?.start() }
+        }
     }
 
     @ViewBuilder

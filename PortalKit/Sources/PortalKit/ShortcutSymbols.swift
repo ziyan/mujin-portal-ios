@@ -22,6 +22,7 @@ public enum ShortcutSymbols {
         "assistant.goals": "scope",
         "assistant.ideas": "lightbulb",
         "assistant.knowledge": "brain.head.profile",
+        "assistant.dreams": "moon.zzz",
         "assistant.automations": "clock.arrow.2.circlepath",
         "assistant.oversight": "eye",
         "assistant.settings": "slider.horizontal.3",

@@ -182,7 +182,11 @@ struct LinkedPageSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.accessibilityIdentifier("linkedPageClose") }
             }
         }
-        .task(id: opened) { await resolve() }
+        .task(id: opened) {
+            // The task runs again when the sheet comes back from under the browser; the page stays as the person left it.
+            if case .loaded = phase { return }
+            await resolve()
+        }
     }
 
     private func resolve() async {
