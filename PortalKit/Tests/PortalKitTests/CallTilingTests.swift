@@ -170,6 +170,15 @@ import Testing
         #expect(!CallSubscriptionPlan.isSelectionUnsupported(by: URLError(.timedOut)))
     }
 
+    @Test func aFailedChoiceIsAskedAgainMoreSlowlyAndThenLeftAlone() {
+        let delays = (1...6).map { CallSubscriptionPlan.retryDelayNanoseconds(afterFailureCount: $0, error: URLError(.timedOut)) }
+        #expect(delays == [2_000_000_000, 4_000_000_000, 8_000_000_000, 16_000_000_000, 32_000_000_000, nil])
+    }
+
+    @Test func aChoiceThePersonMayNotMakeIsNotAskedAgain() {
+        #expect(CallSubscriptionPlan.retryDelayNanoseconds(afterFailureCount: 1, error: PortalError.notPermitted) == nil)
+    }
+
     @Test func theMutationCarriesEachPersonAndTheirQuality() async throws {
         let transport = ScriptedTransport { _ in (200, ScriptedTransport.json(["data": ["SetChatCallVideoSubscriptions": NSNull()]])) }
         let connection = Connection(account: makeAccount(), transport: transport)

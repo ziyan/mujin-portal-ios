@@ -80,6 +80,7 @@ final class ChatCallSession: Identifiable {
     private var lastAnsweredSequence: Int?
     @ObservationIgnored private var speaker = ActiveSpeaker()
     @ObservationIgnored private var lastSentPlan: [String: VideoQuality] = [:]
+    @ObservationIgnored private var subscriptionFailureCount = 0
     @ObservationIgnored private var subscriptionTask: Task<Void, Never>?
     @ObservationIgnored private var isVideoSelectionUnsupported = false
     /// Whether the call screen is in front. A minimized call asks for no video.
@@ -187,13 +188,17 @@ final class ChatCallSession: Identifiable {
         do {
             try await connection.setChatCallVideoSubscriptions(id: callId, subscriptions: changes)
             lastSentPlan = plan
+            subscriptionFailureCount = 0
         } catch {
             guard (error as? PortalError) != .signedOut, !Task.isCancelled else { return }
             // A server without the mutation refuses it once and is not asked again; any other failure is tried again.
             if CallSubscriptionPlan.isSelectionUnsupported(by: error) {
                 isVideoSelectionUnsupported = true
             } else {
-                scheduleSubscriptions(resendAll: resendAll, delayNanoseconds: 2_000_000_000)
+                subscriptionFailureCount += 1
+                if let delay = CallSubscriptionPlan.retryDelayNanoseconds(afterFailureCount: subscriptionFailureCount, error: error) {
+                    scheduleSubscriptions(resendAll: resendAll, delayNanoseconds: delay)
+                }
             }
         }
     }

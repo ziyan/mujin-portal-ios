@@ -58,6 +58,13 @@ public enum CallSubscriptionPlan {
         return false
     }
 
+    /// How long to wait before asking again after this many failures in a row, or nil to stop asking until the choice changes: a request
+    /// that keeps failing, such as one the person is no longer allowed to make, is not repeated for the rest of the call.
+    public static func retryDelayNanoseconds(afterFailureCount failureCount: Int, error: Error) -> UInt64? {
+        guard (error as? PortalError) != .notPermitted, failureCount >= 1, failureCount <= 5 else { return nil }
+        return 2_000_000_000 << UInt64(failureCount - 1)
+    }
+
     /// What to tell the server: only the people whose choice differs from what it already has (everyone starts at small), or every one when
     /// `resendAll` is set, as after a reconnect.
     public static func changes(from sent: [String: VideoQuality], to plan: [String: VideoQuality], resendAll: Bool = false) -> [(userId: String, videoQuality: VideoQuality)] {
