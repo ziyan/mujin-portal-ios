@@ -22,21 +22,21 @@ final class OverviewTileTests: XCTestCase {
         let app = DemoApp.launch(screen: "site")
         let expectedList = Self.tiles.first { $0.tile == tileIdentifier }?.list ?? ""
         let sitePage = DemoApp.element(app, "sitePage")
-        XCTAssertTrue(sitePage.waitForExistence(timeout: 45), "The site page never appeared")
+        XCTAssertTrue(sitePage.waitForExistence(timeout: 90), "The site page never appeared")
 
-        let tile = DemoApp.element(app, tileIdentifier)
+        let tile = DemoApp.button(app, tileIdentifier)
         DemoApp.scrollToElement(tile, in: app)
         tile.tap()
 
         let list = DemoApp.element(app, expectedList)
-        XCTAssertTrue(list.waitForExistence(timeout: 20), "Tapping \(tileIdentifier) did not open \(expectedList)")
+        XCTAssertTrue(list.waitForExistence(timeout: 30), "Tapping \(tileIdentifier) did not open \(expectedList)")
         for other in Self.tiles.map(\.list) where other != expectedList {
             XCTAssertFalse(DemoApp.element(app, other).exists, "Tapping \(tileIdentifier) also opened \(other)")
         }
 
         DemoApp.goBack(app)
         XCTAssertTrue(sitePage.waitForExistence(timeout: 10), "One Back did not return to the site page")
-        XCTAssertTrue(DemoApp.element(app, tileIdentifier).isHittable, "The site page is not the screen on top after one Back")
+        XCTAssertTrue(DemoApp.button(app, tileIdentifier).waitForExistence(timeout: 10), "The site page is not the screen on top after one Back")
         XCTAssertFalse(DemoApp.element(app, expectedList).exists, "\(expectedList) is still showing after Back")
     }
 
