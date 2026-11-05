@@ -393,8 +393,8 @@ final class AppModel {
     /// Tells the active account's server whether the app is in front, and
     /// opens the conversation the assistant just started.
     func scenePhaseChanged(isActive: Bool) {
-        if isActive { Task { await updates.checkIfDue() } }
         guard !isDemo else { return }
+        if isActive { Task { await updates.checkIfDue() } }
         presence.setActive(isActive, account: activeAccount, connection: activeAccount.map { connection(for: $0) }) { [weak self] pending in
             self?.assistantSpoke(pending)
         }
