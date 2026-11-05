@@ -42,8 +42,11 @@ final class ChatNavigationTests: XCTestCase {
     }
 
     /// Opens the inbox from the bell of this tab.
-    private func openInbox(on section: String, listDelaySeconds: Int? = nil) -> XCUIApplication {
+    private func openInbox(on section: String, title: String, listDelaySeconds: Int? = nil) -> XCUIApplication {
         let app = DemoApp.launch(screen: "section:\(section)", environment: listDelaySeconds.map { ["PORTAL_DEMO_LIST_DELAY_SECONDS": String($0)] } ?? [:])
+        // The demo moves to its tab once it has loaded, and moving to a tab closes the inbox.
+        XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 60), "The app did not reach \(title).\n\(app.debugDescription)")
+        Thread.sleep(forTimeInterval: Double(listDelaySeconds ?? 0) + 1)
         let bell = DemoApp.element(app, "notificationsBell")
         XCTAssertTrue(bell.waitForExistence(timeout: 60), "The tab has no bell.\n\(app.debugDescription)")
         bell.tap()
@@ -53,39 +56,39 @@ final class ChatNavigationTests: XCTestCase {
 
     /// From another tab, so the Chat tab has its list to load as the conversation opens.
     func testNotificationOpensTheAssistantConversation() {
-        let app = openInbox(on: "tickets")
+        let app = openInbox(on: "tickets", title: "Tickets")
         tapNotification(app, "Main chat has a new answer")
         assertStaysOpen(app, Self.mainChatMessage)
     }
 
     func testNotificationOpensThePeopleChat() {
-        let app = openInbox(on: "tickets")
+        let app = openInbox(on: "tickets", title: "Tickets")
         tapNotification(app, "A new message in the chat")
         assertStaysOpen(app, Self.peopleChatMessage)
     }
 
     /// From the Chat tab, where the list is already on screen under the inbox.
     func testNotificationOpensTheConversationOverTheList() {
-        let app = openInbox(on: "assistant")
+        let app = openInbox(on: "assistant", title: "Chat")
         tapNotification(app, "Main chat has a new answer")
         assertStaysOpen(app, Self.mainChatMessage)
     }
 
     func testNotificationOpensThePeopleChatOverTheList() {
-        let app = openInbox(on: "assistant")
+        let app = openInbox(on: "assistant", title: "Chat")
         tapNotification(app, "A new message in the chat")
         assertStaysOpen(app, Self.peopleChatMessage)
     }
 
     /// The list arrives after the conversation has opened, which is what a real server does.
     func testNotificationOpensTheAssistantConversationBeforeTheListArrives() {
-        let app = openInbox(on: "tickets", listDelaySeconds: 3)
+        let app = openInbox(on: "tickets", title: "Tickets", listDelaySeconds: 3)
         tapNotification(app, "Main chat has a new answer")
         assertStaysOpen(app, Self.mainChatMessage, seconds: 6)
     }
 
     func testNotificationOpensThePeopleChatBeforeTheListArrives() {
-        let app = openInbox(on: "tickets", listDelaySeconds: 3)
+        let app = openInbox(on: "tickets", title: "Tickets", listDelaySeconds: 3)
         tapNotification(app, "A new message in the chat")
         assertStaysOpen(app, Self.peopleChatMessage, seconds: 6)
     }
