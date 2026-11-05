@@ -37,7 +37,16 @@ struct SplitSelectionTests {
         var selection = SplitSelection()
         selection.selectedId = "conversation01"
         #expect(selection.detailId(isCompact: false) == "conversation01")
+        selection.selectedId = "conversation02"
+        #expect(selection.detailId(isCompact: false) == "conversation02")
+    }
+
+    @Test func aPhoneTurnedOnItsSideKeepsTheConversationOnTop() {
+        var selection = SplitSelection()
+        selection.selectedId = "conversation01"
         selection.selectedId = nil
+        #expect(selection.detailId(isCompact: false) == "conversation01")
+        selection.isDetailOnTop = false
         #expect(selection.detailId(isCompact: false) == nil)
     }
 

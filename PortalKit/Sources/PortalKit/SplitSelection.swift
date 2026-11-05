@@ -18,10 +18,11 @@ public struct SplitSelection: Equatable, Sendable {
 
     public init() {}
 
-    /// The conversation the detail column draws. Side by side the list's selection is plain to see, so it alone decides. On a
-    /// phone nothing is kept once the person has gone back: what the detail draws still sets the bars, such as hiding the tab bar.
+    /// The conversation the detail column draws. Nothing is kept once the person has gone back: what the detail draws still sets the
+    /// bars, such as hiding the tab bar. Side by side the list's selection comes first, and a large phone turned on its side is
+    /// side by side with a list that cleared its selection.
     public func detailId(isCompact: Bool) -> String? {
-        guard isCompact else { return selectedId }
+        if !isCompact, let selectedId { return selectedId }
         return isDetailOnTop ? lastSelectedId : nil
     }
 }

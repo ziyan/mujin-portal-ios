@@ -97,7 +97,7 @@ struct ConversationListView: View {
             if Task.isCancelled { return }
             await model?.search(searchText)
         }
-        .onChange(of: selection.selectedId) { _, id in model?.openConversationId = id }
+        .onChange(of: selection) { _, selection in model?.openConversationId = selection.detailId(isCompact: horizontalSizeClass == .compact) }
         .sheet(isPresented: Binding(get: { isComposing || session.composeRequest != nil }, set: { if !$0 { isComposing = false; session.composeRequest = nil } })) {
             ComposeMessageView(request: session.composeRequest, onSent: { selection.selectedId = $0 }, onStarted: { conversationId, text, isChat in
                 // The row is there at once; the server is asked afterwards, and the title comes when it is set.
