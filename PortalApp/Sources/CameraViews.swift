@@ -128,6 +128,8 @@ struct CameraLiveView: View {
     let budget: CameraWallBudget
 
     @State private var player: CameraPlayer?
+    /// Whether the scroll view last said the tile is in view, which outlives the tile leaving the screen under a pushed page.
+    @State private var isInView = false
 
     private var isStreaming: Bool { camera.isStreamable && budget.isStreaming(camera.id) }
     /// Whether the stream failed: the tile keeps that state and holds no stream slot.
@@ -165,8 +167,11 @@ struct CameraLiveView: View {
             }
             .clipped()
             .onScrollVisibilityChange(threshold: 0.5) { isVisible in
+                isInView = isVisible
                 if isVisible { budget.request(camera.id) } else { budget.release(camera.id) }
             }
+            // Coming back from a camera's screen moves nothing, so the scroll says nothing: the tile asks again by itself.
+            .onAppear { if isInView { budget.request(camera.id) } }
             .onDisappear {
                 budget.release(camera.id)
                 stopPlayer()
@@ -182,7 +187,9 @@ struct CameraLiveView: View {
                 guard status == .failed, let player else { return }
                 budget.fail(camera.id, isFinal: player.isFailureFinal)
             }
+            // Only a tile that holds a stream: a failed one keeps its player, and waking it would ask for what was refused, with no slot.
             .onChange(of: scenePhase) { _, phase in
+                guard isStreaming else { return }
                 if phase == .active { player?.resume() } else { player?.suspend() }
             }
     }
