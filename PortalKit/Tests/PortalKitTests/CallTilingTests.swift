@@ -163,6 +163,13 @@ import Testing
         #expect(CallSubscriptionPlan.changes(from: ["a": .full], to: ["a": .small]).map(\.videoQuality) == [.small])
     }
 
+    @Test func onlyAServerWithoutTheMutationStopsTheRequests() {
+        #expect(CallSubscriptionPlan.isSelectionUnsupported(by: PortalError.refused("Cannot query field \"SetChatCallVideoSubscriptions\" on type \"Mutation\".")))
+        #expect(!CallSubscriptionPlan.isSelectionUnsupported(by: PortalError.refused("the call has no media session")))
+        #expect(!CallSubscriptionPlan.isSelectionUnsupported(by: PortalError.unreadableAnswer))
+        #expect(!CallSubscriptionPlan.isSelectionUnsupported(by: URLError(.timedOut)))
+    }
+
     @Test func theMutationCarriesEachPersonAndTheirQuality() async throws {
         let transport = ScriptedTransport { _ in (200, ScriptedTransport.json(["data": ["SetChatCallVideoSubscriptions": NSNull()]])) }
         let connection = Connection(account: makeAccount(), transport: transport)
