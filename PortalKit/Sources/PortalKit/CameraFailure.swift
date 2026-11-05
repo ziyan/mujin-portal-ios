@@ -81,6 +81,29 @@ public enum CameraPlaybackFailure: Equatable, Sendable {
     }
 }
 
+/// CameraLiveFailure is what the end of a live stream's socket says about trying again. A refusal or a missing route is the same on the
+/// next try, so it is final; a drop, a timeout or a controller that did not answer may pass, so it is retried with backoff.
+public enum CameraLiveFailure: Equatable, Sendable {
+    /// Portal refused the upgrade (401 or 403). The person's access does not change by asking again.
+    case notAllowed
+    /// Portal has no live route for the camera (404).
+    case routeMissing
+    /// Anything else: the socket dropped, timed out, was closed by the server or was refused for a reason that may pass (5xx).
+    case transient
+
+    public static func classify(socketEnd: CameraSocketEnd?) -> CameraLiveFailure {
+        guard case .refused(let statusCode)? = socketEnd else { return .transient }
+        switch statusCode {
+        case 401, 403: return .notAllowed
+        case 404: return .routeMissing
+        default: return .transient
+        }
+    }
+
+    /// Whether asking again is pointless: only the person can try again, from the camera's own screen.
+    public var isFinal: Bool { self != .transient }
+}
+
 extension Connection {
     /// Finds out why a playback socket did not open, with one plain GET. Asked only after a dial failed, and only when the socket's own
     /// end did not say. It can tell a refusal, a route the controller does not have and a controller that does not answer; a route that

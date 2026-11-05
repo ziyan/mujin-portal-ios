@@ -84,21 +84,42 @@ struct CameraSnapshotView: View {
     }
 }
 
-/// CameraWallBudget is how many tiles of one screen play live video at once. A tile asks when it appears and gives its place back when it
-/// leaves the screen.
+/// CameraWallBudget is how many tiles of one screen play live video at once. A tile asks while at least half of it is on screen and gives its
+/// place back when it leaves the screen, so the places are held by tiles that can be seen.
 @MainActor
 @Observable
 final class CameraWallBudget {
-    private var streams = CameraWallStreams()
+    private var streams = CameraWallStreams(limit: UIDevice.current.userInterfaceIdiom == .pad ? CameraWallStreams.tabletLimit : CameraWallStreams.phoneLimit)
 
     func request(_ cameraId: String) { streams.request(cameraId) }
     func release(_ cameraId: String) { streams.release(cameraId) }
+    func fail(_ cameraId: String, isFinal: Bool) { streams.fail(cameraId, isFinal: isFinal) }
+    func retain(_ cameraIds: Set<String>) { streams.retain(cameraIds) }
+    func hasFailed(_ cameraId: String) -> Bool { streams.hasFailed(cameraId) }
     func isStreaming(_ cameraId: String) -> Bool { streams.isStreaming(cameraId) }
+    func isWaiting(_ cameraId: String) -> Bool { streams.isWaiting(cameraId) }
+}
+
+/// CameraWaitingChip says a tile that is on screen has no stream yet because the screen's limit of streams is reached. It starts by itself
+/// when a stream is free.
+private struct CameraWaitingChip: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle().fill(Color.statusWarning).frame(width: 8, height: 8).accessibilityHidden(true)
+            Text("Paused").font(.caption.weight(.semibold))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Color.black.opacity(0.6), in: Capsule())
+        .dynamicTypeSize(...DynamicTypeSize.xLarge)
+        .accessibilityElement(children: .combine)
+    }
 }
 
 /// CameraLiveView is a camera's tile picture: live video on the least sharp channel, with the still picture under it while the stream
-/// connects. A tile beyond the screen's limit of streams keeps its still, refreshed every so often, with a play mark. Tapping a tile opens
-/// the camera, which is where the sharper channels and the recording are.
+/// connects. A tile on screen beyond the screen's limit of streams keeps its still, refreshed every so often, with a Paused chip, and
+/// starts by itself when a stream is free. Tapping a tile opens the camera, which is where the sharper channels and the recording are.
 struct CameraLiveView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
@@ -107,43 +128,87 @@ struct CameraLiveView: View {
     let budget: CameraWallBudget
 
     @State private var player: CameraPlayer?
+    /// Whether the scroll view last said the tile is in view, which outlives the tile leaving the screen under a pushed page.
+    @State private var isInView = false
 
     private var isStreaming: Bool { camera.isStreamable && budget.isStreaming(camera.id) }
+    /// Whether the stream failed: the tile keeps that state and holds no stream slot.
+    private var hasFailed: Bool { camera.isStreamable && budget.hasFailed(camera.id) }
+    private var isWaiting: Bool { camera.isStreamable && budget.isWaiting(camera.id) }
 
     var body: some View {
-        CameraSnapshotView(camera: camera, refreshInterval: isStreaming ? nil : 30)
+        CameraSnapshotView(camera: camera, refreshInterval: isStreaming || hasFailed ? nil : 30)
             .overlay {
-                if let player, isStreaming {
+                if let player, isStreaming || hasFailed {
                     CameraSurface(renderer: player.renderer)
                         .opacity(player.status == .playing ? 1 : 0)
                     if player.status == .failed {
-                        Color.black.opacity(0.55)
-                        Image(systemName: "video.slash").font(.title2).foregroundStyle(.white.opacity(0.85))
+                        failedState(player)
+                    } else {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                StreamChip(player: player)
+                                Spacer()
+                            }
+                        }
+                        .padding(6)
                     }
+                } else if isWaiting {
                     VStack {
                         Spacer()
                         HStack {
-                            StreamChip(player: player)
+                            CameraWaitingChip()
                             Spacer()
                         }
                     }
                     .padding(6)
-                } else if camera.isStreamable {
-                    Image(systemName: "play.circle.fill").font(.title).foregroundStyle(.white.opacity(0.85)).shadow(radius: 2)
                 }
             }
             .clipped()
-            .onAppear { budget.request(camera.id) }
+            .onScrollVisibilityChange(threshold: 0.5) { isVisible in
+                isInView = isVisible
+                if isVisible { budget.request(camera.id) } else { budget.release(camera.id) }
+            }
+            // Coming back from a camera's screen moves nothing, so the scroll says nothing: the tile asks again by itself.
+            .onAppear { if isInView { budget.request(camera.id) } }
             .onDisappear {
                 budget.release(camera.id)
                 stopPlayer()
             }
             .onChange(of: isStreaming, initial: true) { _, isOn in
-                if isOn { startPlayer() } else { stopPlayer() }
+                if isOn {
+                    if let player { player.retry() } else { startPlayer() }
+                } else if !hasFailed {
+                    stopPlayer()
+                }
             }
+            .onChange(of: player?.status) { _, status in
+                guard status == .failed, let player else { return }
+                budget.fail(camera.id, isFinal: player.isFailureFinal)
+            }
+            // Only a tile that holds a stream: a failed one keeps its player, and waking it would ask for what was refused, with no slot.
             .onChange(of: scenePhase) { _, phase in
+                guard isStreaming else { return }
                 if phase == .active { player?.resume() } else { player?.suspend() }
             }
+    }
+
+    /// The one state of a tile whose stream failed for good or ran out of retries. A refusal covers the still, which Portal refused too.
+    private func failedState(_ player: CameraPlayer) -> some View {
+        let isRefused = player.failure == .notAllowed
+        return ZStack {
+            Color.black.opacity(isRefused ? 1 : 0.55)
+            VStack(spacing: 4) {
+                Image(systemName: isRefused ? "lock" : "video.slash").font(.title3)
+                Text(isRefused ? "Not allowed" : "Unavailable")
+                    .font(.caption)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(.white.opacity(0.85))
+            .padding(6)
+        }
     }
 
     private func startPlayer() {
@@ -234,6 +299,7 @@ struct CameraGridView: View {
         .navigationTitle("Cameras")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)
+        .onChange(of: model.cameras.map(\.id)) { _, cameraIds in budget.retain(Set(cameraIds)) }
     }
 }
 

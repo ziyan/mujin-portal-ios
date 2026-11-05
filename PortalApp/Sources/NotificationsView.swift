@@ -120,6 +120,7 @@ struct NotificationsView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
+                        .accessibilityIdentifier("notificationsClose")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {

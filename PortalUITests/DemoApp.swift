@@ -10,6 +10,7 @@ enum DemoApp {
         app.launchEnvironment["PORTAL_DEMO_SCREEN"] = screen
         if let persona { app.launchEnvironment["PORTAL_DEMO_PERSONA"] = persona }
         app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 90), "The app did not come to the foreground")
         return app
     }
 
@@ -18,15 +19,70 @@ enum DemoApp {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    /// Scrolls the screen up until the element can be tapped.
-    static func scrollToElement(_ element: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(element.waitForExistence(timeout: 45), "\(element) never appeared", file: file, line: line)
-        var attempts = 0
-        while !element.isHittable && attempts < 10 {
-            app.swipeUp()
-            attempts += 1
+    /// A button with this accessibility identifier. A tile or a button is a Button to the accessibility tree; asking for that
+    /// type keeps the query cheap on a busy runner.
+    static func button(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
+        app.buttons.matching(identifier: identifier).firstMatch
+    }
+
+    /// Whether the center of the element is in the band of the window where a tap lands on it: below the navigation bar and
+    /// well above the tab bar and the floating buttons that sit over the bottom of a scrolled page. An element that exists
+    /// but has no frame yet (a row that has not been laid out, or one still moving) is not in the band.
+    static func isInTapBand(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        guard element.exists else { return false }
+        let window = app.windows.firstMatch.frame
+        let frame = element.frame
+        guard window.height > 0, frame.width > 0, frame.height > 0 else { return false }
+        return frame.midY > window.minY + window.height * 0.15 && frame.midY < window.minY + window.height * 0.70
+    }
+
+    /// Waits until the element has stopped moving: a page that is still loading, or still scrolling to a section, moves
+    /// the tile between the moment it is found and the moment it is tapped.
+    static func waitUntilStill(_ element: XCUIElement, timeout: TimeInterval = 30) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        var stableReadings = 0
+        var lastFrame = CGRect.null
+        while Date() < deadline {
+            let frame = element.exists ? element.frame : CGRect.null
+            if frame == lastFrame, !frame.isNull, !frame.isEmpty { stableReadings += 1 } else { stableReadings = 0 }
+            if stableReadings >= 3 { return true }
+            lastFrame = frame
+            Thread.sleep(forTimeInterval: 0.5)
         }
-        XCTAssertTrue(element.isHittable, "\(element) cannot be tapped", file: file, line: line)
+        return false
+    }
+
+    /// Whether the system reports the element hittable within the timeout. A predicate keeps a snapshot that fails while the
+    /// page is still moving from failing the test: it is evaluated again until the timeout.
+    static func waitUntilHittable(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    /// Brings the element into the tap band, scrolling the page up or down, and returns once it is still and hittable.
+    static func scrollToElement(_ element: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(element.waitForExistence(timeout: 90), "\(element) never appeared", file: file, line: line)
+        for attempt in 0..<15 {
+            if isInTapBand(element, in: app), waitUntilStill(element), isInTapBand(element, in: app), waitUntilHittable(element) { return }
+            guard element.exists else { continue }
+            let window = app.windows.firstMatch.frame
+            let isAboveBand = element.frame.midY <= window.minY + window.height * 0.15
+            if attempt >= 4 {
+                dragPage(app, isUp: !isAboveBand)
+            } else if isAboveBand {
+                app.swipeDown()
+            } else {
+                app.swipeUp()
+            }
+        }
+        XCTFail("\(element) could not be scrolled into the tap band", file: file, line: line)
+    }
+
+    /// A short drag that stops where it ends: a swipe can carry a page past the band in both directions, as in a sheet.
+    private static func dragPage(_ app: XCUIApplication, isUp: Bool) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isUp ? 0.65 : 0.4))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isUp ? 0.4 : 0.65))
+        start.press(forDuration: 0.05, thenDragTo: end)
     }
 
     /// Goes back one screen with the back button of the screen on top.

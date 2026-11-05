@@ -79,7 +79,7 @@ final class SessionModel {
         self.surveillance = SurveillanceModel(connection: connection, cache: cache, accountKey: account.accountKey)
         self.savedTabBar = tabBarStore.load(accountKey: account.accountKey)
         // The screenshot of Surveillance as a tab is taken for someone who chose it, since the default bar no longer has it.
-        if DemoOptions.screen == "surveillance-tab" { savedTabBar = [AppSection.site.rawValue, AppSection.surveillance.rawValue] }
+        if DemoOptions.screen == "surveillance-tab" || DemoOptions.screen == "surveillance-many" || DemoOptions.screen == "surveillance-many-scrolled" { savedTabBar = [AppSection.site.rawValue, AppSection.surveillance.rawValue] }
     }
 
     /// The sections on the tab bar, More last, for what the person may use now.
@@ -424,7 +424,7 @@ enum DemoOptions {
         if screen.hasPrefix("chat") { return .chats }
         if screen.hasPrefix("site-staff") || screen == "sites-staff" || screen == "surveillance-staff" { return .site }
         if screen == "surveillance" { return .more }
-        if screen == "surveillance-tab" { return .surveillance }
+        if screen == "surveillance-tab" || screen == "surveillance-many" || screen == "surveillance-many-scrolled" { return .surveillance }
         if screen.hasPrefix("site") || screen.hasPrefix("cell") || screen.hasPrefix("incident") || screen.hasPrefix("controller") || screen.hasPrefix("virtual-controller") || screen.hasPrefix("camera") { return .site }
         return nil
     }

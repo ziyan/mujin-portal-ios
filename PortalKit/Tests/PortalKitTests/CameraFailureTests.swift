@@ -77,4 +77,23 @@ import Testing
         let exists = ScriptedTransport { _ in (400, Data()) }
         #expect(await Connection(account: makeAccount(), transport: exists).playbackFailure(controllerId: "controller01", cameraId: "nvrcamera01") == .undetermined)
     }
+
+    @Test func aRefusedOrMissingLiveRouteIsFinal() {
+        #expect(CameraLiveFailure.classify(socketEnd: .refused(statusCode: 401)) == .notAllowed)
+        #expect(CameraLiveFailure.classify(socketEnd: .refused(statusCode: 403)) == .notAllowed)
+        #expect(CameraLiveFailure.classify(socketEnd: .refused(statusCode: 404)) == .routeMissing)
+        #expect(CameraLiveFailure.notAllowed.isFinal)
+        #expect(CameraLiveFailure.routeMissing.isFinal)
+    }
+
+    @Test func aDropOrATimeoutOfALiveStreamIsRetried() {
+        #expect(CameraLiveFailure.classify(socketEnd: .broken) == .transient)
+        #expect(CameraLiveFailure.classify(socketEnd: nil) == .transient)
+        #expect(CameraLiveFailure.classify(socketEnd: .closed(code: 1011, reason: "upstream failed")) == .transient)
+        #expect(CameraLiveFailure.classify(socketEnd: .closed(code: 1001, reason: "")) == .transient)
+        for statusCode in [400, 408, 500, 502, 503, 504] {
+            #expect(CameraLiveFailure.classify(socketEnd: .refused(statusCode: statusCode)) == .transient)
+        }
+        #expect(!CameraLiveFailure.transient.isFinal)
+    }
 }

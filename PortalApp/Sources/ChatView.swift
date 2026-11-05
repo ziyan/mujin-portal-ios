@@ -126,7 +126,9 @@ struct ChatView: View {
     private func messages(_ model: ChatModel) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
+                // Not lazy: scrolling could leave a lazy stack placing its rows forever, with the app frozen at full CPU. The window
+                // holds one page of messages and grows only when the person asks for earlier ones.
+                VStack(alignment: .leading, spacing: 10) {
                     if model.window.earlierCount > 0 {
                         Button { Task { await model.loadEarlier() } } label: {
                             Text("\(model.window.earlierCount) earlier messages").font(.footnote).frame(maxWidth: .infinity)
