@@ -55,10 +55,12 @@ final class BrowserFromSheetTests: XCTestCase {
 
     func testTicketSheetOpensWebsiteLinkInSafari() {
         let app = openResult("ticket|1", query: "gripper")
-        let link = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Suction cup checklist")).firstMatch
-        assertSheetShown(app)
-        DemoApp.scrollToElement(link, in: app)
-        link.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+        // The link is a paragraph of its own at the end of the page, so it never reaches the tap band and its start is the link.
+        let link = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Suction cup checklist")).firstMatch
+        XCTAssertTrue(link.waitForExistence(timeout: 30), "The ticket has no link")
+        app.swipeUp()
+        XCTAssertTrue(DemoApp.waitUntilHittable(link), "The link cannot be tapped")
+        link.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 20, dy: 0)).tap()
         let address = DemoApp.element(app, "safariPageAddress")
         XCTAssertTrue(address.waitForExistence(timeout: 30), "The website link opened nothing over the sheet")
         XCTAssertEqual(address.label, "https://example.test/docs/suction")
