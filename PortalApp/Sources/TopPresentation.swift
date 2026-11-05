@@ -29,8 +29,9 @@ final class TopPresenter {
         // The screen under it is closed by the person, so asking again must not close it with a state that is no longer its own.
         shown?.onUserDismiss = nil
         shown = controller
-        pending = Task { [weak controller] in
-            guard let top = await Self.settledTopViewController(), let controller, !Task.isCancelled else { return }
+        // The task keeps the controller alive until UIKit does: `shown` is weak, so nothing else holds it before it is presented.
+        pending = Task {
+            guard let top = await Self.settledTopViewController(), !Task.isCancelled else { return }
             top.present(controller, animated: true)
         }
     }
