@@ -39,6 +39,9 @@ final class AppModel {
     var isSigningIn = false
     /// Where a tapped notification or the assistant speaking first asks the app to go.
     var pendingRoute: PendingRoute?
+
+    /// Whether a newer app can be installed. It belongs to the phone, not to an account.
+    let updates = AppUpdateModel()
     /// The memory page a citation in an answer points at, shown over whatever is open.
     var openedCitation: MemoryCitation?
     /// A page of Portal a tapped link asked for, shown in a sheet.
@@ -390,6 +393,7 @@ final class AppModel {
     /// Tells the active account's server whether the app is in front, and
     /// opens the conversation the assistant just started.
     func scenePhaseChanged(isActive: Bool) {
+        if isActive { Task { await updates.checkIfDue() } }
         guard !isDemo else { return }
         presence.setActive(isActive, account: activeAccount, connection: activeAccount.map { connection(for: $0) }) { [weak self] pending in
             self?.assistantSpoke(pending)

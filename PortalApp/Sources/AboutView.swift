@@ -4,11 +4,23 @@ import SwiftUI
 /// AboutView says which app and which server this is.
 struct AboutView: View {
     @Environment(SessionModel.self) private var session
+    @Environment(AppModel.self) private var appModel
 
     var body: some View {
         List { PortalRows {
             Section {
                 LabeledContent("Version") { Text(Self.versionText) }
+                // Stays after the bar is dismissed, so the update can still be found.
+                if let update = appModel.updates.update {
+                    Button { appModel.updates.install() } label: {
+                        LabeledContent {
+                            Text(update.versionText)
+                        } label: {
+                            Label("Update available", systemImage: "arrow.down.circle")
+                        }
+                    }
+                    .accessibilityIdentifier("appUpdateRow")
+                }
                 LabeledContent("Server") { Text(session.account.server.displayHost) }
                 LabeledContent("Signed in as") { Text(session.account.email.isEmpty ? session.account.displayName : session.account.email) }
                 if let organization = session.profile?.organizationName {
