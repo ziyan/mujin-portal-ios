@@ -59,10 +59,12 @@ final class BrowserFromSheetTests: XCTestCase {
         let link = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Suction cup checklist")).firstMatch
         XCTAssertTrue(link.waitForExistence(timeout: 30), "The ticket has no link")
         app.swipeUp()
-        XCTAssertTrue(DemoApp.waitUntilHittable(link), "The link cannot be tapped")
+        XCTAssertTrue(DemoApp.waitUntilStill(link), "The page did not settle")
         link.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 20, dy: 0)).tap()
         let address = DemoApp.element(app, "safariPageAddress")
-        XCTAssertTrue(address.waitForExistence(timeout: 30), "The website link opened nothing over the sheet")
+        XCTAssertTrue(
+            address.waitForExistence(timeout: 30),
+            "The website link opened nothing over the sheet. The link is at \(link.frame) in a window of \(app.windows.firstMatch.frame).\n\(app.debugDescription)")
         XCTAssertEqual(address.label, "https://example.test/docs/suction")
         DemoApp.element(app, "safariPageDone").tap()
         XCTAssertTrue(DemoApp.element(app, "linkedPageClose").waitForExistence(timeout: 30), "Closing Safari did not return to the sheet")
