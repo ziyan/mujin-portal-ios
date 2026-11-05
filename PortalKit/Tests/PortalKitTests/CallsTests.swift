@@ -211,6 +211,28 @@ import Testing
         #expect(!ChatCallRules.canStart(in: nil, userId: "user01"))
     }
 
+    @Test func aCallThatIsOverSaysWhereItsTranscriptIs() {
+        let ended = "2026-03-01T10:04:32Z"
+        #expect(ChatCall(id: "c", endedAt: ended, transcriptState: "done").transcriptStatus == .ready)
+        #expect(ChatCall(id: "c", endedAt: ended, transcriptState: "waiting").transcriptStatus == .transcribing)
+        #expect(ChatCall(id: "c", endedAt: ended, transcriptState: "recording").transcriptStatus == .transcribing)
+        #expect(ChatCall(id: "c", endedAt: ended, transcriptState: "failed").transcriptStatus == .failed)
+        #expect(ChatCall(id: "c", endedAt: ended, transcriptState: "off").transcriptStatus == .none)
+        #expect(ChatCall(id: "c", transcriptState: "recording").transcriptStatus == .none)
+    }
+
+    /// A call in a chat's history comes without its words, so the transcript is offered from its state alone.
+    @Test func aCallFromTheHistoryOffersATranscriptItDoesNotHoldYet() {
+        let call = ChatCall(id: "c", endedAt: "2026-03-01T10:04:32Z", transcriptState: "done")
+        #expect(call.spokenSegments().isEmpty)
+        #expect(call.transcriptStatus == .ready)
+    }
+
+    @Test func theCallDetailAsksForTheRecordings() {
+        #expect(Documents.getChatCall.contains("recordingAttachments { id filename uploadedByUserId }"))
+        #expect(!Documents.chatCallLineFields.contains("recordingAttachments"))
+    }
+
     @Test func theTranscriptLeavesOutEmptySegments() {
         let withSegments = ChatCall(id: "c", transcriptSegments: [ChatCallSegment(text: "Hello"), ChatCallSegment(text: "  "), ChatCallSegment(text: nil)])
         #expect(withSegments.spokenSegments().count == 1)

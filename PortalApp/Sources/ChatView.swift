@@ -595,7 +595,16 @@ private struct MessageRow: View {
                     messageId: message.id, voice: voice, isMine: isMine, connection: model.connection, isDemo: appModel.isDemo,
                     isShowingTextAtStart: DemoOptions.screen == "chat-voice" && message.id == "v3")
             } else if let call = message.call {
-                CallLineView(call: call, currentUserId: model.currentUserId)
+                CallLineView(
+                    call: call, currentUserId: model.currentUserId,
+                    loadDetail: { [connection = model.connection] in try await connection.chatCall(id: call.id) },
+                    openRecording: { recording in
+                        Task {
+                            guard let account = appModel.activeAccount else { return }
+                            let address = await model.connection.server.endpoint("/api/v1/attachment/\(recording.id)")
+                            await appModel.openInApp(address, account: account)
+                        }
+                    })
             } else {
             VStack(alignment: .leading, spacing: 2) {
                 // People write plain text; a table or a Markdown link in it is laid out as Markdown, which gives up the name chips.

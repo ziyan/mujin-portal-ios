@@ -394,6 +394,7 @@ jobs:
           shoot chat-voice-composer chat-voice-composer
           shoot chat-voice-recording chat-voice-recording
           shoot chat-call-banner chat-call-banner
+          shoot chat-call-transcript chat-call-transcript
           shoot call-voice call-voice
           shoot call-video call-video
           shoot call-transcription call-transcription
@@ -515,6 +516,7 @@ jobs:
           shoot chat-voice-composer-dark chat-voice-composer
           shoot chat-voice-recording-dark chat-voice-recording
           shoot chat-call-banner-dark chat-call-banner
+          shoot chat-call-transcript-dark chat-call-transcript
           shoot call-voice-dark call-voice
           shoot call-video-dark call-video
           shoot call-transcription-dark call-transcription
