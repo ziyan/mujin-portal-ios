@@ -21,6 +21,9 @@ struct ConversationView: View {
     @State private var isShowingArtifacts = false
     @State private var isAddingPeople = false
     @State private var drafts = AttachmentDrafts()
+    @State private var isOnScreen = false
+    /// Whether the top of the thread is in view, where earlier messages load.
+    @State private var isTopInView = false
 
     var body: some View {
         Group {
@@ -107,10 +110,24 @@ struct ConversationView: View {
                     messageId: "m02", authorName: "Assistant", excerpt: "Here is the summary for this week. Three sites are healthy, one needs attention.")
             }
         }
-        .onAppear { model?.start() }
+        .onAppear {
+            isOnScreen = true
+            model?.start()
+        }
         .onDisappear {
+            isOnScreen = false
             model?.stop()
             voice?.end()
+        }
+        .onCoveredChange { isCovered in
+            guard isOnScreen, let model else { return }
+            if isCovered {
+                model.stop()
+                voice?.end()
+            } else {
+                voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
+                model.start()
+            }
         }
     }
 
@@ -163,7 +180,12 @@ struct ConversationView: View {
                     if model.window.earlierCount > 0 {
                         Color.clear.frame(height: 1)
                             .onScrollVisibilityChange(threshold: 0.01) { isVisible in
+                                isTopInView = isVisible
                                 if isVisible { Task { await model.loadEarlier() } }
+                            }
+                            // A short page can leave the top in view, and then the scroll says nothing more.
+                            .onChange(of: model.window.earlierCount) { _, _ in
+                                if isTopInView { Task { await model.loadEarlier() } }
                             }
                     }
                     if model.transcript.entries.isEmpty {

@@ -50,6 +50,8 @@ final class AppModel {
 
     /// The built-in browser being shown, and the page in Safari's view.
     var presentedWeb: WebSession?
+    /// Whether a screen that fills the display is up. It keeps the screens below in the window, so they get no `onDisappear`.
+    var isCoveredByScreen: Bool { presentedWeb != nil || safariPage != nil || linkRequest != nil || callCenter.isScreenShown }
     var safariPage: IdentifiableURL?
     /// One browser per account, kept after its screen closes.
     private var webSessions: [String: WebSession] = [:]

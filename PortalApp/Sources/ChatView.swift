@@ -14,6 +14,7 @@ struct ChatView: View {
     let chatId: String?
 
     @State private var model: ChatModel?
+    @State private var isOnScreen = false
     @State private var draft = DemoOptions.screen == "chat-mention" ? "Can @" : ""
     @State private var messageToDelete: ChatMessage?
     @State private var isShowingInfo = DemoOptions.screen == "chat-info"
@@ -101,8 +102,19 @@ struct ChatView: View {
                 chatModel.replyTarget = chatModel.timeline.messages.first { $0.authorUserId == "user02" }
             }
         }
-        .onAppear { model?.start() }
-        .onDisappear { model?.stop() }
+        .onAppear {
+            isOnScreen = true
+            model?.start()
+        }
+        .onDisappear {
+            isOnScreen = false
+            model?.stop()
+        }
+        // The feed stays open only while the chat is seen, which is how the server knows to send no notification for it.
+        .onCoveredChange { isCovered in
+            guard isOnScreen else { return }
+            if isCovered { model?.stop() } else { model?.start() }
+        }
     }
 
     @ViewBuilder

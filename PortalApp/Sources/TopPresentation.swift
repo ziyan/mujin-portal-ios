@@ -31,6 +31,7 @@ final class TopPresenter {
         controller.onUserDismiss = onUserDismiss
         controller.modalPresentationStyle = style
         controller.modalPresentationCapturesStatusBarAppearance = true
+        controller.view.accessibilityViewIsModal = true
         controller.view.backgroundColor = .systemBackground
         // The screen under it is closed by the person, so asking again must not close it with a state that is no longer its own.
         shown?.onUserDismiss = nil
@@ -38,8 +39,8 @@ final class TopPresenter {
         // The task keeps the controller alive until UIKit does: `shown` is weak, so nothing else holds it before it is presented.
         pending = Task {
             guard let top = await Self.settledTopViewController(), !Task.isCancelled else { return }
-            // The screen below stays in the window, and its text field would keep the keyboard over this one.
-            top.view.window?.endEditing(true)
+            // The screen below stays in the window, and its text field would keep the keyboard over this one. A sheet leaves it alone.
+            if style == .overFullScreen { top.view.window?.endEditing(true) }
             top.present(controller, animated: true)
         }
     }
@@ -85,6 +86,24 @@ final class PresentedHostingController: UIHostingController<AnyView> {
         super.viewDidDisappear(animated)
         // Not when another screen covers this one: then it is still presented.
         if isBeingDismissed || presentingViewController == nil { onUserDismiss?() }
+    }
+}
+
+/// CoveredChange tells a screen when one that fills the display opens over it or closes, in place of `onDisappear` and `onAppear`.
+private struct CoveredChange: ViewModifier {
+    @Environment(AppModel.self) private var appModel
+    let action: (Bool) -> Void
+
+    func body(content: Content) -> some View {
+        content.onChange(of: appModel.isCoveredByScreen) { _, isCovered in action(isCovered) }
+    }
+}
+
+extension View {
+    /// Runs `action` with true when a screen that fills the display opens over the app, and with false when it closes. What must not go
+    /// on unseen, such as a microphone, a live picture or the feed that says the person is reading, stops here.
+    func onCoveredChange(_ action: @escaping (Bool) -> Void) -> some View {
+        modifier(CoveredChange(action: action))
     }
 }
 
