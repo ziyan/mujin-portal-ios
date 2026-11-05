@@ -56,9 +56,7 @@ final class BrowserFromSheetTests: XCTestCase {
     func testTicketSheetOpensWebsiteLinkInSafari() {
         let app = openResult("ticket|1", query: "gripper")
         let link = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Suction cup checklist")).firstMatch
-        // The comments are in a lazy list: the link does not exist until the page has scrolled to it.
         assertSheetShown(app)
-        for _ in 0..<8 where !link.exists { app.swipeUp() }
         DemoApp.scrollToElement(link, in: app)
         link.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
         let address = DemoApp.element(app, "safariPageAddress")
