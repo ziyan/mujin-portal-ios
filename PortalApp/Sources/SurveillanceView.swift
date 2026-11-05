@@ -110,7 +110,8 @@ struct SurveillanceView: View {
         let groups = Surveillance.group(
             cameras: model.cameras, siteNames: siteNames, organizationNames: session.organizationNames, selectedSiteIds: selectedSiteIds, query: searchText)
         let shown = groups.flatMap(\.cameras)
-        return ScrollView {
+        return ScrollViewReader { proxy in
+            ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if !shown.isEmpty {
                     Text("\(Surveillance.onlineCount(shown)) of \(shown.count) online")
@@ -131,7 +132,10 @@ struct SurveillanceView: View {
                 }
             }
             .padding(16)
+            }
+            .task { await showLastCameraInDemo(proxy, lastCameraId: shown.last?.id) }
         }
+        .onChange(of: shown.map(\.id)) { _, cameraIds in budget.retain(Set(cameraIds)) }
         .overlay {
             if groups.isEmpty {
                 if searchText.isEmpty && selectedSiteIds.isEmpty {
@@ -144,6 +148,13 @@ struct SurveillanceView: View {
             }
         }
         .refreshable { await load(force: true) }
+    }
+
+    /// The scrolled screenshot of a wall with more cameras than the limit of streams: the demo scrolls to the last camera once the tiles are up.
+    private func showLastCameraInDemo(_ proxy: ScrollViewProxy, lastCameraId: String?) async {
+        guard appModel.isDemo, DemoOptions.screen == "surveillance-many-scrolled", let lastCameraId else { return }
+        try? await Task.sleep(for: .seconds(1.5))
+        proxy.scrollTo(lastCameraId, anchor: .bottom)
     }
 
     /// The site's name, with the organization's under it for a Mujin user, who sees many.

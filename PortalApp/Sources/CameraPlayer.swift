@@ -43,8 +43,10 @@ final class CameraPlayer {
     private(set) var isSoundOn = false
     /// Whether the controller's software is too old to have recorded playback, so only live video and downloaded clips work.
     private(set) var isRecordingUnsupported = false
-    /// Why the recorded stream could not be had, once it failed; nil while it has not, and for a live stream.
+    /// Why the recorded stream could not be had, once it failed; nil while it has not. A live stream sets it only when Portal refused it.
     private(set) var failure: CameraPlaybackFailure?
+    /// Whether a live stream failed in a way that asking again does not change: Portal refused it or has no route for it.
+    private(set) var isFailureFinal = false
     /// A sentence for the person when something is not as expected: no recording here, the controller is offline.
     private(set) var notice: String?
     private(set) var clock: CameraClock
@@ -118,6 +120,7 @@ final class CameraPlayer {
         notice = nil
         isRecordingUnsupported = false
         failure = nil
+        isFailureFinal = false
         failures = 0
         isPaused = false
         let now = Self.nowMS
@@ -242,14 +245,35 @@ final class CameraPlayer {
         let path = CameraRoutes.livePath(controllerId: camera.controllerId, cameraId: camera.originCameraId, channel: channel)
         readTask = Task { [weak self] in
             guard let self else { return }
-            _ = await self.readSocket(path: path, generation: id)
-            self.liveSocketEnded(generation: id)
+            let reading = await self.readSocket(path: path, generation: id)
+            self.liveSocketEnded(generation: id, reading: reading)
         }
     }
 
-    private func liveSocketEnded(generation id: Int) {
+    private func liveSocketEnded(generation id: Int, reading: SocketReading) {
         guard id == generation, mode == .live, !isPaused else { return }
-        failSession()
+        let liveFailure = CameraLiveFailure.classify(socketEnd: reading.end)
+        if !reading.didReceive, liveFailure.isFinal {
+            failLiveFinally(liveFailure)
+        } else {
+            failSession()
+        }
+    }
+
+    /// Portal refused the live stream or has no route for it. Asking again gets the same answer, so there is no reconnect and no backoff:
+    /// the stream is failed, and only the person's own retry on the camera's screen tries again.
+    private func failLiveFinally(_ liveFailure: CameraLiveFailure) {
+        generation += 1
+        closeSocket()
+        reconnectTask?.cancel()
+        isFailureFinal = true
+        status = .failed
+        if liveFailure == .notAllowed {
+            failure = .notAllowed
+            notice = Self.refusedNotice
+        } else {
+            notice = String(localized: "The camera could not be reached.")
+        }
     }
 
     /// The live stream broke or stalled: try again after a pause that grows, until the attempts are used up.
