@@ -5,7 +5,7 @@ import PortalKit
 /// it, and the call screens the screenshots show. The simulator has no camera, so video tiles are placeholders.
 enum CallDemo {
     static let screens: Set<String> = [
-        "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner", "call-voice", "call-video", "call-transcription",
+        "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner", "chat-call-transcript", "call-voice", "call-video", "call-transcription",
         "call-minimized", "call-picker", "call-ring-more", "call-ringing", "call-two", "call-three", "call-five", "call-twelve",
     ]
 
@@ -19,7 +19,7 @@ enum CallDemo {
     /// The chat a screen opens.
     static func conversationId(for screen: String?) -> String? {
         switch screen {
-        case "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner": "chatconv03"
+        case "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner", "chat-call-transcript": "chatconv03"
         case "call-picker": "chatconv02"
         default: nil
         }
@@ -85,9 +85,10 @@ enum CallDemo {
         case "IsChatCallAvailable":
             return ["IsChatCallAvailable": true]
         case "ListGoingChatCalls":
-            guard screen == "chat-call-banner" else { return ["ListGoingChatCalls": []] }
+            guard screen == "chat-call-banner" || screen == "chat-call-transcript" else { return ["ListGoingChatCalls": []] }
             return ["ListGoingChatCalls": [goingCallJSON]]
         case "GetChatCall":
+            if variables["callId"] as? String == "call-a" { return ["GetChatCall": endedCall(id: "call-a", reason: "ended", seconds: 272, withTranscript: true, isDetail: true)] }
             return ["GetChatCall": goingCallJSON]
         default:
             return nil
@@ -146,7 +147,7 @@ enum CallDemo {
             }
             return ["voiceMessage": ["attachmentId": attachment, "durationMS": seconds * 1000, "waveformLevels": levels, "transcriptText": text ?? NSNull(), "transcriptState": state]]
         }
-        if screen == "chat-call-banner" {
+        if screen == "chat-call-banner" || screen == "chat-call-transcript" {
             return [
                 row("k1", "user02", "Sam Sample", 5_400, extra: ["call": endedCall(id: "call-a", reason: "ended", seconds: 272, withTranscript: true)]),
                 row("k2", "user01", "Alex Example", 3_600, extra: ["call": endedCall(id: "call-b", reason: "declined", seconds: 0, startedBy: "user01")]),
@@ -162,13 +163,22 @@ enum CallDemo {
         ]
     }
 
-    private static func endedCall(id: String, reason: String, seconds: Int, startedBy: String = "user02", withTranscript: Bool = false) -> [String: Any] {
+    private static func endedCall(id: String, reason: String, seconds: Int, startedBy: String = "user02", withTranscript: Bool = false, isDetail: Bool = false) -> [String: Any] {
         var call: [String: Any] = [
             "id": id, "chatId": "chat03", "chatDisplayName": "Sam Sample", "startedByUserId": startedBy, "startedByUserName": startedBy == "user02" ? "Sam Sample" : "Alex Example",
             "startedAt": "2026-03-01T10:00:00Z", "endedAt": "2026-03-01T10:04:32Z", "endReason": reason, "durationMS": seconds * 1000, "isTranscriptionOn": withTranscript,
             "transcriptState": withTranscript ? "done" : "off", "members": [],
         ]
-        if withTranscript {
+        // As on a real server, the words and recordings come only with the call on its own.
+        if isDetail {
+            call["members"] = [
+                ["userId": "user02", "userName": "Sam Sample", "ringState": "none", "isInCall": false, "isMuted": false, "isVideoOn": false],
+                ["userId": "user01", "userName": "Alex Example", "ringState": "answered", "isInCall": false, "isMuted": false, "isVideoOn": false],
+            ]
+            call["recordingAttachments"] = [
+                ["id": "recording-sam", "filename": "user02-0.ogg", "uploadedByUserId": "user02"],
+                ["id": "recording-alex", "filename": "user01-500.ogg", "uploadedByUserId": "user01"],
+            ]
             call["transcriptSegments"] = [
                 ["id": "s1", "userId": "user02", "userName": "Sam Sample", "text": "Can you see the error on the station three screen?", "startMS": 1_000, "endMS": 4_000],
                 ["id": "s2", "userId": "user01", "userName": "Alex Example", "text": "Yes, it says the scanner lost its connection.", "startMS": 5_000, "endMS": 8_000],

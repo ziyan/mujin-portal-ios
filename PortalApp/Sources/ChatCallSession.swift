@@ -220,7 +220,7 @@ final class ChatCallSession: Identifiable {
     var transcriptionNotice: String? {
         guard let call, call.isTranscriptionOn == true, noticeKey != dismissedNoticeKey else { return nil }
         let turnedOnBy = call.transcriptionTurnedOnByUserId == userId ? String(localized: "You") : (call.transcriptionTurnedOnByName ?? String(localized: "Someone"))
-        return String(localized: "\(turnedOnBy) turned on transcription. What is said on this call is written down.")
+        return String(localized: "\(turnedOnBy) started recording and transcribing this call.")
     }
 
     private var noticeKey: String { "\(callId ?? "")|\(call?.transcriptionTurnedOnByUserId ?? "")" }

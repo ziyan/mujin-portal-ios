@@ -123,7 +123,7 @@ struct CallScreen: View {
                     .opacity(call.isCameraOn ? 1 : 0.4)
                 GlassIconButton(symbol: call.routeSymbol, label: "Audio output", size: 56) { trigger.present() }
                     .background { RoutePickerHost(trigger: trigger).frame(width: 56, height: 56) }
-                GlassIconButton(symbol: call.isTranscriptionOn ? "captions.bubble.fill" : "captions.bubble", label: call.isTranscriptionOn ? "Turn transcription off" : "Turn transcription on", isOn: call.isTranscriptionOn, size: 56) {
+                GlassIconButton(symbol: call.isTranscriptionOn ? "captions.bubble.fill" : "captions.bubble", label: call.isTranscriptionOn ? "Stop recording" : "Record and transcribe", isOn: call.isTranscriptionOn, size: 56) {
                     call.setTranscription(!call.isTranscriptionOn)
                 }
             }

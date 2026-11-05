@@ -119,7 +119,17 @@ struct CallBanner: View {
 struct CallLineView: View {
     let call: ChatCall
     let currentUserId: String
-    @State private var isShowingTranscript = false
+    /// Reads the call's words and recordings, which the chat's history leaves out.
+    let loadDetail: () async throws -> ChatCall
+    let openRecording: (ChatCallRecording) -> Void
+
+    @State private var isShowingTranscript = DemoOptions.screen == "chat-call-transcript"
+    @State private var detail: ChatCall?
+    @State private var isLoading = false
+    @State private var didFailToLoad = false
+
+    /// The call with its words and recordings once they are read.
+    private var shownCall: ChatCall { detail ?? call }
 
     private var callerText: String {
         call.startedByUserId == currentUserId ? String(localized: "You called") : String(localized: "\(call.startedByUserName ?? String(localized: "Someone")) called")
@@ -141,7 +151,8 @@ struct CallLineView: View {
     }
 
     var body: some View {
-        let segments = call.spokenSegments()
+        let segments = shownCall.spokenSegments()
+        let recordings = shownCall.recordingAttachments ?? []
         VStack(spacing: 6) {
             HStack(spacing: 10) {
                 Image(systemName: isMissed ? "phone.down.fill" : "phone.fill")
@@ -151,23 +162,47 @@ struct CallLineView: View {
                     Text(callerText).font(.subheadline.weight(.semibold))
                     Text(outcomeText).font(.footnote).foregroundStyle(isMissed ? Color.statusError : Color.secondary)
                 }
-                if !segments.isEmpty {
+                if call.transcriptStatus == .ready || !segments.isEmpty {
                     Spacer(minLength: 8)
                     Button { isShowingTranscript.toggle() } label: {
                         Text(isShowingTranscript ? "Hide transcript" : "Show transcript").font(.footnote.weight(.medium)).multilineTextAlignment(.trailing)
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
+                    .accessibilityIdentifier("callTranscriptToggle")
                 }
             }
-            if isShowingTranscript && !segments.isEmpty {
+            switch call.transcriptStatus {
+            case .transcribing:
+                statusText("Transcribing…")
+            case .failed:
+                statusText("No recording or transcript is available.")
+            case .none, .ready:
+                EmptyView()
+            }
+            if isShowingTranscript {
                 VStack(alignment: .leading, spacing: 6) {
+                    if isLoading {
+                        ProgressView().frame(maxWidth: .infinity)
+                    } else if didFailToLoad {
+                        Text("Could not load the transcript.").font(.footnote).foregroundStyle(Color.statusError)
+                    }
                     ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
                         (Text((segment.userName ?? "") + ": ").font(.footnote.weight(.semibold)) + Text(segment.text ?? "").font(.footnote))
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    ForEach(recordings) { recording in
+                        Button { openRecording(recording) } label: {
+                            Label("Recording of \(shownCall.member(recording.uploadedByUserId)?.userName ?? "")", systemImage: "waveform")
+                                .font(.footnote.weight(.medium))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityIdentifier("callRecording-\(recording.id)")
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("callTranscript")
             }
         }
         .padding(.horizontal, 14)
@@ -175,7 +210,26 @@ struct CallLineView: View {
         .frame(maxWidth: 360, alignment: .leading)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+        .task(id: isShowingTranscript) {
+            if isShowingTranscript { await loadDetailIfNeeded() }
+        }
+    }
+
+    private func statusText(_ key: LocalizedStringKey) -> some View {
+        Text(key).font(.footnote).foregroundStyle(Color.secondary).frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func loadDetailIfNeeded() async {
+        guard detail == nil, !isLoading else { return }
+        isLoading = true
+        didFailToLoad = false
+        defer { isLoading = false }
+        do {
+            detail = try await loadDetail()
+        } catch {
+            didFailToLoad = !Task.isCancelled
+        }
     }
 }
 

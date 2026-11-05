@@ -46,6 +46,27 @@ public struct ChatCallSegment: Codable, Equatable, Sendable {
     }
 }
 
+/// ChatCallRecording is one person's audio from a call that was recorded.
+public struct ChatCallRecording: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let filename: String?
+    public let uploadedByUserId: String?
+
+    public init(id: String, filename: String? = nil, uploadedByUserId: String? = nil) {
+        self.id = id
+        self.filename = filename
+        self.uploadedByUserId = uploadedByUserId
+    }
+}
+
+/// ChatCallTranscriptStatus is what a call that is over can say about its recording and transcript.
+public enum ChatCallTranscriptStatus: Equatable, Sendable {
+    case none
+    case transcribing
+    case ready
+    case failed
+}
+
 /// ChatCall is a call in a chat, going or over, as the call screen, the banner and the line in the chat know it.
 public struct ChatCall: Codable, Equatable, Identifiable, Sendable {
     public let id: String
@@ -64,13 +85,16 @@ public struct ChatCall: Codable, Equatable, Identifiable, Sendable {
     /// `off`, `recording`, `waiting`, `done` or `failed`.
     public let transcriptState: String?
     public let members: [ChatCallMember]?
+    /// What was said. A call read from a chat's history leaves this out, so `GetChatCall` is asked when it is opened.
     public let transcriptSegments: [ChatCallSegment]?
+    /// Each person's audio, from `GetChatCall` only.
+    public let recordingAttachments: [ChatCallRecording]?
 
     public init(
         id: String, chatId: String? = nil, startedByUserId: String? = nil, startedByUserName: String? = nil, chatDisplayName: String? = nil,
         startedAt: String? = nil, endedAt: String? = nil, endReason: String? = nil, durationMS: Int? = nil, isTranscriptionOn: Bool? = nil,
         transcriptionTurnedOnByUserId: String? = nil, transcriptionTurnedOnByName: String? = nil, transcriptState: String? = nil,
-        members: [ChatCallMember]? = nil, transcriptSegments: [ChatCallSegment]? = nil
+        members: [ChatCallMember]? = nil, transcriptSegments: [ChatCallSegment]? = nil, recordingAttachments: [ChatCallRecording]? = nil
     ) {
         self.id = id
         self.chatId = chatId
@@ -87,6 +111,7 @@ public struct ChatCall: Codable, Equatable, Identifiable, Sendable {
         self.transcriptState = transcriptState
         self.members = members
         self.transcriptSegments = transcriptSegments
+        self.recordingAttachments = recordingAttachments
     }
 
     /// A call is going while it has no end.
@@ -113,6 +138,16 @@ public struct ChatCall: Codable, Equatable, Identifiable, Sendable {
         if let durationMS, durationMS > 0 { return Double(durationMS) / 1000 }
         if let start = startDate, let end = PortalDate.parse(endedAt) { return max(0, end.timeIntervalSince(start)) }
         return nil
+    }
+
+    public var transcriptStatus: ChatCallTranscriptStatus {
+        guard !isGoing else { return .none }
+        switch transcriptState {
+        case "done": return .ready
+        case "waiting", "recording": return .transcribing
+        case "failed": return .failed
+        default: return .none
+        }
     }
 
     public func spokenSegments() -> [ChatCallSegment] {
@@ -320,7 +355,7 @@ extension Documents {
 
     public static let listGoingChatCalls = "query ListGoingChatCalls { ListGoingChatCalls { \(callFields) } }"
 
-    public static let getChatCall = "query GetChatCall($callId: String) { GetChatCall(callId: $callId) { \(callFields) } }"
+    public static let getChatCall = "query GetChatCall($callId: String) { GetChatCall(callId: $callId) { \(callFields) recordingAttachments { id filename uploadedByUserId } } }"
 
     public static let startChatCall = """
         mutation StartChatCall($chatId: String, $userIds: [String], $isVideoOn: Boolean) {
