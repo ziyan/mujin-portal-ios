@@ -133,8 +133,31 @@ jobs:
           DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone [0-9]+ Pro \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
           xcrun simctl boot "${DEVICE}"
           xcrun simctl bootstatus "${DEVICE}" -b
+          # When the app stops going idle, XCTest only says so. Keep a sample of
+          # the process at that moment, which says where its main thread is.
+          mkdir -p hang-samples
+          touch ui-tests.log
+          (
+            SEEN=0
+            while sleep 5; do
+              COUNT=$(grep -c 'idle notification not received' ui-tests.log || true)
+              if [ "${COUNT}" -gt "${SEEN}" ]; then
+                SEEN=${COUNT}
+                PID=$(pgrep -f 'MujinPortal.app/' | grep -v "$$" | tail -1 || true)
+                if [ -n "${PID}" ]; then
+                  ps -o pid,%cpu,state,time,command -p "${PID}" > "hang-samples/process-${COUNT}.txt" 2>&1 || true
+                  sudo sample "${PID}" 5 -file "${PWD}/hang-samples/sample-${COUNT}.txt" > "hang-samples/sample-${COUNT}.log" 2>&1 || true
+                fi
+              fi
+            done
+          ) &
+          MONITOR=$!
+          set +e
           xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
-            -only-testing:MujinPortalUITests -parallel-testing-enabled NO -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO
+            -only-testing:MujinPortalUITests -parallel-testing-enabled NO -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
+          RESULT=${PIPESTATUS[0]}
+          kill "${MONITOR}" || true
+          exit "${RESULT}"
 
       - name: Keep the test results
         if: always()
@@ -142,6 +165,15 @@ jobs:
         with:
           name: ui-test-results
           path: ui-tests.xcresult
+          retention-days: 3
+
+      - name: Keep what was sampled
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hang-samples
+          path: hang-samples
+          if-no-files-found: ignore
           retention-days: 3
 
   # The screens of the demo server, as pictures to look at: an iPhone and a
