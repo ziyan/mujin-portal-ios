@@ -643,7 +643,7 @@ jobs:
   testflight:
     name: TestFlight
     if: github.event_name == 'workflow_dispatch' && inputs.upload
-    needs: [kit, app]
+    needs: [kit, app, ui-tests]
     runs-on: macos-26
     env:
       KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
