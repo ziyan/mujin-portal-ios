@@ -389,7 +389,7 @@ final class ChatCallSession: Identifiable {
             }
             failedAttempts += 1
             let delay = CallReconnectPlan.delay(afterFailedAttempts: failedAttempts)
-            let wait = Task { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
+            let wait = Task<Void, Never> { _ = try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
             reconnectWait = wait
             await wait.value
             reconnectWait = nil
