@@ -31,4 +31,22 @@ final class SurveillanceWallTests: XCTestCase {
             XCTAssertEqual(pausedTiles(app), 0, "A tile on screen is waiting after scrolling \(step) times")
         }
     }
+
+    /// A tile lets go of its stream when a camera's screen is pushed over the wall, and going back scrolls nothing.
+    func testTilesPlayAgainAfterVisitingACamera() {
+        let app = DemoApp.launch(screen: "surveillance-many")
+        let liveTile = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Live'")).firstMatch
+        XCTAssertTrue(liveTile.waitForExistence(timeout: 60), "No tile of the wall ever played")
+        let bar = app.navigationBars.firstMatch
+        let wallTitle = bar.identifier
+        liveTile.tap()
+        let deadline = Date().addingTimeInterval(30)
+        while bar.identifier == wallTitle && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.5)) }
+        XCTAssertNotEqual(bar.identifier, wallTitle, "The tile opened nothing.\n\(app.debugDescription)")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars[wallTitle].waitForExistence(timeout: 30), "Going back did not return to the wall.\n\(app.debugDescription)")
+        let playAgain = Date().addingTimeInterval(20)
+        while liveTiles(app) == 0 && Date() < playAgain { RunLoop.current.run(until: Date().addingTimeInterval(0.5)) }
+        XCTAssertGreaterThan(liveTiles(app), 0, "No tile played again after coming back.\n\(app.debugDescription)")
+    }
 }
