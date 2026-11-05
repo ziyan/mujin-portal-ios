@@ -600,6 +600,7 @@ private struct MessageRow: View {
                     loadDetail: { [connection = model.connection] in try await connection.chatCall(id: call.id) },
                     openRecording: { recording in
                         Task {
+                            guard let account = appModel.activeAccount else { return }
                             let address = await model.connection.server.endpoint("/api/v1/attachment/\(recording.id)")
                             await appModel.openInApp(address, account: account)
                         }
