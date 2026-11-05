@@ -454,6 +454,10 @@ struct DemoTransport: HTTPTransport {
         {
             try await Task.sleep(nanoseconds: 3_600_000_000_000)
         }
+        // A real server takes a moment, and a screen can open before the list it belongs to has arrived.
+        if operation == "ListConversations", let delay = ProcessInfo.processInfo.environment["PORTAL_DEMO_LIST_DELAY_SECONDS"].flatMap(UInt64.init) {
+            try await Task.sleep(nanoseconds: delay * 1_000_000_000)
+        }
         let answer = respond(operation: operation, variables: variables)
         let payload = try JSONSerialization.data(withJSONObject: ["data": answer])
         return (payload, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)

@@ -16,11 +16,11 @@ final class ChatNavigationTests: XCTestCase {
     }
 
     /// Watches the screen for a few seconds: the message must stay and the empty pane must never come.
-    private func assertStaysOpen(_ app: XCUIApplication, _ text: String, file: StaticString = #filePath, line: UInt = #line) {
+    private func assertStaysOpen(_ app: XCUIApplication, _ text: String, seconds: TimeInterval = 4, file: StaticString = #filePath, line: UInt = #line) {
         let shown = message(app, text)
         XCTAssertTrue(shown.waitForExistence(timeout: 30), "The conversation did not open.\n\(app.debugDescription)", file: file, line: line)
         let empty = app.staticTexts["Select a conversation"]
-        let deadline = Date().addingTimeInterval(4)
+        let deadline = Date().addingTimeInterval(seconds)
         while Date() < deadline {
             XCTAssertFalse(empty.exists, "The conversation gave way to the empty pane.\n\(app.debugDescription)", file: file, line: line)
             XCTAssertTrue(shown.exists, "The messages went away after they were drawn.\n\(app.debugDescription)", file: file, line: line)
@@ -28,15 +28,22 @@ final class ChatNavigationTests: XCTestCase {
         }
     }
 
-    private func tapNotification(_ app: XCUIApplication, _ text: String) {
+    /// Taps a row of the inbox. The last rows never reach the middle of the screen, so any place that is clear of the edge will do.
+    private func tapNotification(_ app: XCUIApplication, _ text: String, file: StaticString = #filePath, line: UInt = #line) {
         let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
-        DemoApp.scrollToElement(row, in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 30), "The inbox has no such row.\n\(app.debugDescription)", file: file, line: line)
+        let bottom = app.windows.firstMatch.frame.maxY * 0.9
+        for _ in 0..<8 where row.frame.maxY > bottom {
+            app.swipeUp()
+            _ = DemoApp.waitUntilStill(row)
+        }
+        XCTAssertLessThanOrEqual(row.frame.maxY, bottom, "The row stays below the screen.\n\(app.debugDescription)", file: file, line: line)
         row.tap()
     }
 
     /// Opens the inbox from the bell of this tab.
-    private func openInbox(on section: String) -> XCUIApplication {
-        let app = DemoApp.launch(screen: "section:\(section)")
+    private func openInbox(on section: String, listDelaySeconds: Int? = nil) -> XCUIApplication {
+        let app = DemoApp.launch(screen: "section:\(section)", environment: listDelaySeconds.map { ["PORTAL_DEMO_LIST_DELAY_SECONDS": String($0)] } ?? [:])
         let bell = DemoApp.element(app, "notificationsBell")
         XCTAssertTrue(bell.waitForExistence(timeout: 60), "The tab has no bell.\n\(app.debugDescription)")
         bell.tap()
@@ -68,6 +75,19 @@ final class ChatNavigationTests: XCTestCase {
         let app = openInbox(on: "assistant")
         tapNotification(app, "A new message in the chat")
         assertStaysOpen(app, Self.peopleChatMessage)
+    }
+
+    /// The list arrives after the conversation has opened, which is what a real server does.
+    func testNotificationOpensTheAssistantConversationBeforeTheListArrives() {
+        let app = openInbox(on: "tickets", listDelaySeconds: 3)
+        tapNotification(app, "Main chat has a new answer")
+        assertStaysOpen(app, Self.mainChatMessage, seconds: 6)
+    }
+
+    func testNotificationOpensThePeopleChatBeforeTheListArrives() {
+        let app = openInbox(on: "tickets", listDelaySeconds: 3)
+        tapNotification(app, "A new message in the chat")
+        assertStaysOpen(app, Self.peopleChatMessage, seconds: 6)
     }
 
     func testCancelledSwipeBackKeepsTheConversation() {
