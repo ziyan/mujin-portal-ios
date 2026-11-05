@@ -104,13 +104,14 @@ struct MainTabsView: View {
                 newSession.startNotificationFeed(socketFactory: appModel.socketFactory)
                 newSession.startCallFeed(socketFactory: appModel.socketFactory)
                 newSession.onRingStopped = { [appModel = self.appModel] callId in appModel.callCenter.stopRinging(callId: callId) }
-                if let route = appModel.takeRoute(for: account) { newSession.open(route) }
             }
             var start = DemoOptions.section ?? Navigation.home(for: newSession.persona)
             // Chats are part of Chat: there is no tab of their own.
             if start == .chats { start = .assistant }
             if !newSession.tabSections.contains(start) { start = Navigation.home(for: newSession.persona) }
             newSession.selectedSection = start
+            // After the tab the app starts on: a notification that launched the app chooses its own.
+            if !appModel.isDemo, let route = appModel.takeRoute(for: account) { newSession.open(route) }
             if appModel.isDemo, let screen = DemoOptions.screen, CallDemo.owns(screen), screen.hasPrefix("call-"), screen != "call-picker" {
                 appModel.callCenter.showDemo(CallDemo.session(for: screen), isScreenShown: screen != "call-minimized")
             }
