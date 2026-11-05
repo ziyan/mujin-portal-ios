@@ -115,6 +115,14 @@ struct MainTabsView: View {
             if appModel.isDemo, let screen = DemoOptions.screen, CallDemo.owns(screen), screen.hasPrefix("call-"), screen != "call-picker" {
                 appModel.callCenter.showDemo(CallDemo.session(for: screen), isScreenShown: screen != "call-minimized")
             }
+            // A notification tapped a few seconds after launch, for a test that sends the app away first.
+            if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("push:") {
+                let conversationId = String(screen.dropFirst("push:".count))
+                Task { [appModel = self.appModel, account] in
+                    try? await Task.sleep(nanoseconds: 8_000_000_000)
+                    appModel.pendingRoute = PendingRoute(userId: account.userId, route: .conversation(id: conversationId))
+                }
+            }
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("link-") {
                 appModel.linkRequest = ControllerLinkRequest(code: screen == "link-confirm" ? DemoServer.linkCode : nil)
             }

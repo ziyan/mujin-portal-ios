@@ -93,6 +93,22 @@ final class ChatNavigationTests: XCTestCase {
         assertStaysOpen(app, Self.peopleChatMessage, seconds: 6)
     }
 
+    /// A push notification tapped while the app is away: the route arrives first and the screens come back after it.
+    func testPushOpensTheConversationWhenTheAppComesBack() {
+        let app = DemoApp.launch(screen: "push:conversation-main")
+        XCTAssertTrue(DemoApp.element(app, "notificationsBell").waitForExistence(timeout: 7), "The list did not load in time.\n\(app.debugDescription)")
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 9)
+        app.activate()
+        assertStaysOpen(app, Self.mainChatMessage)
+    }
+
+    /// The same with the app on screen, on the list.
+    func testPushOpensTheConversationOverTheList() {
+        let app = DemoApp.launch(screen: "push:conversation-main")
+        assertStaysOpen(app, Self.mainChatMessage)
+    }
+
     func testCancelledSwipeBackKeepsTheConversation() {
         let app = DemoApp.launch(screen: "main-chat")
         XCTAssertTrue(message(app, Self.mainChatMessage).waitForExistence(timeout: 30), "The conversation did not open.\n\(app.debugDescription)")
