@@ -34,32 +34,40 @@ final class ChatNavigationTests: XCTestCase {
         row.tap()
     }
 
+    /// Opens the inbox from the bell of this tab.
+    private func openInbox(on section: String) -> XCUIApplication {
+        let app = DemoApp.launch(screen: "section:\(section)")
+        let bell = DemoApp.element(app, "notificationsBell")
+        XCTAssertTrue(bell.waitForExistence(timeout: 60), "The tab has no bell.\n\(app.debugDescription)")
+        bell.tap()
+        XCTAssertTrue(DemoApp.element(app, "notificationsClose").waitForExistence(timeout: 30), "The inbox did not open.\n\(app.debugDescription)")
+        return app
+    }
+
+    /// From another tab, so the Chat tab has its list to load as the conversation opens.
     func testNotificationOpensTheAssistantConversation() {
-        let app = DemoApp.launch(screen: "notifications")
+        let app = openInbox(on: "tickets")
         tapNotification(app, "Main chat has a new answer")
         assertStaysOpen(app, Self.mainChatMessage)
     }
 
     func testNotificationOpensThePeopleChat() {
-        let app = DemoApp.launch(screen: "notifications")
+        let app = openInbox(on: "tickets")
         tapNotification(app, "A new message in the chat")
         assertStaysOpen(app, Self.peopleChatMessage)
     }
 
-    /// The same from the Chat tab, where the list is already on screen under the inbox.
+    /// From the Chat tab, where the list is already on screen under the inbox.
     func testNotificationOpensTheConversationOverTheList() {
-        let app = DemoApp.launch(screen: "notifications")
-        let close = DemoApp.element(app, "notificationsClose")
-        XCTAssertTrue(close.waitForExistence(timeout: 60), "The inbox did not open.\n\(app.debugDescription)")
-        close.tap()
-        let chatTab = app.tabBars.buttons["Chat"]
-        XCTAssertTrue(chatTab.waitForExistence(timeout: 30), "There is no Chat tab.\n\(app.debugDescription)")
-        chatTab.tap()
-        let bell = DemoApp.element(app, "notificationsBell")
-        XCTAssertTrue(bell.waitForExistence(timeout: 30), "The list has no bell.\n\(app.debugDescription)")
-        bell.tap()
+        let app = openInbox(on: "assistant")
         tapNotification(app, "Main chat has a new answer")
         assertStaysOpen(app, Self.mainChatMessage)
+    }
+
+    func testNotificationOpensThePeopleChatOverTheList() {
+        let app = openInbox(on: "assistant")
+        tapNotification(app, "A new message in the chat")
+        assertStaysOpen(app, Self.peopleChatMessage)
     }
 
     func testCancelledSwipeBackKeepsTheConversation() {
