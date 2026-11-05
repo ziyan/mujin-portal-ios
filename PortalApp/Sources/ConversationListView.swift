@@ -74,9 +74,9 @@ struct ConversationListView: View {
                 if screen.hasPrefix("chat:") { selectedConversationId = String(screen.dropFirst("chat:".count)) }
                 if screen == "chat-info" { selectedConversationId = "chatconv02" }
                 if screen == "photo-chat" { selectedConversationId = "conversation-photos" }
-                if screen == "voice" || screen == "message-actions" || screen == "select-text" || screen == "title-event" { selectedConversationId = "conversation01" }
+                if screen == "voice" || screen == "conversation-links" || screen == "message-actions" || screen == "select-text" || screen == "title-event" { selectedConversationId = "conversation01" }
                 if screen == "side-chat-links" { selectedConversationId = "conversation05" }
-                if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-message-actions" { selectedConversationId = "chatconv01" }
+                if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selectedConversationId = "chatconv01" }
                 if let conversationId = CallDemo.conversationId(for: screen) { selectedConversationId = conversationId }
                 if screen.hasPrefix("chats-new") { isComposing = true }
             }

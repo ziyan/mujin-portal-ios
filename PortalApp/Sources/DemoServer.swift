@@ -139,6 +139,31 @@ final class DemoState: @unchecked Sendable {
                     """,
             ],
         ]
+        if DemoOptions.screen == "conversation-links" {
+            data.messages["conversation01"]?.append([
+                "id": "m06", "role": "assistant", "createdAt": stamp(2_800),
+                "content": """
+                    [Assistant checklist](https://example.test/docs/assistant)
+
+                    https://example.test/docs/assistant-plain
+
+                    [Assistant ticket](https://demo.example.test/ticket/1)
+
+                    [controller03](/controller/controller03)
+
+                    [[site/site01/docks#2]]
+
+                    - [Assistant list checklist](https://example.test/docs/assistant-list)
+                    - A plain item
+
+                    > [Assistant quote checklist](https://example.test/docs/assistant-quote)
+
+                    | Document | Link |
+                    | --- | --- |
+                    | Hose guide | [Assistant table checklist](https://example.test/docs/assistant-table) |
+                    """,
+            ])
+        }
         data.messages["conversation02"] = [
             ["id": "m10", "role": "user", "content": "Restart the planner on controller01.", "createdAt": stamp(200)],
             [
@@ -226,6 +251,22 @@ final class DemoState: @unchecked Sendable {
             said("c9", "user02", "Sam Sample", "Notes: [Suction cup checklist](https://example.test/docs/suction) and the log https://example.test/logs/pressure.", 540),
             said("c10", "user02", "Sam Sample", "Dips this week:\n\n| Station | Dips | Lowest kPa |\n| :--- | ---: | ---: |\n| Station 3 | 4 | 31 |\n| Station 1 | 1 | 38 |", 500),
         ]
+        if DemoOptions.screen == "chat-links" {
+            // One link of each kind per message, each message holding nothing else, so the whole text is the link.
+            data.messages["chatconv01"]?.append(contentsOf: [
+                said("l1", "user02", "Sam Sample", "https://example.test/docs/plain", 400),
+                said("l2", "user02", "Sam Sample", "[Pressure checklist](https://example.test/docs/markdown)", 390),
+                said("l3", "user02", "Sam Sample", "[Gripper ticket](https://demo.example.test/ticket/1)", 380),
+                said("l4", "user02", "Sam Sample", "| Document | Link |\n| --- | --- |\n| Hose guide | [Table checklist](https://example.test/docs/table) |", 370),
+                said("l5", "user02", "Sam Sample", "- [List checklist](https://example.test/docs/list)\n- A plain item", 360),
+                said("l6", "user02", "Sam Sample", "> [Quote checklist](https://example.test/docs/quote)", 350),
+                // The assistant writes a Portal page as a path, with no server in it.
+                said("l7", "assistant", "Mujin AI", "[controller01](/controller/controller01)", 340, role: "assistant"),
+                said("l8", "assistant", "Mujin AI", "- [controller02](/controller/controller02) has an open alarm.\n- Another plain item", 330, role: "assistant"),
+                said("l9", "assistant", "Mujin AI", "[Site by path](/site/site01)", 320, role: "assistant"),
+                said("l10", "assistant", "Mujin AI", "[Ticket by path](/ticket/1)", 310, role: "assistant"),
+            ])
+        }
         data.messages["chatconv02"] = [
             said("d1", "user03", "Robin Demo", "Shift change at 14:00.", 7_200),
             said("d2", "user04", "Jordan Placeholder", "I can take the pick station.", 7_100),
