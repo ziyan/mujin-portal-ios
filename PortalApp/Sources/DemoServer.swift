@@ -248,7 +248,7 @@ final class DemoState: @unchecked Sendable {
             ],
             [
                 "id": "comment02", "authorUserId": "user02", "isInternal": false, "createdAt": stamp(7_200),
-                "body": "Thanks Alex. I looked at the last two hours of logs and the suction pressure dips before each drop. Can you check the hose at the gripper?\(DemoOptions.screen?.hasPrefix("search-q:") == true ? " The checklist is at [Suction cup checklist](https://example.test/docs/suction)." : "")",
+                "body": "Thanks Alex. I looked at the last two hours of logs and the suction pressure dips before each drop. Can you check the hose at the gripper?\(DemoOptions.screen?.hasPrefix("search-q:") == true ? "\n\n[Suction cup checklist](https://example.test/docs/suction)" : "")",
             ],
         ]
         data.messages["conversation04"] = [
