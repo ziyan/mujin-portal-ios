@@ -8,6 +8,13 @@ import Testing
 
     private func feed(_ text: String) -> Data { Data(text.utf8) }
 
+    @Test func theChannelComesFromWhatTheInstallLeft() {
+        #expect(AppUpdateChannel(hasProvisioningProfile: false, receiptName: "sandboxReceipt") == .testFlight)
+        #expect(AppUpdateChannel(hasProvisioningProfile: false, receiptName: "receipt") == .appStore)
+        #expect(AppUpdateChannel(hasProvisioningProfile: true, receiptName: "sandboxReceipt") == nil)
+        #expect(AppUpdateChannel(hasProvisioningProfile: false, receiptName: nil) == nil)
+    }
+
     @Test func aNewerTestFlightBuildIsAnUpdateEvenOfTheSameVersion() {
         let update = AppUpdateSource.update(channel: .testFlight, answer: feed(#"{"version":"1.0","build":310}"#), installed: installed)
         #expect(update == AppUpdate(channel: .testFlight, version: "1.0", build: 310))
