@@ -307,6 +307,9 @@ jobs:
           shoot camera-unreachable camera-unreachable
           shoot notifications notifications
           shoot about about
+          shoot settings-update settings-update
+          shoot update-available update-available
+          shoot update-available-store update-available-store
           shoot sites-staff sites-staff staff
           shoot controllers-staff controllers-staff staff
           shoot virtual-controllers-staff virtual-controllers-staff staff
@@ -404,6 +407,7 @@ jobs:
           shoot call-twelve call-twelve
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
+          shoot update-available-dark update-available
           shoot virtual-controller-dark virtual-controller
           shoot controller-dark controller
           shoot virtual-controller-snapshots-dark virtual-controller-snapshots
@@ -766,6 +770,8 @@ jobs:
     name: Public TestFlight
     needs: testflight
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       APP_ID: "6829099282"
       BETA_GROUP_NAME: Public
@@ -782,3 +788,15 @@ jobs:
           printf '%s' "${KEY}" > "${KEY_PATH}"
           trap 'rm -f "${KEY_PATH}"' EXIT
           python3 scripts/publish-testflight.py ${{ github.run_number }}
+
+      # Apple may take longer than this waits; the update feed workflow catches up.
+      - name: Tell the apps about the newest installable build
+        env:
+          KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export KEY_PATH="${RUNNER_TEMP}/AuthKey.p8"
+          printf '%s' "${KEY}" > "${KEY_PATH}"
+          trap 'rm -f "${KEY_PATH}"' EXIT
+          python3 scripts/publish-testflight.py --update-feed "${RUNNER_TEMP}/testflight.json" ${{ github.run_number }}
+          scripts/upload-update-feed.sh "${RUNNER_TEMP}/testflight.json"
