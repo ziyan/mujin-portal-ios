@@ -218,13 +218,8 @@ struct MainTabsView: View {
             if !sections.contains(session.selectedSection) { session.selectedSection = .more }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                if let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded {
-                    CallBar(center: appModel.callCenter, call: call)
-                }
-                if let update = appModel.updates.updateForBar {
-                    AppUpdateBar(update: update, onInstall: { appModel.updates.install() }, onDismiss: { appModel.updates.dismiss() })
-                }
+            if let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded {
+                CallBar(center: appModel.callCenter, call: call)
             }
         }
         // These show over the top screen, so an incoming call, a link or the inbox shows even while a sheet is up.

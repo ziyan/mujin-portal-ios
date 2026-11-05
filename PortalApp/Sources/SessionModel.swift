@@ -419,7 +419,7 @@ enum DemoOptions {
             return AppUpdate(channel: .testFlight, version: String(parts[0]), build: build)
         }
         switch screen {
-        case "update-available", "about-update": return AppUpdate(channel: .testFlight, version: "1.0", build: 310)
+        case "update-available", "settings-update": return AppUpdate(channel: .testFlight, version: "1.0", build: 310)
         case "update-available-store": return AppUpdate(channel: .appStore, version: "1.1")
         default: return nil
         }
@@ -430,10 +430,11 @@ enum DemoOptions {
         guard let screen else { return nil }
         if SearchDemo.owns(screen) { return .search }
         if screen.hasPrefix("more-") { return .more }
+        if screen.hasPrefix("update-available") { return .assistant }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         if AccountDemo.owns(screen) || PlatformDemo.owns(screen) { return .more }
         // Screens that live under More.
-        if ["automations", "notifications", "about", "about-update", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image", "accounts", "tab-bar-edit"].contains(where: { screen.hasPrefix($0) }) { return .more }
+        if ["automations", "notifications", "about", "settings-update", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image", "accounts", "tab-bar-edit"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") || screen.hasPrefix("attachment-viewer") { return .tickets }
         if screen.hasPrefix("chat") { return .chats }
         if screen.hasPrefix("site-staff") || screen == "sites-staff" || screen == "surveillance-staff" { return .site }
@@ -447,8 +448,8 @@ enum DemoOptions {
     static var morePath: [MoreDestination] {
         switch screen ?? "" {
         case let name where name.hasPrefix("automations"): [.automations]
-        case "about", "about-update": [.about]
-        case "settings", "accounts": [.settings]
+        case "about": [.about]
+        case "settings", "settings-update", "accounts": [.settings]
         case "tab-bar-edit": [.settings, .tabBarEditor]
         case "goals": [.goals]
         case "goal": [.goals, .goal("goal01")]

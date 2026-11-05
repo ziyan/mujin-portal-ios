@@ -307,7 +307,7 @@ jobs:
           shoot camera-unreachable camera-unreachable
           shoot notifications notifications
           shoot about about
-          shoot about-update about-update
+          shoot settings-update settings-update
           shoot update-available update-available
           shoot update-available-store update-available-store
           shoot sites-staff sites-staff staff

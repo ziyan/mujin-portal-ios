@@ -154,6 +154,11 @@ struct ConversationListView: View {
             } else {
                 List(selection: $selection.selectedId) {
                     PortalRows {
+                    if searchText.isEmpty, let update = appModel.updates.updateForCard {
+                        Section {
+                            AppUpdateCard(update: update, onOpen: { appModel.updates.install() }, onNotNow: { appModel.updates.dismiss() })
+                        }
+                    }
                     Section {
                         ForEach(ConversationOrdering.ordered(model.conversations, waitingIds: Set(model.conversations.map(\.id).filter { (session.waitingCounts[$0] ?? 0) > 0 }))) { conversation in
                             NavigationLink(value: conversation.id) {

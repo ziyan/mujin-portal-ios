@@ -8,7 +8,7 @@ import UIKit
 @MainActor
 @Observable
 final class AppUpdateModel {
-    /// The newest update on offer, dismissed or not: About keeps offering it.
+    /// The newest update on offer, put off or not: Settings keeps offering it.
     private(set) var update: AppUpdate?
     private(set) var isDismissed = false
 
@@ -22,8 +22,8 @@ final class AppUpdateModel {
         if let demo = DemoOptions.update { show(demo) }
     }
 
-    /// The update for the bar: gone once dismissed, until a newer one arrives.
-    var updateForBar: AppUpdate? { isDismissed ? nil : update }
+    /// The update for the card in Chat: gone once put off, until a newer one arrives.
+    var updateForCard: AppUpdate? { isDismissed ? nil : update }
 
     func checkIfDue() async {
         guard DemoOptions.update == nil, !isChecking else { return }
@@ -72,6 +72,14 @@ final class AppUpdateModel {
 }
 
 extension AppUpdate {
+    /// Names the place the button goes.
+    var openTitle: LocalizedStringKey {
+        switch channel {
+        case .testFlight: "Open TestFlight"
+        case .appStore: "Open the App Store"
+        }
+    }
+
     /// Says what the update is and where it comes from.
     var sourceText: LocalizedStringKey {
         switch channel {
@@ -81,50 +89,42 @@ extension AppUpdate {
     }
 }
 
-/// AppUpdateBar tells the person a newer app can be installed. It sits above the content and pushes it down, so it never covers
-/// a composer, and closing it dismisses this update.
-struct AppUpdateBar: View {
+/// AppUpdateCard sits at the top of the chat list and tells the person a newer app can be installed. "Not now" puts off this
+/// update alone; Settings keeps offering it.
+struct AppUpdateCard: View {
     let update: AppUpdate
-    let onInstall: () -> Void
-    let onDismiss: () -> Void
+    let onOpen: () -> Void
+    let onNotNow: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "arrow.down")
-                .foregroundStyle(Color.onAccent)
-                .frame(width: 32, height: 32)
-                .background(Color.accentColor, in: .circle)
-                .fixedSize()
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Update available").font(.subheadline.weight(.semibold)).lineLimit(2)
-                Text(update.sourceText).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.accentColor)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Update available").font(.headline)
+                    Text(update.sourceText).font(.subheadline).foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("appUpdateCard")
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("appUpdateBar")
-            Spacer(minLength: 4)
-            Button("Update", action: onInstall)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .accessibilityIdentifier("appUpdateInstall")
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(.circle)
+            // Side by side while they fit, one above the other at the largest text sizes.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { buttons }
+                VStack(alignment: .leading, spacing: 8) { buttons }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss")
-            .accessibilityIdentifier("appUpdateDismiss")
         }
-        // The bar keeps to one line of controls: its text stops growing at the largest ordinary size.
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .padding(.leading, 12)
-        .padding(.trailing, 4)
-        .padding(.vertical, 6)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24, style: .continuous))
-        .padding(.horizontal, 12)
-        .padding(.bottom, 4)
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder private var buttons: some View {
+        Button(action: onOpen) { Text(update.openTitle).lineLimit(1) }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("appUpdateOpen")
+        Button(action: onNotNow) { Text("Not now").lineLimit(1) }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("appUpdateNotNow")
     }
 }

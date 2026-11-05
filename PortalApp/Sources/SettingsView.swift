@@ -34,6 +34,27 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("accountsButton")
             }
+            // Stays after the card in Chat is put off, so the update can still be found.
+            if let update = appModel.updates.update {
+                Section {
+                    Button {
+                        appModel.updates.install()
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(update.openTitle)
+                                Text(update.sourceText).font(.footnote).foregroundStyle(Color.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "arrow.down.circle")
+                        }
+                        .foregroundStyle(.primary)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("appUpdateRow")
+                }
+            }
             Section("Notifications") {
                 NavigationLink(value: MoreDestination.notificationSettings) {
                     Label("Notification settings", systemImage: "bell.badge")
