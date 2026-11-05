@@ -77,8 +77,8 @@ public struct GlobalSearchResult: Codable, Equatable, Hashable, Sendable {
 
     /// The screen of the app this row opens, or nil when the app has none and the row opens on the web.
     public var link: PortalLink? {
-        // A tab of a page: the app's screen for the page would not open on the tab.
-        if resultKind == .shortcut, path.contains("?") { return nil }
+        // A tab of a page: the app's screen for the page would not open on the tab, unless the tab has a screen of its own.
+        if resultKind == .shortcut, path.contains("?") { return PortalScreen(path: path).map(PortalLink.screen) }
         return isSubpage ? PortalLink(subpagePath: path) : PortalLink(path: path)
     }
 
