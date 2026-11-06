@@ -504,6 +504,7 @@ struct DemoTransport: HTTPTransport {
     private func respond(operation: String, variables: [String: Any]) -> [String: Any] {
         if let answer = AccountDemo.respond(operation: operation, variables: variables) { return answer }
         if let answer = PlatformDemo.respond(operation: operation, variables: variables) { return answer }
+        if let answer = ThreadDemo.respondToCalls(operation: operation, variables: variables, stamp: { ISO8601DateFormatter().string(from: Date().addingTimeInterval(-$0)) }) { return answer }
         if let answer = CallDemo.respond(operation: operation, variables: variables) { return answer }
         if let answer = SearchDemo.respond(operation: operation, variables: variables) { return answer }
         let conversationId = variables["conversationId"] as? String ?? ""
@@ -522,19 +523,22 @@ struct DemoTransport: HTTPTransport {
             let hasCalls = CallDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
             // The thread screens are shot against a server that reads one thread or the main history without replies.
             let hasThreads = ThreadDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
-            let queryFields: [[String: Any]] = [
+            let hasCallHistory = ThreadDemo.isCallHistoryScreen(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            var queryFields: [[String: Any]] = [
                 ["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"],
                 ["name": "globalSearch"],
                 ["name": "listConversationMessages", "args": hasThreads ? [["name": "threadRootMessageId"]] : []],
             ]
+            if hasCallHistory { queryFields.append(["name": "listChatCalls"]) }
+            var mutationFields: [[String: Any]] = [
+                ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"], ["name": "openSiteChat"],
+            ]
+            if hasCalls { mutationFields += [["name": "startChatCall"], ["name": "joinChatCallMedia"]] }
+            if hasThreads { mutationFields.append(["name": "openChatMessage"]) }
             return [
                 "__schema": [
                     "queryType": ["fields": queryFields],
-                    "mutationType": [
-                        "fields": [
-                            ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"], ["name": "openSiteChat"],
-                        ] + (hasCalls ? [["name": "startChatCall"], ["name": "joinChatCallMedia"]] : [])
-                    ],
+                    "mutationType": ["fields": mutationFields],
                     "subscriptionType": ["fields": [["name": "onConversationEvent"]] + (hasCalls ? [["name": "onChatCallEvent"], ["name": "onChatCallSignal"]] : [])],
                 ]
             ]
@@ -583,6 +587,15 @@ struct DemoTransport: HTTPTransport {
                 ["userId": $0.0, "userName": $0.1, "organizationId": "organization01", "organizationName": "Example Logistics", "isMujinUser": false]
             }
             return ["ListSiteChatPeople": people]
+        case "OpenChatMessage":
+            // A link to a message opens the reader's own conversation of the chat; a message the demo does not hold is not found.
+            let messageId = variables["messageId"] as? String ?? ""
+            let isHeld = state.withData { $0.messages[ThreadDemo.chatConversationId]?.contains { ($0["id"] as? String) == messageId } ?? false }
+            return isHeld ? ["OpenChatMessage": ["conversation": ["id": ThreadDemo.chatConversationId]]] : ["OpenChatMessage": NSNull()]
+        case "GetMessageThreadRoot":
+            let messageId = variables["messageId"] as? String ?? ""
+            let root = state.withData { $0.messages[conversationId]?.first { ($0["id"] as? String) == messageId }?["threadRootMessageId"] }
+            return ["GetMessageThreadRoot": ["threadRootMessageId": root ?? NSNull()]]
         case "OpenSiteChat":
             return ["OpenSiteChat": ["chat": ["id": "chat-site"], "conversation": ["id": "chatsite01"]]]
         case "AddChatMembers":

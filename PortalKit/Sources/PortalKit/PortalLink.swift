@@ -35,6 +35,8 @@ public enum PortalLink: Equatable, Hashable, Sendable {
     case conversation(id: String)
     /// `/incident/<id>`
     case incident(id: String)
+    /// `/chat/<chatId>/<messageId>`: one message of a chat, which the app opens in the reader's own conversation of it.
+    case chatMessage(chatId: String, messageId: String)
     /// A list or settings page the app has a screen for, such as `/settings/tokens`.
     case screen(PortalScreen)
 
@@ -152,6 +154,9 @@ public enum PortalLink: Equatable, Hashable, Sendable {
         case "incident":
             guard segments.count == 2, Self.isIdentifier(identifier) else { return nil }
             self = .incident(id: identifier)
+        case "chat":
+            guard segments.count == 3, Self.isIdentifier(identifier), Self.isIdentifier(segments[2]) else { return nil }
+            self = .chatMessage(chatId: identifier, messageId: segments[2])
         case "settings":
             guard segments.count == 2, let screen = PortalScreen(path: "/settings/" + identifier.lowercased()) else { return nil }
             self = .screen(screen)
@@ -178,6 +183,7 @@ public enum PortalLink: Equatable, Hashable, Sendable {
         case .user(let id): "/user/\(id)"
         case .conversation(let id): "/agent/\(id)"
         case .incident(let id): "/incident/\(id)"
+        case .chatMessage(let chatId, let messageId): "/chat/\(chatId)/\(messageId)"
         case .screen(let screen): screen.path
         }
     }

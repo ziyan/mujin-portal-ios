@@ -388,3 +388,37 @@ import Testing
         #expect(root == "q1")
     }
 }
+
+@Suite struct MessageLinkTests {
+    let server = try! ServerAddress("https://portal.example.test")
+
+    @Test func aChatMessageLinkIsReadAndWritten() throws {
+        let url = MessagePermalink.chatMessage(server: server, chatId: "chat01", messageId: "m7")
+        #expect(url.absoluteString == "https://portal.example.test/chat/chat01/m7")
+        #expect(PortalLink(url: url, server: server) == .chatMessage(chatId: "chat01", messageId: "m7"))
+        #expect(PortalLink(path: "/chat/chat01/m7") == .chatMessage(chatId: "chat01", messageId: "m7"))
+        #expect(PortalLink(path: "/chat/chat01") == nil)
+        #expect(PortalLink.chatMessage(chatId: "chat01", messageId: "m7").path == "/chat/chat01/m7")
+    }
+
+    @Test func anAssistantMessageLinkCarriesAFragment() {
+        let url = MessagePermalink.assistantMessage(server: server, conversationId: "conv01", messageId: "m7")
+        #expect(url.absoluteString == "https://portal.example.test/agent/conv01#message-m7")
+        #expect(PortalLink(url: url, server: server) == .conversation(id: "conv01"))
+    }
+
+    @Test func linksAndCallHistoryAreOfferedByTheSchema() {
+        #expect(!ServerCapabilities().offersMessageLinks && !ServerCapabilities().offersChatCallHistory)
+        #expect(ServerCapabilities(mutationNames: ["OpenChatMessage"]).offersMessageLinks)
+        #expect(ServerCapabilities(queryNames: ["ListChatCalls"]).offersChatCallHistory)
+    }
+
+    @Test func aCallListDecodesWithItsCounts() async throws {
+        let (connection, _) = scriptedConnection { _, _ in
+            ["ListChatCalls": ["calls": [["id": "call1", "messageId": "m3", "recordingCount": 2, "transcriptSegmentCount": 5]], "meta": ["totalCount": 9]]]
+        }
+        let page = try await connection.pastChatCalls(chatId: "chat01", first: 20)
+        #expect(page.totalCount == 9)
+        #expect(page.calls.first?.recordingCount == 2 && page.calls.first?.messageId == "m3")
+    }
+}

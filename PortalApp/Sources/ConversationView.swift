@@ -1,5 +1,6 @@
 import PortalKit
 import SwiftUI
+import UIKit
 
 /// ConversationView is one conversation: the transcript with the answer
 /// streaming in, question and approval cards, and the composer. On a server with message threads a reply goes in a thread: the
@@ -364,6 +365,7 @@ private struct AssistantBubbleKey: Equatable {
 private struct TranscriptRow: View {
     /// Bubbles stop growing here, so a wide iPad window keeps readable lines.
     static let bubbleWidth: CGFloat = 620
+    @Environment(AppModel.self) private var appModel
     let entry: TranscriptEntry
     let model: ConversationModel
     let openArtifact: (ArtifactReference) -> Void
@@ -394,12 +396,19 @@ private struct TranscriptRow: View {
         onOpenThread == nil ? nil : model.transcript.threadToOpen(forMessage: id)
     }
 
+    /// Copies the address of a message: `/agent/<conversationId>#message-<messageId>` on the account's server. Nil until it is stored.
+    private func copyLinkAction(for id: String) -> (() -> Void)? {
+        guard !id.hasPrefix("pending:"), let server = appModel.activeAccount?.server else { return nil }
+        let address = MessagePermalink.assistantMessage(server: server, conversationId: model.conversationId, messageId: id).absoluteString
+        return { UIPasteboard.general.string = address }
+    }
+
     /// What a long press on the person's own message offers: answering it and working with its words.
     private func userActions(id: String, text: String) -> MessageActions {
         MessageActions(
             messageId: id, text: text, isTrailing: true, ownReaction: nil, onReact: nil,
             onReply: { if let onOpenThread { onOpenThread(threadToOpen(for: id) ?? id) } else { model.replyTarget = ReplyReference(messageId: id, authorName: "", excerpt: text, isOwn: true) } },
-            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil)
+            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil, onCopyLink: copyLinkAction(for: id))
     }
 
     /// What a long press on an answer offers: reacting to it, answering it and working with its words.
@@ -411,7 +420,7 @@ private struct TranscriptRow: View {
             onReply: {
                 if let onOpenThread { onOpenThread(threadToOpen(for: id) ?? id) } else { model.replyTarget = ReplyReference(messageId: id, authorName: String(localized: "Assistant"), excerpt: text) }
             },
-            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil)
+            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil, onCopyLink: copyLinkAction(for: id))
     }
 
     /// The cards under a message that holds a link, as under a message in a people chat.

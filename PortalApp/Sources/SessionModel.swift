@@ -29,6 +29,10 @@ final class SessionModel {
     var chatToOpen: String?
     /// The thread the conversation named by `chatToOpen` or `conversationToOpen` should open on, from a notification about a reply.
     var threadToOpen: ThreadToOpen?
+    /// A message a link points at, which the chat it is in scrolls to and marks for a moment.
+    var messageToFocus: MessageFocus?
+    /// Why a link to a message could not be opened, shown in a short alert.
+    var linkNotice: String?
     /// Unread messages across the person's chats.
     private(set) var chatUnreadCount = 0
     /// The going calls of the person's chats, kept current by the call feed.
@@ -309,6 +313,22 @@ final class SessionModel {
         }
     }
 
+    /// Opens a link to a message of a chat: the person's own conversation of it, in the thread the message is in when it is in one.
+    func openChatMessage(chatId: String, messageId: String) async {
+        do {
+            let conversationId = try await connection.openChatMessage(chatId: chatId, messageId: messageId)
+            let root = await connection.messageThreadRoot(conversationId: conversationId, messageId: messageId)
+            messageToFocus = MessageFocus(conversationId: conversationId, messageId: messageId, threadRootMessageId: root)
+            if let root {
+                open(.chatThread(conversationId: conversationId, threadRootMessageId: root))
+            } else {
+                open(.chat(conversationId: conversationId))
+            }
+        } catch {
+            linkNotice = String(localized: "That message could not be found.")
+        }
+    }
+
     func refreshWaitingList() async {
         do {
             waiting = try await connection.waiting()
@@ -491,6 +511,13 @@ enum DemoOptions {
 
     /// Whether the demo person works for the administrator organization.
     static var isStaff: Bool { environment["PORTAL_DEMO_PERSONA"] == "staff" }
+}
+
+/// MessageFocus is the message a link points at, and the thread it is in when it is in one.
+struct MessageFocus: Equatable {
+    let conversationId: String
+    let messageId: String
+    let threadRootMessageId: String?
 }
 
 /// ThreadToOpen is a thread a notification asked for: the conversation it is in and the message it hangs from.

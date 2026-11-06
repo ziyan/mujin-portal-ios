@@ -89,13 +89,21 @@ public struct ChatCall: Codable, Equatable, Identifiable, Sendable {
     public let transcriptSegments: [ChatCallSegment]?
     /// Each person's audio, from `GetChatCall` only.
     public let recordingAttachments: [ChatCallRecording]?
+    /// The line of the call in the chat, and how many recordings and spoken lines it has, from the list of past calls.
+    public let messageId: String?
+    public let recordingCount: Int?
+    public let transcriptSegmentCount: Int?
 
     public init(
         id: String, chatId: String? = nil, startedByUserId: String? = nil, startedByUserName: String? = nil, chatDisplayName: String? = nil,
         startedAt: String? = nil, endedAt: String? = nil, endReason: String? = nil, durationMS: Int? = nil, isTranscriptionOn: Bool? = nil,
         transcriptionTurnedOnByUserId: String? = nil, transcriptionTurnedOnByName: String? = nil, transcriptState: String? = nil,
-        members: [ChatCallMember]? = nil, transcriptSegments: [ChatCallSegment]? = nil, recordingAttachments: [ChatCallRecording]? = nil
+        members: [ChatCallMember]? = nil, transcriptSegments: [ChatCallSegment]? = nil, recordingAttachments: [ChatCallRecording]? = nil,
+        messageId: String? = nil, recordingCount: Int? = nil, transcriptSegmentCount: Int? = nil
     ) {
+        self.messageId = messageId
+        self.recordingCount = recordingCount
+        self.transcriptSegmentCount = transcriptSegmentCount
         self.id = id
         self.chatId = chatId
         self.startedByUserId = startedByUserId

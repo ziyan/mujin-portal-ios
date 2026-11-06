@@ -86,7 +86,7 @@ struct ConversationListView: View {
             }
             if appModel.isDemo, let screen = DemoOptions.screen {
                 if screen.hasPrefix("chat:") { selection.open(String(screen.dropFirst("chat:".count))) }
-                if screen == "chat-info" { selection.open("chatconv02") }
+                if screen == "chat-info" || screen.hasPrefix("chat-call-history") { selection.open("chatconv02") }
                 if screen == "chat-site-info" || screen == "chat-site-picker" { selection.open("chatsite01") }
                 if screen == "photo-chat" { selection.open("conversation-photos") }
                 if screen == "voice" || screen == "conversation-links" || screen == "message-actions" || screen == "select-text" || screen == "title-event" { selection.open("conversation01") }

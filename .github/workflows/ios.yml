@@ -260,6 +260,9 @@ jobs:
           shoot thread-conversation-open thread-conversation-open
           shoot thread-chat-media thread-chat-media
           shoot thread-chat-media-open thread-chat-media-open
+          shoot chat-call-history chat-call-history
+          shoot chat-call-history-detail chat-call-history-detail
+          shoot thread-link thread-link
           shoot chat-add-people chat-add-people
           shoot chats-new chats-new
           shoot chats-new-staff chats-new-group staff
@@ -546,6 +549,9 @@ jobs:
           shoot thread-conversation-open-dark thread-conversation-open
           shoot thread-chat-media-dark thread-chat-media
           shoot thread-chat-media-open-dark thread-chat-media-open
+          shoot chat-call-history-dark chat-call-history
+          shoot chat-call-history-detail-dark chat-call-history-detail
+          shoot thread-link-dark thread-link
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
@@ -656,6 +662,9 @@ jobs:
           shoot large-text-thread-conversation-open thread-conversation-open
           shoot large-text-thread-chat-media thread-chat-media
           shoot large-text-thread-chat-media-open thread-chat-media-open
+          shoot large-text-chat-call-history chat-call-history
+          shoot large-text-chat-call-history-detail chat-call-history-detail
+          shoot large-text-thread-link thread-link
 
       - name: Keep the screenshots
         if: always()

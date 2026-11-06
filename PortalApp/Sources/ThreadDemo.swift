@@ -6,7 +6,7 @@ import PortalKit
 enum ThreadDemo {
     static let screens: Set<String> = [
         "thread-chat", "thread-chat-open", "thread-chat-working", "thread-chat-media", "thread-chat-media-open", "thread-conversation",
-        "thread-conversation-open", "thread-push",
+        "thread-conversation-open", "thread-push", "thread-link",
     ]
 
     static let chatConversationId = "chatconv-thread"
@@ -125,6 +125,11 @@ enum ThreadDemo {
                 "replyToMessageId": "t05", "replyToExcerpt": "Shift change moves to 14:00 on Friday.", "replyToAuthorName": "Jordan Placeholder",
             ]),
         ]
+        if hasMedia {
+            // A message written in Markdown: bold, a list and code, with a person mentioned.
+            rows.append(
+                said("t13", "user04", "Jordan Placeholder", "@Robin Demo the **door 4** checklist:\n\n- tighten the cable\n- test the sensor\n\n`sensor.reset()`", 120))
+        }
         return rows
     }
 
@@ -146,6 +151,50 @@ enum ThreadDemo {
             ["id": "a05", "role": "user", "content": "Remind me to check the door 4 wiring on Friday.", "createdAt": stamp(700)],
             ["id": "a06", "role": "assistant", "createdAt": stamp(600), "content": "I will remind you on Friday morning."],
         ]
+    }
+
+    // MARK: past calls
+
+    static func isCallHistoryScreen(_ screen: String?) -> Bool { screen?.hasPrefix("chat-call-history") == true }
+
+    /// The past calls of the demo chat, and the words and recordings of one.
+    static func respondToCalls(operation: String, variables: [String: Any], stamp: (TimeInterval) -> String) -> [String: Any]? {
+        guard isCallHistoryScreen(DemoOptions.screen) else { return nil }
+        func call(_ id: String, caller: String, reason: String, seconds: Int, ago: TimeInterval, segments: Int, recordings: Int) -> [String: Any] {
+            [
+                "id": id, "chatId": "chat02", "messageId": "d-\(id)", "startedByUserId": caller == "Alex Example" ? "user01" : "user03", "startedByUserName": caller,
+                "startedAt": stamp(ago + Double(seconds)), "endedAt": reason == "ended" ? stamp(ago) : NSNull(), "endReason": reason, "durationMS": reason == "ended" ? seconds * 1000 : NSNull(),
+                "transcriptState": segments > 0 ? "done" : "off", "recordingCount": recordings, "transcriptSegmentCount": segments,
+                "members": [["userId": "user01", "userName": "Alex Example", "ringState": "answered"], ["userId": "user03", "userName": "Robin Demo", "ringState": "answered"]],
+            ]
+        }
+        let calls = [
+            call("past-call-1", caller: "Robin Demo", reason: "ended", seconds: 272, ago: 5_000, segments: 4, recordings: 2),
+            call("past-call-2", caller: "Alex Example", reason: "missed", seconds: 0, ago: 90_000, segments: 0, recordings: 0),
+            call("past-call-3", caller: "Robin Demo", reason: "ended", seconds: 61, ago: 200_000, segments: 0, recordings: 0),
+        ]
+        switch operation {
+        case "ListChatCalls":
+            let skipped = (variables["options"] as? [String: Any])?["after"] as? Int ?? 0
+            return ["ListChatCalls": ["calls": Array(calls.dropFirst(skipped)), "meta": ["totalCount": calls.count]]]
+        case "GetChatCall" where (variables["callId"] as? String)?.hasPrefix("past-call") == true:
+            var detail = calls.first { ($0["id"] as? String) == variables["callId"] as? String } ?? calls[0]
+            if detail["id"] as? String == "past-call-1" {
+                detail["transcriptSegments"] = [
+                    ["id": "s1", "userId": "user03", "userName": "Robin Demo", "startMS": 1_000, "endMS": 6_000, "text": "Door 4 is flickering again."],
+                    ["id": "s2", "userId": "user01", "userName": "Alex Example", "startMS": 7_000, "endMS": 11_000, "text": "Can you tighten the cable at the frame?"],
+                    ["id": "s3", "userId": "user03", "userName": "Robin Demo", "startMS": 12_000, "endMS": 15_000, "text": "Yes, I am on my way."],
+                    ["id": "s4", "userId": "user01", "userName": "Alex Example", "startMS": 16_000, "endMS": 18_000, "text": "Thank you."],
+                ]
+                detail["recordingAttachments"] = [["id": "rec1", "filename": "robin.m4a", "uploadedByUserId": "user03"], ["id": "rec2", "filename": "alex.m4a", "uploadedByUserId": "user01"]]
+            } else {
+                detail["transcriptSegments"] = []
+                detail["recordingAttachments"] = []
+            }
+            return ["GetChatCall": detail]
+        default:
+            return nil
+        }
     }
 
     // MARK: server answers

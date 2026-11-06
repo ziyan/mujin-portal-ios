@@ -150,4 +150,25 @@ final class ThreadTests: XCTestCase {
         XCTAssertTrue(replyControl(app, containing: "4 replies").waitForExistence(timeout: 30), "The conversation did not count the new replies.\n\(app.debugDescription)")
         XCTAssertTrue(message(app, "This is a demo answer").exists, "The answer is missing from the main history.\n\(app.debugDescription)")
     }
+
+    // MARK: links and past calls
+
+    func testALinkToAMessageOpensTheThreadItIsIn() {
+        let app = DemoApp.launch(screen: "thread-link")
+        XCTAssertTrue(threadTitle(app).waitForExistence(timeout: 60), "The link did not open the thread.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, "Can someone tighten it before the afternoon shift?").waitForExistence(timeout: 30), "The thread does not show the message.\n\(app.debugDescription)")
+    }
+
+    func testTheCallsOfAChatAreListed() {
+        let app = DemoApp.launch(screen: "chat-call-history")
+        let row = DemoApp.element(app, "pastCallRow")
+        XCTAssertTrue(row.waitForExistence(timeout: 60), "The chat lists no past call.\n\(app.debugDescription)")
+        XCTAssertTrue(app.staticTexts["Missed"].exists, "The missed call is not listed.\n\(app.debugDescription)")
+    }
+
+    func testACallOpensToWhoSaidWhatAndItsRecordings() {
+        let app = DemoApp.launch(screen: "chat-call-history-detail")
+        XCTAssertTrue(message(app, "Door 4 is flickering again.").waitForExistence(timeout: 60), "The call does not show what was said.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.element(app, "callRecording-rec1").exists, "The call does not offer its recording.\n\(app.debugDescription)")
+    }
 }

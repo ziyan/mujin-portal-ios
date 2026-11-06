@@ -6,6 +6,10 @@ import SwiftUI
 struct MarkdownView: View {
     let markdown: String
     var isSelectable = true
+    /// The names of the people and agents mentioned, which read as chips in the words. Code is left as typed.
+    var mentionNames: [String] = []
+    /// Whether the words sit on the accent color, which the chips then lighten instead of tint.
+    var isOnAccent = false
 
     @ViewBuilder
     var body: some View {
@@ -29,7 +33,7 @@ struct MarkdownView: View {
     private func view(for block: MarkdownBlock) -> some View {
         switch block {
         case .paragraph(let text):
-            Text(Self.inline(text))
+            Text(Self.chips(Self.inline(text), names: mentionNames, isOnAccent: isOnAccent))
         case .heading(let level, let text):
             Text(Self.inline(text))
                 .font(level == 1 ? .title2.bold() : level == 2 ? .title3.bold() : .headline)
@@ -77,6 +81,19 @@ struct MarkdownView: View {
         // app opens in its own browser. Code and existing links stay as they are.
         let result = (try? AttributedString(markdown: BareLinks.markdown(text), options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
         return styledLinks(result)
+    }
+
+    /// The names of the people mentioned as chips: semibold on a tint. Words in code are left as they are.
+    static func chips(_ text: AttributedString, names: [String], isOnAccent: Bool) -> AttributedString {
+        guard !names.isEmpty else { return text }
+        var result = text
+        for span in Mentions.spans(in: String(text.characters), names: names) {
+            guard let start = AttributedString.Index(span.lowerBound, within: result), let end = AttributedString.Index(span.upperBound, within: result) else { continue }
+            if result[start..<end].runs.contains(where: { $0.inlinePresentationIntent?.contains(.code) == true }) { continue }
+            result[start..<end].font = .body.weight(.semibold)
+            result[start..<end].backgroundColor = isOnAccent ? Color.onAccent.opacity(0.25) : Color.accentColor.opacity(0.18)
+        }
+        return result
     }
 
     /// Text as it was written, whose web addresses are links.
