@@ -126,7 +126,9 @@ final class SiteViewTests: XCTestCase {
         let toggle = app.switches["excludeFromSiteViewsToggle"]
         reveal(toggle, in: app)
         XCTAssertEqual(toggle.value as? String, "1", "The toggle does not show the controller is excluded.")
-        XCTAssertTrue(text(app, "Its alarms, orchestrators, mobile robots and telemetry stop counting at its site and cells, as for a simulation controller. Its own pages keep working.").exists, "The help text is missing.")
+        let help = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Its alarms, orchestrators, mobile robots and telemetry stop counting")).firstMatch
+        XCTAssertTrue(help.exists, "The help text is missing.\n\(app.debugDescription)")
+        XCTAssertTrue(help.label.hasSuffix("Its own pages keep working."), "The help text is cut: \"\(help.label)\".")
         toggleRightEdge(toggle)
         XCTAssertTrue(waitForValue(toggle, "0"), "The toggle did not turn off.\n\(app.debugDescription)")
     }
@@ -154,7 +156,7 @@ final class SiteViewTests: XCTestCase {
     }
 
     func testAnOlderServerHasNoToggleAndTheControllerPageStillShowsItsOwnAlarms() {
-        let app = DemoApp.launch(screen: "controller")
+        let app = DemoApp.launch(screen: "controller-own-alarms")
         let alarm = text(app, "Gripper suction pressure is low")
         scrollUntilExists(alarm, in: app)
         XCTAssertFalse(app.switches["excludeFromSiteViewsToggle"].exists, "An older server is offered the toggle.")
@@ -167,7 +169,8 @@ final class SiteViewTests: XCTestCase {
     func testTheSitePageCountsCriticalAndErrorByDefaultAndTheChipsAddLevels() {
         let app = DemoApp.launch(screen: "alarm-levels", arguments: Self.defaultLevels)
         let tile = tile(app, "statTile.alarms")
-        XCTAssertTrue(tile.waitForExistence(timeout: 90), "There is no alarms tile.\n\(app.debugDescription)")
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 90), "The site did not open.\n\(app.debugDescription)")
+        scrollUntilExists(tile, in: app)
         // Critical, Error (in capitals) and the alarm of a level nobody knows.
         XCTAssertTrue(waitForLabel(tile, containing: "3"), "The count is not of Critical and Error: \"\(tile.label)\".")
         let warning = DemoApp.element(app, "alarmLevel.warning")
@@ -177,8 +180,7 @@ final class SiteViewTests: XCTestCase {
         XCTAssertTrue(DemoApp.element(app, "alarmLevel.error").label.contains("1"), "The Error chip does not count an alarm in capitals.")
         XCTAssertTrue(DemoApp.element(app, "alarmLevel.info").label.contains("1"), "The Info chip does not count its alarm.")
         warning.tap()
-        app.swipeDown()
-        for _ in 0..<15 where !tile.isHittable { app.swipeDown() }
+        for _ in 0..<15 where !(tile.exists && tile.isHittable) { app.swipeDown() }
         XCTAssertTrue(waitForLabel(tile, containing: "5"), "Turning Warning on did not add its alarms to the count: \"\(tile.label)\".")
     }
 

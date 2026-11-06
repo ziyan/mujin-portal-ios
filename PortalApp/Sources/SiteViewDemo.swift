@@ -102,7 +102,8 @@ enum SiteViewDemo {
         switch screen {
         case "exclusion-controller": excludedControllerId
         case "exclusion-controller-readonly": "controller02"
-        case "exclusion-controller-included", "alarm-levels-controller": "controller01"
+        // The last is on a server without the feature: the controller page still shows its own alarms.
+        case "exclusion-controller-included", "alarm-levels-controller", "controller-own-alarms": "controller01"
         default: nil
         }
     }
