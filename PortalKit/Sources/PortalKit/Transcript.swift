@@ -489,6 +489,13 @@ public struct Transcript: Equatable, Sendable {
     public func replyQuote(for messageId: String) -> ReplyReference? {
         guard let quote = replyQuotes[messageId] else { return nil }
         let displayed = displayEntries
+        let isRootShown = displayed.contains { entry in
+            switch entry {
+            case .assistant(let id, _, _), .user(let id, _, _): id == quote.messageId
+            default: false
+            }
+        }
+        if ThreadRouting.quoteRepeatsRoot(replyToMessageId: quote.messageId, threadRootMessageId: threadRoots[messageId], isRootShown: isRootShown) { return nil }
         if let index = displayed.firstIndex(where: { $0.id == "user:\(messageId)" }), index > 0 {
             switch displayed[index - 1] {
             case .assistant(let id, _, _), .user(let id, _, _): if id == quote.messageId { return nil }

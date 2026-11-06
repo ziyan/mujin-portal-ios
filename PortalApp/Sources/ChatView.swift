@@ -123,6 +123,7 @@ struct ChatView: View {
                 offersMessageThreads: session.capabilities.offersMessageThreads,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             chatModel.offersStructuredMentions = session.capabilities.offersStructuredMentions
+            chatModel.onRead = { [session] id in session.noteChatRead(conversationId: id) }
             model = chatModel
             chatModel.start()
             if appModel.isDemo, DemoOptions.screen == "chat-composer" { drafts.stageDemo() }
@@ -726,9 +727,9 @@ private struct MessageRow: View {
         if replyId == previousMessageId { return false }
         // In a thread every reply answers its root, which sits at the top of the screen.
         if replyId == model.threadRootMessageId { return false }
-        // The line above the reply already says which message it comments on.
-        if commentLine != nil, replyId == message.threadRootMessageId { return false }
-        if !message.hasQuotedText, model.timeline.messages.contains(where: { $0.id == replyId }) { return false }
+        let isRepliedMessageShown = model.timeline.messages.contains(where: { $0.id == replyId })
+        if ThreadRouting.quoteRepeatsRoot(replyToMessageId: replyId, threadRootMessageId: message.threadRootMessageId, isRootShown: isRepliedMessageShown) { return false }
+        if !message.hasQuotedText, isRepliedMessageShown { return false }
         return true
     }
 

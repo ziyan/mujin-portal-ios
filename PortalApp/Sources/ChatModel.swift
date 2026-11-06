@@ -25,6 +25,11 @@ final class ChatListModel {
 
     var unreadCount: Int { chats.reduce(0) { $0 + ($1.chat?.unreadCount ?? 0) } }
 
+    /// The person read a chat to its end: its row shows that at once, ahead of the next read of the list.
+    func markRead(id: String) {
+        chats = ConversationListUpdate.markedRead(chats, id: id)
+    }
+
     func search(_ text: String) async {
         searchText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         await load()
@@ -111,6 +116,8 @@ final class ChatModel {
     private var clockTask: Task<Void, Never>?
     private var typingThrottle = TypingThrottle()
     private var lastMarkedMessageId: String?
+    /// Told the conversation's id when the person has read to the end, so the lists and the tab's count can say so.
+    var onRead: (@MainActor (String) -> Void)?
 
     init(
         conversationId: String, chatId: String?, currentUserId: String, connection: Connection, socketFactory: @escaping FeedSocketFactory,
@@ -321,9 +328,13 @@ final class ChatModel {
     /// Tells the room the person has read to the end. The mark only moves forward. A thread leaves the mark to the main history
     /// under it, which lists every message.
     func markRead() async {
-        guard !isThread, let chatId, let last = timeline.messages.last?.id, last != lastMarkedMessageId, last != room?.readerLastReadMessageId else { return }
-        lastMarkedMessageId = last
-        try? await connection.markChatRead(chatId: chatId, messageId: last)
+        guard !isThread, let chatId, let last = timeline.messages.last?.id else { return }
+        if last != lastMarkedMessageId, last != room?.readerLastReadMessageId {
+            lastMarkedMessageId = last
+            try? await connection.markChatRead(chatId: chatId, messageId: last)
+        }
+        // Also when the server had the mark already: a list read earlier can still show the chat as unread.
+        onRead?(conversationId)
     }
 
     /// Called as the person types; signals at most every three seconds.

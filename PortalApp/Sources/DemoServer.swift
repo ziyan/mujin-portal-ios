@@ -727,7 +727,17 @@ struct DemoTransport: HTTPTransport {
                     }
                 }
             ]
-        case "SetChatTyping", "MarkChatRead", "EditChatMessage", "DeleteChatMessage", "RemoveMessageLinkPreviews":
+        case "MarkChatRead":
+            let chatId = variables["chatId"] as? String
+            state.withData { data in
+                for index in data.chats.indices where (data.chats[index]["chatId"] as? String) == chatId {
+                    guard var room = data.chats[index]["chat"] as? [String: Any] else { continue }
+                    room["readerUnreadMessageCount"] = 0
+                    data.chats[index]["chat"] = room
+                }
+            }
+            return [operation: NSNull()]
+        case "SetChatTyping", "EditChatMessage", "DeleteChatMessage", "RemoveMessageLinkPreviews":
             return [operation: NSNull()]
         case "ListConversationMessages":
             return ["ListConversationMessages": ThreadDemo.messages(state.withData { $0.messages[conversationId] ?? [] }, variables: variables)]

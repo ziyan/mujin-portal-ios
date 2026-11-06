@@ -281,7 +281,7 @@ struct SiteView: View {
             }
         }
         .navigationTitle(model?.selectedSite?.name ?? String(localized: "Site"))
-        .navigationSubtitle(embedsNavigation ? "" : (session.organizationNames[activeOrganizationId ?? ""] ?? ""))
+        .navigationSubtitle(embedsNavigation ? "" : (session.organizationNames[activeOrganizationId ?? model?.selectedSite?.organizationId ?? ""] ?? ""))
         .navigationBarTitleDisplayMode(.inline)
         // The site picker and the bell belong to the Sites tab; a site pushed from a customer has its name and the assistant.
         .toolbar {

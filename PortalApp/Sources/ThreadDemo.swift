@@ -97,10 +97,12 @@ enum ThreadDemo {
             ]),
             said("t02", "user04", "Jordan Placeholder", "I saw it too. The cable looks loose at the frame.", 13_800, extra: ["threadRootMessageId": "t01", "replyToMessageId": "t01"]),
             said("t03", "user01", "Alex Example", "Can someone tighten it before the afternoon shift?", 12_000, extra: [
-                "threadRootMessageId": "t01", "replyToMessageId": "t02", "replyToExcerpt": "I saw it too. The cable looks loose", "replyToAuthorName": "Jordan Placeholder",
+                "threadRootMessageId": "t01", "replyToMessageId": "t01", "replyToExcerpt": "The dock door 4 sensor has been flickering", "replyToAuthorName": "Robin Demo",
             ]),
             said("t05", "user04", "Jordan Placeholder", "Shift change moves to 14:00 on Friday.", 3_000),
-            said("t04", "user03", "Robin Demo", "On it. I will tell you when it is done.", 1_500, extra: ["threadRootMessageId": "t01", "replyToMessageId": "t03"]),
+            said("t04", "user03", "Robin Demo", "On it. I will tell you when it is done.", 1_500, extra: [
+                "threadRootMessageId": "t01", "replyToMessageId": "t01", "replyToExcerpt": "The dock door 4 sensor has been flickering", "replyToAuthorName": "Robin Demo",
+            ]),
         ]
         if hasMedia {
             // Replies that hold a link card, a photo, a video and a file, to see how each looks beside the bar.

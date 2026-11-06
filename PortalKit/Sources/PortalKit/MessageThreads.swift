@@ -37,6 +37,12 @@ public enum ThreadRouting {
         return threadRootMessageId
     }
 
+    /// Whether the quote of a reply would only repeat the root of its thread, which the reply sits under. While the root is not on
+    /// the screen the quote is all that says what the reply answers, so it stays.
+    public static func quoteRepeatsRoot(replyToMessageId: String, threadRootMessageId: String?, isRootShown: Bool) -> Bool {
+        isRootShown && replyToMessageId == normalized(threadRootMessageId)
+    }
+
     /// Whether an event is shown on the screen that has `viewThreadRootMessageId` open. The main history shows every event, a run in
     /// a thread included. A thread shows what a run says as it works (text, tool calls) only when the run answers in it; a chat
     /// message, a card or the end of a run reaches it as it reaches every screen.

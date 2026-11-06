@@ -51,7 +51,7 @@ public struct ChatRoom: Codable, Equatable, Identifiable, Sendable {
     public let isReaderAdmin: Bool?
     /// False when the person left: they read what was said, and cannot write.
     public let isReaderMember: Bool?
-    public let readerUnreadMessageCount: Int64?
+    public var readerUnreadMessageCount: Int64?
     public let readerLastReadMessageId: String?
     public let lastMessageExcerpt: String?
     public let lastMessageAuthorName: String?

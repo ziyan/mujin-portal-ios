@@ -50,7 +50,7 @@ public struct ConversationSummary: Codable, Equatable, Identifiable, Sendable {
     /// `assistant` or `chat`.
     public let conversationKind: String?
     public let chatId: String?
-    public let chat: ChatRoom?
+    public var chat: ChatRoom?
     /// Whose conversation it is. Nil when the server did not say.
     public let userId: String?
     /// Work the assistant started in it is still running.
