@@ -118,6 +118,11 @@ struct ConversationListView: View {
                 }
             })
         }
+        .onChange(of: session.lastReadChat) { _, mark in
+            guard let mark, let model else { return }
+            model.markRead(id: mark.conversationId)
+            if model.searchText.isEmpty { session.setChatUnreadCount(model.chatUnreadCount) }
+        }
         .onChange(of: session.chatToOpen, initial: true) { _, conversationId in
             guard let conversationId else { return }
             chatConversationIds.insert(conversationId)

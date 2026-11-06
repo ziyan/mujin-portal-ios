@@ -33,6 +33,16 @@ import Testing
         #expect(inserted.first?.title == "New")
     }
 
+    @Test func readingAChatClearsOnlyItsOwnRow() {
+        func chat(_ id: String, unread: Int64) -> ConversationSummary {
+            ConversationSummary(id: id, conversationKind: "chat", chat: ChatRoom(id: "room-\(id)", readerUnreadMessageCount: unread))
+        }
+        let rows = [chat("a", unread: 3), chat("b", unread: 2), row("c", title: "Assistant")]
+        let marked = ConversationListUpdate.markedRead(rows, id: "a")
+        #expect(marked.map { $0.chat?.unreadCount } == [0, 2, nil])
+        #expect(ConversationListUpdate.markedRead(rows, id: "c") == rows)
+    }
+
     @Test func aTitleFromTheServerReplacesThePlaceholderAndAnEmptyOneChangesNothing() {
         let rows = [row("a", title: "Check dock door 4"), row("b", title: "Other")]
         let retitled = ConversationListUpdate.retitled(rows, id: "a", title: "Dock door 4 check")

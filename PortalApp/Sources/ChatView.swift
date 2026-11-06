@@ -123,6 +123,7 @@ struct ChatView: View {
                 offersMessageThreads: session.capabilities.offersMessageThreads,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             chatModel.offersStructuredMentions = session.capabilities.offersStructuredMentions
+            chatModel.onRead = { [session] id in session.noteChatRead(conversationId: id) }
             model = chatModel
             chatModel.start()
             if appModel.isDemo, DemoOptions.screen == "chat-composer" { drafts.stageDemo() }

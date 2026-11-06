@@ -25,6 +25,17 @@ public enum ConversationListUpdate {
         return isCut ? title + "…" : title
     }
 
+    /// The person read a chat to its end, so its row has nothing unread.
+    public static func markedRead(_ rows: [ConversationSummary], id: String) -> [ConversationSummary] {
+        rows.map { row in
+            guard row.id == id, var room = row.chat else { return row }
+            room.readerUnreadMessageCount = 0
+            var updated = row
+            updated.chat = room
+            return updated
+        }
+    }
+
     /// The row for a conversation with the assistant that was just started with `text`.
     public static func startedRow(id: String, agentId: String? = nil, text: String, userId: String? = nil, now: Date = Date()) -> ConversationSummary {
         let stamp = ISO8601DateFormatter().string(from: now)

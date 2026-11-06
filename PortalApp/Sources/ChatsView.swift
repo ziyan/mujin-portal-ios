@@ -86,6 +86,11 @@ struct ChatsView: View {
             if Task.isCancelled { return }
             await model?.search(searchText)
         }
+        .onChange(of: session.lastReadChat) { _, mark in
+            guard let mark, let model else { return }
+            model.markRead(id: mark.conversationId)
+            if model.searchText.isEmpty { session.setChatUnreadCount(model.unreadCount) }
+        }
         .onChange(of: session.chatToOpen, initial: true) { _, conversationId in
             guard let conversationId else { return }
             selection.open(conversationId)

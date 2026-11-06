@@ -39,6 +39,8 @@ final class SessionModel {
     var linkNotice: String?
     /// Unread messages across the person's chats.
     private(set) var chatUnreadCount = 0
+    /// The chat last read to its end, which the chat lists clear from their rows.
+    private(set) var lastReadChat: ChatReadMark?
     /// The going calls of the person's chats, kept current by the call feed.
     private(set) var callBook = ChatCallBook()
     /// Whether a media host is alive. False hides the call buttons.
@@ -207,6 +209,16 @@ final class SessionModel {
                 ((try? await organizations) ?? []).map { ($0.id, $0.name ?? "") }, uniquingKeysWith: { first, _ in first })
             return loaded
         })
+    }
+
+    /// A chat was read to its end. The lists update from this, not from a new read, which a replica could answer with the old count.
+    func noteChatRead(conversationId: String) {
+        lastReadChat = ChatReadMark(conversationId: conversationId)
+    }
+
+    /// The count a chat list worked out after clearing a row.
+    func setChatUnreadCount(_ count: Int) {
+        chatUnreadCount = count
     }
 
     /// Reads what waits for the person. The web app asks every 30 seconds too.
@@ -528,6 +540,12 @@ enum DemoOptions {
 
     /// Whether the demo person works for the administrator organization.
     static var isStaff: Bool { environment["PORTAL_DEMO_PERSONA"] == "staff" }
+}
+
+/// ChatReadMark says a chat was read to its end. Each is new, so reading the same chat again is seen as a change.
+struct ChatReadMark: Equatable {
+    let conversationId: String
+    let id = UUID()
 }
 
 /// MessageFocus is the message a link points at, and the thread it is in when it is in one.
