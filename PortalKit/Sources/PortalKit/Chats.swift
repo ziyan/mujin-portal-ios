@@ -38,10 +38,10 @@ public struct ChatMember: Codable, Equatable, Identifiable, Sendable {
 public struct ChatRoom: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let organizationId: String?
-    /// `direct` or `group`.
+    /// `direct`, `group`, or `site`: everyone with access to a site, which the server keeps in step.
     public let chatKind: String?
     public let name: String?
-    /// The group's name, or for a direct chat the other person.
+    /// The group's name, for a direct chat the other person, or for a site chat the site and its organization.
     public let displayName: String?
     public let isMemoryFilingEnabled: Bool?
     public let lastMessageAt: String?
@@ -82,6 +82,9 @@ public struct ChatRoom: Codable, Equatable, Identifiable, Sendable {
     }
 
     public var isGroup: Bool { chatKind == "group" }
+    public var isSite: Bool { chatKind == "site" }
+    /// Several people speak in it, so a line says who said it.
+    public var hasManyAuthors: Bool { isGroup || isSite }
     public var title: String { (displayName ?? name ?? "").isEmpty ? "Chat" : (displayName ?? name ?? "") }
     public var unreadCount: Int { Int(readerUnreadMessageCount ?? 0) }
     public var canWrite: Bool { isReaderMember != false }
@@ -520,6 +523,12 @@ extension Documents {
         }
         """
 
+    public static let openSiteChat = """
+        mutation OpenSiteChat($siteId: String) {
+          OpenSiteChat(siteId: $siteId) { chat { \(chatRoomFields) } conversation { id } }
+        }
+        """
+
     public static let createGroupChat = """
         mutation CreateGroupChat($name: String, $userIds: [String]) {
           CreateGroupChat(name: $name, userIds: $userIds) { chat { \(chatRoomFields) } conversation { id } }
@@ -612,7 +621,7 @@ extension Documents {
 
     static var chatDocuments: [String] {
         [
-            listChats, getChat, listChatCandidates, startDirectChat, createGroupChat, addChatMembers, removeChatMember, renameChat, setChatMemberAdmin,
+            listChats, getChat, listChatCandidates, startDirectChat, openSiteChat, createGroupChat, addChatMembers, removeChatMember, renameChat, setChatMemberAdmin,
             setChatNotificationLevel, setChatMemoryFiling, sendChatMessage, editChatMessage, deleteChatMessage, markChatRead, setChatTyping,
             listMessageLinkPreviews, removeMessageLinkPreviews, listAuthorizedAgents,
         ]
@@ -660,6 +669,20 @@ extension Connection {
             let StartDirectChat: Started?
         }
         guard let id = try await execute(Documents.startDirectChat, variables: ["userId": .string(userId)], as: Answer.self).StartDirectChat?.conversation?.id
+        else { throw PortalError.unreadableAnswer }
+        return id
+    }
+
+    /// Opens the chat of a site the person can read and returns their conversation of it.
+    public func openSiteChat(siteId: String) async throws -> String {
+        struct Answer: Decodable, Sendable {
+            struct Opened: Decodable, Sendable {
+                struct Conversation: Decodable, Sendable { let id: String }
+                let conversation: Conversation?
+            }
+            let OpenSiteChat: Opened?
+        }
+        guard let id = try await execute(Documents.openSiteChat, variables: ["siteId": .string(siteId)], as: Answer.self).OpenSiteChat?.conversation?.id
         else { throw PortalError.unreadableAnswer }
         return id
     }
