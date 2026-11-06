@@ -144,6 +144,9 @@ struct MainTabsView: View {
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("link-") {
                 appModel.linkRequest = ControllerLinkRequest(code: screen == "link-confirm" ? DemoServer.linkCode : nil)
             }
+            if appModel.isDemo, DemoOptions.screen == "site-from-link" {
+                appModel.openedLink = OpenedLink(link: .site(id: "site03"))
+            }
             if appModel.isDemo, DemoOptions.screen == "ask" || DemoOptions.screen == "ask-site" || DemoOptions.screen == "conversation-reply" || DemoOptions.screen == "conversation-composer" || DemoOptions.screen == "main-chat" {
                 if DemoOptions.screen == "ask-site" {
                     Task { await newSession.beginAsk(about: Viewing(kind: "site", id: "site01"), subject: "Example Yard") }

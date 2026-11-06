@@ -217,4 +217,11 @@ final class SiteViewTests: XCTestCase {
         XCTAssertTrue(text(app, "Conveyor 2 is running slowly").exists, "An older server's warning is hidden.")
         XCTAssertFalse(DemoApp.element(app, "alarmLevelBar").exists, "An older server's alarms are filtered by level.")
     }
+
+    /// A link in a chat does not say whose site it is. Opened by a Mujin user, the site of a customer still opens as itself.
+    func testALinkOpensASiteOfAnotherOrganization() {
+        let app = DemoApp.launch(screen: "site-from-link", persona: "staff")
+        let title = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Bakery line")).firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 90), "The site did not open under its own name.\n\(app.debugDescription)")
+    }
 }

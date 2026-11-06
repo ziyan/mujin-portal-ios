@@ -15,7 +15,7 @@ enum PortalRoute: Hashable {
     case virtualController(VirtualControllerSummary)
     case incident(IncidentSummary)
     /// One specific site of an organization, which never changes to another site.
-    case site(id: String, organizationId: String)
+    case site(id: String, organizationId: String?)
     /// One cell of a site: the site page narrowed to the cell's machines and cameras.
     case cell(id: String, siteId: String, organizationId: String?)
     case release(id: String)

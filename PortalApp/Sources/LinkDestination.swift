@@ -43,10 +43,10 @@ extension SessionModel {
         case .release(let id):
             return .screen(.route(.release(id: id)))
         case .site(let id):
-            guard let organization else { return .web }
-            return .screen(.route(.site(id: id, organizationId: organization)))
+            // A link does not say whose site it is, and it need not be the person's own organization. The screen reads that from the site.
+            return .screen(.route(.site(id: id, organizationId: organizationId)))
         case .cell(let id, let siteId):
-            return .screen(.route(.cell(id: id, siteId: siteId, organizationId: organization)))
+            return .screen(.route(.cell(id: id, siteId: siteId, organizationId: organizationId)))
         case .sitePage:
             return .web
         case .conversation(let id):

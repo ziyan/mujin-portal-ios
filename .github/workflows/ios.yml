@@ -341,6 +341,7 @@ jobs:
           shoot cell-lower cell-lower
           shoot cell-empty cell-empty
           shoot site-staff site-staff staff
+          shoot site-from-link site-from-link staff
           shoot site-staff-controllers site-staff-controllers staff
           shoot site-loading site-loading
           shoot cameras cameras
