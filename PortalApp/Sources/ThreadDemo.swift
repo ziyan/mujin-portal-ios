@@ -7,6 +7,8 @@ enum ThreadDemo {
     static let screens: Set<String> = [
         "thread-chat", "thread-chat-open", "thread-chat-working", "thread-chat-media", "thread-chat-media-open", "thread-conversation",
         "thread-conversation-open", "thread-push", "thread-link",
+        // The thread screens of dictation and reading aloud, which need the same server and data (see SpeechDemo).
+        "dictate-thread-chat", "dictate-thread-conversation", "read-aloud-thread-chat", "read-aloud-thread-conversation",
     ]
 
     static let chatConversationId = "chatconv-thread"
@@ -20,8 +22,10 @@ enum ThreadDemo {
     /// The conversation a screen opens.
     static func conversationId(for screen: String?) -> String? {
         switch screen {
-        case "thread-chat", "thread-chat-open", "thread-chat-working", "thread-chat-media", "thread-chat-media-open": chatConversationId
-        case "thread-conversation", "thread-conversation-open": assistantConversationId
+        case "thread-chat", "thread-chat-open", "thread-chat-working", "thread-chat-media", "thread-chat-media-open", "dictate-thread-chat",
+            "read-aloud-thread-chat":
+            chatConversationId
+        case "thread-conversation", "thread-conversation-open", "dictate-thread-conversation", "read-aloud-thread-conversation": assistantConversationId
         default: nil
         }
     }
@@ -29,8 +33,9 @@ enum ThreadDemo {
     /// The thread a screen opens on, once its conversation is open.
     static func threadToOpen(for screen: String?) -> ThreadToOpen? {
         switch screen {
-        case "thread-chat-open", "thread-chat-media-open": ThreadToOpen(conversationId: chatConversationId, threadRootMessageId: chatThreadRootMessageId)
-        case "thread-conversation-open": ThreadToOpen(conversationId: assistantConversationId, threadRootMessageId: assistantThreadRootMessageId)
+        case "thread-chat-open", "thread-chat-media-open", "dictate-thread-chat", "read-aloud-thread-chat":
+            ThreadToOpen(conversationId: chatConversationId, threadRootMessageId: chatThreadRootMessageId)
+        case "thread-conversation-open", "dictate-thread-conversation", "read-aloud-thread-conversation": ThreadToOpen(conversationId: assistantConversationId, threadRootMessageId: assistantThreadRootMessageId)
         default: nil
         }
     }

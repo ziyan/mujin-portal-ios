@@ -523,6 +523,8 @@ struct DemoTransport: HTTPTransport {
             let hasCalls = CallDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
             // The thread screens are shot against a server that reads one thread or the main history without replies.
             let hasThreads = ThreadDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            // Dictation and reading aloud are shot against a server whose voice setting says whether each is set up.
+            let hasSpeech = SpeechDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
             let hasCallHistory = ThreadDemo.isCallHistoryScreen(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
             var queryFields: [[String: Any]] = [
                 ["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"],
@@ -535,13 +537,16 @@ struct DemoTransport: HTTPTransport {
             ]
             if hasCalls { mutationFields += [["name": "startChatCall"], ["name": "joinChatCallMedia"]] }
             if hasThreads { mutationFields.append(["name": "openChatMessage"]) }
-            return [
+            var schemaAnswer: [String: Any] = [
                 "__schema": [
                     "queryType": ["fields": queryFields],
                     "mutationType": ["fields": mutationFields],
                     "subscriptionType": ["fields": [["name": "onConversationEvent"]] + (hasCalls ? [["name": "onChatCallEvent"], ["name": "onChatCallSignal"]] : [])],
                 ]
             ]
+            let voiceSettingFields = hasSpeech ? SpeechDemo.voiceSettingFieldNames : ["speechVoice", "speechVoices", "defaultSpeechVoice", "previewText"]
+            schemaAnswer["voiceSetting"] = ["fields": voiceSettingFields.map { ["name": $0] }]
+            return schemaAnswer
         case "GetMainAgent":
             return ["GetMainAgent": ["id": "agent01", "name": "Assistant", "isMain": true]]
         case "ListConversations":
@@ -1230,7 +1235,13 @@ struct DemoTransport: HTTPTransport {
         case "GetAgentMemorySetting":
             return ["GetAgentMemorySetting": ["isFilingEnabledForUser": true, "isFilingEnabledForOrganization": true, "canManageOrganization": true]]
         case "GetAgentVoiceSetting":
-            return ["GetAgentVoiceSetting": ["speechVoice": "", "defaultSpeechVoice": "alloy", "speechVoices": ["alloy", "ash", "coral", "nova", "sage"]]]
+            var voiceSetting: [String: Any] = ["speechVoice": "", "defaultSpeechVoice": "alloy", "speechVoices": ["alloy", "ash", "coral", "nova", "sage"]]
+            // Dictation and reading aloud are set up on the screens that show them, and on no other.
+            if SpeechDemo.owns(DemoOptions.screen) {
+                voiceSetting["isDictationAvailable"] = true
+                voiceSetting["isReadAloudAvailable"] = true
+            }
+            return ["GetAgentVoiceSetting": voiceSetting]
         case "GetAgentBackgroundSetting":
             return ["GetAgentBackgroundSetting": ["areGoalsEnabled": true, "areFoundIdeasEnabled": true, "isSpeakFirstEnabled": true, "canManageOrganization": true]]
         case "ListMemoryFilings":

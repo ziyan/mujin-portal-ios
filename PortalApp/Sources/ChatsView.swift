@@ -76,6 +76,7 @@ struct ChatsView: View {
                 if screen == "chat-site-info" || screen == "chat-site-picker" { selection.open("chatsite01") }
                 if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selection.open("chatconv01") }
                 if let conversationId = CallDemo.conversationId(for: screen) { selection.open(conversationId) }
+                if let conversationId = SpeechDemo.conversationId(for: screen), conversationId.hasPrefix("chat") { selection.open(conversationId) }
                 if screen == "chats-new" { newChatMode = .direct }
                 if screen == "chats-new-group" { newChatMode = .group }
             }

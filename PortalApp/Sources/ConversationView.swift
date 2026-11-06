@@ -22,6 +22,7 @@ struct ConversationView: View {
     @State private var model: ConversationModel?
     @State private var openedThreadRootId: String?
     @State private var voice: VoiceCallController?
+    @State private var dictation = DictationController()
     @State private var draft = ""
     @State private var isRenaming = false
     @State private var renameDraft = ""
@@ -128,6 +129,13 @@ struct ConversationView: View {
             conversationModel.start()
             if appModel.isDemo, DemoOptions.screen == "voice" { voice?.startDemo() }
             if appModel.isDemo, DemoOptions.screen == "conversation-composer" { drafts.stageDemo() }
+            if appModel.isDemo, SpeechDemo.stagesListening(DemoOptions.screen, isThread: isThread) { dictation.stageListening(captionText: DemoSpeech.firstCaption) }
+            if appModel.isDemo, SpeechDemo.stagesWords(DemoOptions.screen) { draft = DemoSpeech.dictatedWords }
+            if appModel.isDemo, let messageId = SpeechDemo.messageToPlay(DemoOptions.screen, isThread: isThread) {
+                // The chat or conversation under a thread stops any reading as it is covered, so the thread stages its own afterwards.
+                if isThread { try? await Task.sleep(for: .seconds(2)) }
+                session.readAloud.stageDemo(messageId: messageId)
+            }
             if appModel.isDemo, DemoOptions.screen == "conversation-reply" {
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 conversationModel.replyTarget = ReplyReference(
@@ -143,11 +151,14 @@ struct ConversationView: View {
             model?.stop()
             voice?.end()
         }
+        .speechLifecycle(dictation)
         .onCoveredChange { isCovered in
             guard isOnScreen, let model else { return }
             if isCovered {
                 model.stop()
                 voice?.end()
+                dictation.abort()
+                session.readAloud.stop()
             } else {
                 if !isThread { voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory) }
                 model.start()
@@ -189,7 +200,7 @@ struct ConversationView: View {
         case .loaded:
             transcript(model)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    ComposerBar(model: model, voice: voice, drafts: drafts, draft: $draft)
+                    ComposerBar(model: model, voice: voice, dictation: dictation, drafts: drafts, draft: $draft)
                 }
         }
     }
@@ -408,7 +419,7 @@ private struct TranscriptRow: View {
         MessageActions(
             messageId: id, text: text, isTrailing: true, ownReaction: nil, onReact: nil,
             onReply: { if let onOpenThread { onOpenThread(threadToOpen(for: id) ?? id) } else { model.replyTarget = ReplyReference(messageId: id, authorName: "", excerpt: text, isOwn: true) } },
-            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil, onCopyLink: copyLinkAction(for: id))
+            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil, onCopyLink: copyLinkAction(for: id), readAloudText: text)
     }
 
     /// What a long press on an answer offers: reacting to it, answering it and working with its words.
@@ -420,7 +431,7 @@ private struct TranscriptRow: View {
             onReply: {
                 if let onOpenThread { onOpenThread(threadToOpen(for: id) ?? id) } else { model.replyTarget = ReplyReference(messageId: id, authorName: String(localized: "Assistant"), excerpt: text) }
             },
-            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil, onCopyLink: copyLinkAction(for: id))
+            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil, onCopyLink: copyLinkAction(for: id), readAloudText: text)
     }
 
     /// The cards under a message that holds a link, as under a message in a people chat.
@@ -870,8 +881,11 @@ private struct ComposerBar: View {
         }
     }
 
+    @Environment(AppModel.self) private var appModel
+    @Environment(SessionModel.self) private var session
     let model: ConversationModel
     let voice: VoiceCallController?
+    let dictation: DictationController
     let drafts: AttachmentDrafts
     @Binding var draft: String
 
@@ -883,8 +897,37 @@ private struct ComposerBar: View {
     private var isDraftEmpty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var canSend: Bool { !isDraftEmpty || !drafts.items.isEmpty }
 
+    /// The microphone button, when the server has dictation set up for this person.
+    private var dictationControl: DictationControl? {
+        guard session.voiceAvailability.isDictationAvailable else { return nil }
+        return DictationControl(isListening: dictation.isListening, isEnabled: dictation.phase != .finishing) { toggleDictation() }
+    }
+
+    /// Starts a call. A call and dictation both want the microphone, and a call wins.
+    private var startCall: (() -> Void)? {
+        guard let voice else { return nil }
+        return {
+            dictation.abort()
+            session.readAloud.stop()
+            Task { await voice.start() }
+        }
+    }
+
+    private func toggleDictation() {
+        if appModel.callCenter.isInCall || voice?.isActive == true {
+            dictation.report(String(localized: "You cannot dictate during a call."))
+            return
+        }
+        session.readAloud.stop()
+        dictation.toggle(place: .agent, connection: model.connection, isDemo: appModel.isDemo) { words in
+            draft = DictationText.appending(words, to: draft)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 6) {
+            if session.readAloud.isShowingBar { ReadAloudBar(readAloud: session.readAloud) }
+            if dictation.isShowingStatus { DictationStatus(dictation: dictation) }
             if let error = model.actionError {
                 HStack(spacing: 8) {
                     Text(error)
@@ -919,8 +962,9 @@ private struct ComposerBar: View {
             }
             ComposerCard(
                 placeholder: placeholder, text: $draft, drafts: drafts,
-                canSend: canSend, onVoice: voice.map { voice in { Task { await voice.start() } } },
-                onStop: model.isRunning ? { Task { await model.cancelRun() } } : nil,
+                canSend: canSend,
+                onVoice: startCall,
+                onStop: model.isRunning ? { Task { await model.cancelRun() } } : nil, dictation: dictationControl,
                 onEscape: {
                     guard draft.isEmpty, model.replyTarget != nil else { return false }
                     model.replyTarget = nil
@@ -932,11 +976,14 @@ private struct ComposerBar: View {
         .padding(.top, 6)
         .onChange(of: voice?.isActive ?? false) { _, isActive in
             // The keyboard goes down when a call starts.
+            if isActive { dictation.abort() }
             if isActive { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
         }
     }
 
     private func send() {
+        // What is still being said belongs to the message that was sent, not to the next one.
+        dictation.abort()
         let text = draft
         draft = ""
         Task {

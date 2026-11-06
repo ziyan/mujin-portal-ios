@@ -1,6 +1,13 @@
 import PortalKit
 import SwiftUI
 
+/// DictationControl is the microphone button of a composer: it starts and stops dictating into the box.
+struct DictationControl {
+    let isListening: Bool
+    let isEnabled: Bool
+    let action: () -> Void
+}
+
 /// ComposerCard is where the person writes, on every screen that has a box:
 /// one rounded card with the words on top and the buttons inside it, adding
 /// files at the bottom left, then voice, stop and send at the bottom right.
@@ -17,6 +24,7 @@ struct ComposerCard<Accessory: View>: View {
     var sendLabel: LocalizedStringKey = "Send"
     var onVoice: (() -> Void)?
     var onStop: (() -> Void)?
+    var dictation: DictationControl?
     var fieldIdentifier = "messageField"
     var sendIdentifier = "sendButton"
     var onEscape: (() -> Bool)?
@@ -54,6 +62,22 @@ struct ComposerCard<Accessory: View>: View {
                 if let drafts { AttachMenu(drafts: drafts, systemImage: "plus") }
                 accessory
                 Spacer(minLength: 0)
+                if let dictation {
+                    // A plain microphone, apart from the waveform that starts a call and the filled one that records a voice message.
+                    // Listening, it is tinted and sits on a soft circle.
+                    Button(action: dictation.action) {
+                        Image(systemName: "mic")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(dictation.isListening ? Color.accentColor : Color.secondary)
+                            .frame(width: diameter, height: diameter)
+                            .background(dictation.isListening ? Color.accentColor.opacity(0.18) : Color.clear, in: .circle)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(.rect)
+                    }
+                    .disabled(!dictation.isEnabled)
+                    .accessibilityLabel(dictation.isListening ? Text("Stop dictating") : Text("Dictate"))
+                    .accessibilityIdentifier("dictateButton")
+                }
                 if let onVoice, !canSend {
                     Button(action: onVoice) {
                         Image(systemName: "waveform")
@@ -121,12 +145,13 @@ extension ComposerCard {
     /// The card with a view of the screen's own beside the attach button.
     init(
         placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,
-        isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", fieldIdentifier: String = "messageField",
-        sendIdentifier: String = "sendButton", onEscape: (() -> Bool)? = nil, onSend: @escaping () -> Void, @ViewBuilder accessory: () -> Accessory
+        isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", dictation: DictationControl? = nil,
+        fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton", onEscape: (() -> Bool)? = nil, onSend: @escaping () -> Void,
+        @ViewBuilder accessory: () -> Accessory
     ) {
         self.init(
             placeholder: placeholder, text: text, drafts: drafts, isEnabled: isEnabled, canSend: canSend, isSending: isSending, sendSymbol: sendSymbol,
-            sendLabel: sendLabel, onVoice: nil, onStop: nil, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
+            sendLabel: sendLabel, onVoice: nil, onStop: nil, dictation: dictation, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
             onSend: onSend, accessory: accessory)
     }
 }
@@ -135,12 +160,12 @@ extension ComposerCard where Accessory == EmptyView {
     init(
         placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,
         isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", onVoice: (() -> Void)? = nil,
-        onStop: (() -> Void)? = nil, fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton", onEscape: (() -> Bool)? = nil,
-        onSend: @escaping () -> Void
+        onStop: (() -> Void)? = nil, dictation: DictationControl? = nil, fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton",
+        onEscape: (() -> Bool)? = nil, onSend: @escaping () -> Void
     ) {
         self.init(
             placeholder: placeholder, text: text, drafts: drafts, isEnabled: isEnabled, canSend: canSend, isSending: isSending, sendSymbol: sendSymbol,
-            sendLabel: sendLabel, onVoice: onVoice, onStop: onStop, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
+            sendLabel: sendLabel, onVoice: onVoice, onStop: onStop, dictation: dictation, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
             onSend: onSend, accessory: { EmptyView() })
     }
 }
