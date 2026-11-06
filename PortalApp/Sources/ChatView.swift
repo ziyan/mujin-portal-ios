@@ -256,7 +256,7 @@ struct ChatView: View {
 
     /// Opens the thread of a message, on a server with threads and on the main history; nowhere else a reply opens one.
     private func threadOpener(_ model: ChatModel) -> ((String) -> Void)? {
-        guard model.collapsesThreads else { return nil }
+        guard model.canOpenThreads else { return nil }
         return { openedThreadRootId = $0 }
     }
 
@@ -558,7 +558,7 @@ private struct MessageRow: View {
             VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
                 if !isMine, startsRun { authorLine }
                 if showsQuote { quote }
-                bubble
+                tappableBubble
                 ForEach(model.previews[message.id] ?? []) { card in
                     LinkPreviewCardView(card: card, connection: model.connection)
                         .frame(maxWidth: 320)
@@ -570,6 +570,22 @@ private struct MessageRow: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
+        }
+    }
+
+    /// The thread a tap on this message opens: the one it is a reply in, else its own when it has replies.
+    private var threadToOpen: String? {
+        guard onOpenThread != nil else { return nil }
+        return ThreadRouting.threadToOpen(messageId: message.id, threadRootMessageId: message.threadRootMessageId, replyCount: message.threadReplyCount)
+    }
+
+    /// A tap on a message that belongs to a thread opens the thread; links and buttons inside it keep working.
+    @ViewBuilder
+    private var tappableBubble: some View {
+        if let root = threadToOpen, let onOpenThread {
+            bubble.onTapGesture { onOpenThread(root) }
+        } else {
+            bubble
         }
     }
 
@@ -710,7 +726,7 @@ private struct MessageRow: View {
             messageId: message.id, text: message.text, isTrailing: isMine,
             ownReaction: Reactions.summaries(model.timeline.reactions(for: message.id), currentUserId: model.currentUserId).first { $0.isMine }?.emoji,
             onReact: { emoji in Task { await model.react(messageId: message.id, emoji: emoji) } },
-            onReply: model.canWrite ? { if let onOpenThread { onOpenThread(message.id) } else { model.replyTarget = message } } : nil,
+            onReply: model.canWrite ? { if let onOpenThread { onOpenThread(threadToOpen ?? message.id) } else { model.replyTarget = message } } : nil,
             onEdit: model.canEdit(message) ? { model.editTarget = message } : nil,
             onRemoveLinkPreviews: isMine && hasPreviews ? { Task { await model.removePreviews(of: message) } } : nil,
             onDelete: model.canDelete(message) ? { askDelete(message) } : nil)

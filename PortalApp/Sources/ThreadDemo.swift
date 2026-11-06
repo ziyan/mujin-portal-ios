@@ -1,8 +1,8 @@
 import Foundation
 import PortalKit
 
-/// ThreadDemo is the demo's message threads: a chat with people and a conversation with the assistant whose main history shows reply
-/// counts, and the threads under them. It is served only on its own screens, against a server that has threads. Every name is invented.
+/// ThreadDemo is the demo's message threads: a chat with people and a conversation with the assistant whose main history shows every message, replies
+/// included, and the threads under them. It is served only on its own screens, against a server that has threads. Every name is invented.
 enum ThreadDemo {
     static let screens: Set<String> = [
         "thread-chat", "thread-chat-open", "thread-chat-working", "thread-conversation", "thread-conversation-open", "thread-push",
@@ -139,7 +139,7 @@ enum ThreadDemo {
 
     // MARK: server answers
 
-    /// The rows a read of messages returns: one thread with its root first, the main history without replies, or everything.
+    /// The rows a read of messages returns: one thread with its root first, or everything.
     static func messages(_ rows: [[String: Any]], variables: [String: Any]) -> [[String: Any]] {
         func threadRoot(_ row: [String: Any]) -> String? {
             guard let root = row["threadRootMessageId"] as? String, !root.isEmpty else { return nil }
@@ -147,9 +147,6 @@ enum ThreadDemo {
         }
         if let root = variables["threadRootMessageId"] as? String, !root.isEmpty {
             return rows.filter { ($0["id"] as? String) == root || threadRoot($0) == root }
-        }
-        if variables["shouldCollapseThreads"] as? Bool == true {
-            return rows.filter { threadRoot($0) == nil }
         }
         return rows
     }

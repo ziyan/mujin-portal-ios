@@ -524,7 +524,7 @@ struct DemoTransport: HTTPTransport {
             let queryFields: [[String: Any]] = [
                 ["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"],
                 ["name": "globalSearch"],
-                ["name": "listConversationMessages", "args": hasThreads ? [["name": "threadRootMessageId"], ["name": "shouldCollapseThreads"]] : []],
+                ["name": "listConversationMessages", "args": hasThreads ? [["name": "threadRootMessageId"]] : []],
             ]
             return [
                 "__schema": [

@@ -4,8 +4,7 @@ import PortalKit
 
 /// ConversationModel is one open conversation: its transcript, kept current
 /// by the subscription feed, and what the person does in it. With a `threadRootMessageId` it is one thread of the conversation
-/// instead: the message it hangs from and its replies, with its own composer. The model of the main history reads it without the
-/// replies when the server has threads, and shows them as a count under the message.
+/// instead: the message it hangs from and its replies, with its own composer.
 @MainActor
 @Observable
 final class ConversationModel {
@@ -86,8 +85,8 @@ final class ConversationModel {
 
     var isRunning: Bool { transcript.isRunning }
     var isThread: Bool { threadRootMessageId != nil }
-    /// Whether this screen shows the main history of a server with threads: replies are counted under the message, not listed.
-    var collapsesThreads: Bool { offersMessageThreads && !isThread }
+    /// Whether this screen is the main history of a server with threads: a tap on a message of a thread opens it.
+    var canOpenThreads: Bool { offersMessageThreads && !isThread }
     /// Whether the run at work answers where this screen looks: in this thread, or in no thread on the main history.
     var isRunningHere: Bool { transcript.isRunningInView }
 
@@ -214,12 +213,11 @@ final class ConversationModel {
             async let summary = connection.conversation(id: conversationId)
             async let messages = connection.messages(
                 conversationId: conversationId, latestCount: isThread ? ThreadRouting.threadMessageCount : window.reloadCount,
-                shouldCollapseThreads: collapsesThreads, threadRootMessageId: threadRootMessageId)
+                threadRootMessageId: threadRootMessageId)
             async let waitingCards = connection.waitingCards(conversationId: conversationId)
             // A thread is read whole, so it has no count of earlier messages.
             let shouldCountMessages = !isThread
-            let shouldCollapse = collapsesThreads
-            async let total: Int? = shouldCountMessages ? connection.messageCountOrNil(conversationId: conversationId, shouldCollapseThreads: shouldCollapse) : nil
+            async let total: Int? = shouldCountMessages ? connection.messageCountOrNil(conversationId: conversationId) : nil
             let (loadedSummary, loadedMessages, loadedCards) = try await (summary, messages, waitingCards)
             window.replace(with: loadedMessages, totalCount: await total)
             cards = loadedCards
@@ -280,7 +278,7 @@ final class ConversationModel {
         defer { isLoadingEarlier = false }
         do {
             let page = try await connection.messages(
-                conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first, shouldCollapseThreads: collapsesThreads)
+                conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
             window.prepend(page)
             transcript.load(messages: window.messages, questions: cards.questions, approvals: cards.approvals, isRunning: transcript.isRunning)
             await askForPreviews(page)

@@ -283,6 +283,7 @@ public struct Transcript: Equatable, Sendable {
     private var speakFirstReasons: [String: String] = [:]
     private var persistedReactions: [String: [Reaction]] = [:]
     private var threadSummaries: [String: ThreadSummary] = [:]
+    private var threadRoots: [String: String] = [:]
     /// Reactions changed on this phone or by an event. They win over what a
     /// reload brings, because the transcript is read from a replica that can
     /// still lack a reaction written a moment ago.
@@ -305,6 +306,11 @@ public struct Transcript: Equatable, Sendable {
             isRunning: isRunning, workingThreadRootMessageId: workingThreadRootMessageId, viewThreadRootMessageId: threadRootMessageId)
     }
 
+    /// The thread a tap on a message opens: the one it is a reply in, else its own when it has replies.
+    public func threadToOpen(forMessage messageId: String) -> String? {
+        ThreadRouting.threadToOpen(messageId: messageId, threadRootMessageId: threadRoots[messageId], replyCount: threadSummaries[messageId]?.replyCount ?? 0)
+    }
+
     /// The replies a message's thread holds, for the count under it in the main history.
     public func threadSummary(for messageId: String) -> ThreadSummary? { threadSummaries[messageId] }
 
@@ -320,7 +326,9 @@ public struct Transcript: Equatable, Sendable {
         persistedReactions = [:]
         replyQuotes = [:]
         threadSummaries = [:]
+        threadRoots = [:]
         for message in messages {
+            if let root = ThreadRouting.normalized(message.threadRootMessageId) { threadRoots[message.id] = root }
             // A thread's replies answer its root, which sits at the top of the screen: the quote would only repeat it.
             if let replyId = message.replyToMessageId, !replyId.isEmpty, replyId != threadRootMessageId, let excerpt = message.replyToExcerpt,
                 !excerpt.isEmpty
@@ -610,9 +618,10 @@ public struct Transcript: Equatable, Sendable {
         }
     }
 
-    /// Whether the run an event ends answered in the thread this transcript lists, or on the main history in no thread.
+    /// Whether the run an event ends is shown here: any run on the main history, and on a thread the run that answered in it.
     private func isRunOfThisView(_ event: ConversationEvent) -> Bool {
-        ThreadRouting.normalized(event.threadRootMessageId) == threadRootMessageId
+        guard let threadRootMessageId else { return true }
+        return ThreadRouting.normalized(event.threadRootMessageId) == threadRootMessageId
     }
 
     private mutating func appendLiveTurnEnd(kind: TurnEndKind, text: String, reason: TurnEndReason?, runId: String?) {

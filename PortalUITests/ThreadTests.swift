@@ -35,12 +35,23 @@ final class ThreadTests: XCTestCase {
 
     // MARK: a chat with people
 
-    func testTheMainHistoryOfAChatCountsRepliesAndLeavesThemOut() {
+    func testTheMainHistoryOfAChatShowsEveryMessageAndCountsRepliesOnTheirRoot() {
         let app = DemoApp.launch(screen: "thread-chat")
         XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 60), "The chat did not open.\n\(app.debugDescription)")
         XCTAssertTrue(replyControl(app, containing: "3 replies").exists, "The message with a thread does not say how many replies it has.\n\(app.debugDescription)")
         XCTAssertTrue(replyControl(app, containing: "1 reply").exists, "The assistant's answer in a thread is not counted.\n\(app.debugDescription)")
-        XCTAssertFalse(message(app, Self.chatReplyText).exists, "A reply is shown in the main history.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, Self.chatReplyText).exists, "A reply is missing from the main history.\n\(app.debugDescription)")
+    }
+
+    func testATapOnAReplyInTheMainHistoryOpensItsThread() {
+        let app = DemoApp.launch(screen: "thread-chat")
+        let reply = message(app, Self.chatReplyText)
+        XCTAssertTrue(reply.waitForExistence(timeout: 60), "The reply is not in the main history.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.waitUntilHittable(reply, timeout: 30), "The reply cannot be tapped.\n\(app.debugDescription)")
+        reply.tap()
+        XCTAssertTrue(app.staticTexts["Thread"].waitForExistence(timeout: 30), "The thread did not open.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, Self.chatRootText).waitForExistence(timeout: 30), "The thread does not start with its root.\n\(app.debugDescription)")
+        XCTAssertFalse(message(app, Self.chatMainText).exists, "The thread shows a message of the main history.\n\(app.debugDescription)")
     }
 
     func testAnOldReplyKeepsItsQuoteInTheMainHistory() {
@@ -73,7 +84,7 @@ final class ThreadTests: XCTestCase {
         XCTAssertTrue(message(app, "I can look at it after lunch").waitForExistence(timeout: 30), "The reply did not appear in the thread.\n\(app.debugDescription)")
         DemoApp.goBack(app)
         XCTAssertTrue(replyControl(app, containing: "4 replies").waitForExistence(timeout: 30), "The chat did not count the new reply.\n\(app.debugDescription)")
-        XCTAssertFalse(message(app, "I can look at it after lunch").exists, "The reply is shown in the main history.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, "I can look at it after lunch").exists, "The reply is missing from the main history.\n\(app.debugDescription)")
     }
 
     func testTheAssistantAtWorkIsShownOnTheMessageItIsAnswering() {
@@ -94,11 +105,11 @@ final class ThreadTests: XCTestCase {
 
     // MARK: a conversation with the assistant
 
-    func testTheMainHistoryOfAConversationCountsRepliesAndLeavesThemOut() {
+    func testTheMainHistoryOfAConversationShowsEveryMessageAndCountsRepliesOnTheirRoot() {
         let app = DemoApp.launch(screen: "thread-conversation")
         XCTAssertTrue(message(app, Self.assistantMainText).waitForExistence(timeout: 60), "The conversation did not open.\n\(app.debugDescription)")
         XCTAssertTrue(replyControl(app, containing: "2 replies").exists, "The answer with a thread does not say how many replies it has.\n\(app.debugDescription)")
-        XCTAssertFalse(message(app, Self.assistantReplyText).exists, "A reply is shown in the main history.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, Self.assistantReplyText).exists, "A reply is missing from the main history.\n\(app.debugDescription)")
     }
 
     func testATapOnTheCountOpensTheConversationThreadAndBackReturns() {
@@ -121,6 +132,6 @@ final class ThreadTests: XCTestCase {
         XCTAssertTrue(message(app, "This is a demo answer").waitForExistence(timeout: 60), "The answer did not come in the thread.\n\(app.debugDescription)")
         DemoApp.goBack(app)
         XCTAssertTrue(replyControl(app, containing: "4 replies").waitForExistence(timeout: 30), "The conversation did not count the new replies.\n\(app.debugDescription)")
-        XCTAssertFalse(message(app, "This is a demo answer").exists, "The answer is shown in the main history.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, "This is a demo answer").exists, "The answer is missing from the main history.\n\(app.debugDescription)")
     }
 }

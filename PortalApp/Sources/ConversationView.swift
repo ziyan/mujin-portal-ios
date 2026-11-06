@@ -280,7 +280,7 @@ struct ConversationView: View {
 
     /// Opens the thread of a message, on a server with threads and on the main history; nowhere else a reply opens one.
     private func threadOpener(_ model: ConversationModel) -> ((String) -> Void)? {
-        guard model.collapsesThreads else { return nil }
+        guard model.canOpenThreads else { return nil }
         return { openedThreadRootId = $0 }
     }
 
@@ -317,6 +317,7 @@ private struct AssistantBubbleKey: Equatable {
     let reactions: [Reaction]
     let speakFirstReason: String?
     let speakFirstOutcome: String?
+    let threadRoot: String?
 }
 
 private struct TranscriptRow: View {
@@ -338,11 +339,16 @@ private struct TranscriptRow: View {
         }
     }
 
+    /// The thread a tap on a message opens, when it belongs to one.
+    private func threadToOpen(for id: String) -> String? {
+        onOpenThread == nil ? nil : model.transcript.threadToOpen(forMessage: id)
+    }
+
     /// What a long press on the person's own message offers: answering it and working with its words.
     private func userActions(id: String, text: String) -> MessageActions {
         MessageActions(
             messageId: id, text: text, isTrailing: true, ownReaction: nil, onReact: nil,
-            onReply: { if let onOpenThread { onOpenThread(id) } else { model.replyTarget = ReplyReference(messageId: id, authorName: "", excerpt: text, isOwn: true) } },
+            onReply: { if let onOpenThread { onOpenThread(threadToOpen(for: id) ?? id) } else { model.replyTarget = ReplyReference(messageId: id, authorName: "", excerpt: text, isOwn: true) } },
             onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil)
     }
 
@@ -353,7 +359,7 @@ private struct TranscriptRow: View {
             ownReaction: Reactions.summaries(model.transcript.reactions(for: id), currentUserId: model.currentUserId).first { $0.isMine }?.emoji,
             onReact: { emoji in Task { await model.react(messageId: id, emoji: emoji) } },
             onReply: {
-                if let onOpenThread { onOpenThread(id) } else { model.replyTarget = ReplyReference(messageId: id, authorName: String(localized: "Assistant"), excerpt: text) }
+                if let onOpenThread { onOpenThread(threadToOpen(for: id) ?? id) } else { model.replyTarget = ReplyReference(messageId: id, authorName: String(localized: "Assistant"), excerpt: text) }
             },
             onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil)
     }
@@ -388,6 +394,7 @@ private struct TranscriptRow: View {
                             .padding(.vertical, 10)
                             .background(Color.accentColor.opacity(0.2), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     }
+                    .modifier(OpensThread(root: threadToOpen(for: id), onOpen: onOpenThread))
                     .reactionCorner(model.transcript.reactions(for: id), currentUserId: model.currentUserId, isLeading: false, onTap: nil)
                 }
                 if let viewing {
@@ -402,7 +409,7 @@ private struct TranscriptRow: View {
             VStack(alignment: .leading, spacing: 4) {
             HStack {
                 let speakFirstReason = model.isOwnConversation ? model.transcript.speakFirstReason(for: id) : nil
-                StableBubble(key: AssistantBubbleKey(id: id, text: text, isStreaming: isStreaming, reactions: model.transcript.reactions(for: id), speakFirstReason: speakFirstReason, speakFirstOutcome: model.speakFirstOutcome)) {
+                StableBubble(key: AssistantBubbleKey(id: id, text: text, isStreaming: isStreaming, reactions: model.transcript.reactions(for: id), speakFirstReason: speakFirstReason, speakFirstOutcome: model.speakFirstOutcome, threadRoot: threadToOpen(for: id))) {
                 HoldableMessage(actions: isStreaming ? nil : assistantActions(id: id, text: text)) {
                     VStack(alignment: .leading, spacing: 6) {
                         RichBodyView(markdown: text, connection: model.connection, isSelectable: false)
@@ -412,6 +419,7 @@ private struct TranscriptRow: View {
                         .padding(.vertical, 10)
                         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
+                .modifier(OpensThread(root: threadToOpen(for: id), onOpen: onOpenThread))
                 .reactionCorner(isStreaming ? [] : model.transcript.reactions(for: id), currentUserId: model.currentUserId, isLeading: false) { emoji in
                     Task { await model.react(messageId: id, emoji: emoji) }
                 }
@@ -453,6 +461,21 @@ private struct TranscriptRow: View {
             NoteLine(note: note)
         case .goalNeedsYou(_, let goalId, let title, let question):
             GoalNeedsYouCard(goalId: goalId, title: title, question: question)
+        }
+    }
+}
+
+/// OpensThread makes a message that belongs to a thread open it when tapped. Links and buttons inside the message keep working.
+private struct OpensThread: ViewModifier {
+    let root: String?
+    let onOpen: ((String) -> Void)?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let root, let onOpen {
+            content.onTapGesture { onOpen(root) }
+        } else {
+            content
         }
     }
 }

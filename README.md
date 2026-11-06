@@ -164,15 +164,13 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
 
 ## Message threads
 
-A reply goes in a thread, in chats with people and in conversations with the assistant. The main history reads without the replies
-(`shouldCollapseThreads`) and a message that has a thread says "N replies" and when the last came; a tap opens the thread
-(`threadRootMessageId`) as a screen of its own, the root first, with its own composer. Reply on a message opens its thread instead of
-quoting it. A reply sent from a thread goes to the message picked, else to the root. An event of a run answering in a thread says which,
-so its streaming text and tool rows show only there, and the main history shows a spinner on the message's reply count while the
-assistant works. In a chat the main history counts a new reply under its message and still moves the read mark to the newest reply, which
-it reads the latest rows of everything to find. A reply written before threads has no thread and keeps its quote in the main history. A
-push that carries `threadRootMessageId` opens that thread. A server without the arguments and fields is sent none of them
-(`ServerCapabilities.offersMessageThreads`) and behaves as before.
+A reply goes in a thread, in chats with people and in conversations with the assistant. The main history shows every message in time
+order, replies included, and a reply keeps its quote of what it answers. A message that belongs to a thread opens it when tapped (a
+reply, or a message with replies), and a message with replies also says "N replies" and when the last came. Reply on a message opens its
+thread. A thread (`threadRootMessageId`) is a screen of its own, the root first, with its own composer; a reply sent from it goes to the
+message picked, else to the root. Every event reaches the main history, so the streaming text of a threaded run shows there and in the
+thread if it is open, and a thread shows only its own run. A push that carries `threadRootMessageId` opens that thread. A server without
+the argument and fields is sent none of them (`ServerCapabilities.offersMessageThreads`) and behaves as before.
 
 ## TestFlight
 

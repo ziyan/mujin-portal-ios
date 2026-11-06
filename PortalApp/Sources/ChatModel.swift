@@ -54,8 +54,7 @@ final class ChatListModel {
 /// conversation's feed, and what the person does in it. The feed stays open
 /// only while the chat is on screen, which is how the server knows the
 /// person is looking and sends no notification for it. With a `threadRootMessageId` it is one thread of the chat instead:
-/// the message it hangs from and its replies, with its own composer. A model of the main history reads it without the replies
-/// when the server has threads.
+/// the message it hangs from and its replies, with its own composer.
 @MainActor
 @Observable
 final class ChatModel {
@@ -127,8 +126,8 @@ final class ChatModel {
     }
 
     var isThread: Bool { threadRootMessageId != nil }
-    /// Whether this screen shows the main history of a server with threads: replies are counted under the message, not listed.
-    var collapsesThreads: Bool { offersMessageThreads && !isThread }
+    /// Whether this screen is the main history of a server with threads: a tap on a message of a thread opens it.
+    var canOpenThreads: Bool { offersMessageThreads && !isThread }
     /// Whether the assistant's turn at work is answering where this screen looks: in this thread, or in no thread on the main history.
     var isAssistantWorkingHere: Bool {
         ThreadRouting.isViewRunning(
@@ -218,9 +217,6 @@ final class ChatModel {
             case .received(let id):
                 await markRead()
                 await loadPreviews([id])
-            case .threadReplied:
-                // The reply is not listed here, but it is the newest message of the chat, which the read mark follows.
-                await markRead()
             case .none: break
             }
             return
@@ -256,16 +252,14 @@ final class ChatModel {
             async let loadedRoom = connection.chat(id: chatId)
             async let rows = connection.messages(
                 conversationId: conversationId, latestCount: isThread ? ThreadRouting.threadMessageCount : window.reloadCount,
-                shouldCollapseThreads: collapsesThreads, threadRootMessageId: threadRootMessageId)
+                threadRootMessageId: threadRootMessageId)
             // A thread is read whole, so it has no count of earlier messages.
             let shouldCountMessages = !isThread
-            let shouldCollapse = collapsesThreads
-            async let total: Int? = shouldCountMessages ? connection.messageCountOrNil(conversationId: conversationId, shouldCollapseThreads: shouldCollapse) : nil
+            async let total: Int? = shouldCountMessages ? connection.messageCountOrNil(conversationId: conversationId) : nil
             let (newRoom, newRows) = try await (loadedRoom, rows)
             room = newRoom
             window.replace(with: newRows, totalCount: await total)
             timeline.load(window.messages)
-            await findNewestReply(in: newRoom)
             var marks: [String: String] = [:]
             for member in newRoom.members ?? [] {
                 if let mark = member.lastReadMessageId, !mark.isEmpty { marks[member.userId] = mark }
@@ -288,7 +282,7 @@ final class ChatModel {
         defer { isLoadingEarlier = false }
         do {
             let page = try await connection.messages(
-                conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first, shouldCollapseThreads: collapsesThreads)
+                conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
             window.prepend(page)
             timeline.load(window.messages)
             await loadPreviews(page.map(\.id))
@@ -300,19 +294,10 @@ final class ChatModel {
 
     // MARK: read marks and typing
 
-    /// While something is unread on the main history of a server with threads, the newest message of the chat can be a reply the
-    /// history leaves out, so the latest rows of everything are read to find it. Without that the replies stay unread for good.
-    private func findNewestReply(in newRoom: ChatRoom) async {
-        guard collapsesThreads, newRoom.unreadCount > 0 else { return }
-        if let tail = try? await connection.messages(conversationId: conversationId, latestCount: 20) {
-            timeline.noteNewestMessage(ThreadRouting.newestChatMessageId(in: tail))
-        }
-    }
-
     /// Tells the room the person has read to the end. The mark only moves forward. A thread leaves the mark to the main history
-    /// under it, which counts the replies.
+    /// under it, which lists every message.
     func markRead() async {
-        guard !isThread, let chatId, let last = timeline.newestMessageId, last != lastMarkedMessageId, last != room?.readerLastReadMessageId else { return }
+        guard !isThread, let chatId, let last = timeline.messages.last?.id, last != lastMarkedMessageId, last != room?.readerLastReadMessageId else { return }
         lastMarkedMessageId = last
         try? await connection.markChatRead(chatId: chatId, messageId: last)
     }

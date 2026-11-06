@@ -32,13 +32,12 @@ import Testing
 
     // MARK: routing
 
-    @Test func whatARunSaysBelongsToTheThreadItAnswersIn() {
+    @Test func theMainHistoryShowsEveryEventAndAThreadOnlyItsOwnRuns() {
+        #expect(ThreadRouting.isEventForView(runEvent("text_delta", thread: "m1"), viewThreadRootMessageId: nil))
+        #expect(ThreadRouting.isEventForView(runEvent("text_delta"), viewThreadRootMessageId: nil))
         #expect(ThreadRouting.isEventForView(runEvent("text_delta", thread: "m1"), viewThreadRootMessageId: "m1"))
-        #expect(!ThreadRouting.isEventForView(runEvent("text_delta", thread: "m1"), viewThreadRootMessageId: nil))
         #expect(!ThreadRouting.isEventForView(runEvent("tool_call", thread: "m1"), viewThreadRootMessageId: "m2"))
         #expect(!ThreadRouting.isEventForView(runEvent("text_delta"), viewThreadRootMessageId: "m1"))
-        #expect(ThreadRouting.isEventForView(runEvent("text_delta"), viewThreadRootMessageId: nil))
-        #expect(ThreadRouting.isEventForView(runEvent("text_delta", thread: ""), viewThreadRootMessageId: ""))
     }
 
     @Test func everythingElseReachesEveryScreen() {
@@ -54,26 +53,31 @@ import Testing
         #expect(ThreadRouting.workingThreadRootMessageId(of: runEvent("run_complete", thread: "m1")) == nil)
     }
 
-    @Test func aScreenShowsARunAtWorkOnlyWhereItAnswers() {
+    @Test func aThreadShowsARunAtWorkOnlyWhereItAnswers() {
         #expect(ThreadRouting.isViewRunning(isRunning: true, workingThreadRootMessageId: "m1", viewThreadRootMessageId: "m1"))
-        #expect(!ThreadRouting.isViewRunning(isRunning: true, workingThreadRootMessageId: "m1", viewThreadRootMessageId: nil))
+        #expect(ThreadRouting.isViewRunning(isRunning: true, workingThreadRootMessageId: "m1", viewThreadRootMessageId: nil))
         #expect(ThreadRouting.isViewRunning(isRunning: true, workingThreadRootMessageId: nil, viewThreadRootMessageId: nil))
+        #expect(!ThreadRouting.isViewRunning(isRunning: true, workingThreadRootMessageId: "m2", viewThreadRootMessageId: "m1"))
         #expect(!ThreadRouting.isViewRunning(isRunning: true, workingThreadRootMessageId: nil, viewThreadRootMessageId: "m1"))
         #expect(!ThreadRouting.isViewRunning(isRunning: false, workingThreadRootMessageId: "m1", viewThreadRootMessageId: "m1"))
     }
 
-    @Test func aThreadListsItsRootAndRepliesAndTheMainHistoryTheRest() {
+    @Test func aThreadListsItsRootAndRepliesAndTheMainHistoryEverything() {
         let root = said("m1", replyCount: 1)
         let reply = said("m2", root: "m1")
         let plain = said("m3")
-        let oldReply = said("m4", replyTo: "m3")
         #expect(ThreadRouting.belongs(root, toViewWithThreadRootMessageId: "m1"))
         #expect(ThreadRouting.belongs(reply, toViewWithThreadRootMessageId: "m1"))
         #expect(!ThreadRouting.belongs(plain, toViewWithThreadRootMessageId: "m1"))
         #expect(ThreadRouting.belongs(root, toViewWithThreadRootMessageId: nil))
-        #expect(!ThreadRouting.belongs(reply, toViewWithThreadRootMessageId: nil))
-        // Written before threads existed: it has no thread, so it stays in the main history.
-        #expect(ThreadRouting.belongs(oldReply, toViewWithThreadRootMessageId: nil))
+        #expect(ThreadRouting.belongs(reply, toViewWithThreadRootMessageId: nil))
+        #expect(ThreadRouting.belongs(said("m4", replyTo: "m3"), toViewWithThreadRootMessageId: nil))
+    }
+
+    @Test func aTapOpensTheThreadAReplyIsInOrTheOneARootHolds() {
+        #expect(ThreadRouting.threadToOpen(messageId: "m2", threadRootMessageId: "m1", replyCount: 0) == "m1")
+        #expect(ThreadRouting.threadToOpen(messageId: "m1", threadRootMessageId: nil, replyCount: 2) == "m1")
+        #expect(ThreadRouting.threadToOpen(messageId: "m3", threadRootMessageId: "", replyCount: 0) == nil)
     }
 
     @Test func aThreadSendsItsRepliesToTheRootUnlessAMessageWasPicked() {
@@ -84,54 +88,28 @@ import Testing
         #expect(ThreadRouting.replyToMessageId(pickedMessageId: "m3", viewThreadRootMessageId: nil) == "m3")
     }
 
-    @Test func theReadMarkFollowsTheNewestMessageEvenWhenItIsAReply() {
-        let rows = [said("m1"), said("m2", root: "m1"), ConversationMessage(id: "t1", role: "tool", content: .string("x"), isChatMessage: false)]
-        #expect(ThreadRouting.newestChatMessageId(in: rows) == "m2")
-        #expect(ThreadRouting.newestChatMessageId(in: []) == nil)
-    }
-
     // MARK: a chat
 
-    @Test func theMainHistoryOfAChatKeepsNoReplyAndCountsThemUnderTheirRoot() {
+    @Test func theMainHistoryOfAChatListsEveryMessageAndCountsRepliesUnderTheirRoot() {
         var timeline = ChatTimeline()
         timeline.load([said("m1", replyCount: 2, lastReplyAt: "2026-03-01T10:09:00Z"), said("m2", root: "m1"), said("m3")])
-        #expect(timeline.messages.map(\.id) == ["m1", "m3"])
+        #expect(timeline.messages.map(\.id) == ["m1", "m2", "m3"])
         #expect(timeline.messages[0].threadSummary == ThreadSummary(replyCount: 2, lastReplyAt: "2026-03-01T10:09:00Z"))
-        #expect(timeline.messages[1].threadSummary == nil)
+        #expect(timeline.messages[1].threadRootMessageId == "m1")
     }
 
-    @Test func aReplySaidLiveIsCountedOnceAndStaysOutOfTheMainHistory() {
+    @Test func aReplySaidLiveIsListedAndCountedOnce() {
         var timeline = ChatTimeline()
         timeline.load([said("m1", replyCount: 1), said("m3")])
         let reply = chatEvent(message: said("m5", root: "m1"))
-        #expect(timeline.apply(reply) == .threadReplied(rootMessageId: "m1", messageId: "m5"))
+        #expect(timeline.apply(reply) == .received(messageId: "m5"))
         #expect(timeline.apply(reply) == .none)
-        #expect(timeline.messages.map(\.id) == ["m1", "m3"])
+        #expect(timeline.messages.map(\.id) == ["m1", "m3", "m5"])
         #expect(timeline.messages[0].threadReplyCount == 2)
         #expect(timeline.messages[0].threadLastReplyAt == "2026-03-01T10:05:00Z")
         // An edit of a reply is not a new reply.
-        #expect(timeline.apply(chatEvent(type: "chat_edited", message: said("m6", root: "m1"))) == .none)
+        _ = timeline.apply(chatEvent(type: "chat_edited", message: said("m5", text: "Changed", root: "m1")))
         #expect(timeline.messages[0].threadReplyCount == 2)
-    }
-
-    @Test func aReplyToAMessageNotHeldChangesNoCount() {
-        var timeline = ChatTimeline()
-        timeline.load([said("m3")])
-        #expect(timeline.apply(chatEvent(message: said("m5", root: "m1"))) == .threadReplied(rootMessageId: "m1", messageId: "m5"))
-        #expect(timeline.messages.map(\.id) == ["m3"])
-    }
-
-    @Test func aReplySaidLiveMovesTheReadMarkOnToIt() {
-        var timeline = ChatTimeline()
-        timeline.load([said("m1"), said("m3")])
-        #expect(timeline.newestMessageId == "m3")
-        _ = timeline.apply(chatEvent(message: said("m5", root: "m1")))
-        #expect(timeline.newestMessageId == "m5")
-        timeline.noteNewestMessage("m7")
-        #expect(timeline.newestMessageId == "m7")
-        timeline.noteNewestMessage(nil)
-        timeline.noteNewestMessage("")
-        #expect(timeline.newestMessageId == "m7")
     }
 
     @Test func aThreadListsOnlyItself() {
@@ -197,20 +175,21 @@ import Testing
         #expect(transcript.replyQuote(for: "m4")?.excerpt == "Hi there")
     }
 
-    @Test func aRunInAThreadStreamsOnlyIntoThatThread() {
+    @Test func aRunInAThreadStreamsIntoTheMainHistoryAndIntoThatThread() {
         var main = Transcript()
         var thread = Transcript(threadRootMessageId: "m2")
+        var other = Transcript(threadRootMessageId: "m5")
         for event in [runEvent("text_delta", thread: "m2"), runEvent("tool_call", thread: "m2")] {
             main.apply(event)
             thread.apply(event)
+            other.apply(event)
         }
-        #expect(main.entries.isEmpty)
-        #expect(!thread.entries.isEmpty)
-        // The main history still knows where the assistant works, to say so under the message.
+        #expect(!main.entries.isEmpty)
+        #expect(main.entries == thread.entries)
+        #expect(other.entries.isEmpty)
         #expect(main.workingThreadRootMessageId == "m2")
-        #expect(main.isRunning)
-        #expect(!main.isRunningInView)
-        #expect(thread.isRunningInView)
+        #expect(main.isRunningInView && thread.isRunningInView)
+        #expect(other.isRunning && !other.isRunningInView)
     }
 
     @Test func aRunInTheMainHistoryStaysOutOfAThread() {
@@ -223,17 +202,31 @@ import Testing
         #expect(main.isRunningInView && !thread.isRunningInView)
     }
 
-    @Test func theEndOfARunInAThreadIsToldInThatThreadAlone() {
+    @Test func theEndOfARunInAThreadIsToldInTheMainHistoryAndThatThread() {
         var main = Transcript()
         var thread = Transcript(threadRootMessageId: "m2")
+        var other = Transcript(threadRootMessageId: "m5")
         for event in [runEvent("text_delta", thread: "m2"), runEvent("run_error", thread: "m2")] {
             main.apply(event)
             thread.apply(event)
+            other.apply(event)
         }
-        #expect(!main.isRunning && !thread.isRunning)
+        #expect(!main.isRunning && !thread.isRunning && !other.isRunning)
         #expect(main.workingThreadRootMessageId == nil)
-        #expect(main.entries.isEmpty)
-        #expect(thread.entries.contains { if case .turnEnd = $0 { true } else { false } })
+        for transcript in [main, thread] {
+            #expect(transcript.entries.contains { if case .turnEnd = $0 { true } else { false } })
+        }
+        #expect(other.entries.isEmpty)
+    }
+
+    @Test func aTapOnAReplyOrARootOpensItsThread() {
+        var transcript = Transcript()
+        transcript.load(
+            messages: [answerRow("m2", text: "Hello", replyCount: 1), userRow("m3", text: "Why?", root: "m2", replyTo: "m2"), userRow("m4", text: "Thanks")],
+            questions: [], approvals: [], isRunning: false)
+        #expect(transcript.threadToOpen(forMessage: "m2") == "m2")
+        #expect(transcript.threadToOpen(forMessage: "m3") == "m2")
+        #expect(transcript.threadToOpen(forMessage: "m4") == nil)
     }
 
     @Test func aReplySentInAThreadIsAnsweredInThatThread() {
@@ -263,26 +256,23 @@ import Testing
         #expect(both.contains("voiceMessage {") && both.contains("call {") && both.contains("threadReplyCount"))
     }
 
-    @Test func theMessageQueriesNameThreadsOnlyInTheirOwnDocuments() {
-        #expect(!Documents.listMessages.contains("shouldCollapseThreads") && !Documents.listMessages.contains("threadRootMessageId"))
-        #expect(!Documents.countMessages.contains("shouldCollapseThreads"))
-        #expect(Documents.listMessagesInThreads.contains("$shouldCollapseThreads: Boolean"))
-        #expect(Documents.listMessagesInThreads.contains("$threadRootMessageId: String"))
-        #expect(Documents.countMessagesInThreads.contains("shouldCollapseThreads: $shouldCollapseThreads"))
+    @Test func theMessageQueryNamesThreadsOnlyInItsOwnDocument() {
+        #expect(!Documents.listMessages.contains("threadRootMessageId"))
+        #expect(Documents.listMessagesInThread.contains("$threadRootMessageId: String"))
+        #expect(!Documents.listMessagesInThread.contains("shouldCollapseThreads"))
     }
 
-    @Test func aServerOffersThreadsWhenItsMessageQueryTakesBothArguments() {
+    @Test func aServerOffersThreadsWhenItsMessageQueryTakesTheThreadArgument() {
         #expect(!ServerCapabilities().offersMessageThreads)
         #expect(!ServerCapabilities(listMessageArgumentNames: ["conversationId", "latestMessageCount"]).offersMessageThreads)
-        #expect(!ServerCapabilities(listMessageArgumentNames: ["threadRootMessageId"]).offersMessageThreads)
-        #expect(ServerCapabilities(listMessageArgumentNames: ["threadRootMessageId", "shouldCollapseThreads"]).offersMessageThreads)
+        #expect(ServerCapabilities(listMessageArgumentNames: ["threadRootMessageId"]).offersMessageThreads)
     }
 
     @Test func theCapabilitiesAreReadFromTheMessageQueryOfTheSchema() async {
         let (connection, _) = scriptedConnection { _, _ in
             [
                 "__schema": [
-                    "queryType": ["fields": [["name": "listTickets", "args": []], ["name": "listConversationMessages", "args": [["name": "threadRootMessageId"], ["name": "shouldCollapseThreads"]]]]],
+                    "queryType": ["fields": [["name": "listTickets", "args": []], ["name": "listConversationMessages", "args": [["name": "threadRootMessageId"]]]]],
                     "mutationType": ["fields": []],
                     "subscriptionType": NSNull(),
                 ]

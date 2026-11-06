@@ -34,12 +34,13 @@ public enum ThreadRouting {
         return threadRootMessageId
     }
 
-    /// Whether an event is shown on the screen that has `viewThreadRootMessageId` open. What a run says as it works (text, tool
-    /// calls) belongs to the thread it answers in alone; a chat message, a card or the end of a run reaches every screen, and
-    /// each reads its own list again.
+    /// Whether an event is shown on the screen that has `viewThreadRootMessageId` open. The main history shows every event, a run in
+    /// a thread included. A thread shows what a run says as it works (text, tool calls) only when the run answers in it; a chat
+    /// message, a card or the end of a run reaches it as it reaches every screen.
     public static func isEventForView(_ event: ConversationEvent, viewThreadRootMessageId: String?) -> Bool {
+        guard let view = normalized(viewThreadRootMessageId) else { return true }
         guard let kind = event.kind, runContentKinds.contains(kind) else { return true }
-        return normalized(event.threadRootMessageId) == normalized(viewThreadRootMessageId)
+        return normalized(event.threadRootMessageId) == view
     }
 
     /// Whether the event is something a run says as it works.
@@ -48,41 +49,40 @@ public enum ThreadRouting {
         return runContentKinds.contains(kind)
     }
 
-    /// The thread an event shows the assistant working in: the id, or nil for a run in the main history and for any other event.
+    /// The thread an event shows the assistant working in: the id, or nil for a run in no thread and for any other event.
     public static func workingThreadRootMessageId(of event: ConversationEvent) -> String? {
         guard isRunContent(event) else { return nil }
         return normalized(event.threadRootMessageId)
     }
 
-    /// Whether the screen shows a run at work: the thread it answers in, or, on the main history, a run that answers in no thread.
+    /// Whether the screen shows a run at work: any run on the main history, and on a thread the run that answers in it.
     public static func isViewRunning(isRunning: Bool, workingThreadRootMessageId: String?, viewThreadRootMessageId: String?) -> Bool {
         guard isRunning else { return false }
-        return normalized(workingThreadRootMessageId) == normalized(viewThreadRootMessageId)
+        guard let view = normalized(viewThreadRootMessageId) else { return true }
+        return normalized(workingThreadRootMessageId) == view
     }
 
-    /// Whether a persisted message is listed on the screen: a thread lists its root and its replies, the main history everything
-    /// that is not a reply in a thread. A reply written before threads existed has no thread and stays in the main history.
+    /// Whether a persisted message is listed on the screen: a thread lists its root and its replies, the main history lists every message.
     public static func belongs(_ message: ConversationMessage, toViewWithThreadRootMessageId viewThreadRootMessageId: String?) -> Bool {
         belongs(messageId: message.id, threadRootMessageId: message.threadRootMessageId, toViewWithThreadRootMessageId: viewThreadRootMessageId)
     }
 
     public static func belongs(messageId: String, threadRootMessageId: String?, toViewWithThreadRootMessageId viewThreadRootMessageId: String?) -> Bool {
-        guard let view = normalized(viewThreadRootMessageId) else { return normalized(threadRootMessageId) == nil }
+        guard let view = normalized(viewThreadRootMessageId) else { return true }
         return messageId == view || normalized(threadRootMessageId) == view
     }
 
+    /// The thread a tap on a message opens: the thread it is a reply in, else its own when it has replies, else none.
+    public static func threadToOpen(messageId: String, threadRootMessageId: String?, replyCount: Int) -> String? {
+        if let root = normalized(threadRootMessageId) { return root }
+        return replyCount > 0 ? messageId : nil
+    }
+
     /// The message a send replies to. A thread's composer replies to the message the person picked, else to the thread's root, which
-    /// is what puts the message in the thread. The main history replies only to a message picked, which is what a server without
-    /// threads understood.
+    /// is what puts the message in the thread. The main history replies only to a message picked.
     public static func replyToMessageId(pickedMessageId: String?, viewThreadRootMessageId: String?) -> String? {
         if let pickedMessageId, !pickedMessageId.isEmpty { return pickedMessageId }
         return normalized(viewThreadRootMessageId)
-    }
-
-    /// The newest message said in a chat among rows read oldest first, which is what the read mark follows. The main history leaves
-    /// replies out, so the newest of the chat can be a reply that only a read of everything shows.
-    public static func newestChatMessageId(in rows: [ConversationMessage]) -> String? {
-        rows.last { $0.isChatMessage == true && ($0.role == "user" || $0.role == "assistant") }?.id
     }
 }
 
@@ -98,14 +98,11 @@ extension Documents {
                 of: "OnConversationEvent(conversationId: $conversationId) {", with: "OnConversationEvent(conversationId: $conversationId) { threadRootMessageId")
     }
 
-    /// The history of a conversation: the main history without replies, or one thread. Used only where the server offers threads.
-    public static let listMessagesInThreads = """
-        query ListConversationMessages(
-          $conversationId: String!, $latestMessageCount: Int, $beforeMessageId: String, $shouldCollapseThreads: Boolean, $threadRootMessageId: String
-        ) {
+    /// One thread of a conversation, its root first. Used only where the server offers threads.
+    public static let listMessagesInThread = """
+        query ListConversationMessages($conversationId: String!, $latestMessageCount: Int, $threadRootMessageId: String) {
           ListConversationMessages(
-            conversationId: $conversationId, latestMessageCount: $latestMessageCount, beforeMessageId: $beforeMessageId,
-            shouldCollapseThreads: $shouldCollapseThreads, threadRootMessageId: $threadRootMessageId
+            conversationId: $conversationId, latestMessageCount: $latestMessageCount, threadRootMessageId: $threadRootMessageId
           ) {
             id role content toolCalls toolCallId toolName stopReason createdAt metadata viewingKind viewingId viewingLabel
             \(chatMessageFields)
@@ -114,19 +111,11 @@ extension Documents {
         }
         """
 
-    public static let countMessagesInThreads = """
-        query CountConversationMessages($conversationId: String, $shouldCollapseThreads: Boolean) {
-          CountConversationMessages(conversationId: $conversationId, shouldCollapseThreads: $shouldCollapseThreads) { messageCount }
-        }
-        """
-
-    static var messageThreadDocuments: [String] { [listMessagesInThreads, countMessagesInThreads] }
+    static var messageThreadDocuments: [String] { [listMessagesInThread] }
 }
 
 extension ServerCapabilities {
-    /// Whether the server has message threads: it reads one thread, or the main history without replies. A server without them
-    /// refuses a query that names the arguments or the fields.
-    public var offersMessageThreads: Bool {
-        listMessageArgumentNames.contains("threadRootMessageId") && listMessageArgumentNames.contains("shouldCollapseThreads")
-    }
+    /// Whether the server has message threads: it reads one thread. A server without them refuses a query that names the argument
+    /// or the fields.
+    public var offersMessageThreads: Bool { listMessageArgumentNames.contains("threadRootMessageId") }
 }
