@@ -11,6 +11,8 @@ struct SettingsView: View {
 
     @State private var isShowingAccounts = DemoOptions.screen == "accounts"
     @State private var isConfirmingSignOut = false
+    @State private var isSendingFeedback = DemoOptions.screen == "feedback-form-open"
+    @AppStorage(FeedbackPreference.askAfterScreenshotKey) private var shouldAskAfterScreenshot = true
 
     private var account: Account { session.account }
 
@@ -75,6 +77,31 @@ struct SettingsView: View {
                 }
                 .accessibilityIdentifier("editTabBarRow")
             }
+            // Only on a server that has it; an older one shows nothing here.
+            if session.capabilities.offersPortalFeedback {
+                Section {
+                    Button {
+                        isSendingFeedback = true
+                    } label: {
+                        Label("Send feedback", systemImage: "text.bubble")
+                            .foregroundStyle(.primary)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("sendFeedbackRow")
+                    NavigationLink(value: MoreDestination.myFeedback) {
+                        Label("My feedback", systemImage: "tray.full")
+                            .foregroundStyle(.primary)
+                    }
+                    .accessibilityIdentifier("myFeedbackLink")
+                    Toggle("Ask for feedback after a screenshot", isOn: $shouldAskAfterScreenshot)
+                        .accessibilityIdentifier("feedbackAfterScreenshotToggle")
+                } header: {
+                    Text("Feedback")
+                } footer: {
+                    Text("Feedback goes to the Portal team, for problems with the app or ideas to improve it. Nothing is sent until you press Send.")
+                }
+            }
             Section {
                 NavigationLink(value: MoreDestination.about) {
                     Label("About", systemImage: "info.circle")
@@ -102,6 +129,9 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .sheet(isPresented: $isShowingAccounts) {
             AccountsView()
+        }
+        .sheet(isPresented: $isSendingFeedback) {
+            FeedbackView(request: FeedbackRequest(pictureData: nil, screenName: nil))
         }
     }
 }

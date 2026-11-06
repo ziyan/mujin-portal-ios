@@ -131,6 +131,16 @@ struct MainTabsView: View {
                     appModel.pendingRoute = AppModel.PendingRoute(userId: account.userId, route: .conversation(id: conversationId))
                 }
             }
+            // The screenshot a person takes, as the system announces it: the demo has no side buttons to press.
+            if appModel.isDemo, FeedbackDemo.postsScreenshot(DemoOptions.screen) {
+                if DemoOptions.screen == "feedback-in-call" {
+                    appModel.callCenter.showDemo(CallDemo.session(for: "call-voice"), isScreenShown: false)
+                }
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    NotificationCenter.default.post(name: UIApplication.userDidTakeScreenshotNotification, object: nil)
+                }
+            }
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("link-") {
                 appModel.linkRequest = ControllerLinkRequest(code: screen == "link-confirm" ? DemoServer.linkCode : nil)
             }
@@ -182,6 +192,15 @@ struct MainTabsView: View {
             Task { await appModel.openInApp(address, account: account) }
         case .screen, .lookup: break
         }
+    }
+
+    /// A screenshot was taken. The notification carries no picture, so the app draws its own window. Nothing opens on a server without
+    /// feedback, when the person turned it off, during a call, or while the sheet is already up. Nothing is sent until Send is pressed.
+    private func offerFeedback(after session: SessionModel) {
+        guard session.capabilities.offersPortalFeedback, FeedbackPreference.shouldAskAfterScreenshot, session.feedbackRequest == nil,
+            !appModel.callCenter.isInCall, appModel.activeAccount != nil
+        else { return }
+        session.feedbackRequest = FeedbackRequest(pictureData: ScreenPicture.captureKeyWindow(), screenName: session.selectedSection.rawValue)
     }
 
     private func closeSheets(_ session: SessionModel) {
@@ -255,6 +274,14 @@ struct MainTabsView: View {
         .topPresentation(item: Binding(get: { appModel.openedCitation.map(IdentifiableCitation.init) }, set: { appModel.openedCitation = $0?.citation }), style: .pageSheet) { [appModel = self.appModel] item in
             MemoryCitationSheet(citation: item.citation)
                 .modifier(HostedEnvironment(appModel: appModel, session: session))
+        }
+        // A screenshot opens the feedback sheet, over whatever is on top of the app.
+        .topPresentation(item: Binding(get: { session.feedbackRequest }, set: { session.feedbackRequest = $0 }), style: .pageSheet) { [appModel = self.appModel] request in
+            FeedbackView(request: request)
+                .modifier(HostedEnvironment(appModel: appModel, session: session))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
+            offerFeedback(after: session)
         }
         // The person asked to go to a tab or a conversation, such as "Ask about" on a page in a sheet: the sheet is over it.
         .onChange(of: session.selectedSection) { _, _ in closeSheets(session) }

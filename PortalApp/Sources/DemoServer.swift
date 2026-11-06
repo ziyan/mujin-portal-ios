@@ -40,6 +40,8 @@ final class DemoState: @unchecked Sendable {
         var comments: [String: [[String: Any]]] = [:]
         var sockets: [DemoSocket] = []
         var nextNumber = 1
+        /// How many times the demo was asked to send feedback, for the screen that refuses the first.
+        var feedbackSendCount = 0
         var virtualControllerName = "Training cell"
         var virtualControllerSize = "medium"
         var isVirtualControllerPaused = false
@@ -302,6 +304,10 @@ final class DemoState: @unchecked Sendable {
             ticket("ticket04", 4, "Camera view is rotated", "solved", "low", requester: "user01", organization: "organization01", secondsAgo: 200_000),
             ticket("ticket05", 5, "Planner restart request", "closed", "normal", requester: "user03", organization: "organization02", secondsAgo: 900_000),
         ]
+        if FeedbackDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]), !FeedbackDemo.hasNoFeedback(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
+            data.tickets += FeedbackDemo.tickets(stamp: stamp)
+            data.comments.merge(FeedbackDemo.comments(stamp: stamp)) { _, new in new }
+        }
         data.comments["ticket01"] = [
             [
                 "id": "comment01", "authorUserId": "user01", "isOriginalRequest": true, "isInternal": false, "createdAt": stamp(10_800),
@@ -466,6 +472,10 @@ struct DemoTransport: HTTPTransport {
             // A browser's recording, which the phone cannot play.
             return (Data(), HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "audio/webm;codecs=opus"])!)
         }
+        if request.httpMethod == "POST", request.url?.path == "/api/v1/attachment" {
+            // An upload: the demo keeps nothing and names every file the same.
+            return (Data(#"{"id":"upload-demo-01"}"#.utf8), HTTPURLResponse(url: request.url!, statusCode: 201, httpVersion: nil, headerFields: nil)!)
+        }
         if let path = request.url?.path, path.hasPrefix("/api/v1/user/") || path.hasPrefix("/api/v1/organization/") || path.hasPrefix("/api/v1/attachment/") {
             // Two demo people and one organization have a picture; everyone else gets a 404 and keeps their initials.
             let image = DemoPictures.jpeg(forPath: path)
@@ -485,6 +495,19 @@ struct DemoTransport: HTTPTransport {
         // A real server takes a moment, and a screen can open before the list it belongs to has arrived.
         if operation == "ListConversations", let delay = ProcessInfo.processInfo.environment["PORTAL_DEMO_LIST_DELAY_SECONDS"].flatMap(UInt64.init) {
             try await Task.sleep(nanoseconds: delay * 1_000_000_000)
+        }
+        if operation == "ListPortalFeedback", FeedbackDemo.failsToList(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
+            let refusal = try JSONSerialization.data(withJSONObject: ["errors": [["message": FeedbackDemo.listFailureMessage]]])
+            return (refusal, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        if operation == "SubmitPortalFeedback", FeedbackDemo.failsFirstSend(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]),
+            state.withData({ data in
+                data.feedbackSendCount += 1
+                return data.feedbackSendCount
+            }) == 1
+        {
+            let refusal = try JSONSerialization.data(withJSONObject: ["errors": [["message": FeedbackDemo.failureMessage]]])
+            return (refusal, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
         }
         let answer = respond(operation: operation, variables: variables)
         let payload = try JSONSerialization.data(withJSONObject: ["data": answer])
@@ -536,6 +559,8 @@ struct DemoTransport: HTTPTransport {
                 ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"], ["name": "openSiteChat"],
             ]
             if hasCalls { mutationFields += [["name": "startChatCall"], ["name": "joinChatCallMedia"]] }
+            // Feedback about Portal is shot against a server that has it; every other screen is not.
+            if FeedbackDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) { mutationFields.append(["name": "submitPortalFeedback"]) }
             if hasThreads { mutationFields.append(["name": "openChatMessage"]) }
             var schemaAnswer: [String: Any] = [
                 "__schema": [
@@ -946,6 +971,24 @@ struct DemoTransport: HTTPTransport {
             ]
             state.withData { $0.comments[ticketId, default: []].append(comment) }
             return ["CreateTicketComment": ["ticketComment": comment]]
+        case "ListPortalFeedback":
+            let requesterUserId = variables["requesterUserId"] as? String ?? ""
+            let rows = state.withData { data in data.tickets.filter { ($0["isPortalFeedback"] as? Bool) == true && ($0["requesterUserId"] as? String) == requesterUserId } }
+            return ["ListTickets": ["tickets": rows, "meta": ["totalCount": rows.count]]]
+        case "SubmitPortalFeedback":
+            let feedbackText = variables["feedbackText"] as? String ?? ""
+            let created: [String: Any] = state.withData { data in
+                data.nextNumber += 1
+                let row: [String: Any] = [
+                    "id": "feedback-new-\(data.nextNumber)", "sequence": 100 + data.nextNumber, "title": "Portal feedback: " + feedbackText, "status": "new",
+                    "priority": "normal", "organizationId": "organization01", "requesterUserId": "user01", "authorUserId": "user01", "description": feedbackText,
+                    "createdAt": ISO8601DateFormatter().string(from: Date()), "modifiedAt": ISO8601DateFormatter().string(from: Date()), "isPortalFeedback": true,
+                    "viewerCapabilities": [],
+                ]
+                data.tickets.insert(row, at: 0)
+                return row
+            }
+            return ["SubmitPortalFeedback": ["ticket": created]]
         case "CreateTicket":
             let input = variables["ticket"] as? [String: Any] ?? [:]
             let created: [String: Any] = state.withData { data in

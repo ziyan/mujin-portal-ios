@@ -27,12 +27,15 @@ public struct Ticket: Codable, Equatable, Identifiable, Sendable {
     public let solvedAt: String?
     public let closedAt: String?
     public let viewerCapabilities: [String]?
+    /// Whether the ticket is feedback about Portal itself. Only a server that offers Portal feedback says; nil otherwise.
+    public let isPortalFeedback: Bool?
 
     public init(
         id: String, sequence: Int64? = nil, title: String? = nil, description: String? = nil, status: String? = nil, priority: String? = nil,
         siteId: String? = nil, organizationId: String? = nil, authorUserId: String? = nil, requesterUserId: String? = nil,
         assigneeUserId: String? = nil, assigneeUserIds: [String]? = nil, isInternal: Bool? = nil, externalStatusLabel: String? = nil,
-        createdAt: String? = nil, modifiedAt: String? = nil, solvedAt: String? = nil, closedAt: String? = nil, viewerCapabilities: [String]? = nil
+        createdAt: String? = nil, modifiedAt: String? = nil, solvedAt: String? = nil, closedAt: String? = nil, viewerCapabilities: [String]? = nil,
+        isPortalFeedback: Bool? = nil
     ) {
         self.id = id
         self.sequence = sequence
@@ -53,6 +56,7 @@ public struct Ticket: Codable, Equatable, Identifiable, Sendable {
         self.solvedAt = solvedAt
         self.closedAt = closedAt
         self.viewerCapabilities = viewerCapabilities
+        self.isPortalFeedback = isPortalFeedback
     }
 
     public var lastActivity: Date? { PortalDate.parse(modifiedAt) ?? PortalDate.parse(createdAt) }
@@ -381,7 +385,7 @@ public struct PersonSummary: Codable, Equatable, Identifiable, Sendable {
 extension Connection {
     /// Tickets the person may see, newest change first. For staff with no
     /// organization it is the queue across organizations.
-    public func tickets(organizationId: String? = nil, siteId: String? = nil, cellId: String? = nil, controllerId: String? = nil, virtualControllerId: String? = nil, first: Int = 200) async throws -> [Ticket] {
+    public func tickets(organizationId: String? = nil, siteId: String? = nil, cellId: String? = nil, controllerId: String? = nil, virtualControllerId: String? = nil, first: Int = 200, includesPortalFeedbackFlag: Bool = false) async throws -> [Ticket] {
         struct Answer: Decodable, Sendable {
             struct List: Decodable, Sendable { let tickets: [Ticket]? }
             let ListTickets: List?
@@ -392,13 +396,15 @@ extension Connection {
         if let cellId { variables["cellId"] = .string(cellId) }
         if let controllerId { variables["controllerId"] = .string(controllerId) }
         if let virtualControllerId { variables["virtualControllerId"] = .string(virtualControllerId) }
-        let rows = try await execute(Documents.listTickets, variables: variables, as: Answer.self).ListTickets?.tickets ?? []
+        let document = includesPortalFeedbackFlag ? Documents.withPortalFeedbackFlag(Documents.listTickets) : Documents.listTickets
+        let rows = try await execute(document, variables: variables, as: Answer.self).ListTickets?.tickets ?? []
         return rows.sorted { ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast) }
     }
 
-    public func ticket(id: String) async throws -> Ticket {
+    public func ticket(id: String, includesPortalFeedbackFlag: Bool = false) async throws -> Ticket {
         struct Answer: Decodable, Sendable { let GetTicket: Ticket? }
-        guard let ticket = try await execute(Documents.getTicket, variables: ["ticketId": .string(id)], as: Answer.self).GetTicket else {
+        let document = includesPortalFeedbackFlag ? Documents.withPortalFeedbackFlag(Documents.getTicket) : Documents.getTicket
+        guard let ticket = try await execute(document, variables: ["ticketId": .string(id)], as: Answer.self).GetTicket else {
             throw PortalError.refused("Ticket not found.")
         }
         return ticket

@@ -178,6 +178,22 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
 - **Without a server that has them**, neither shows: `GetAgentVoiceSetting` gains `isDictationAvailable` and
   `isReadAloudAvailable`, and the app asks for them only when the schema's `AgentVoiceSetting` type has them.
 
+## Feedback about Portal
+
+A person can tell the Portal team what is wrong with the app, or what could be better, and follow what happens to it. It is a ticket
+the server marks as feedback about Portal itself; it is not a ticket about a site, and every screen says so.
+
+- **After a screenshot.** The system announces a screenshot without a picture, so the app draws its own window (no Photos access)
+  and opens a sheet with that picture attached, a box for the person's words, and Send and Cancel. Video and camera surfaces can come
+  out blank. The sheet does not open during a call, while it is already open, when asking is turned off, or on a server without the
+  feature. Nothing is sent until Send is pressed, and Send stays off until there are words.
+- **Settings.** The same form without a screenshot (pictures attach with the usual menu), "My feedback" with each piece's words,
+  status and date (a row opens the ticket), and the switch "Ask for feedback after a screenshot", on by default and kept per phone.
+- **What is sent.** The words, the uploaded pictures (at most 10), and the app version, the kind of phone (for example `iPhone17,1`,
+  never the name the person gave it), the system version and the name of the tab. The server writes the ticket's title and body.
+- **Older servers.** `ServerCapabilities.offersPortalFeedback` needs the `SubmitPortalFeedback` mutation and the `ListTickets` query.
+  Without it nothing shows and the ticket flag `isPortalFeedback` is not requested.
+
 ## Message threads
 
 A reply goes in a thread, in chats with people and in conversations with the assistant. The main history shows every message in time

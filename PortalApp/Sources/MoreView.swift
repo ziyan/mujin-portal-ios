@@ -23,6 +23,8 @@ enum MoreDestination: Hashable {
     /// A screen of Platform settings.
     case platform(PlatformDestination)
     case settings
+    /// The feedback about Portal the person sent, with how far each has come.
+    case myFeedback
     case tabBarEditor
     /// The places that are usually tabs, pushed here while the person keeps them off the tab bar.
     case sites
@@ -56,6 +58,7 @@ struct MoreDestinationView: View {
         case .account(let destination): AccountDestinationView(destination: destination)
         case .platform(let destination): PlatformDestinationView(destination: destination)
         case .settings: SettingsView(isTabRoot: isTabRoot)
+        case .myFeedback: MyFeedbackView()
         case .tabBarEditor: TabBarEditorView()
         case .sites: SitesDestination()
         case .tickets: TicketsView(embedsNavigation: false)
