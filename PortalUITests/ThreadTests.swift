@@ -19,6 +19,11 @@ final class ThreadTests: XCTestCase {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
+    /// The title of a thread screen: "Thread" and the name of the chat.
+    private func threadTitle(_ app: XCUIApplication) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Thread")).firstMatch
+    }
+
     private func replyControl(_ app: XCUIApplication, containing text: String) -> XCUIElement {
         app.buttons.matching(identifier: "threadReplyControl").matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
@@ -28,7 +33,7 @@ final class ThreadTests: XCTestCase {
         XCTAssertTrue(control.waitForExistence(timeout: 60), "There is no \"\(replies)\" under the message.\n\(app.debugDescription)", file: file, line: line)
         XCTAssertTrue(DemoApp.waitUntilHittable(control, timeout: 30), "The reply count cannot be tapped.\n\(app.debugDescription)", file: file, line: line)
         control.tap()
-        XCTAssertTrue(app.staticTexts["Thread"].waitForExistence(timeout: 30), "The thread did not open.\n\(app.debugDescription)", file: file, line: line)
+        XCTAssertTrue(threadTitle(app).waitForExistence(timeout: 30), "The thread did not open.\n\(app.debugDescription)", file: file, line: line)
         XCTAssertTrue(message(app, shows).waitForExistence(timeout: 30), "The thread does not show its reply.\n\(app.debugDescription)", file: file, line: line)
         XCTAssertFalse(message(app, leavesOut).exists, "The thread shows a message of the main history.\n\(app.debugDescription)", file: file, line: line)
     }
@@ -49,9 +54,19 @@ final class ThreadTests: XCTestCase {
         XCTAssertTrue(reply.waitForExistence(timeout: 60), "The reply is not in the main history.\n\(app.debugDescription)")
         XCTAssertTrue(DemoApp.waitUntilHittable(reply, timeout: 30), "The reply cannot be tapped.\n\(app.debugDescription)")
         reply.tap()
-        XCTAssertTrue(app.staticTexts["Thread"].waitForExistence(timeout: 30), "The thread did not open.\n\(app.debugDescription)")
+        XCTAssertTrue(threadTitle(app).waitForExistence(timeout: 30), "The thread did not open.\n\(app.debugDescription)")
         XCTAssertTrue(message(app, Self.chatRootText).waitForExistence(timeout: 30), "The thread does not start with its root.\n\(app.debugDescription)")
         XCTAssertFalse(message(app, Self.chatMainText).exists, "The thread shows a message of the main history.\n\(app.debugDescription)")
+    }
+
+    func testAReplyInTheMainHistoryHasABarAndSaysWhatItCommentsOn() {
+        let app = DemoApp.launch(screen: "thread-chat")
+        XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 60), "The chat did not open.\n\(app.debugDescription)")
+        // The third message of the thread is the first reply after other messages: it says what it comments on.
+        let line = app.buttons.matching(identifier: "threadCommentLine").firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 30), "No reply says which message it comments on.\n\(app.debugDescription)")
+        XCTAssertTrue(line.label.contains("Commented on"), "The line does not say what it is.\n\(line.label)")
+        XCTAssertTrue(line.label.contains("dock door 4 sensor"), "The line does not start the message it comments on.\n\(line.label)")
     }
 
     func testAnOldReplyKeepsItsQuoteInTheMainHistory() {
@@ -70,7 +85,7 @@ final class ThreadTests: XCTestCase {
         XCTAssertTrue(message(app, Self.chatRootText).exists, "The thread does not start with the message it hangs from.\n\(app.debugDescription)")
         DemoApp.goBack(app)
         XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 30), "Back did not return to the chat.\n\(app.debugDescription)")
-        XCTAssertFalse(app.staticTexts["Thread"].exists, "The thread is still open.\n\(app.debugDescription)")
+        XCTAssertFalse(threadTitle(app).exists, "The thread is still open.\n\(app.debugDescription)")
     }
 
     func testAReplySentInAThreadStaysInTheThreadAndCountsInTheChat() {
@@ -98,7 +113,7 @@ final class ThreadTests: XCTestCase {
     func testANotificationAboutAReplyOpensTheThread() {
         let app = DemoApp.launch(screen: "thread-push")
         XCTAssertTrue(message(app, Self.chatReplyText).waitForExistence(timeout: 60), "The notification did not open the thread.\n\(app.debugDescription)")
-        XCTAssertTrue(app.staticTexts["Thread"].exists, "The thread is not on screen.\n\(app.debugDescription)")
+        XCTAssertTrue(threadTitle(app).exists, "The thread is not on screen.\n\(app.debugDescription)")
         DemoApp.goBack(app)
         XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 30), "Back from the thread did not reach the chat.\n\(app.debugDescription)")
     }

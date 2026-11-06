@@ -42,7 +42,7 @@ struct ConversationView: View {
                 ProgressView()
             }
         }
-        .conversationBar(title: isThread ? String(localized: "Thread") : shownTitle)
+        .conversationBar(title: isThread ? "\(String(localized: "Thread")) \u{00B7} \(shownTitle)" : shownTitle)
         .navigationDestination(item: $openedThreadRootId) { rootId in
             ConversationView(account: account, conversationId: conversationId, title: title, threadRootMessageId: rootId)
         }
@@ -220,11 +220,12 @@ struct ConversationView: View {
                         .padding(.top, 48)
                     }
                     let shownEntries = model.transcript.displayEntries.filter(Self.isShown)
-                    ForEach(shownEntries) { entry in
+                    ForEach(Array(shownEntries.enumerated()), id: \.element.id) { index, entry in
                         TranscriptRow(
                             entry: entry, model: model,
                             openArtifact: { fullArtifact = $0 },
-                            onOpenThread: threadOpener(model)
+                            onOpenThread: threadOpener(model),
+                            commentLine: commentLine(for: entry, previous: index > 0 ? shownEntries[index - 1] : nil, entries: shownEntries, model: model)
                         )
                         .id(entry.id)
                         // The replies of a thread follow its root, which says how many there are.
@@ -278,6 +279,32 @@ struct ConversationView: View {
 
     static let readableWidth: CGFloat = 720
 
+    /// The message id of an entry that is a message, else nil.
+    private static func messageId(of entry: TranscriptEntry?) -> String? {
+        switch entry {
+        case .user(let id, _, _)?: id
+        case .assistant(let id, _, _)?: id
+        default: nil
+        }
+    }
+
+    /// The line above the first reply of a run in the main history: which message it comments on. Not shown right after the root or
+    /// after another reply of the same thread.
+    private func commentLine(for entry: TranscriptEntry, previous: TranscriptEntry?, entries: [TranscriptEntry], model: ConversationModel) -> CommentLine? {
+        guard model.canOpenThreads, let id = Self.messageId(of: entry), let root = model.transcript.replyThreadRoot(of: id) else { return nil }
+        if let previousId = Self.messageId(of: previous), previousId == root || model.transcript.replyThreadRoot(of: previousId) == root { return nil }
+        for candidate in entries {
+            switch candidate {
+            case .user(let rootId, let text, _) where rootId == root:
+                return CommentLine(rootMessageId: root, author: String(localized: "You"), excerpt: ThreadExcerpt.start(of: text), replyCount: model.transcript.threadSummary(for: root)?.replyCount ?? 0)
+            case .assistant(let rootId, let text, _) where rootId == root:
+                return CommentLine(rootMessageId: root, author: String(localized: "Assistant"), excerpt: ThreadExcerpt.start(of: text), replyCount: model.transcript.threadSummary(for: root)?.replyCount ?? 0)
+            default: continue
+            }
+        }
+        return nil
+    }
+
     /// Opens the thread of a message, on a server with threads and on the main history; nowhere else a reply opens one.
     private func threadOpener(_ model: ConversationModel) -> ((String) -> Void)? {
         guard model.canOpenThreads else { return nil }
@@ -328,6 +355,18 @@ private struct TranscriptRow: View {
     let openArtifact: (ArtifactReference) -> Void
     /// Opens the thread of a message. Nil where a reply is quoted instead: in a thread, and on a server without threads.
     var onOpenThread: ((String) -> Void)?
+    var commentLine: CommentLine?
+
+    /// Whether this message is a reply in a thread, which the main history marks with a bar.
+    private func isThreadReply(_ id: String) -> Bool { onOpenThread != nil && model.transcript.replyThreadRoot(of: id) != nil }
+
+    /// The line above a reply that says which message it comments on.
+    @ViewBuilder
+    private var commentLineView: some View {
+        if let commentLine, let onOpenThread {
+            ThreadCommentLine(author: commentLine.author, excerpt: commentLine.excerpt, replyCount: commentLine.replyCount) { onOpenThread(commentLine.rootMessageId) }
+        }
+    }
 
     /// The count of replies under a message, or that the assistant is answering in its thread.
     @ViewBuilder
@@ -381,7 +420,8 @@ private struct TranscriptRow: View {
         switch entry {
         case .user(let id, let text, let viewing):
             VStack(alignment: .trailing, spacing: 4) {
-                if let quote = model.transcript.replyQuote(for: id) {
+                commentLineView
+                if let quote = model.transcript.replyQuote(for: id), !(commentLine != nil && quote.messageId == commentLine?.rootMessageId) {
                     SentQuote(authorName: quote.authorName, excerpt: quote.excerpt)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
@@ -403,10 +443,12 @@ private struct TranscriptRow: View {
                 linkCards(for: id)
                 threadControl(for: id)
             }
+            .replyBar(isThreadReply(id))
             .frame(maxWidth: Self.bubbleWidth, alignment: .trailing)
             .frame(maxWidth: .infinity, alignment: .trailing)
         case .assistant(let id, let text, let isStreaming):
             VStack(alignment: .leading, spacing: 4) {
+            commentLineView
             HStack {
                 let speakFirstReason = model.isOwnConversation ? model.transcript.speakFirstReason(for: id) : nil
                 StableBubble(key: AssistantBubbleKey(id: id, text: text, isStreaming: isStreaming, reactions: model.transcript.reactions(for: id), speakFirstReason: speakFirstReason, speakFirstOutcome: model.speakFirstOutcome, threadRoot: threadToOpen(for: id))) {
@@ -429,6 +471,7 @@ private struct TranscriptRow: View {
             }
             threadControl(for: id)
             }
+            .replyBar(isThreadReply(id))
             .frame(maxWidth: Self.bubbleWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
         case .tool(let activity):

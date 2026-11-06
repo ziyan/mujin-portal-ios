@@ -63,3 +63,59 @@ enum ThreadText {
         count == 1 ? LocalizedStringKey("1 reply") : LocalizedStringKey("\(count) replies")
     }
 }
+
+/// ThreadCommentLine sits above the first reply of a run in the main history and says which message it comments on. The start of
+/// that message is in the accent color, and a tap opens the thread. The reply arrow and the count of the thread sit at the edge.
+struct ThreadCommentLine: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let author: String
+    let excerpt: String
+    let replyCount: Int
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(spacing: 8) {
+                (Text("Commented on \(author)'s message:") + Text(" ") + Text(excerpt).foregroundStyle(Color.accentColor))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 4)
+                if replyCount > 0 {
+                    HStack(spacing: 2) {
+                        Image(systemName: "arrowshape.turn.up.left").accessibilityHidden(true)
+                        Text("\(replyCount)")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(Text("Open the thread"))
+        .accessibilityIdentifier("threadCommentLine")
+    }
+}
+
+extension View {
+    /// A thin bar beside a reply in the main history, in the style of a quote.
+    @ViewBuilder
+    func replyBar(_ isShown: Bool) -> some View {
+        if isShown {
+            padding(.leading, 8).overlay(alignment: .leading) { Rectangle().fill(Color.accentColor).frame(width: 2) }
+        } else {
+            self
+        }
+    }
+}
+
+enum ThreadExcerpt {
+    /// The start of a message on one line.
+    static func start(of text: String) -> String {
+        let line = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return line.count > 80 ? String(line.prefix(79)) + "\u{2026}" : line
+    }
+}

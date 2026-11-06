@@ -45,7 +45,7 @@ struct ChatView: View {
             }
         }
         .conversationBar(
-            title: isThread ? String(localized: "Thread") : (model?.title ?? String(localized: "Chat")),
+            title: isThread ? "\(String(localized: "Thread")) \u{00B7} \(model?.title ?? String(localized: "Chat"))" : (model?.title ?? String(localized: "Chat")),
             onTitleTap: isThread || model?.room == nil ? nil : { isShowingInfo = true }
         )
         .navigationDestination(item: $openedThreadRootId) { rootId in
@@ -207,7 +207,8 @@ struct ChatView: View {
                             startsRun: isNewDay || previous == nil || previous?.authorUserId != message.authorUserId || previous?.isAssistant != message.isAssistant,
                             previousMessageId: previous?.id,
                             askDelete: { messageToDelete = $0 },
-                            onOpenThread: threadOpener(model)
+                            onOpenThread: threadOpener(model),
+                            commentLine: commentLine(for: message, previous: previous, model: model)
                         )
                         .id(message.id)
                         }
@@ -252,6 +253,17 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    /// The line above the first reply of a run in the main history: which message it comments on. Not shown right after the root or
+    /// after another reply of the same thread.
+    private func commentLine(for message: ChatMessage, previous: ChatMessage?, model: ChatModel) -> CommentLine? {
+        guard model.canOpenThreads, let root = message.threadRootMessageId, previous?.id != root, previous?.threadRootMessageId != root,
+            let rootMessage = model.timeline.messages.first(where: { $0.id == root }), !rootMessage.isDeleted
+        else { return nil }
+        let isOwn = rootMessage.authorUserId == model.currentUserId && !rootMessage.isAssistant
+        let author = isOwn ? String(localized: "You") : (rootMessage.isAssistant ? String(localized: "Assistant") : (rootMessage.authorName ?? model.member(rootMessage.authorUserId)?.shownName ?? String(localized: "Someone")))
+        return CommentLine(rootMessageId: root, author: author, excerpt: ThreadExcerpt.start(of: rootMessage.text), replyCount: rootMessage.threadReplyCount)
     }
 
     /// Opens the thread of a message, on a server with threads and on the main history; nowhere else a reply opens one.
@@ -507,6 +519,14 @@ struct ChatView: View {
     }
 }
 
+/// CommentLine is what the line above the first reply of a run says: the message it comments on.
+struct CommentLine: Equatable {
+    let rootMessageId: String
+    let author: String
+    let excerpt: String
+    let replyCount: Int
+}
+
 /// BubbleKey is everything a chat bubble draws, so the bubble is drawn again only when one of them changes.
 private struct BubbleKey: Equatable {
     let message: ChatMessage
@@ -535,6 +555,7 @@ private struct MessageRow: View {
     let askDelete: (ChatMessage) -> Void
     /// Opens the thread of a message. Nil where a reply is quoted instead: in a thread, and on a server without threads.
     var onOpenThread: ((String) -> Void)?
+    var commentLine: CommentLine?
 
     private var isMine: Bool { message.authorUserId == model.currentUserId && !message.isAssistant }
 
@@ -557,6 +578,9 @@ private struct MessageRow: View {
             }
             VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
                 if !isMine, startsRun { authorLine }
+                if let commentLine, let onOpenThread {
+                    ThreadCommentLine(author: commentLine.author, excerpt: commentLine.excerpt, replyCount: commentLine.replyCount) { onOpenThread(commentLine.rootMessageId) }
+                }
                 if showsQuote { quote }
                 tappableBubble
                 ForEach(model.previews[message.id] ?? []) { card in
@@ -568,6 +592,7 @@ private struct MessageRow: View {
                 }
                 if isMine, isLastOwn { receipt }
             }
+            .replyBar(onOpenThread != nil && message.threadRootMessageId != nil)
         }
         .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
         }
@@ -626,6 +651,8 @@ private struct MessageRow: View {
         if replyId == previousMessageId { return false }
         // In a thread every reply answers its root, which sits at the top of the screen.
         if replyId == model.threadRootMessageId { return false }
+        // The line above the reply already says which message it comments on.
+        if commentLine != nil, replyId == message.threadRootMessageId { return false }
         if !message.hasQuotedText, model.timeline.messages.contains(where: { $0.id == replyId }) { return false }
         return true
     }

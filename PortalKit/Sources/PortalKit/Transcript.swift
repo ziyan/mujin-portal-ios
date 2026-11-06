@@ -311,6 +311,9 @@ public struct Transcript: Equatable, Sendable {
         ThreadRouting.threadToOpen(messageId: messageId, threadRootMessageId: threadRoots[messageId], replyCount: threadSummaries[messageId]?.replyCount ?? 0)
     }
 
+    /// The thread a message is a reply in, or nil for a message that is not.
+    public func replyThreadRoot(of messageId: String) -> String? { threadRoots[messageId] }
+
     /// The replies a message's thread holds, for the count under it in the main history.
     public func threadSummary(for messageId: String) -> ThreadSummary? { threadSummaries[messageId] }
 

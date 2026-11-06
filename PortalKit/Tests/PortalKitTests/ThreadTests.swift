@@ -346,3 +346,18 @@ import Testing
         #expect(payload.route == .conversationThread(id: "c9", threadRootMessageId: "m3"))
     }
 }
+
+@Suite struct ThreadReplyLineTests {
+    @Test func aTranscriptKnowsTheThreadAReplyIsIn() {
+        var transcript = Transcript()
+        transcript.load(
+            messages: [
+                ConversationMessage(id: "m1", role: "assistant", content: .string("Hello"), threadReplyCount: 1),
+                ConversationMessage(id: "m2", role: "user", content: .string("Why?"), threadRootMessageId: "m1"),
+                ConversationMessage(id: "m3", role: "user", content: .string("Thanks")),
+            ], questions: [], approvals: [], isRunning: false)
+        #expect(transcript.replyThreadRoot(of: "m2") == "m1")
+        #expect(transcript.replyThreadRoot(of: "m1") == nil)
+        #expect(transcript.replyThreadRoot(of: "m3") == nil)
+    }
+}

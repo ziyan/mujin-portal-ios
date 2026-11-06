@@ -93,8 +93,8 @@ enum ThreadDemo {
             said("t03", "user01", "Alex Example", "Can someone tighten it before the afternoon shift?", 12_000, extra: [
                 "threadRootMessageId": "t01", "replyToMessageId": "t02", "replyToExcerpt": "I saw it too. The cable looks loose", "replyToAuthorName": "Jordan Placeholder",
             ]),
-            said("t04", "user03", "Robin Demo", "On it. I will tell you when it is done.", 1_500, extra: ["threadRootMessageId": "t01", "replyToMessageId": "t03"]),
             said("t05", "user04", "Jordan Placeholder", "Shift change moves to 14:00 on Friday.", 3_000),
+            said("t04", "user03", "Robin Demo", "On it. I will tell you when it is done.", 1_500, extra: ["threadRootMessageId": "t01", "replyToMessageId": "t03"]),
             said("t06", "user01", "Alex Example", "@Mujin AI which doors reported the most sensor changes today?", 900, extra: ["isAddressingAssistant": true]),
         ]
         if isAssistantWorking {
