@@ -17,6 +17,6 @@ final class CallTranscriptTests: XCTestCase {
         XCTAssertTrue(recording.waitForExistence(timeout: 30), "The recording did not show.\n\(app.debugDescription)")
         XCTAssertTrue(DemoApp.element(app, "callRecording-recording-alex").exists, "A person's recording is missing.\n\(app.debugDescription)")
         let words = NSPredicate(format: "label CONTAINS %@", "the scanner lost its connection")
-        XCTAssertTrue(app.staticTexts.containing(words).firstMatch.waitForExistence(timeout: 10), "The words did not show.\n\(app.debugDescription)")
+        XCTAssertTrue(app.staticTexts.matching(words).firstMatch.waitForExistence(timeout: 10), "The words did not show.\n\(app.debugDescription)")
     }
 }

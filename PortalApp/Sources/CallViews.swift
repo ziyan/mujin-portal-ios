@@ -202,6 +202,7 @@ struct CallLineView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("callTranscript")
             }
         }
