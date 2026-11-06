@@ -178,6 +178,24 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
 - **Without a server that has them**, neither shows: `GetAgentVoiceSetting` gains `isDictationAvailable` and
   `isReadAloudAvailable`, and the app asks for them only when the schema's `AgentVoiceSetting` type has them.
 
+## Site and cell views
+
+- **Excluded controllers.** A controller can be left out of its site's and cells' merged views, as a simulation controller installed at a
+  site is. The server leaves it out of the merged alarms, orchestrators and mobile robots; the app drops it from the telemetry tiles it
+  adds up (`TelemetryScope`, `Connection.siteTelemetry`). A site or cell page says "Excluded from this view:" with each id opening its
+  controller, and the cell asks `ListSiteExcludedControllerIDs` with its `cellId`, so it names only what it leaves out. The controller
+  stays in the site's controller list with a badge, its own page keeps working, and a person with `controller:edit` can switch the
+  exclusion on its page (`ModifyController`).
+- **Telemetry source.** When the site names `telemetrySourceControllerId`, the site tiles read that controller alone and add the others
+  up only if it does not answer. In a cell the source is left out beside other physical controllers and kept when it is the only one.
+  The site page says where its totals come from, and the source's row says "Site total".
+- **Alarm levels.** Active alarm lists and the alarm counts show Critical and Error until the person turns on other levels, with a chip
+  per level and its count, kept on the phone. Levels compare without regard to case and an alarm of an unknown level always shows.
+- **A controller's own page** reads `ListControllerActiveAlarms`, `ListControllerOrchestrators` and `ListControllerMobileRobots`, never the
+  site's reads, which leave an excluded controller out and may hold only the source.
+- **Older servers.** Everything is gated on the query `ListSiteExcludedControllerIDs`, and the telemetry source also on the `Site`
+  type having the field. Without them the app asks for none of the new fields and lists every alarm level, as before.
+
 ## Feedback about Portal
 
 A person can tell the Portal team what is wrong with the app, or what could be better, and follow what happens to it. It is a ticket

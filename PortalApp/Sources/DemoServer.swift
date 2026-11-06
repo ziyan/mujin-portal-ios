@@ -42,6 +42,8 @@ final class DemoState: @unchecked Sendable {
         var nextNumber = 1
         /// How many times the demo was asked to send feedback, for the screen that refuses the first.
         var feedbackSendCount = 0
+        /// The controllers left out of site views, for the screens that have the feature.
+        var excludedControllerIds: Set<String> = []
         var virtualControllerName = "Training cell"
         var virtualControllerSize = "medium"
         var isVirtualControllerPaused = false
@@ -304,6 +306,7 @@ final class DemoState: @unchecked Sendable {
             ticket("ticket04", 4, "Camera view is rotated", "solved", "low", requester: "user01", organization: "organization01", secondsAgo: 200_000),
             ticket("ticket05", 5, "Planner restart request", "closed", "normal", requester: "user03", organization: "organization02", secondsAgo: 900_000),
         ]
+        if SiteViewDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) { data.excludedControllerIds = SiteViewDemo.initiallyExcludedControllerIds }
         if FeedbackDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]), !FeedbackDemo.hasNoFeedback(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
             data.tickets += FeedbackDemo.tickets(stamp: stamp)
             data.comments.merge(FeedbackDemo.comments(stamp: stamp)) { _, new in new }
@@ -514,6 +517,44 @@ struct DemoTransport: HTTPTransport {
         return (payload, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
     }
 
+    /// The answers of the screens for a controller left out of site views, a site's telemetry source and the alarm levels.
+    private func siteViewAnswer(operation: String, variables: [String: Any]) -> [String: Any]? {
+        let screen = ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]
+        let excluded = state.withData { $0.excludedControllerIds }
+        let cellId = variables["cellId"] as? String
+        switch operation {
+        case "ListControllers":
+            let ids = SiteViewDemo.controllerIds(inCell: cellId)
+            let rows = SiteViewDemo.controllerRows(excluded: excluded).filter { ids == nil || ids!.contains($0["id"] as? String ?? "") }
+            return ["ListControllers": ["controllers": rows, "meta": ["totalCount": rows.count]]]
+        case "GetController":
+            let row = SiteViewDemo.controllerRows(excluded: excluded).first { ($0["id"] as? String) == (variables["controllerId"] as? String) }
+            return ["GetController": row ?? NSNull()]
+        case "ListCells":
+            return ["ListCells": ["cells": SiteViewDemo.cells.map { ["id": $0.id, "name": $0.name, "controllerIds": $0.controllerIds, "virtualControllerIds": [], "cameraIds": []] as [String: Any] }]]
+        case "ListControllerTelemetrySummaries":
+            return ["ListControllerTelemetrySummaries": SiteViewDemo.telemetrySummaries(requested: variables["controllerIds"] as? [String])]
+        case "ListSiteExcludedControllerIDs":
+            let ids = SiteViewDemo.controllerIds(inCell: cellId)
+            return ["ListSiteExcludedControllerIDs": excluded.sorted().filter { ids == nil || ids!.contains($0) }]
+        case "ModifyControllerExclusion":
+            let controllerId = variables["controllerId"] as? String ?? ""
+            let isExcluded = (variables["controller"] as? [String: Any])?["isExcludedFromSiteViews"] as? Bool ?? false
+            state.withData { data in
+                if isExcluded { data.excludedControllerIds.insert(controllerId) } else { data.excludedControllerIds.remove(controllerId) }
+            }
+            return ["ModifyController": ["controller": ["id": controllerId, "isExcludedFromSiteViews": isExcluded]]]
+        case "ListSiteActiveAlarms" where SiteViewDemo.alarmLevelScreens.contains(screen ?? ""):
+            let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
+            return [
+                "ListSiteActiveAlarms": DemoCells.narrow(
+                    [["controllerId": "controller01", "isAvailable": true, "alarms": ["alarms": SiteViewDemo.levelAlarms(screen: screen, stamp: stamp)]]], variables: variables)
+            ]
+        default:
+            return nil
+        }
+    }
+
     /// The demo's one virtual controller, as the server describes it now.
     private static func virtualControllerRow(_ data: DemoState.Data) -> [String: Any] {
         [
@@ -530,6 +571,7 @@ struct DemoTransport: HTTPTransport {
         if let answer = ThreadDemo.respondToCalls(operation: operation, variables: variables, stamp: { ISO8601DateFormatter().string(from: Date().addingTimeInterval(-$0)) }) { return answer }
         if let answer = CallDemo.respond(operation: operation, variables: variables) { return answer }
         if let answer = SearchDemo.respond(operation: operation, variables: variables) { return answer }
+        if SiteViewDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]), let answer = siteViewAnswer(operation: operation, variables: variables) { return answer }
         let conversationId = variables["conversationId"] as? String ?? ""
         switch operation {
         case "Me":
@@ -561,6 +603,9 @@ struct DemoTransport: HTTPTransport {
             if hasCalls { mutationFields += [["name": "startChatCall"], ["name": "joinChatCallMedia"]] }
             // Feedback about Portal is shot against a server that has it; every other screen is not.
             if FeedbackDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) { mutationFields.append(["name": "submitPortalFeedback"]) }
+            // Leaving a controller out of site views, the site's telemetry source and the alarm levels come with one server release.
+            let hasSiteViewRules = SiteViewDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            if hasSiteViewRules { queryFields.append(["name": "listSiteExcludedControllerIDs", "args": [["name": "siteId"], ["name": "cellId"]]]) }
             if hasThreads { mutationFields.append(["name": "openChatMessage"]) }
             var schemaAnswer: [String: Any] = [
                 "__schema": [
@@ -571,6 +616,7 @@ struct DemoTransport: HTTPTransport {
             ]
             let voiceSettingFields = hasSpeech ? SpeechDemo.voiceSettingFieldNames : ["speechVoice", "speechVoices", "defaultSpeechVoice", "previewText"]
             schemaAnswer["voiceSetting"] = ["fields": voiceSettingFields.map { ["name": $0] }]
+            schemaAnswer["siteType"] = ["fields": (hasSiteViewRules ? ["id", "name", "telemetrySourceControllerId"] : ["id", "name"]).map { ["name": $0] }]
             return schemaAnswer
         case "GetMainAgent":
             return ["GetMainAgent": ["id": "agent01", "name": "Assistant", "isMain": true]]
@@ -696,7 +742,7 @@ struct DemoTransport: HTTPTransport {
             ]
             // A customer sees its own organization's sites; a Mujin user sees them all, or one organization's when asked.
             let scope = variables["organizationId"] as? String ?? (DemoOptions.isStaff ? nil : "organization01")
-            let shown = all.filter { scope == nil || ($0["organizationId"] as? String) == scope }
+            let shown = SiteViewDemo.sites(all.filter { scope == nil || ($0["organizationId"] as? String) == scope }, screen: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
             return ["ListSites": ["sites": shown, "meta": ["totalCount": shown.count]]]
         case "ListOrganizations":
             return ["ListOrganizations": ["organizations": [["id": "organization01", "name": "Example Logistics", "isMujin": false, "isActive": true, "hasLogo": true, "modifiedAt": "2026-01-01T00:00:00Z"], ["id": "organization02", "name": "Sample Foods", "isMujin": false, "isActive": true], ["id": "organization00", "name": "Support", "isMujin": true, "isActive": true]], "meta": ["totalCount": 2]]]
@@ -790,6 +836,17 @@ struct DemoTransport: HTTPTransport {
                     ["controllerId": "controller02", "isAvailable": false],
                 ], variables: variables)
             ]
+        case "ListControllerAlarms", "ListControllerOrchestrators", "ListControllerMobileRobots":
+            // A controller's own reads answer with its row of the site's, which is what the site's read held before the controller's own existed.
+            let siteOperation = ["ListControllerAlarms": "ListSiteActiveAlarms", "ListControllerOrchestrators": "ListSiteOrchestrators", "ListControllerMobileRobots": "ListSiteMobileRobots"][operation] ?? ""
+            let field = ["ListControllerAlarms": "alarms", "ListControllerOrchestrators": "orchestrators", "ListControllerMobileRobots": "mobileRobots"][operation] ?? ""
+            let rows = respond(operation: siteOperation, variables: [:])[siteOperation] as? [[String: Any]] ?? []
+            let row = rows.first { ($0["controllerId"] as? String) == (variables["controllerId"] as? String) }
+            let answerName = ["ListControllerAlarms": "ListControllerActiveAlarms", "ListControllerOrchestrators": "ListControllerOrchestrators", "ListControllerMobileRobots": "ListControllerMobileRobots"][operation] ?? ""
+            if let own = row?[field] as? [String: Any] { return [answerName: own] }
+            if operation == "ListControllerAlarms" { return [answerName: ["alarms": [[String: Any]]()]] }
+            if operation == "ListControllerMobileRobots" { return [answerName: ["robots": [[String: Any]]()]] }
+            return [answerName: NSNull()]
         case "ListControllerWebApps":
             return ["ListControllerWebApps": DemoWebApps.list(controllerId: variables["controllerId"] as? String, virtualControllerId: variables["virtualControllerId"] as? String)]
         case "ListSiteUserIDs":

@@ -76,6 +76,7 @@ struct CellView: View {
                     }
                 }
                 SiteSectionViews.telemetry(model, showsViewAll: false)
+                SiteSectionViews.viewNotes(model)
                 SiteSectionViews.overview(model)
                 SiteSectionViews.controllers(model)
                 SiteSectionViews.virtualControllers(model)

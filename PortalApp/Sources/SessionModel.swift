@@ -124,6 +124,8 @@ final class SessionModel {
         if let existing = siteModels[key] { return existing }
         let model = SiteModel(connection: connection, organizationId: organizationId, pinnedSiteId: siteId, cellId: cellId, cache: cache, accountKey: account.accountKey, onError: onError)
         model.viewerIsMujinUser = isStaff
+        model.offersSiteExclusion = capabilities.offersSiteExclusion
+        model.offersTelemetrySource = capabilities.offersTelemetrySource
         model.viewerPermissions = profile?.me.permissions ?? []
         model.viewerOrganizationId = self.organizationId
         siteModels[key] = model
@@ -428,6 +430,8 @@ final class SessionModel {
             let (newProfile, newCapabilities) = try await (loadedProfile, loadedCapabilities)
             profile = newProfile
             capabilities = newCapabilities
+            // Active alarms are listed by level where the server does, and all together where it does not.
+            AlarmLevelPreference.shared.isAvailable = newCapabilities.offersSiteExclusion
             // A server with voice messages or calls takes their fields of a chat message; an older one refuses them.
             await connection.setChatMedia(hasVoice: newCapabilities.offersVoiceMessages, hasCalls: newCapabilities.offersChatCalls)
             // A server with message threads takes their fields and arguments; an older one refuses them.
@@ -471,6 +475,7 @@ enum DemoOptions {
         guard let screen else { return nil }
         if SearchDemo.owns(screen) { return .search }
         if FeedbackDemo.owns(screen) { return FeedbackDemo.section(for: screen) }
+        if SiteViewDemo.owns(screen) { return SiteViewDemo.section }
         if screen.hasPrefix("more-") { return .more }
         if screen.hasPrefix("update-available") { return .assistant }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
