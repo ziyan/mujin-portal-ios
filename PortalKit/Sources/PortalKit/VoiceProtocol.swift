@@ -24,6 +24,8 @@ public enum VoiceAudio {
 /// VoiceClientEvent is a text message to the voice socket.
 public enum VoiceClientEvent: Equatable, Sendable {
     case hello(surface: String, speechVoice: String?)
+    /// Opens the socket for dictation, not a call: the words go to the message box and nothing is said back.
+    case dictationHello(place: DictationPlace)
     case speakAnswer(answerSegmentId: String, answerText: String)
     case cancelAnswer(answerSegmentIds: [String])
     case stillHere
@@ -35,6 +37,10 @@ public enum VoiceClientEvent: Equatable, Sendable {
         case .hello(let surface, let speechVoice):
             object = ["voiceEvent": .string("hello"), "surface": .string(surface)]
             if let speechVoice, !speechVoice.isEmpty { object["speechVoice"] = .string(speechVoice) }
+        case .dictationHello(let place):
+            object = [
+                "voiceEvent": .string("hello"), "surface": .string("ios"), "purpose": .string("dictation"), "dictationPlace": .string(place.rawValue),
+            ]
         case .speakAnswer(let id, let text):
             object = ["voiceEvent": .string("speakAnswer"), "answerSegmentId": .string(id), "answerText": .string(text)]
         case .cancelAnswer(let ids):
@@ -60,7 +66,7 @@ public enum VoiceRefusalReason: String, Sendable {
 
 /// VoiceServerEvent is a message from the voice socket.
 public enum VoiceServerEvent: Equatable, Sendable {
-    case ready(isSpeechAvailable: Bool, maximumSessionSeconds: Int, silenceTimeoutSeconds: Int)
+    case ready(isSpeechAvailable: Bool, maximumSessionSeconds: Int, silenceTimeoutSeconds: Int, sampleRateHertz: Int, frameDurationMS: Int)
     case refused(reason: String, message: String)
     case error(reason: String, message: String)
     case speechStarted(utteranceId: String)
@@ -81,7 +87,7 @@ public enum VoiceServerEvent: Equatable, Sendable {
         case "ready":
             self = .ready(
                 isSpeechAvailable: value["isSpeechAvailable"]?.boolValue ?? false, maximumSessionSeconds: number("maximumSessionSeconds"),
-                silenceTimeoutSeconds: number("silenceTimeoutSeconds"))
+                silenceTimeoutSeconds: number("silenceTimeoutSeconds"), sampleRateHertz: number("sampleRateHertz"), frameDurationMS: number("frameDurationMS"))
         case "refused": self = .refused(reason: string("refusalReason"), message: string("errorMessage"))
         case "error": self = .error(reason: string("refusalReason"), message: string("errorMessage"))
         case "speechStarted": self = .speechStarted(utteranceId: string("utteranceId"))

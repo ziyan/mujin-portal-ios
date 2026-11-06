@@ -24,7 +24,8 @@ import Testing
     @Test func serverEventsAreReadByTheirNames() {
         #expect(
             VoiceServerEvent(decoding: #"{"voiceEvent":"ready","sampleRateHertz":24000,"frameDurationMS":100,"isSpeechAvailable":true,"maximumSessionSeconds":1800,"silenceTimeoutSeconds":60}"#)
-                == .ready(isSpeechAvailable: true, maximumSessionSeconds: 1800, silenceTimeoutSeconds: 60))
+                == .ready(
+                    isSpeechAvailable: true, maximumSessionSeconds: 1800, silenceTimeoutSeconds: 60, sampleRateHertz: 24_000, frameDurationMS: 100))
         #expect(VoiceServerEvent(decoding: #"{"voiceEvent":"transcriptFinal","utteranceId":"u1","utteranceSequence":2,"transcriptText":"Hello there"}"#) == .transcriptFinal(utteranceId: "u1", sequence: 2, text: "Hello there"))
         #expect(VoiceServerEvent(decoding: #"{"voiceEvent":"answerAudio","answerSegmentId":"a-0","answerAudioBase64":"AAEC"}"#) == .answerAudio(answerSegmentId: "a-0", pcm: Data([0, 1, 2])))
         #expect(VoiceServerEvent(decoding: #"{"voiceEvent":"nothingWeKnow"}"#) == nil)

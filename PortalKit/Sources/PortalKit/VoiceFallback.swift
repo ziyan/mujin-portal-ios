@@ -161,22 +161,35 @@ extension Connection {
         if let voice, !voice.isEmpty { fields["voice"] = .string(voice) }
         request.httpBody = try JSONEncoder().encode(JSONValue.object(fields))
         let (data, response) = try await send(authorizing: request)
-        guard response.statusCode == 200 else { throw Self.restRefusal(data, status: response.statusCode) }
+        guard response.statusCode == 200 else { throw Self.speechRefusal(data, status: response.statusCode) }
         struct Token: Decodable { let token: String? }
         guard let token = (try? JSONDecoder().decode(Token.self, from: data))?.token, !token.isEmpty else { throw PortalError.unreadableAnswer }
         var components = URLComponents(url: account.server.endpoint("/api/v1/voice/stream"), resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "token", value: token)]
         // The token is the credential here; nothing else is sent.
         let (audio, audioResponse) = try await transport.send(URLRequest(url: components.url!))
-        guard audioResponse.statusCode == 200 else { throw PortalError.refused("The spoken answer could not be fetched.") }
+        guard audioResponse.statusCode == 200 else { throw Self.speechRefusal(audio, status: audioResponse.statusCode) }
         return audio
     }
 
     static func restRefusal(_ data: Data, status: Int) -> PortalError {
-        struct Failure: Decodable { let message: String?; let error: String? }
-        if let failure = try? JSONDecoder().decode(Failure.self, from: data), let message = failure.message ?? failure.error, !message.isEmpty {
-            return .refused(message)
+        .refused(restMessage(data) ?? "The server answered HTTP \(status).")
+    }
+
+    /// Why the server would not speak the text: its own reason when it gives one, else one for the status, such as a billing
+    /// limit (402) or no speech provider set up (404).
+    static func speechRefusal(_ data: Data, status: Int) -> PortalError {
+        if let message = restMessage(data) { return .refused(message) }
+        switch status {
+        case 402: return .refused("The limit for spoken messages has been reached.")
+        case 404: return .refused("No speech provider is set up.")
+        default: return .refused("The server answered HTTP \(status).")
         }
-        return .refused("The server answered HTTP \(status).")
+    }
+
+    private static func restMessage(_ data: Data) -> String? {
+        struct Failure: Decodable { let message: String?; let error: String? }
+        guard let failure = try? JSONDecoder().decode(Failure.self, from: data), let message = failure.message ?? failure.error, !message.isEmpty else { return nil }
+        return message
     }
 }
