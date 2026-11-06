@@ -43,7 +43,7 @@ final class SurveillanceWallTests: XCTestCase {
         let deadline = Date().addingTimeInterval(30)
         while bar.identifier == wallTitle && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.5)) }
         XCTAssertNotEqual(bar.identifier, wallTitle, "The tile opened nothing.\n\(app.debugDescription)")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        DemoApp.goBack(app)
         XCTAssertTrue(app.navigationBars[wallTitle].waitForExistence(timeout: 30), "Going back did not return to the wall.\n\(app.debugDescription)")
         let playAgain = Date().addingTimeInterval(20)
         while liveTiles(app) == 0 && Date() < playAgain { RunLoop.current.run(until: Date().addingTimeInterval(0.5)) }

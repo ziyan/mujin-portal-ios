@@ -86,8 +86,14 @@ enum DemoApp {
         start.press(forDuration: 0.05, thenDragTo: end)
     }
 
-    /// Goes back one screen with the back button of the screen on top.
+    /// Goes back one screen with the back button of the screen on top. It is asked for by name because the system adds it to the
+    /// bar after the screen's own buttons, so for a moment the first button of the bar can be another one.
     static func goBack(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        let systemBackButton = app.navigationBars.buttons["BackButton"]
+        if systemBackButton.waitForExistence(timeout: 10) {
+            systemBackButton.tap()
+            return
+        }
         let backButton = app.navigationBars.element(boundBy: 0).buttons.element(boundBy: 0)
         XCTAssertTrue(backButton.waitForExistence(timeout: 10), "There is no back button", file: file, line: line)
         backButton.tap()
