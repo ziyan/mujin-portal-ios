@@ -355,6 +355,7 @@ jobs:
           shoot camera-unsupported camera-unsupported
           shoot camera-unreachable camera-unreachable
           shoot notifications notifications
+          shoot notifications-past notifications-past
           shoot about about
           shoot settings-update settings-update
           shoot update-available update-available
@@ -527,6 +528,7 @@ jobs:
           shoot release-menu-dark release-menu
           shoot chat-link-tap-dark chat-link-tap
           shoot notifications-dark notifications
+          shoot notifications-past-dark notifications-past
           shoot sites-staff-dark sites-staff staff
           shoot incidents-staff incidents staff
           shoot account-profile-dark account-profile

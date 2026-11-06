@@ -55,6 +55,16 @@ final class ChatNavigationTests: XCTestCase {
     }
 
     /// From another tab, so the Chat tab has its list to load as the conversation opens.
+    func testTheInboxListsPastNotificationsOnlyOnRequest() {
+        let app = DemoApp.launch(screen: "notifications")
+        let toggle = DemoApp.element(app, "notificationsPastToggle")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 60), "The inbox offers no past notifications.\n\(app.debugDescription)")
+        let past = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Gripper suction pressure is low")).firstMatch
+        XCTAssertFalse(past.exists, "A read notification is listed before it was asked for.\n\(app.debugDescription)")
+        toggle.tap()
+        XCTAssertTrue(past.waitForExistence(timeout: 15), "The past notifications did not appear.\n\(app.debugDescription)")
+    }
+
     func testNotificationOpensTheAssistantConversation() {
         let app = openInbox(on: "tickets", title: "Tickets")
         tapNotification(app, "Main chat has a new answer")

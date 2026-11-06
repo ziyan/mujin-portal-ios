@@ -300,6 +300,8 @@ import Testing
             id: "n1", kind: "chat_message", chatId: "chat1", chatName: "Pick team", chatAuthorName: "Sam Sample", chatMessageExcerpt: "Ready?",
             chatConversationId: "c1")
         #expect(notification.subject == "Sam Sample in Pick team: Ready?")
+        let direct = PortalNotification(id: "b", kind: "chat_message", chatName: "Sam Sample", chatAuthorName: "Sam Sample", chatMessageExcerpt: "Ready?")
+        #expect(direct.subject == "Sam Sample: Ready?")
         #expect(notification.target == .chat(conversationId: "c1"))
         #expect(NotificationPreferences().isEnabled(kind: "chat_message", channel: "push"))
         #expect(!NotificationPreferences().isEnabled(kind: "chat_message", channel: "email"))

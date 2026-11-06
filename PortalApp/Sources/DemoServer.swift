@@ -988,20 +988,20 @@ struct DemoTransport: HTTPTransport {
             return ["TransitionIncident": ["incident": ["id": variables["incidentId"] as? String ?? "", "reviewStatus": variables["reviewStatus"] as? String ?? ""]]]
         case "ListNotifications":
             let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
-            return [
-                "ListNotifications": [
-                    "notifications": [
-                        ["id": "notification01", "kind": "ticket_comment", "createdAt": stamp(900), "ticketId": "ticket01", "ticket": ["id": "ticket01", "sequence": 1, "title": "Gripper drops boxes at pick station 3"]],
-                        ["id": "notification02", "kind": "incident", "createdAt": stamp(2_400), "incidentId": "incident01", "incident": ["id": "incident01", "title": "Person near the conveyor"]],
-                        ["id": "notification03", "kind": "alarm", "createdAt": stamp(5_000), "readAt": stamp(4_000), "alarmMessage": "Gripper suction pressure is low", "controllerId": "controller01", "siteName": "site01"],
-                        ["id": "notification04", "kind": "agent_job_failed", "createdAt": stamp(20_000), "readAt": stamp(19_000), "agentJobName": "Watch controller01 planner", "agentJobFailureMessage": "The controller did not answer."],
-                        ["id": "notification05", "kind": "agent_message", "createdAt": stamp(30_000), "readAt": stamp(29_000), "agentMessageConversationId": "conversation-main", "agentMessageExcerpt": "Main chat has a new answer"],
-                        ["id": "notification06", "kind": "chat_message", "createdAt": stamp(40_000), "readAt": stamp(39_000), "chatConversationId": "chatconv01", "chatId": "chat01", "chatName": "Sam Sample", "chatAuthorName": "Sam Sample", "chatMessageExcerpt": "A new message in the chat"],
-                    ], "meta": ["totalCount": 6],
-                ]
+            let rows: [[String: Any]] = [
+                ["id": "notification01", "kind": "ticket_comment", "createdAt": stamp(900), "ticketId": "ticket01", "ticket": ["id": "ticket01", "sequence": 1, "title": "Gripper drops boxes at pick station 3"]],
+                ["id": "notification02", "kind": "incident", "createdAt": stamp(2_400), "incidentId": "incident01", "incident": ["id": "incident01", "title": "Person near the conveyor"]],
+                ["id": "notification03", "kind": "alarm", "createdAt": stamp(5_000), "readAt": stamp(4_000), "alarmMessage": "Gripper suction pressure is low", "controllerId": "controller01", "siteName": "site01"],
+                ["id": "notification04", "kind": "agent_job_failed", "createdAt": stamp(20_000), "readAt": stamp(19_000), "agentJobName": "Watch controller01 planner", "agentJobFailureMessage": "The controller did not answer."],
+                ["id": "notification05", "kind": "agent_message", "createdAt": stamp(30_000), "agentMessageConversationId": "conversation-main", "agentMessageExcerpt": "Main chat has a new answer"],
+                ["id": "notification06", "kind": "chat_message", "createdAt": stamp(40_000), "chatConversationId": "chatconv01", "chatId": "chat01", "chatName": "Sam Sample", "chatAuthorName": "Sam Sample", "chatMessageExcerpt": "A new message in the chat"],
             ]
+            let aggregations = (variables["options"] as? [String: Any])?["aggregations"] as? [[String: Any]]
+            let status = (aggregations?.first?["filter"] as? [String: Any])?["value"] as? String
+            let shown = rows.filter { status == nil || ($0["readAt"] != nil) == (status == "read") }
+            return ["ListNotifications": ["notifications": shown, "meta": ["totalCount": shown.count]]]
         case "CountUnreadNotifications":
-            return ["CountUnreadNotifications": 2]
+            return ["CountUnreadNotifications": 4]
         case "MarkNotificationRead", "MarkAllNotificationsRead":
             return [operation: NSNull()]
         case "NotificationPreferences":

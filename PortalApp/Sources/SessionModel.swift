@@ -56,7 +56,7 @@ final class SessionModel {
     var feedbackRequest: FeedbackRequest?
     /// Set when a notification asks More to show the Automations screen.
     var automationsRequested = false
-    var isShowingNotifications = DemoOptions.screen == "notifications"
+    var isShowingNotifications = DemoOptions.screen == "notifications" || DemoOptions.screen == "notifications-past"
     /// Entries in the inbox not read yet.
     private(set) var unreadCount = 0
     /// Counts up whenever the server says a notification was created, so an open inbox reads again.
@@ -214,6 +214,11 @@ final class SessionModel {
     /// A chat was read to its end. The lists update from this, not from a new read, which a replica could answer with the old count.
     func noteChatRead(conversationId: String) {
         lastReadChat = ChatReadMark(conversationId: conversationId)
+        // The server marks the chat's notifications read with it. A replica answers a moment behind that.
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            await refreshUnreadCount()
+        }
     }
 
     /// The count a chat list worked out after clearing a row.
