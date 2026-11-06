@@ -232,7 +232,7 @@ struct ControllerBackupsView: View {
         }
         .navigationTitle("Backups")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .confirmationDialog("Delete this backup?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible, presenting: deleting) { backup in
             Button("Delete", role: .destructive) { Task { await delete(backup) } }
         } message: { _ in

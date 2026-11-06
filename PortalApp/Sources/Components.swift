@@ -194,12 +194,12 @@ extension View {
 
     /// The bar of a screen whose bottom is a composer: the title is a glass
     /// pill in the middle, the bar itself see-through so messages run under
-    /// it with the system's soft edge, and the tab bar gives way.
+    /// it with the system's soft edge, and on a phone the tab bar gives way.
     func conversationBar(title: String, onTitleTap: (() -> Void)? = nil) -> some View {
         navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
-            .toolbarVisibility(.hidden, for: .tabBar)
+            .hidesTabBarWhenCompact()
             .scrollEdgeEffectStyle(.hard, for: .top)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -510,5 +510,21 @@ struct TypingBubble: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Thinking\u{2026}"))
+    }
+}
+
+/// HidesTabBarWhenCompact gives a pushed screen the whole phone. On a wide screen the tab bar stays: a split view
+/// shows its detail with no back button to bring the bar back, and on iPad that bar can be the only way to leave.
+private struct HidesTabBarWhenCompact: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    func body(content: Content) -> some View {
+        content.toolbarVisibility(horizontalSizeClass == .compact ? .hidden : .automatic, for: .tabBar)
+    }
+}
+
+extension View {
+    func hidesTabBarWhenCompact() -> some View {
+        modifier(HidesTabBarWhenCompact())
     }
 }

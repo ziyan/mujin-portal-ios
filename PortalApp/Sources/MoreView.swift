@@ -147,7 +147,7 @@ struct MoreView: View {
             .navigationDestination(for: MoreDestination.self) { destination in
                 // A screen pushed from More has no use for the tab bar.
                 MoreDestinationView(destination: destination)
-                    .toolbarVisibility(.hidden, for: .tabBar)
+                    .hidesTabBarWhenCompact()
             }
             .task {
                 // The demo opens the releases list and taps the first row, as a person does.

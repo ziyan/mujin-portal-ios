@@ -52,7 +52,7 @@ struct AllControllersView: View {
         }
         .navigationTitle("Controllers")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .searchable(text: $filter.query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search controllers")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
