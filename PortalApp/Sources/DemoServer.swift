@@ -1290,16 +1290,6 @@ final class DemoSocket: FeedSocket, @unchecked Sendable {
         case .subscribe(_, _, let variables):
             inner.withValue { $0.conversationId = variables["conversationId"]?.stringValue ?? "" }
             state.withData { $0.sockets.append(self) }
-            // The chat where the assistant has been asked and has not answered: its run is at work in the thread of the question.
-            if DemoOptions.screen == "thread-chat-working", conversationId == ThreadDemo.chatConversationId {
-                Task {
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
-                    self.push(event: [
-                        "type": "text_delta", "runId": "run-demo", "threadRootMessageId": "t06",
-                        "textDelta": ["messageId": "demo-working", "text": "Looking at the door"],
-                    ])
-                }
-            }
             // The title-event screen: a conversation is open when the server renames it, and the title changes at once.
             if DemoOptions.screen == "title-event", conversationId == "conversation01" {
                 let demoState = state

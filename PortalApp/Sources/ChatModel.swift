@@ -243,6 +243,12 @@ final class ChatModel {
         }
     }
 
+    /// The demo's chat where the assistant has been asked and has not answered: its run is at work in the thread of that message.
+    func stageDemoWorking(inThreadOf messageId: String) {
+        isOwnTurnRunning = true
+        workingThreadRootMessageId = messageId
+    }
+
     func reloadRoom() async {
         guard let chatId else { return }
         if let loaded = try? await connection.chat(id: chatId) { room = loaded }

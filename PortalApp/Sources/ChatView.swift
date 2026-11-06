@@ -125,6 +125,7 @@ struct ChatView: View {
             model = chatModel
             chatModel.start()
             if appModel.isDemo, DemoOptions.screen == "chat-composer" { drafts.stageDemo() }
+            if appModel.isDemo, DemoOptions.screen == "thread-chat-working" { chatModel.stageDemoWorking(inThreadOf: "t06") }
             if appModel.isDemo, CallDemo.owns(DemoOptions.screen) { CallDemo.markPlayed() }
             if appModel.isDemo, DemoOptions.screen == "chat-reply" {
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
