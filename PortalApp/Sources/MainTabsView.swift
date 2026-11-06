@@ -338,7 +338,7 @@ private struct DestinationTab: View {
                 .portalDestinations()
                 .navigationDestination(for: MoreDestination.self) { destination in
                     MoreDestinationView(destination: destination)
-                        .toolbarVisibility(.hidden, for: .tabBar)
+                        .hidesTabBarWhenCompact()
                 }
         }
     }

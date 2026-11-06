@@ -61,7 +61,7 @@ struct ControllerSettingsView: View {
         }
         .navigationTitle("Controller settings")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .task { await load() }
     }
 

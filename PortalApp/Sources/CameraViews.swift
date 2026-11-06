@@ -312,7 +312,7 @@ struct CameraGridView: View {
         .background(Color.portalPage)
         .navigationTitle("Cameras")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .onChange(of: model.cameras.map(\.id)) { _, cameraIds in budget.retain(Set(cameraIds)) }
     }
 }

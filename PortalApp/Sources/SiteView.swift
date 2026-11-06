@@ -865,7 +865,7 @@ struct SiteTelemetryView: View {
         .portalList()
         .navigationTitle("Last 24 hours")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .task {
             let connection = appModel.connection(for: session.account)
             var rows: [(cell: SiteCell, telemetry: SiteTelemetry)] = []
@@ -963,7 +963,7 @@ struct VirtualControllerDetailView: View {
         .demoMenuHost(screen: "virtual-controller-menu")
         .navigationTitle(virtual.displayName)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .fullScreenCover(item: $screenSession) { screen in
             ControllerScreenView(session: screen, name: virtual.displayName)
         }
@@ -1138,7 +1138,7 @@ struct SiteListScreen: View {
         .accessibilityIdentifier("siteList.\(String(describing: kind))")
         .navigationTitle(kind.title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .toolbar {
             if kind == .virtualControllers, model.cellId == nil {
                 ToolbarItem(placement: .topBarTrailing) { VirtualControllerCreateButton(model: model) }

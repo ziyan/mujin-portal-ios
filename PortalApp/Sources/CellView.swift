@@ -21,7 +21,7 @@ struct CellView: View {
         }
         .navigationTitle(model?.cell.map { $0.name ?? $0.id } ?? String(localized: "Cell"))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .task(id: cellId) {
             // The model is the session's, so it keeps what it loaded across a push and a pop.
             let cellModel = session.siteModel(for: organizationId, siteId: siteId, cellId: cellId)
