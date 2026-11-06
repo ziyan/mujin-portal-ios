@@ -163,7 +163,7 @@ enum ThreadDemo {
         func call(_ id: String, caller: String, reason: String, seconds: Int, ago: TimeInterval, segments: Int, recordings: Int) -> [String: Any] {
             [
                 "id": id, "chatId": "chat02", "messageId": "d-\(id)", "startedByUserId": caller == "Alex Example" ? "user01" : "user03", "startedByUserName": caller,
-                "startedAt": stamp(ago + Double(seconds)), "endedAt": reason == "ended" ? stamp(ago) : NSNull(), "endReason": reason, "durationMS": reason == "ended" ? seconds * 1000 : NSNull(),
+                "startedAt": stamp(ago + Double(seconds)), "endedAt": stamp(ago), "endReason": reason, "durationMS": reason == "ended" ? seconds * 1000 : NSNull(),
                 "transcriptState": segments > 0 ? "done" : "off", "recordingCount": recordings, "transcriptSegmentCount": segments,
                 "members": [["userId": "user01", "userName": "Alex Example", "ringState": "answered"], ["userId": "user03", "userName": "Robin Demo", "ringState": "answered"]],
             ]
