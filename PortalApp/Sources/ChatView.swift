@@ -255,7 +255,7 @@ struct ChatView: View {
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
             .overlay(alignment: .top) {
-                if !model.isFeedLive {
+                if model.isFeedLost {
                     Label("Reconnecting", systemImage: "arrow.triangle.2.circlepath")
                         .font(.footnote)
                         .padding(.horizontal, 12)

@@ -33,8 +33,8 @@ final class ConversationModel {
     /// Told when the server gives the conversation another title, such as the one it writes after the first answer.
     var onTitleChanged: (@MainActor (String) -> Void)?
     private(set) var isMain = false
-    /// Whether the live feed is up. False while it reconnects.
-    private(set) var isFeedLive = false
+    /// Whether the live feed has dropped and not come back. The first connection of an opened conversation does not count.
+    private(set) var isFeedLost = false
     private(set) var isLoadingEarlier = false
     /// Background work this conversation started that has not ended.
     private(set) var backgroundWork: [BackgroundWork] = []
@@ -142,7 +142,7 @@ final class ConversationModel {
     private func handle(_ update: FeedUpdate) async {
         switch update {
         case .connected:
-            isFeedLive = true
+            isFeedLost = false
             // What was said while the feed was down is only in the history;
             // the server replays the running turn on this socket. Reactions
             // are never replayed, so older local changes give way to the history.
@@ -163,9 +163,9 @@ final class ConversationModel {
             default: break
             }
         case .reconnecting:
-            isFeedLive = false
+            isFeedLost = true
         case .signedOut:
-            isFeedLive = false
+            isFeedLost = true
             onError(PortalError.signedOut)
         }
     }

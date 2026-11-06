@@ -82,7 +82,8 @@ final class ChatModel {
     /// The cards under messages, asked for and polled by the loader the assistant conversations share.
     let linkPreviews: LinkPreviewLoader
     var previews: [String: [LinkPreviewCard]] { linkPreviews.previews }
-    private(set) var isFeedLive = false
+    /// Whether the live feed has dropped and not come back. The first connection of an opened chat does not count.
+    private(set) var isFeedLost = false
     private(set) var isLoadingEarlier = false
     /// The agents the chat's organization may use, the main one first.
     private(set) var agents: [Agent] = []
@@ -207,14 +208,14 @@ final class ChatModel {
     private func handle(_ update: FeedUpdate) async {
         switch update {
         case .connected:
-            isFeedLive = true
+            isFeedLost = false
             await reload()
         case .event(let event):
             await handle(event)
         case .reconnecting:
-            isFeedLive = false
+            isFeedLost = true
         case .signedOut:
-            isFeedLive = false
+            isFeedLost = true
             onError(PortalError.signedOut)
         }
     }
