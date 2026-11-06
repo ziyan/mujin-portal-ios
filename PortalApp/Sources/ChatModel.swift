@@ -53,7 +53,9 @@ final class ChatListModel {
 /// ChatModel is one open chat: the room's messages, kept current by the
 /// conversation's feed, and what the person does in it. The feed stays open
 /// only while the chat is on screen, which is how the server knows the
-/// person is looking and sends no notification for it.
+/// person is looking and sends no notification for it. With a `threadRootMessageId` it is one thread of the chat instead:
+/// the message it hangs from and its replies, with its own composer. A model of the main history reads it without the replies
+/// when the server has threads.
 @MainActor
 @Observable
 final class ChatModel {
@@ -68,11 +70,15 @@ final class ChatModel {
     let connection: Connection
     let socketFactory: FeedSocketFactory
     let onError: @MainActor (Error) -> Void
+    /// The thread this model shows, by the id of the message it hangs from. Nil for the main history.
+    let threadRootMessageId: String?
+    /// Whether the server has message threads. Without them every message is read, as before.
+    let offersMessageThreads: Bool
 
     private(set) var phase = Phase.loading
     private(set) var chatId: String?
     private(set) var room: ChatRoom?
-    private(set) var timeline = ChatTimeline()
+    private(set) var timeline: ChatTimeline
     private(set) var window = MessageWindow()
     /// The cards under messages, asked for and polled by the loader the assistant conversations share.
     let linkPreviews: LinkPreviewLoader
@@ -87,6 +93,8 @@ final class ChatModel {
     var offersStructuredMentions = false
     /// Whether a turn of the assistant the person started is running.
     private(set) var isOwnTurnRunning = false
+    /// The thread the assistant's turn at work answers in, when an event or a send said; nil while it is unknown.
+    private(set) var workingThreadRootMessageId: String?
     /// Whether a voice message is going up.
     private(set) var isSendingVoice = false
     private(set) var questions: [QuestionCard] = []
@@ -104,8 +112,11 @@ final class ChatModel {
 
     init(
         conversationId: String, chatId: String?, currentUserId: String, connection: Connection, socketFactory: @escaping FeedSocketFactory,
-        onError: @escaping @MainActor (Error) -> Void
+        threadRootMessageId: String? = nil, offersMessageThreads: Bool = false, onError: @escaping @MainActor (Error) -> Void
     ) {
+        self.threadRootMessageId = ThreadRouting.normalized(threadRootMessageId)
+        self.offersMessageThreads = offersMessageThreads
+        self.timeline = ChatTimeline(threadRootMessageId: threadRootMessageId)
         self.conversationId = conversationId
         self.chatId = chatId
         self.currentUserId = currentUserId
@@ -113,6 +124,15 @@ final class ChatModel {
         self.socketFactory = socketFactory
         self.onError = onError
         self.linkPreviews = LinkPreviewLoader(connection: connection, conversationId: conversationId)
+    }
+
+    var isThread: Bool { threadRootMessageId != nil }
+    /// Whether this screen shows the main history of a server with threads: replies are counted under the message, not listed.
+    var collapsesThreads: Bool { offersMessageThreads && !isThread }
+    /// Whether the assistant's turn at work is answering where this screen looks: in this thread, or in no thread on the main history.
+    var isAssistantWorkingHere: Bool {
+        ThreadRouting.isViewRunning(
+            isRunning: isOwnTurnRunning, workingThreadRootMessageId: workingThreadRootMessageId, viewThreadRootMessageId: threadRootMessageId)
     }
 
     var title: String { room?.title ?? String(localized: "Chat") }
@@ -198,14 +218,19 @@ final class ChatModel {
             case .received(let id):
                 await markRead()
                 await loadPreviews([id])
+            case .threadReplied:
+                // The reply is not listed here, but it is the newest message of the chat, which the read mark follows.
+                await markRead()
             case .none: break
             }
             return
         }
+        if ThreadRouting.isRunContent(event) { workingThreadRootMessageId = ThreadRouting.workingThreadRootMessageId(of: event) }
         switch event.kind {
         case .textDelta, .toolCall, .modelSwitch: isOwnTurnRunning = true
         case .runComplete, .runError:
             isOwnTurnRunning = false
+            workingThreadRootMessageId = nil
             await reloadCards()
         case .pendingQuestion, .pendingApproval: await reloadCards()
         default: break
@@ -229,12 +254,18 @@ final class ChatModel {
             if chatId == nil { chatId = try await connection.conversation(id: conversationId).chatId }
             guard let chatId else { throw PortalError.refused("This is not a chat.") }
             async let loadedRoom = connection.chat(id: chatId)
-            async let rows = connection.messages(conversationId: conversationId, latestCount: window.reloadCount)
-            async let total = try? connection.messageCount(conversationId: conversationId)
+            async let rows = connection.messages(
+                conversationId: conversationId, latestCount: isThread ? ThreadRouting.threadMessageCount : window.reloadCount,
+                shouldCollapseThreads: collapsesThreads, threadRootMessageId: threadRootMessageId)
+            // A thread is read whole, so it has no count of earlier messages.
+            let shouldCountMessages = !isThread
+            let shouldCollapse = collapsesThreads
+            async let total: Int? = shouldCountMessages ? connection.messageCountOrNil(conversationId: conversationId, shouldCollapseThreads: shouldCollapse) : nil
             let (newRoom, newRows) = try await (loadedRoom, rows)
             room = newRoom
             window.replace(with: newRows, totalCount: await total)
             timeline.load(window.messages)
+            await findNewestReply(in: newRoom)
             var marks: [String: String] = [:]
             for member in newRoom.members ?? [] {
                 if let mark = member.lastReadMessageId, !mark.isEmpty { marks[member.userId] = mark }
@@ -256,7 +287,8 @@ final class ChatModel {
         isLoadingEarlier = true
         defer { isLoadingEarlier = false }
         do {
-            let page = try await connection.messages(conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
+            let page = try await connection.messages(
+                conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first, shouldCollapseThreads: collapsesThreads)
             window.prepend(page)
             timeline.load(window.messages)
             await loadPreviews(page.map(\.id))
@@ -268,9 +300,19 @@ final class ChatModel {
 
     // MARK: read marks and typing
 
-    /// Tells the room the person has read to the end. The mark only moves forward.
+    /// While something is unread on the main history of a server with threads, the newest message of the chat can be a reply the
+    /// history leaves out, so the latest rows of everything are read to find it. Without that the replies stay unread for good.
+    private func findNewestReply(in newRoom: ChatRoom) async {
+        guard collapsesThreads, newRoom.unreadCount > 0 else { return }
+        if let tail = try? await connection.messages(conversationId: conversationId, latestCount: 20) {
+            timeline.noteNewestMessage(ThreadRouting.newestChatMessageId(in: tail))
+        }
+    }
+
+    /// Tells the room the person has read to the end. The mark only moves forward. A thread leaves the mark to the main history
+    /// under it, which counts the replies.
     func markRead() async {
-        guard let chatId, let last = timeline.messages.last?.id, last != lastMarkedMessageId, last != room?.readerLastReadMessageId else { return }
+        guard !isThread, let chatId, let last = timeline.newestMessageId, last != lastMarkedMessageId, last != room?.readerLastReadMessageId else { return }
         lastMarkedMessageId = last
         try? await connection.markChatRead(chatId: chatId, messageId: last)
     }
@@ -311,12 +353,18 @@ final class ChatModel {
             }
             let mentions = offersStructuredMentions ? Mentions.ranges(of: pickedMentions, in: trimmed) : []
             let sent = try await connection.sendChatMessage(
-                conversationId: conversationId, text: trimmed, replyToMessageId: replyTarget?.id, mentions: mentions)
+                conversationId: conversationId, text: trimmed,
+                replyToMessageId: ThreadRouting.replyToMessageId(pickedMessageId: replyTarget?.id, viewThreadRootMessageId: threadRootMessageId),
+                mentions: mentions)
             replyTarget = nil
             pickedMentions = []
             if hasFiles { attachments?.removeUploaded() }
             if let message = sent.message { timeline.upsert(message) }
-            if !sent.runId.isEmpty { isOwnTurnRunning = true }
+            if !sent.runId.isEmpty {
+                isOwnTurnRunning = true
+                // The assistant answers in a thread: the one the message is in, or a new one hanging from the message.
+                workingThreadRootMessageId = ThreadRouting.normalized(sent.message?.threadRootMessageId) ?? (offersMessageThreads ? sent.message?.id : nil)
+            }
             await markRead()
             return true
         } catch {
@@ -339,7 +387,7 @@ final class ChatModel {
             let file = try await connection.uploadAttachment(data: data, filename: VoiceMessageRules.filename(at: Date()), contentType: VoiceMessageRules.contentType)
             let row = try await connection.sendChatVoiceMessage(
                 conversationId: conversationId, attachmentId: file.id, durationMS: recording.durationMS, waveformLevels: recording.levels,
-                replyToMessageId: replyTarget?.id)
+                replyToMessageId: ThreadRouting.replyToMessageId(pickedMessageId: replyTarget?.id, viewThreadRootMessageId: threadRootMessageId))
             replyTarget = nil
             if let row { timeline.upsert(row) }
             await markRead()

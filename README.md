@@ -162,6 +162,18 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
 - **Video selection.** The phone sends one video track in two simulcast layers (rid `small` at a quarter size, 150 kbps, 15 fps; rid `full` up to 720p, 1.5 Mbps, 30 fps), VP8 preferred, H.264 allowed. It tells the server how much of each person's video it wants (`SetChatCallVideoSubscriptions`): full for the main stage, small for strip tiles in view, off for tiles scrolled out and for everyone while the call is minimized. The plan is sent once the media is up, again after a reconnect, and after every change, debounced by 300 ms. A call's size limit comes from `GetChatCallMaximumPersonCount`.
 - **Without a server that has them**, none of it shows: `ServerCapabilities` reads the schema once per sign-in.
 
+## Message threads
+
+A reply goes in a thread, in chats with people and in conversations with the assistant. The main history reads without the replies
+(`shouldCollapseThreads`) and a message that has a thread says "N replies" and when the last came; a tap opens the thread
+(`threadRootMessageId`) as a screen of its own, the root first, with its own composer. Reply on a message opens its thread instead of
+quoting it. A reply sent from a thread goes to the message picked, else to the root. An event of a run answering in a thread says which,
+so its streaming text and tool rows show only there, and the main history shows a spinner on the message's reply count while the
+assistant works. In a chat the main history counts a new reply under its message and still moves the read mark to the newest reply, which
+it reads the latest rows of everything to find. A reply written before threads has no thread and keeps its quote in the main history. A
+push that carries `threadRootMessageId` opens that thread. A server without the arguments and fields is sent none of them
+(`ServerCapabilities.offersMessageThreads`) and behaves as before.
+
 ## TestFlight
 
 TestFlight builds come from the `TestFlight` job of `.github/workflows/ios.yml`,

@@ -3,7 +3,9 @@ import Observation
 import PortalKit
 
 /// ConversationModel is one open conversation: its transcript, kept current
-/// by the subscription feed, and what the person does in it.
+/// by the subscription feed, and what the person does in it. With a `threadRootMessageId` it is one thread of the conversation
+/// instead: the message it hangs from and its replies, with its own composer. The model of the main history reads it without the
+/// replies when the server has threads, and shows them as a count under the message.
 @MainActor
 @Observable
 final class ConversationModel {
@@ -18,8 +20,12 @@ final class ConversationModel {
     let connection: Connection
     let socketFactory: FeedSocketFactory
     let onError: @MainActor (Error) -> Void
+    /// The thread this model shows, by the id of the message it hangs from. Nil for the main history.
+    let threadRootMessageId: String?
+    /// Whether the server has message threads. Without them every message is read, as before.
+    let offersMessageThreads: Bool
 
-    private(set) var transcript = Transcript()
+    private(set) var transcript: Transcript
     /// The cards under messages that hold a link: asked for and polled the way a people chat does.
     let linkPreviews: LinkPreviewLoader
     private(set) var window = MessageWindow()
@@ -65,8 +71,11 @@ final class ConversationModel {
 
     init(
         conversationId: String, currentUserId: String, connection: Connection, socketFactory: @escaping FeedSocketFactory,
-        onError: @escaping @MainActor (Error) -> Void
+        threadRootMessageId: String? = nil, offersMessageThreads: Bool = false, onError: @escaping @MainActor (Error) -> Void
     ) {
+        self.threadRootMessageId = ThreadRouting.normalized(threadRootMessageId)
+        self.offersMessageThreads = offersMessageThreads
+        self.transcript = Transcript(threadRootMessageId: threadRootMessageId)
         self.conversationId = conversationId
         self.currentUserId = currentUserId
         self.connection = connection
@@ -76,10 +85,15 @@ final class ConversationModel {
     }
 
     var isRunning: Bool { transcript.isRunning }
+    var isThread: Bool { threadRootMessageId != nil }
+    /// Whether this screen shows the main history of a server with threads: replies are counted under the message, not listed.
+    var collapsesThreads: Bool { offersMessageThreads && !isThread }
+    /// Whether the run at work answers where this screen looks: in this thread, or in no thread on the main history.
+    var isRunningHere: Bool { transcript.isRunningInView }
 
     /// A turn is running and nothing of the answer has shown yet: the last thing in the transcript is the person's own message.
     var isAwaitingFirstWords: Bool {
-        guard let last = transcript.entries.last(where: { entry in
+        guard isRunningHere, let last = transcript.entries.last(where: { entry in
             if case .note = entry { return false }
             return true
         }) else { return false }
@@ -198,9 +212,14 @@ final class ConversationModel {
     func reload(isRunFinished: Bool = false) async {
         do {
             async let summary = connection.conversation(id: conversationId)
-            async let messages = connection.messages(conversationId: conversationId, latestCount: window.reloadCount)
+            async let messages = connection.messages(
+                conversationId: conversationId, latestCount: isThread ? ThreadRouting.threadMessageCount : window.reloadCount,
+                shouldCollapseThreads: collapsesThreads, threadRootMessageId: threadRootMessageId)
             async let waitingCards = connection.waitingCards(conversationId: conversationId)
-            async let total = try? connection.messageCount(conversationId: conversationId)
+            // A thread is read whole, so it has no count of earlier messages.
+            let shouldCountMessages = !isThread
+            let shouldCollapse = collapsesThreads
+            async let total: Int? = shouldCountMessages ? connection.messageCountOrNil(conversationId: conversationId, shouldCollapseThreads: shouldCollapse) : nil
             let (loadedSummary, loadedMessages, loadedCards) = try await (summary, messages, waitingCards)
             window.replace(with: loadedMessages, totalCount: await total)
             cards = loadedCards
@@ -260,7 +279,8 @@ final class ConversationModel {
         isLoadingEarlier = true
         defer { isLoadingEarlier = false }
         do {
-            let page = try await connection.messages(conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
+            let page = try await connection.messages(
+                conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first, shouldCollapseThreads: collapsesThreads)
             window.prepend(page)
             transcript.load(messages: window.messages, questions: cards.questions, approvals: cards.approvals, isRunning: transcript.isRunning)
             await askForPreviews(page)
@@ -313,7 +333,10 @@ final class ConversationModel {
         let viewing = viewingReference?.viewing
         transcript.appendPendingUser(trimmed, viewing: viewing)
         do {
-            try await connection.sendMessage(conversationId: conversationId, text: trimmed, viewing: viewing, replyToMessageId: reply?.messageId, pageTitle: title)
+            try await connection.sendMessage(
+                conversationId: conversationId, text: trimmed, viewing: viewing,
+                replyToMessageId: ThreadRouting.replyToMessageId(pickedMessageId: reply?.messageId, viewThreadRootMessageId: threadRootMessageId),
+                pageTitle: title)
             replyTarget = nil
             viewingReference = nil
             attachments?.removeUploaded()

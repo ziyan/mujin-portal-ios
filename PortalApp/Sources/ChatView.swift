@@ -5,15 +5,22 @@ import UIKit
 /// ChatView is one chat with people: their messages on the left, the
 /// person's own on the right, replies, edits, reactions, who is typing, who
 /// has read, and cards under messages that hold links. The assistant joins
-/// when a message mentions the agent by its name or replies to one of its answers.
+/// when a message mentions the agent by its name or replies to one of its answers. On a server with message threads a reply goes in
+/// a thread: the main history shows how many replies a message has, and a tap opens the thread as a screen of its own, which is
+/// this same view with a `threadRootMessageId`.
 struct ChatView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
     let account: Account
     let conversationId: String
     let chatId: String?
+    /// The message whose thread this screen shows alone, with its own composer. Nil for the whole chat.
+    var threadRootMessageId: String?
+    /// A thread a notification asks this chat to open on, which this view takes and clears.
+    var requestedThreadRootMessageId: Binding<String?> = .constant(nil)
 
     @State private var model: ChatModel?
+    @State private var openedThreadRootId: String?
     @State private var isOnScreen = false
     @State private var draft = DemoOptions.screen == "chat-mention" ? "Can @" : ""
     @State private var messageToDelete: ChatMessage?
@@ -27,6 +34,7 @@ struct ChatView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var callCenter: CallCenter { appModel.callCenter }
+    private var isThread: Bool { threadRootMessageId != nil }
 
     var body: some View {
         Group {
@@ -36,9 +44,20 @@ struct ChatView: View {
                 ProgressView()
             }
         }
-        .conversationBar(title: model?.title ?? String(localized: "Chat"), onTitleTap: model?.room == nil ? nil : { isShowingInfo = true })
+        .conversationBar(
+            title: isThread ? String(localized: "Thread") : (model?.title ?? String(localized: "Chat")),
+            onTitleTap: isThread || model?.room == nil ? nil : { isShowingInfo = true }
+        )
+        .navigationDestination(item: $openedThreadRootId) { rootId in
+            ChatView(account: account, conversationId: conversationId, chatId: model?.chatId ?? chatId, threadRootMessageId: rootId)
+        }
+        .onChange(of: requestedThreadRootMessageId.wrappedValue, initial: true) { _, rootId in
+            guard !isThread, let rootId else { return }
+            openedThreadRootId = rootId
+            requestedThreadRootMessageId.wrappedValue = nil
+        }
         .toolbar {
-            if let model, canCall(model) {
+            if !isThread, let model, canCall(model) {
                 ToolbarItem(placement: .topBarTrailing) {
                     // A site chat holds everyone with access to the site, so a call there always starts with choosing who.
                     if model.room?.isSite == true {
@@ -54,7 +73,7 @@ struct ChatView: View {
                     }
                 }
             }
-            if let model, model.room != nil {
+            if !isThread, let model, model.room != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         // A group's administrators add to it; either person adds to a direct chat, which becomes a group; others see no such row.
@@ -97,7 +116,9 @@ struct ChatView: View {
             if let model, model.conversationId == conversationId { return }
             let chatModel = ChatModel(
                 conversationId: conversationId, chatId: chatId, currentUserId: account.userId, connection: appModel.connection(for: account),
-                socketFactory: appModel.socketFactory, onError: { [appModel, account] error in appModel.handle(error, account: account) })
+                socketFactory: appModel.socketFactory, threadRootMessageId: threadRootMessageId,
+                offersMessageThreads: session.capabilities.offersMessageThreads,
+                onError: { [appModel, account] error in appModel.handle(error, account: account) })
             chatModel.offersStructuredMentions = session.capabilities.offersStructuredMentions
             model = chatModel
             chatModel.start()
@@ -130,7 +151,7 @@ struct ChatView: View {
             ProgressView()
         case .failed(let message):
             ContentUnavailableView {
-                Label("Could not load this chat", systemImage: "wifi.exclamationmark")
+                Label(isThread ? LocalizedStringKey("Could not load this thread") : LocalizedStringKey("Could not load this chat"), systemImage: "wifi.exclamationmark")
             } description: {
                 Text(message)
             } actions: {
@@ -138,7 +159,7 @@ struct ChatView: View {
             }
         case .loaded:
             messages(model)
-                .safeAreaInset(edge: .top, spacing: 0) { callBanner(model) }
+                .safeAreaInset(edge: .top, spacing: 0) { if !isThread { callBanner(model) } }
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer(model) }
         }
     }
@@ -156,7 +177,7 @@ struct ChatView: View {
                         .buttonStyle(.bordered)
                         .disabled(model.isLoadingEarlier)
                     }
-                    if model.timeline.messages.isEmpty {
+                    if model.timeline.messages.isEmpty, !isThread {
                         ContentUnavailableView {
                             Label("No messages yet", systemImage: "bubble.left.and.bubble.right")
                         } description: {
@@ -185,9 +206,14 @@ struct ChatView: View {
                             message: message, model: model, isLastOwn: message.id == lastOwnMessageId(model),
                             startsRun: isNewDay || previous == nil || previous?.authorUserId != message.authorUserId || previous?.isAssistant != message.isAssistant,
                             previousMessageId: previous?.id,
-                            askDelete: { messageToDelete = $0 }
+                            askDelete: { messageToDelete = $0 },
+                            onOpenThread: threadOpener(model)
                         )
                         .id(message.id)
+                        }
+                        // The replies of a thread follow its root, which says how many there are.
+                        if isThread, message.id == threadRootMessageId {
+                            ThreadRepliesDivider(replyCount: messages.count - 1)
                         }
                     }
                     ForEach(model.questions) { card in
@@ -196,7 +222,7 @@ struct ChatView: View {
                     ForEach(model.approvals) { card in
                         ApprovalCardView(card: card) { isApproved in Task { await model.decide(card, isApproved: isApproved) } }
                     }
-                    if model.isOwnTurnRunning && model.questions.isEmpty && model.approvals.isEmpty {
+                    if model.isAssistantWorkingHere && model.questions.isEmpty && model.approvals.isEmpty {
                         Label("The assistant is working on your message", systemImage: "sparkles")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -226,6 +252,12 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    /// Opens the thread of a message, on a server with threads and on the main history; nowhere else a reply opens one.
+    private func threadOpener(_ model: ChatModel) -> ((String) -> Void)? {
+        guard model.collapsesThreads else { return nil }
+        return { openedThreadRootId = $0 }
     }
 
     // MARK: calls
@@ -416,6 +448,7 @@ struct ChatView: View {
     }
 
     private func fieldPrompt(_ model: ChatModel) -> LocalizedStringKey {
+        if isThread { return LocalizedStringKey("Reply in thread…") }
         if !dynamicTypeSize.isAccessibilitySize, let agent = model.agents.first?.name { return LocalizedStringKey("Message, or @\(agent) to ask") }
         return LocalizedStringKey("Message")
     }
@@ -500,6 +533,8 @@ private struct MessageRow: View {
     /// The message directly above this one, which a reply to it need not quote.
     var previousMessageId: String?
     let askDelete: (ChatMessage) -> Void
+    /// Opens the thread of a message. Nil where a reply is quoted instead: in a thread, and on a server without threads.
+    var onOpenThread: ((String) -> Void)?
 
     private var isMine: Bool { message.authorUserId == model.currentUserId && !message.isAssistant }
 
@@ -528,11 +563,19 @@ private struct MessageRow: View {
                     LinkPreviewCardView(card: card, connection: model.connection)
                         .frame(maxWidth: 320)
                 }
+                if let onOpenThread, message.hasThread || isAssistantWorkingInThread {
+                    ThreadReplyControl(summary: message.threadSummary, isWorking: isAssistantWorkingInThread) { onOpenThread(message.id) }
+                }
                 if isMine, isLastOwn { receipt }
             }
         }
         .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
         }
+    }
+
+    /// The assistant is answering in the thread of this message, which the main history says under the message.
+    private var isAssistantWorkingInThread: Bool {
+        model.isOwnTurnRunning && model.workingThreadRootMessageId == message.id
     }
 
     private var authorLine: some View {
@@ -565,6 +608,8 @@ private struct MessageRow: View {
     private var showsQuote: Bool {
         guard message.isReply, let replyId = message.replyToMessageId else { return false }
         if replyId == previousMessageId { return false }
+        // In a thread every reply answers its root, which sits at the top of the screen.
+        if replyId == model.threadRootMessageId { return false }
         if !message.hasQuotedText, model.timeline.messages.contains(where: { $0.id == replyId }) { return false }
         return true
     }
@@ -665,7 +710,7 @@ private struct MessageRow: View {
             messageId: message.id, text: message.text, isTrailing: isMine,
             ownReaction: Reactions.summaries(model.timeline.reactions(for: message.id), currentUserId: model.currentUserId).first { $0.isMine }?.emoji,
             onReact: { emoji in Task { await model.react(messageId: message.id, emoji: emoji) } },
-            onReply: model.canWrite ? { model.replyTarget = message } : nil,
+            onReply: model.canWrite ? { if let onOpenThread { onOpenThread(message.id) } else { model.replyTarget = message } } : nil,
             onEdit: model.canEdit(message) ? { model.editTarget = message } : nil,
             onRemoveLinkPreviews: isMine && hasPreviews ? { Task { await model.removePreviews(of: message) } } : nil,
             onDelete: model.canDelete(message) ? { askDelete(message) } : nil)
