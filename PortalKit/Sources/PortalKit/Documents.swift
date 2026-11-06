@@ -176,6 +176,7 @@ public enum Documents {
         documents += assistantDocuments
         documents += automationDocuments
         documents += ticketDocuments
+        documents += portalFeedbackDocuments
         documents += siteDocuments
         documents += notificationDocuments
         documents += chatDocuments
