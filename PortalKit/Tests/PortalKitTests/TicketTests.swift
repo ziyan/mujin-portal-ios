@@ -208,4 +208,9 @@ import Testing
             try await Connection(account: makeAccount(), transport: transport).uploadAttachment(data: Data("x".utf8), filename: "a.txt", contentType: "text/plain")
         }
     }
+
+    @Test func anImageTagIsAPicture() {
+        let parts = TicketBody.parts("Before\n\n<img src=\"attachment:01ABCDEF\" alt=\"new screen\" width=\"400\">\n\nAfter")
+        #expect(parts == [.text("Before"), .attachment(id: "01ABCDEF", name: "new screen", kind: .image), .text("After")])
+    }
 }

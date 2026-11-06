@@ -199,12 +199,13 @@ public enum BodyPart: Equatable, Sendable {
 
 public enum TicketBody {
     /// The ways the web writes a file into text: `[name](attachment:<id>)`, `![name](attachment:<id>)`, the same with the
-    /// download path `/api/v1/attachment/<id>`, and `<video src="attachment:<id>" title="name">` or `<iframe ...>` for a video or a PDF.
+    /// download path `/api/v1/attachment/<id>`, and `<video src="attachment:<id>" title="name">`, `<iframe ...>` or `<img ...>` for a video, a PDF or a picture.
     private static let markdownExpression = try? NSRegularExpression(
         pattern: #"(!?)\[((?:\\.|[^\]\\])*)\]\((?:attachment:|(?:https?://[^/\s)"]+)?/api/v1/attachment/)([0-9A-Za-z_-]+)(?:[#?][^)\s]*)?\)"#)
     private static let tagExpression = try? NSRegularExpression(
-        pattern: #"<(video|iframe)\b[^>]*?\bsrc="(?:attachment:|(?:https?://[^/\s)"]+)?/api/v1/attachment/)([0-9A-Za-z_-]+)[^"]*"[^>]*>(?:\s*</\1>)?"#, options: [.caseInsensitive])
+        pattern: #"<(video|iframe|img)\b[^>]*?\bsrc="(?:attachment:|(?:https?://[^/\s)"]+)?/api/v1/attachment/)([0-9A-Za-z_-]+)[^"]*"[^>]*>(?:\s*</\1>)?"#, options: [.caseInsensitive])
     private static let titleExpression = try? NSRegularExpression(pattern: #"\btitle="([^"]*)""#, options: [.caseInsensitive])
+    private static let altExpression = try? NSRegularExpression(pattern: #"\balt="([^"]*)""#, options: [.caseInsensitive])
 
     /// Splits text holding file references into words and files, in order.
     public static func parts(_ body: String) -> [BodyPart] {
@@ -229,6 +230,11 @@ public enum TicketBody {
             var title = ""
             if let titleMatch = titleExpression?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)), let titleRange = Range(titleMatch.range(at: 1), in: text) {
                 title = String(text[titleRange]).replacingOccurrences(of: "&quot;", with: "\"")
+            }
+            if body[tag].lowercased() == "img" {
+                let altRange = altExpression?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)).flatMap { Range($0.range(at: 1), in: text) }
+                found.append(Found(range: range, id: String(body[id]), name: altRange.map { String(text[$0]) } ?? title, kind: .image))
+                continue
             }
             var kind: AttachmentKind = body[tag].lowercased() == "video" ? .video : .pdf
             if kind == .video, !title.isEmpty, AttachmentKind.of(name: title, isImageSyntax: false) == .file { kind = .file }
