@@ -74,10 +74,9 @@ final class ThreadTests: XCTestCase {
     func testAnOldReplyKeepsItsQuoteInTheMainHistory() {
         let app = DemoApp.launch(screen: "thread-chat")
         XCTAssertTrue(message(app, "Fine by me.").waitForExistence(timeout: 60), "The chat did not open.\n\(app.debugDescription)")
-        // The message and the quote of it above the reply.
-        XCTAssertGreaterThanOrEqual(
-            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", Self.chatMainText)).count, 2,
-            "The old reply lost its quote.\n\(app.debugDescription)")
+        // The quote of the message it answers sits above the reply, named by its author.
+        XCTAssertTrue(
+            message(app, "Jordan Placeholder, \(Self.chatMainText)").waitForExistence(timeout: 30), "The old reply lost its quote.\n\(app.debugDescription)")
     }
 
     func testATapOnTheCountOpensTheThreadAndBackComesBackToTheChat() {
