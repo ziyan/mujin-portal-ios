@@ -220,6 +220,7 @@ struct ConversationView: View {
                         .padding(.top, 48)
                     }
                     let shownEntries = model.transcript.displayEntries.filter(Self.isShown)
+                    let threadKeys = Self.threadKeys(of: shownEntries, in: model.transcript)
                     ForEach(Array(shownEntries.enumerated()), id: \.element.id) { index, entry in
                         TranscriptRow(
                             entry: entry, model: model,
@@ -227,6 +228,9 @@ struct ConversationView: View {
                             onOpenThread: threadOpener(model),
                             commentLine: commentLine(for: entry, previous: index > 0 ? shownEntries[index - 1] : nil, entries: shownEntries, model: model)
                         )
+                        .threadBar(
+                            isShown: model.canOpenThreads && threadKeys[index] != nil,
+                            joinsBelow: index + 1 < threadKeys.count && threadKeys[index + 1] == threadKeys[index], gap: 16)
                         .id(entry.id)
                         // The replies of a thread follow its root, which says how many there are.
                         if let rootId = model.threadRootMessageId, entry.id == "user:\(rootId)" || entry.id == "assistant:\(rootId)" {
@@ -279,6 +283,16 @@ struct ConversationView: View {
 
     static let readableWidth: CGFloat = 720
 
+    /// The thread each entry is part of, which the bar beside it follows. What the assistant does after a message of a thread (its
+    /// tool calls, a failed turn) is part of that thread until the next message.
+    private static func threadKeys(of entries: [TranscriptEntry], in transcript: Transcript) -> [String?] {
+        var current: String?
+        return entries.map { entry in
+            if let id = messageId(of: entry) { current = transcript.threadKey(ofMessage: id) }
+            return current
+        }
+    }
+
     /// The message id of an entry that is a message, else nil.
     private static func messageId(of entry: TranscriptEntry?) -> String? {
         switch entry {
@@ -296,9 +310,9 @@ struct ConversationView: View {
         for candidate in entries {
             switch candidate {
             case .user(let rootId, let text, _) where rootId == root:
-                return CommentLine(rootMessageId: root, author: String(localized: "You"), excerpt: ThreadExcerpt.start(of: text), replyCount: model.transcript.threadSummary(for: root)?.replyCount ?? 0)
+                return CommentLine(rootMessageId: root, author: nil, excerpt: ThreadExcerpt.start(of: text))
             case .assistant(let rootId, let text, _) where rootId == root:
-                return CommentLine(rootMessageId: root, author: String(localized: "Assistant"), excerpt: ThreadExcerpt.start(of: text), replyCount: model.transcript.threadSummary(for: root)?.replyCount ?? 0)
+                return CommentLine(rootMessageId: root, author: String(localized: "Assistant"), excerpt: ThreadExcerpt.start(of: text))
             default: continue
             }
         }
@@ -357,14 +371,11 @@ private struct TranscriptRow: View {
     var onOpenThread: ((String) -> Void)?
     var commentLine: CommentLine?
 
-    /// Whether this message is a reply in a thread, which the main history marks with a bar.
-    private func isThreadReply(_ id: String) -> Bool { onOpenThread != nil && model.transcript.replyThreadRoot(of: id) != nil }
-
     /// The line above a reply that says which message it comments on.
     @ViewBuilder
     private var commentLineView: some View {
         if let commentLine, let onOpenThread {
-            ThreadCommentLine(author: commentLine.author, excerpt: commentLine.excerpt, replyCount: commentLine.replyCount) { onOpenThread(commentLine.rootMessageId) }
+            ThreadCommentLine(author: commentLine.author, excerpt: commentLine.excerpt) { onOpenThread(commentLine.rootMessageId) }
         }
     }
 
@@ -373,7 +384,7 @@ private struct TranscriptRow: View {
     private func threadControl(for id: String) -> some View {
         let isWorking = model.isRunning && model.transcript.workingThreadRootMessageId == id
         let summary = model.transcript.threadSummary(for: id)
-        if let onOpenThread, summary != nil || isWorking {
+        if let onOpenThread, summary?.isCountShown == true || isWorking {
             ThreadReplyControl(summary: summary, isWorking: isWorking) { onOpenThread(id) }
         }
     }
@@ -443,7 +454,6 @@ private struct TranscriptRow: View {
                 linkCards(for: id)
                 threadControl(for: id)
             }
-            .replyBar(isThreadReply(id))
             .frame(maxWidth: Self.bubbleWidth, alignment: .trailing)
             .frame(maxWidth: .infinity, alignment: .trailing)
         case .assistant(let id, let text, let isStreaming):
@@ -471,7 +481,6 @@ private struct TranscriptRow: View {
             }
             threadControl(for: id)
             }
-            .replyBar(isThreadReply(id))
             .frame(maxWidth: Self.bubbleWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
         case .tool(let activity):
@@ -499,7 +508,7 @@ private struct TranscriptRow: View {
                 .font(.footnote)
                 .foregroundStyle(isError ? AnyShapeStyle(Color.statusError) : AnyShapeStyle(.secondary))
         case .turnEnd(_, let kind, let text, let reason):
-            TurnEndLine(kind: kind, text: text, reason: reason)
+            TurnEndLine(kind: kind, text: text, reason: reason).frame(maxWidth: .infinity, alignment: .trailing)
         case .note(_, let note):
             NoteLine(note: note)
         case .goalNeedsYou(_, let goalId, let title, let question):

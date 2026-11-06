@@ -1,35 +1,23 @@
 import PortalKit
 import SwiftUI
 
-/// ThreadReplyControl sits under a message that has a thread: how many replies it holds and when the last came, or that the
-/// assistant is answering there. Tapping it opens the thread alone. It is a full-size tap target.
+/// ThreadReplyControl sits under the root of a thread that has two or more replies and says how many, in plain accent text, or that
+/// the assistant is answering there. Tapping it opens the thread alone. It is a full-size tap target.
 struct ThreadReplyControl: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let summary: ThreadSummary?
     let isWorking: Bool
     let onOpen: () -> Void
 
     var body: some View {
         Button(action: onOpen) {
-            let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 6))
-            layout {
-                HStack(spacing: 6) {
-                    if isWorking {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "bubble.left.and.bubble.right").accessibilityHidden(true)
-                    }
-                    if let summary {
-                        Text(ThreadText.replyCount(summary.replyCount)).font(.footnote.weight(.semibold))
-                    }
-                }
+            HStack(spacing: 6) {
                 if isWorking {
-                    Text("Working on an answer…").font(.caption).foregroundStyle(.secondary)
-                } else if let date = summary?.lastReplyDate {
-                    Text(date, format: .relative(presentation: .named)).font(.caption).foregroundStyle(.secondary)
+                    ProgressView().controlSize(.small)
+                    Text("Working on an answer…").font(.footnote).foregroundStyle(.secondary)
+                } else if let summary {
+                    Text(ThreadText.replyCount(summary.replyCount)).font(.footnote)
                 }
             }
-            .padding(.horizontal, 4)
             .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
@@ -65,47 +53,39 @@ enum ThreadText {
 }
 
 /// ThreadCommentLine sits above the first reply of a run in the main history and says which message it comments on. The start of
-/// that message is in the accent color, and a tap opens the thread. The reply arrow and the count of the thread sit at the edge.
+/// that message is in the accent color and a tap opens the thread. It is one line and never wider than the transcript. With no
+/// `author` the message is the person's own.
 struct ThreadCommentLine: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    let author: String
+    let author: String?
     let excerpt: String
-    let replyCount: Int
     let onOpen: () -> Void
 
     var body: some View {
         Button(action: onOpen) {
-            HStack(spacing: 8) {
-                (Text("Commented on \(author)'s message:") + Text(" ") + Text(excerpt).foregroundStyle(Color.accentColor))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-                    .multilineTextAlignment(.leading)
-                Spacer(minLength: 4)
-                if replyCount > 0 {
-                    HStack(spacing: 2) {
-                        Image(systemName: "arrowshape.turn.up.left").accessibilityHidden(true)
-                        Text("\(replyCount)")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-            }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            (author.map { Text("Commented on \($0)'s message:") } ?? Text("Commented on your message:")) + Text(" ")
+                + Text(excerpt).foregroundStyle(Color.accentColor)
         }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .contentShape(Rectangle())
         .accessibilityHint(Text("Open the thread"))
         .accessibilityIdentifier("threadCommentLine")
     }
 }
 
 extension View {
-    /// A thin bar beside a reply in the main history, in the style of a quote.
+    /// The bar beside a message of a thread, always on the left edge of the row. It is solid, and reaches down into the gap to the
+    /// next row when that one is part of the same thread, so it runs unbroken.
     @ViewBuilder
-    func replyBar(_ isShown: Bool) -> some View {
+    func threadBar(isShown: Bool, joinsBelow: Bool, gap: CGFloat) -> some View {
         if isShown {
-            padding(.leading, 8).overlay(alignment: .leading) { Rectangle().fill(Color.accentColor).frame(width: 2) }
+            padding(.leading, 10)
+                .background(alignment: .leading) {
+                    Rectangle().fill(Color.accentColor).frame(width: 2).padding(.bottom, joinsBelow ? -gap : 0)
+                }
         } else {
             self
         }

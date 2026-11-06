@@ -311,6 +311,11 @@ public struct Transcript: Equatable, Sendable {
         ThreadRouting.threadToOpen(messageId: messageId, threadRootMessageId: threadRoots[messageId], replyCount: threadSummaries[messageId]?.replyCount ?? 0)
     }
 
+    /// The thread a message is part of: the one it is a reply in, else its own when it has replies.
+    public func threadKey(ofMessage messageId: String) -> String? {
+        threadRoots[messageId] ?? ((threadSummaries[messageId]?.replyCount ?? 0) > 0 ? messageId : nil)
+    }
+
     /// The thread a message is a reply in, or nil for a message that is not.
     public func replyThreadRoot(of messageId: String) -> String? { threadRoots[messageId] }
 

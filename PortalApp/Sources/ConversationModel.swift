@@ -20,7 +20,7 @@ final class ConversationModel {
     let socketFactory: FeedSocketFactory
     let onError: @MainActor (Error) -> Void
     /// The thread this model shows, by the id of the message it hangs from. Nil for the main history.
-    let threadRootMessageId: String?
+    private(set) var threadRootMessageId: String?
     /// Whether the server has message threads. Without them every message is read, as before.
     let offersMessageThreads: Bool
 
@@ -338,6 +338,7 @@ final class ConversationModel {
             replyTarget = nil
             viewingReference = nil
             attachments?.removeUploaded()
+            await followThreadRoot()
             return true
         } catch {
             transcript.removePendingUser(trimmed)
@@ -345,6 +346,17 @@ final class ConversationModel {
             onError(error)
             return false
         }
+    }
+
+    /// An old answer with no thread joins its question's thread on its first reply: the screen that was opened from it moves to the
+    /// thread the server says it is in now.
+    private func followThreadRoot() async {
+        guard let openRoot = threadRootMessageId,
+            let root = await connection.messageThreadRoot(conversationId: conversationId, messageId: openRoot), root != openRoot
+        else { return }
+        threadRootMessageId = root
+        transcript = Transcript(threadRootMessageId: root)
+        await reload()
     }
 
     func cancelRun() async {

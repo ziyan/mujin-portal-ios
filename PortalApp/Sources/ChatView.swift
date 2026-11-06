@@ -210,10 +210,13 @@ struct ChatView: View {
                             onOpenThread: threadOpener(model),
                             commentLine: commentLine(for: message, previous: previous, model: model)
                         )
+                        .threadBar(
+                            isShown: model.canOpenThreads && message.threadKey != nil,
+                            joinsBelow: index + 1 < messages.count && messages[index + 1].threadKey == message.threadKey, gap: 10)
                         .id(message.id)
                         }
                         // The replies of a thread follow its root, which says how many there are.
-                        if isThread, message.id == threadRootMessageId {
+                        if isThread, message.id == model.threadRootMessageId {
                             ThreadRepliesDivider(replyCount: messages.count - 1)
                         }
                     }
@@ -262,8 +265,8 @@ struct ChatView: View {
             let rootMessage = model.timeline.messages.first(where: { $0.id == root }), !rootMessage.isDeleted
         else { return nil }
         let isOwn = rootMessage.authorUserId == model.currentUserId && !rootMessage.isAssistant
-        let author = isOwn ? String(localized: "You") : (rootMessage.isAssistant ? String(localized: "Assistant") : (rootMessage.authorName ?? model.member(rootMessage.authorUserId)?.shownName ?? String(localized: "Someone")))
-        return CommentLine(rootMessageId: root, author: author, excerpt: ThreadExcerpt.start(of: rootMessage.text), replyCount: rootMessage.threadReplyCount)
+        let author: String? = isOwn ? nil : (rootMessage.isAssistant ? String(localized: "Assistant") : (rootMessage.authorName ?? model.member(rootMessage.authorUserId)?.shownName ?? String(localized: "Someone")))
+        return CommentLine(rootMessageId: root, author: author, excerpt: ThreadExcerpt.start(of: rootMessage.text))
     }
 
     /// Opens the thread of a message, on a server with threads and on the main history; nowhere else a reply opens one.
@@ -522,9 +525,9 @@ struct ChatView: View {
 /// CommentLine is what the line above the first reply of a run says: the message it comments on.
 struct CommentLine: Equatable {
     let rootMessageId: String
-    let author: String
+    /// Nil when the message is the person's own.
+    let author: String?
     let excerpt: String
-    let replyCount: Int
 }
 
 /// BubbleKey is everything a chat bubble draws, so the bubble is drawn again only when one of them changes.
@@ -579,7 +582,7 @@ private struct MessageRow: View {
             VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
                 if !isMine, startsRun { authorLine }
                 if let commentLine, let onOpenThread {
-                    ThreadCommentLine(author: commentLine.author, excerpt: commentLine.excerpt, replyCount: commentLine.replyCount) { onOpenThread(commentLine.rootMessageId) }
+                    ThreadCommentLine(author: commentLine.author, excerpt: commentLine.excerpt) { onOpenThread(commentLine.rootMessageId) }
                 }
                 if showsQuote { quote }
                 tappableBubble
@@ -587,12 +590,11 @@ private struct MessageRow: View {
                     LinkPreviewCardView(card: card, connection: model.connection)
                         .frame(maxWidth: 320)
                 }
-                if let onOpenThread, message.hasThread || isAssistantWorkingInThread {
+                if let onOpenThread, message.threadSummary?.isCountShown == true || isAssistantWorkingInThread {
                     ThreadReplyControl(summary: message.threadSummary, isWorking: isAssistantWorkingInThread) { onOpenThread(message.id) }
                 }
                 if isMine, isLastOwn { receipt }
             }
-            .replyBar(onOpenThread != nil && message.threadRootMessageId != nil)
         }
         .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
         }

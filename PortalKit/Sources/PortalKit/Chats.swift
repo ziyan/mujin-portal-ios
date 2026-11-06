@@ -376,6 +376,8 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
     public var isReply: Bool { !(replyToMessageId ?? "").isEmpty }
     /// The message has a thread under it, which the main history shows as a count.
     public var hasThread: Bool { threadReplyCount > 0 }
+    /// The thread this message is part of: the one it is a reply in, else its own when it has replies. The bar beside it follows it.
+    public var threadKey: String? { threadRootMessageId ?? (hasThread ? id : nil) }
     public var threadSummary: ThreadSummary? { hasThread ? ThreadSummary(replyCount: threadReplyCount, lastReplyAt: threadLastReplyAt) : nil }
     /// A reply whose quoted message was said before the person joined has no excerpt.
     public var hasQuotedText: Bool { !(replyToExcerpt ?? "").isEmpty }

@@ -361,3 +361,30 @@ import Testing
         #expect(transcript.replyThreadRoot(of: "m3") == nil)
     }
 }
+
+@Suite struct ThreadBarTests {
+    @Test func aMessageIsPartOfTheThreadItIsAReplyInOrTheOneItHolds() {
+        let root = ChatMessage(ConversationMessage(id: "m1", role: "user", threadReplyCount: 2))
+        let reply = ChatMessage(ConversationMessage(id: "m2", role: "user", threadRootMessageId: "m1"))
+        let plain = ChatMessage(ConversationMessage(id: "m3", role: "user"))
+        #expect(root.threadKey == "m1" && reply.threadKey == "m1" && plain.threadKey == nil)
+        var transcript = Transcript()
+        transcript.load(
+            messages: [
+                ConversationMessage(id: "m1", role: "user", content: .string("Q"), threadReplyCount: 1),
+                ConversationMessage(id: "m2", role: "assistant", content: .string("A"), threadRootMessageId: "m1"),
+                ConversationMessage(id: "m3", role: "user", content: .string("Next")),
+            ], questions: [], approvals: [], isRunning: false)
+        #expect(transcript.threadKey(ofMessage: "m1") == "m1")
+        #expect(transcript.threadKey(ofMessage: "m2") == "m1")
+        #expect(transcript.threadKey(ofMessage: "m3") == nil)
+    }
+
+    @Test func theThreadRootIsAskedAfterAReply() async {
+        let (connection, _) = scriptedConnection { operation, _ in
+            operation == "GetMessageThreadRoot" ? ["GetMessageThreadRoot": ["threadRootMessageId": "q1"]] : [:]
+        }
+        let root = await connection.messageThreadRoot(conversationId: "c1", messageId: "a1")
+        #expect(root == "q1")
+    }
+}

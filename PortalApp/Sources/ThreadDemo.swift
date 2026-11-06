@@ -5,7 +5,8 @@ import PortalKit
 /// included, and the threads under them. It is served only on its own screens, against a server that has threads. Every name is invented.
 enum ThreadDemo {
     static let screens: Set<String> = [
-        "thread-chat", "thread-chat-open", "thread-chat-working", "thread-conversation", "thread-conversation-open", "thread-push",
+        "thread-chat", "thread-chat-open", "thread-chat-working", "thread-chat-media", "thread-chat-media-open", "thread-conversation",
+        "thread-conversation-open", "thread-push",
     ]
 
     static let chatConversationId = "chatconv-thread"
@@ -19,7 +20,7 @@ enum ThreadDemo {
     /// The conversation a screen opens.
     static func conversationId(for screen: String?) -> String? {
         switch screen {
-        case "thread-chat", "thread-chat-open", "thread-chat-working": chatConversationId
+        case "thread-chat", "thread-chat-open", "thread-chat-working", "thread-chat-media", "thread-chat-media-open": chatConversationId
         case "thread-conversation", "thread-conversation-open": assistantConversationId
         default: nil
         }
@@ -28,7 +29,7 @@ enum ThreadDemo {
     /// The thread a screen opens on, once its conversation is open.
     static func threadToOpen(for screen: String?) -> ThreadToOpen? {
         switch screen {
-        case "thread-chat-open": ThreadToOpen(conversationId: chatConversationId, threadRootMessageId: chatThreadRootMessageId)
+        case "thread-chat-open", "thread-chat-media-open": ThreadToOpen(conversationId: chatConversationId, threadRootMessageId: chatThreadRootMessageId)
         case "thread-conversation-open": ThreadToOpen(conversationId: assistantConversationId, threadRootMessageId: assistantThreadRootMessageId)
         default: nil
         }
@@ -66,7 +67,7 @@ enum ThreadDemo {
     /// The messages of the chat. A message with a thread says how many replies it holds and when the last came; the replies carry
     /// the message they hang from. One old reply has no thread and keeps its quote. With `isAssistantWorking` the assistant has been
     /// asked a question and its answer has not come yet.
-    static func chatMessages(isAssistantWorking: Bool, stamp: (TimeInterval) -> String) -> [[String: Any]] {
+    static func chatMessages(isAssistantWorking: Bool, hasMedia: Bool = false, stamp: (TimeInterval) -> String) -> [[String: Any]] {
         func said(
             _ id: String, _ author: String, _ name: String, _ text: String, _ secondsAgo: TimeInterval, extra: [String: Any] = [:]
         ) -> [String: Any] {
@@ -87,7 +88,7 @@ enum ThreadDemo {
         }
         var rows: [[String: Any]] = [
             said("t01", "user03", "Robin Demo", "The dock door 4 sensor has been flickering since this morning.", 14_400, extra: [
-                "threadReplyCount": 3, "threadLastReplyAt": stamp(1_500),
+                "threadReplyCount": hasMedia ? 6 : 3, "threadLastReplyAt": stamp(hasMedia ? 1_200 : 1_500),
             ]),
             said("t02", "user04", "Jordan Placeholder", "I saw it too. The cable looks loose at the frame.", 13_800, extra: ["threadRootMessageId": "t01", "replyToMessageId": "t01"]),
             said("t03", "user01", "Alex Example", "Can someone tighten it before the afternoon shift?", 12_000, extra: [
@@ -95,6 +96,16 @@ enum ThreadDemo {
             ]),
             said("t05", "user04", "Jordan Placeholder", "Shift change moves to 14:00 on Friday.", 3_000),
             said("t04", "user03", "Robin Demo", "On it. I will tell you when it is done.", 1_500, extra: ["threadRootMessageId": "t01", "replyToMessageId": "t03"]),
+        ]
+        if hasMedia {
+            // Replies that hold a link card, a photo, a video and a file, to see how each looks beside the bar.
+            rows += [
+                said("t10", "user04", "Jordan Placeholder", "The wiring guide: https://example.test/docs/door-wiring", 1_400, extra: ["threadRootMessageId": "t01"]),
+                said("t11", "user03", "Robin Demo", "This is the cable: ![camera-door4.jpg](/api/v1/attachment/imagedemo01)", 1_300, extra: ["threadRootMessageId": "t01"]),
+                said("t12", "user01", "Alex Example", "The walkthrough and the log:\n\n[station-walkthrough.mp4](/api/v1/attachment/videodemo01)\n\n[pressure-log.pdf](/api/v1/attachment/pdfdemo01)", 1_200, extra: ["threadRootMessageId": "t01"]),
+            ]
+        }
+        rows += [
             said("t06", "user01", "Alex Example", "@Mujin AI which doors reported the most sensor changes today?", 900, extra: ["isAddressingAssistant": true]),
         ]
         if isAssistantWorking {

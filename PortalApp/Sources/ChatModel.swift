@@ -70,7 +70,7 @@ final class ChatModel {
     let socketFactory: FeedSocketFactory
     let onError: @MainActor (Error) -> Void
     /// The thread this model shows, by the id of the message it hangs from. Nil for the main history.
-    let threadRootMessageId: String?
+    private(set) var threadRootMessageId: String?
     /// Whether the server has message threads. Without them every message is read, as before.
     let offersMessageThreads: Bool
 
@@ -368,12 +368,24 @@ final class ChatModel {
                 workingThreadRootMessageId = ThreadRouting.normalized(sent.message?.threadRootMessageId) ?? (offersMessageThreads ? sent.message?.id : nil)
             }
             await markRead()
+            await followThreadRoot()
             return true
         } catch {
             actionError = error.userMessage
             onError(error)
             return false
         }
+    }
+
+    /// An old message with no thread joins its question's thread on its first reply: the screen that was opened from it moves to the
+    /// thread the server says it is in now.
+    private func followThreadRoot() async {
+        guard let openRoot = threadRootMessageId,
+            let root = await connection.messageThreadRoot(conversationId: conversationId, messageId: openRoot), root != openRoot
+        else { return }
+        threadRootMessageId = root
+        timeline = ChatTimeline(threadRootMessageId: root)
+        await reload()
     }
 
     /// Uploads a finished recording and says it to the room as a voice message. The file is deleted afterwards.

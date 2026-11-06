@@ -44,7 +44,8 @@ final class ThreadTests: XCTestCase {
         let app = DemoApp.launch(screen: "thread-chat")
         XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 60), "The chat did not open.\n\(app.debugDescription)")
         XCTAssertTrue(replyControl(app, containing: "3 replies").exists, "The message with a thread does not say how many replies it has.\n\(app.debugDescription)")
-        XCTAssertTrue(replyControl(app, containing: "1 reply").exists, "The assistant's answer in a thread is not counted.\n\(app.debugDescription)")
+        // A question with its one answer needs no count.
+        XCTAssertFalse(replyControl(app, containing: "1 reply").exists, "A thread of one reply shows a count.\n\(app.debugDescription)")
         XCTAssertTrue(message(app, Self.chatReplyText).exists, "A reply is missing from the main history.\n\(app.debugDescription)")
     }
 

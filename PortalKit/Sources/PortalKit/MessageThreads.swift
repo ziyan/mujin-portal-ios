@@ -12,6 +12,9 @@ public struct ThreadSummary: Equatable, Sendable {
 
     public var lastReplyDate: Date? { PortalDate.parse(lastReplyAt) }
 
+    /// A thread of one reply, such as a question with its answer, needs no count under its root.
+    public var isCountShown: Bool { replyCount >= 2 }
+
     /// The summary a message carries, or nil when it has no thread.
     public init?(_ message: ConversationMessage) {
         guard let count = message.threadReplyCount, count > 0 else { return nil }
@@ -111,11 +114,32 @@ extension Documents {
         }
         """
 
-    static var messageThreadDocuments: [String] { [listMessagesInThread] }
+    /// The thread an old answer joined when it was first replied to.
+    public static let getMessageThreadRoot = """
+        query GetMessageThreadRoot($conversationId: String, $messageId: String) {
+          GetMessageThreadRoot(conversationId: $conversationId, messageId: $messageId) { threadRootMessageId }
+        }
+        """
+
+    static var messageThreadDocuments: [String] { [listMessagesInThread, getMessageThreadRoot] }
 }
 
 extension ServerCapabilities {
     /// Whether the server has message threads: it reads one thread. A server without them refuses a query that names the argument
     /// or the fields.
     public var offersMessageThreads: Bool { listMessageArgumentNames.contains("threadRootMessageId") }
+}
+
+extension Connection {
+    /// The thread a message belongs to now: an old answer with no thread joins its question's thread on its first reply. Nil when
+    /// the server does not say or the message is in none.
+    public func messageThreadRoot(conversationId: String, messageId: String) async -> String? {
+        struct Answer: Decodable, Sendable {
+            struct Root: Decodable, Sendable { let threadRootMessageId: String? }
+            let GetMessageThreadRoot: Root?
+        }
+        let answer = try? await execute(
+            Documents.getMessageThreadRoot, variables: ["conversationId": .string(conversationId), "messageId": .string(messageId)], as: Answer.self)
+        return ThreadRouting.normalized(answer?.GetMessageThreadRoot?.threadRootMessageId)
+    }
 }

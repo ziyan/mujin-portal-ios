@@ -291,7 +291,8 @@ final class DemoState: @unchecked Sendable {
             data.chats.append(ThreadDemo.chatRow(stamp: stamp))
             data.conversations.append(ThreadDemo.assistantRow(stamp: stamp))
             data.messages[ThreadDemo.chatConversationId] = ThreadDemo.chatMessages(
-                isAssistantWorking: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "thread-chat-working", stamp: stamp)
+                isAssistantWorking: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "thread-chat-working",
+                hasMedia: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]?.hasPrefix("thread-chat-media") == true, stamp: stamp)
             data.messages[ThreadDemo.assistantConversationId] = ThreadDemo.assistantMessages(stamp: stamp)
         }
         data.tickets = [
@@ -622,6 +623,8 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListMessageLinkPreviews": ids.compactMap { id -> [String: Any]? in
                     switch id {
+                    case "t10":
+                        return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash05", "linkKind": "external", "url": "https://example.test/docs/door-wiring", "title": "Dock door wiring guide", "description": "Where the sensor cable runs and how to seat it.", "siteName": "example.test"]]]
                     case "c2":
                         return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash01", "linkKind": "ticket", "resourceId": "ticket01", "title": "Gripper drops boxes at pick station 3", "description": "Ticket #1", "statusText": "open", "path": "/ticket/1"]]]
                     case "sc1":
