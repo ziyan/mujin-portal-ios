@@ -36,10 +36,11 @@ final class FeedbackTests: XCTestCase {
     }
 
     /// Settings is a lazy list: a row below the screen does not exist until it has been scrolled near.
-    private func scrollSettings(to element: XCUIElement, in app: XCUIApplication) {
+    private func scrollSettings(to element: XCUIElement, in app: XCUIApplication, isTapped: Bool = true) {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 90), "Settings did not open.\n\(app.debugDescription)")
         for _ in 0..<12 where !element.exists { app.swipeUp() }
-        DemoApp.scrollToElement(element, in: app)
+        // A row near the end of the list cannot be brought to the middle; one that is only looked at need not be.
+        if isTapped { DemoApp.scrollToElement(element, in: app) } else { XCTAssertTrue(element.exists, "\(element) never appeared.\n\(app.debugDescription)") }
     }
 
     private func typeWords(_ app: XCUIApplication, _ words: String = FeedbackTests.words) {
@@ -174,7 +175,7 @@ final class FeedbackTests: XCTestCase {
     func testAnOlderServerShowsNoFeedbackAnywhereInSettings() {
         let app = DemoApp.launch(screen: "settings")
         let tabBarRow = DemoApp.element(app, "editTabBarRow")
-        scrollSettings(to: tabBarRow, in: app)
+        scrollSettings(to: tabBarRow, in: app, isTapped: false)
         XCTAssertFalse(DemoApp.button(app, "sendFeedbackRow").exists, "Send feedback shows on a server that does not offer it.\n\(app.debugDescription)")
         XCTAssertFalse(app.switches["feedbackAfterScreenshotToggle"].exists, "The toggle shows on a server that does not offer feedback.\n\(app.debugDescription)")
     }
