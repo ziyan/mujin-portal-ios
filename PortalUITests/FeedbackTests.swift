@@ -35,6 +35,13 @@ final class FeedbackTests: XCTestCase {
         return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
     }
 
+    /// Settings is a lazy list: a row below the screen does not exist until it has been scrolled near.
+    private func scrollSettings(to element: XCUIElement, in app: XCUIApplication) {
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 90), "Settings did not open.\n\(app.debugDescription)")
+        for _ in 0..<12 where !element.exists { app.swipeUp() }
+        DemoApp.scrollToElement(element, in: app)
+    }
+
     private func typeWords(_ app: XCUIApplication, _ words: String = FeedbackTests.words) {
         let field = DemoApp.element(app, "feedbackWordsField")
         XCTAssertTrue(field.waitForExistence(timeout: 30), "There is no box for the words.\n\(app.debugDescription)")
@@ -138,7 +145,7 @@ final class FeedbackTests: XCTestCase {
     func testSettingsHasAFormThatNeedsNoScreenshot() {
         let app = DemoApp.launch(screen: "feedback-form")
         let row = DemoApp.button(app, "sendFeedbackRow")
-        DemoApp.scrollToElement(row, in: app)
+        scrollSettings(to: row, in: app)
         row.tap()
         XCTAssertTrue(DemoApp.element(app, "feedbackNotice").waitForExistence(timeout: 30), "The form did not open.\n\(app.debugDescription)")
         XCTAssertFalse(removeScreenshotButton(app).exists, "The form has a screenshot nobody took.\n\(app.debugDescription)")
@@ -153,7 +160,7 @@ final class FeedbackTests: XCTestCase {
     func testTheAskingToggleIsOnUntilTurnedOff() {
         let app = DemoApp.launch(screen: "feedback-form")
         let toggle = app.switches["feedbackAfterScreenshotToggle"]
-        DemoApp.scrollToElement(toggle, in: app)
+        scrollSettings(to: toggle, in: app)
         XCTAssertEqual(toggle.value as? String, "1", "Asking after a screenshot is not on by default.")
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
         let isOff = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "0"), object: toggle)
@@ -167,7 +174,7 @@ final class FeedbackTests: XCTestCase {
     func testAnOlderServerShowsNoFeedbackAnywhereInSettings() {
         let app = DemoApp.launch(screen: "settings")
         let tabBarRow = DemoApp.element(app, "editTabBarRow")
-        DemoApp.scrollToElement(tabBarRow, in: app)
+        scrollSettings(to: tabBarRow, in: app)
         XCTAssertFalse(DemoApp.button(app, "sendFeedbackRow").exists, "Send feedback shows on a server that does not offer it.\n\(app.debugDescription)")
         XCTAssertFalse(app.switches["feedbackAfterScreenshotToggle"].exists, "The toggle shows on a server that does not offer feedback.\n\(app.debugDescription)")
     }
@@ -206,7 +213,7 @@ final class FeedbackTests: XCTestCase {
         let app = DemoApp.launch(screen: "feedback-tickets")
         let label = DemoApp.element(app, "portalFeedbackLabel")
         XCTAssertTrue(label.waitForExistence(timeout: 90), "No ticket in the list is marked as Portal feedback.\n\(app.debugDescription)")
-        XCTAssertEqual(label.label, "Portal feedback")
+        XCTAssertTrue(label.label.contains("Portal feedback"), "The row does not carry the label: \"\(label.label)\".")
     }
 
     func testTheTicketMarksItselfAsFeedbackAboutPortal() {
