@@ -225,6 +225,8 @@ public enum ChatCallRules {
     /// Whether the person can start a call from this chat: it has someone else in it.
     public static func canStart(in room: ChatRoom?, userId: String) -> Bool {
         guard let room, room.canWrite else { return false }
+        // Anyone with access to the site can be called into a site chat.
+        if room.isSite { return true }
         return room.currentMembers.contains { $0.userId != userId }
     }
 }

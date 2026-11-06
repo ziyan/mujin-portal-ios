@@ -17,12 +17,12 @@ struct ChatView: View {
     @State private var isOnScreen = false
     @State private var draft = DemoOptions.screen == "chat-mention" ? "Can @" : ""
     @State private var messageToDelete: ChatMessage?
-    @State private var isShowingInfo = DemoOptions.screen == "chat-info"
+    @State private var isShowingInfo = DemoOptions.screen == "chat-info" || DemoOptions.screen == "chat-site-info"
     @State private var isAddingPeople = DemoOptions.screen == "chat-add-people"
     @State private var drafts = AttachmentDrafts()
     @State private var recorder = VoiceMessageRecorder()
     @State private var isShowingVoiceHint = false
-    @State private var isChoosingWhoToCall = DemoOptions.screen == "call-picker"
+    @State private var isChoosingWhoToCall = DemoOptions.screen == "call-picker" || DemoOptions.screen == "chat-site-picker"
     @AppStorage("chatVoiceMode") private var isVoiceModePreferred = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -40,12 +40,18 @@ struct ChatView: View {
         .toolbar {
             if let model, canCall(model) {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button { startCall(model, userIds: nil, isVideoOn: false) } label: { Label("Voice call", systemImage: "phone") }
-                        Button { startCall(model, userIds: nil, isVideoOn: true) } label: { Label("Video call", systemImage: "video") }
-                        Button { isChoosingWhoToCall = true } label: { Label("Choose who to call", systemImage: "person.2") }
-                    } label: { Label("Call", systemImage: "phone") }
-                    .accessibilityIdentifier("chatCallMenu")
+                    // A site chat holds everyone with access to the site, so a call there always starts with choosing who.
+                    if model.room?.isSite == true {
+                        Button { isChoosingWhoToCall = true } label: { Label("Choose who to call", systemImage: "phone") }
+                            .accessibilityIdentifier("chatCallMenu")
+                    } else {
+                        Menu {
+                            Button { startCall(model, userIds: nil, isVideoOn: false) } label: { Label("Voice call", systemImage: "phone") }
+                            Button { startCall(model, userIds: nil, isVideoOn: true) } label: { Label("Video call", systemImage: "video") }
+                            Button { isChoosingWhoToCall = true } label: { Label("Choose who to call", systemImage: "person.2") }
+                        } label: { Label("Call", systemImage: "phone") }
+                        .accessibilityIdentifier("chatCallMenu")
+                    }
                 }
             }
             if let model, model.room != nil {
@@ -70,7 +76,7 @@ struct ChatView: View {
         .sheet(isPresented: $isChoosingWhoToCall) {
             if let model {
                 CallPeoplePicker(
-                    title: "Choose who to call", confirmTitle: "Call", people: (model.room?.currentMembers ?? []).filter { $0.userId != model.currentUserId },
+                    title: "Choose who to call", confirmTitle: "Call", people: model.reachablePeople.filter { $0.userId != model.currentUserId },
                     showsVideoChoice: true, maximumPeople: session.callMaximumPersonCount
                 ) { userIds, isVideoOn in startCall(model, userIds: userIds, isVideoOn: isVideoOn) }
             }
@@ -668,7 +674,7 @@ private struct MessageRow: View {
     @ViewBuilder
     private var receipt: some View {
         let count = model.timeline.readerCount(of: message.id, excluding: model.currentUserId)
-        if count > 0 {
+        if count > 0, model.room?.isSite != true {
             HStack(spacing: 4) {
                 if model.room?.isGroup != true { UserAvatar(userId: model.room?.avatarMembers(excluding: model.currentUserId).first?.userId, name: model.title, size: 16) }
                 if model.room?.isGroup == true {
@@ -695,13 +701,21 @@ struct ChatInfoView: View {
     @State private var isAddingPeople = false
     @State private var isConfirmingLeave = false
     @State private var memberToRemove: ChatMember?
+    @State private var searchText = ""
+
+    /// The people to show: a site chat can hold hundreds, so it can be searched.
+    private func shownMembers(of room: ChatRoom) -> [ChatMember] {
+        let text = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard room.isSite, !text.isEmpty else { return room.currentMembers }
+        return room.currentMembers.filter { $0.shownName.localizedCaseInsensitiveContains(text) || ($0.organizationName ?? "").localizedCaseInsensitiveContains(text) }
+    }
 
     var body: some View {
         NavigationStack {
             List { PortalRows {
                 if let room = model.room {
-                    Section("People") {
-                        ForEach(room.currentMembers) { member in
+                    Section {
+                        ForEach(shownMembers(of: room)) { member in
                             MemberRow(member: member, isViewer: member.userId == model.currentUserId, viewerOrganizationId: model.member(model.currentUserId)?.organizationId)
                                 .swipeActions {
                                     if model.isAdmin, room.isGroup, member.userId != model.currentUserId {
@@ -724,6 +738,10 @@ struct ChatInfoView: View {
                         if model.canAddPeople {
                             Button { isAddingPeople = true } label: { Label("Add people", systemImage: "person.badge.plus") }
                         }
+                    } header: {
+                        Text(room.isSite ? "\(room.currentMembers.count) people" : "People")
+                    } footer: {
+                        if room.isSite { Text("Anyone with access to this site can join by opening this chat or being mentioned in it.") }
                     }
                     Section {
                         Picker("Notify me", selection: Binding(
@@ -745,7 +763,7 @@ struct ChatInfoView: View {
                             Button { renameDraft = room.title; isRenaming = true } label: { Label("Rename group", systemImage: "pencil") }
                         }
                     }
-                    if room.isGroup, room.canWrite {
+                    if room.hasManyAuthors, room.canWrite {
                         Section {
                             Button(role: .destructive) { isConfirmingLeave = true } label: {
                                 Label("Leave chat", systemImage: "rectangle.portrait.and.arrow.right").foregroundStyle(Color.statusError)
@@ -758,6 +776,7 @@ struct ChatInfoView: View {
                 }
             } }
 .portalList()
+            .searchablePeople(isOn: model.room?.isSite == true, text: $searchText)
             .navigationTitle(model.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }

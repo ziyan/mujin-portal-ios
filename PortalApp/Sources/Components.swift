@@ -343,10 +343,27 @@ struct ChatAvatar: View {
 
     var body: some View {
         let members = room.avatarMembers(excluding: session.account.userId)
-        if room.isGroup, members.count > 1 {
+        if room.isSite {
+            Image(systemName: "building.2.fill")
+                .font(.system(size: size * 0.42))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: size, height: size)
+                .background(Color.accentColor.opacity(0.16), in: Circle())
+        } else if room.isGroup, members.count > 1 {
             AvatarStack(members: members, size: size)
         } else {
             UserAvatar(userId: members.first?.userId, name: room.title, size: size)
+        }
+    }
+}
+
+extension View {
+    /// A search field over a list of people, on the screens where the list can be long.
+    @ViewBuilder func searchablePeople(isOn: Bool, text: Binding<String>) -> some View {
+        if isOn {
+            searchable(text: text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search people")
+        } else {
+            self
         }
     }
 }

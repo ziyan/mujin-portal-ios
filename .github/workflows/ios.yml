@@ -250,6 +250,9 @@ jobs:
           shoot photo-chat photo-chat
           shoot main-chat main-chat
           shoot chat-info chat-info
+          shoot chat-site chat:chatsite01
+          shoot chat-site-info chat-site-info
+          shoot chat-site-picker chat-site-picker
           shoot chat-add-people chat-add-people
           shoot chats-new chats-new
           shoot chats-new-staff chats-new-group staff
@@ -620,6 +623,7 @@ jobs:
           shoot large-text-chat-call-transcript chat-call-transcript
           shoot large-text-call-reconnecting call-reconnecting
           shoot large-text-update-available update-available
+          shoot large-text-chat-site-info chat-site-info
           shoot large-text-call-voice call-voice
           shoot large-text-call-video call-video
           shoot large-text-call-transcription call-transcription

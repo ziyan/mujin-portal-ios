@@ -408,6 +408,9 @@ struct SiteView: View {
 
     private func resourcesSection(_ model: SiteModel) -> some View {
         Section("Resources") {
+            if session.capabilities.offersSiteChats, let siteId = model.selectedSiteId {
+                SiteChatRow(siteId: siteId, connection: model.connection)
+            }
             NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.sessionKey)) {
                 LabeledContent("Controllers") { Text(model.controllers.count.formatted()).monospacedDigit() }
             }
@@ -1140,6 +1143,46 @@ struct SiteListScreen: View {
             if kind == .virtualControllers, model.cellId == nil {
                 ToolbarItem(placement: .topBarTrailing) { VirtualControllerCreateButton(model: model) }
             }
+        }
+    }
+}
+
+/// SiteChatRow opens the chat of the site, for everyone with access to it.
+private struct SiteChatRow: View {
+    @Environment(SessionModel.self) private var session
+    let siteId: String
+    let connection: Connection
+
+    @State private var isOpening = false
+    @State private var errorText: String?
+
+    var body: some View {
+        Button {
+            Task { await open() }
+        } label: {
+            HStack {
+                Label("Site chat", systemImage: "bubble.left.and.bubble.right").foregroundStyle(.primary)
+                Spacer(minLength: 8)
+                if isOpening { ProgressView().controlSize(.small) }
+            }
+            .contentShape(.rect)
+        }
+        .disabled(isOpening)
+        .accessibilityIdentifier("siteChatRow")
+        .alert("Could not open the site chat", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorText ?? "")
+        }
+    }
+
+    private func open() async {
+        isOpening = true
+        defer { isOpening = false }
+        do {
+            session.open(.chat(conversationId: try await connection.openSiteChat(siteId: siteId)))
+        } catch {
+            errorText = error.localizedDescription
         }
     }
 }

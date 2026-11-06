@@ -73,6 +73,7 @@ struct ChatsView: View {
             if appModel.isDemo, let screen = DemoOptions.screen {
                 if screen.hasPrefix("chat:") { selection.open(String(screen.dropFirst("chat:".count))) }
                 if screen == "chat-info" { selection.open("chatconv02") }
+                if screen == "chat-site-info" || screen == "chat-site-picker" { selection.open("chatsite01") }
                 if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selection.open("chatconv01") }
                 if let conversationId = CallDemo.conversationId(for: screen) { selection.open(conversationId) }
                 if screen == "chats-new" { newChatMode = .direct }
@@ -127,8 +128,9 @@ struct ChatsView: View {
                 }
             } else {
                 List(selection: $selection.selectedId) {
-                    let people = model.chats.filter { $0.chat?.isGroup != true }
+                    let people = model.chats.filter { $0.chat?.hasManyAuthors != true }
                     let groups = model.chats.filter { $0.chat?.isGroup == true }
+                    let sites = model.chats.filter { $0.chat?.isSite == true }
                     if !people.isEmpty {
                         Section("People") {
                             ForEach(people) { conversation in
@@ -140,6 +142,14 @@ struct ChatsView: View {
                     if !groups.isEmpty {
                         Section("Groups") {
                             ForEach(groups) { conversation in
+                                NavigationLink(value: conversation.id) { if let room = conversation.chat { ChatRow(room: room) } }
+                                    .listRowBackground(Color.portalCard)
+                            }
+                        }
+                    }
+                    if !sites.isEmpty {
+                        Section("Sites") {
+                            ForEach(sites) { conversation in
                                 NavigationLink(value: conversation.id) { if let room = conversation.chat { ChatRow(room: room) } }
                                     .listRowBackground(Color.portalCard)
                             }
@@ -200,7 +210,7 @@ private struct ChatRow: View {
     private var excerpt: String {
         let text = room.lastMessageExcerpt ?? ""
         if text.isEmpty { return String(localized: "No messages yet") }
-        guard room.isGroup, let author = room.lastMessageAuthorName, !author.isEmpty else { return text }
+        guard room.hasManyAuthors, let author = room.lastMessageAuthorName, !author.isEmpty else { return text }
         return "\(author): \(text)"
     }
 }

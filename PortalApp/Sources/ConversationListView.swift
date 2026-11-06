@@ -82,6 +82,7 @@ struct ConversationListView: View {
             if appModel.isDemo, let screen = DemoOptions.screen {
                 if screen.hasPrefix("chat:") { selection.open(String(screen.dropFirst("chat:".count))) }
                 if screen == "chat-info" { selection.open("chatconv02") }
+                if screen == "chat-site-info" || screen == "chat-site-picker" { selection.open("chatsite01") }
                 if screen == "photo-chat" { selection.open("conversation-photos") }
                 if screen == "voice" || screen == "conversation-links" || screen == "message-actions" || screen == "select-text" || screen == "title-event" { selection.open("conversation01") }
                 if screen == "side-chat-links" { selection.open("conversation05") }
@@ -285,7 +286,7 @@ private struct ConversationRow: View {
                         .font(.headline)
                         .lineLimit(isLarge ? 3 : 1)
                     if !isLarge { Spacer(minLength: 4) }
-                    if case let date = ConversationOrdering.activity(conversation), date > .distantPast {
+                    if case let date = ConversationOrdering.activity(conversation), date > .distantPast, !isSiteChatWithoutMessages {
                         Text(date, format: .relative(presentation: .named))
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -336,11 +337,15 @@ private struct ConversationRow: View {
         return conversation.title?.isEmpty == false ? conversation.title! : String(localized: "New conversation")
     }
 
+    /// A site chat appears by itself, and nobody has spoken in this one: it has no time to show.
+    private var isSiteChatWithoutMessages: Bool { conversation.chat?.isSite == true && conversation.chat?.lastActivity == nil }
+
     /// One line of the last message: in a group the author first, a mention token read as a name.
     private var preview: String {
         if let room = conversation.chat, conversation.conversationKind == "chat" {
             let text = MentionText.rendered(room.lastMessageExcerpt ?? "", members: room.members ?? [])
-            guard room.isGroup, let author = room.lastMessageAuthorName, !author.isEmpty, !text.isEmpty else { return text }
+            if text.isEmpty, room.isSite { return String(localized: "No messages yet") }
+            guard room.hasManyAuthors, let author = room.lastMessageAuthorName, !author.isEmpty, !text.isEmpty else { return text }
             return "\(author.split(separator: " ").first.map(String.init) ?? author): \(text)"
         }
         return conversation.lastMessageExcerpt ?? conversation.summary ?? ""

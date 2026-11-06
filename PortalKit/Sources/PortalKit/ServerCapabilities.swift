@@ -32,6 +32,9 @@ public struct ServerCapabilities: Equatable, Sendable {
     /// Chats between people.
     public var offersChats: Bool { offersQuery("ListChatCandidates") && offersMutation("StartDirectChat") }
 
+    /// A chat for each site, for the people with access to it.
+    public var offersSiteChats: Bool { offersMutation("OpenSiteChat") }
+
     /// Whether SendMessage takes structured mentions. Until it does, a
     /// message names an agent by its text and the server matches the name.
     public var offersStructuredMentions: Bool { sendMessageArgumentNames.contains("mentions") }

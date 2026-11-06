@@ -255,6 +255,16 @@ struct CallPeoplePicker: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selected: Set<String> = DemoOptions.screen == "call-picker" ? ["user03"] : []
     @State private var isVideo = false
+    @State private var searchText = ""
+
+    /// With this many people to pick from, the list can be searched.
+    private static let searchablePersonCount = 9
+
+    private var shownPeople: [ChatMember] {
+        let text = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return people }
+        return people.filter { $0.shownName.localizedCaseInsensitiveContains(text) || ($0.organizationName ?? "").localizedCaseInsensitiveContains(text) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -273,7 +283,7 @@ struct CallPeoplePicker: View {
                         if people.isEmpty {
                             Text("Everyone is already on the call.").foregroundStyle(.secondary)
                         }
-                        ForEach(people) { person in
+                        ForEach(shownPeople) { person in
                             Button {
                                 if selected.contains(person.userId) { selected.remove(person.userId) } else { selected.insert(person.userId) }
                             } label: {
@@ -301,6 +311,7 @@ struct CallPeoplePicker: View {
                 }
             }
             .portalList()
+            .searchablePeople(isOn: people.count >= Self.searchablePersonCount, text: $searchText)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

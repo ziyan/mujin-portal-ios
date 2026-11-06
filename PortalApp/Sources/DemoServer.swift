@@ -227,6 +227,18 @@ final class DemoState: @unchecked Sendable {
                 member("user03", "Robin Demo", "organization01", "Example Logistics"),
                 member("user04", "Jordan Placeholder", "organization01", "Example Logistics"),
             ]),
+            chatRow("chatsite01", "chat-site", "site", "Plant North · Example Logistics", "The dock door sensor is back.", "Robin Demo", unread: 0, secondsAgo: 9_000, members: [
+                member("user01", "Alex Example", "organization01", "Example Logistics"),
+                member("user02", "Sam Sample", "organization00", "Support", staff: true),
+                member("user03", "Robin Demo", "organization01", "Example Logistics"),
+                member("user04", "Jordan Placeholder", "organization01", "Example Logistics"),
+                member("user05", "Casey Trial", "organization01", "Example Logistics"),
+                member("user06", "Morgan Mock", "organization01", "Example Logistics"),
+                member("user07", "Taylor Test", "organization01", "Example Logistics"),
+                member("user08", "Riley Stub", "organization00", "Support", staff: true),
+                member("user09", "Quinn Fixture", "organization01", "Example Logistics"),
+                member("user10", "Avery Draft", "organization01", "Example Logistics"),
+            ]),
         ]
         func said(_ id: String, _ author: String, _ name: String, _ text: String, _ secondsAgo: TimeInterval, role: String = "user", extra: [String: Any] = [:]) -> [String: Any] {
             var row: [String: Any] = [
@@ -497,7 +509,7 @@ struct DemoTransport: HTTPTransport {
                     "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"], ["name": "globalSearch"]]],
                     "mutationType": [
                         "fields": [
-                            ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"],
+                            ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"], ["name": "openSiteChat"],
                         ] + (hasCalls ? [["name": "startChatCall"], ["name": "joinChatCallMedia"]] : [])
                     ],
                     "subscriptionType": ["fields": [["name": "onConversationEvent"]] + (hasCalls ? [["name": "onChatCallEvent"], ["name": "onChatCallSignal"]] : [])],
@@ -507,7 +519,15 @@ struct DemoTransport: HTTPTransport {
             return ["GetMainAgent": ["id": "agent01", "name": "Assistant", "isMain": true]]
         case "ListConversations":
             if variables["conversationKind"] as? String == "chat" {
-                return ["ListConversations": ["conversations": state.withData { $0.chats }, "meta": ["totalCount": 2]]]
+                // A list leaves out who is in a site chat, as a real server does.
+                let rows = state.withData { $0.chats }.map { row -> [String: Any] in
+                    guard var room = row["chat"] as? [String: Any], room["chatKind"] as? String == "site" else { return row }
+                    room["members"] = [[String: Any]]()
+                    var listed = row
+                    listed["chat"] = room
+                    return listed
+                }
+                return ["ListConversations": ["conversations": rows, "meta": ["totalCount": 3]]]
             }
             return ["ListConversations": ["conversations": state.withData { $0.conversations }, "meta": ["totalCount": 7]]]
         case "GetConversation":
@@ -535,6 +555,13 @@ struct DemoTransport: HTTPTransport {
             return ["StartDirectChat": ["chat": ["id": "chat01"], "conversation": ["id": "chatconv01"]]]
         case "CreateGroupChat":
             return ["CreateGroupChat": ["chat": ["id": "chat02"], "conversation": ["id": "chatconv02"]]]
+        case "ListSiteChatPeople":
+            let people: [[String: Any]] = [("user01", "Alex Example"), ("user02", "Sam Sample"), ("user03", "Robin Demo"), ("user11", "Drew Sample")].map {
+                ["userId": $0.0, "userName": $0.1, "organizationId": "organization01", "organizationName": "Example Logistics", "isMujinUser": false]
+            }
+            return ["ListSiteChatPeople": people]
+        case "OpenSiteChat":
+            return ["OpenSiteChat": ["chat": ["id": "chat-site"], "conversation": ["id": "chatsite01"]]]
         case "AddChatMembers":
             // As on the server: the people join the same chat, and a direct chat becomes a group of everyone, its two people administrators.
             let chatId = variables["chatId"] as? String ?? ""
