@@ -555,6 +555,11 @@ struct DemoTransport: HTTPTransport {
             return ["StartDirectChat": ["chat": ["id": "chat01"], "conversation": ["id": "chatconv01"]]]
         case "CreateGroupChat":
             return ["CreateGroupChat": ["chat": ["id": "chat02"], "conversation": ["id": "chatconv02"]]]
+        case "ListSiteChatPeople":
+            let people: [[String: Any]] = [("user01", "Alex Example"), ("user02", "Sam Sample"), ("user03", "Robin Demo"), ("user11", "Drew Sample")].map {
+                ["userId": $0.0, "userName": $0.1, "organizationId": "organization01", "organizationName": "Example Logistics", "isMujinUser": false]
+            }
+            return ["ListSiteChatPeople": people]
         case "OpenSiteChat":
             return ["OpenSiteChat": ["chat": ["id": "chat-site"], "conversation": ["id": "chatsite01"]]]
         case "AddChatMembers":

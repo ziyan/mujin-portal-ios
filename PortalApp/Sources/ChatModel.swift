@@ -83,6 +83,8 @@ final class ChatModel {
     private(set) var agents: [Agent] = []
     /// The people and agents the person picked from the @ list for the draft.
     private(set) var pickedMentions: [MentionCandidate] = []
+    /// Everyone with access to the site of a site chat.
+    private(set) var sitePeople: [ChatMember] = []
     /// Whether the server takes structured mentions; otherwise the name text carries them.
     var offersStructuredMentions = false
     /// Whether a turn of the assistant the person started is running.
@@ -124,10 +126,18 @@ final class ChatModel {
         return room.isGroup ? isAdmin : true
     }
 
+    /// Who can be mentioned or called: the chat's members, and in a site chat everyone with access to the site, who join when picked.
+    var reachablePeople: [ChatMember] {
+        let members = room?.currentMembers ?? []
+        guard room?.isSite == true else { return members }
+        let joined = Set(members.map(\.userId))
+        return members + sitePeople.filter { !joined.contains($0.userId) }
+    }
+
     /// The people and agents the @ list offers for what the draft ends with, or none when it is closed.
     func mentionSuggestions(for draft: String) -> [MentionCandidate] {
         guard canWrite, let query = Mentions.query(in: draft) else { return [] }
-        return Mentions.candidates(agents: agents, members: room?.members ?? [], query: query, excludingUserId: currentUserId)
+        return Mentions.candidates(agents: agents, members: reachablePeople, query: query, excludingUserId: currentUserId)
     }
 
     func pick(_ candidate: MentionCandidate) {
@@ -144,7 +154,7 @@ final class ChatModel {
     }
 
     /// The names that read as chips in a sent message.
-    var mentionNames: [String] { agents.compactMap(\.name) + (room?.members ?? []).map(\.shownName) }
+    var mentionNames: [String] { agents.compactMap(\.name) + reachablePeople.map(\.shownName) }
 
     func member(_ userId: String?) -> ChatMember? { room?.members?.first { $0.userId == userId } }
 
@@ -233,6 +243,13 @@ final class ChatModel {
             async let total = try? connection.messageCount(conversationId: conversationId)
             let (newRoom, newRows) = try await (loadedRoom, rows)
             room = newRoom
+            if newRoom.isSite, let people = try? await connection.siteChatPeople(chatId: chatId) {
+                sitePeople = people.map {
+                    ChatMember(
+                        id: $0.userId, userId: $0.userId, userName: $0.userName, organizationId: $0.organizationId, organizationName: $0.organizationName,
+                        isMujinUser: $0.isMujinUser)
+                }
+            }
             window.replace(with: newRows, totalCount: await total)
             timeline.load(window.messages)
             var marks: [String: String] = [:]
