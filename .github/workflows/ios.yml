@@ -253,6 +253,11 @@ jobs:
           shoot chat-site chat:chatsite01
           shoot chat-site-info chat-site-info
           shoot chat-site-picker chat-site-picker
+          shoot thread-chat thread-chat
+          shoot thread-chat-open thread-chat-open
+          shoot thread-chat-working thread-chat-working
+          shoot thread-conversation thread-conversation
+          shoot thread-conversation-open thread-conversation-open
           shoot chat-add-people chat-add-people
           shoot chats-new chats-new
           shoot chats-new-staff chats-new-group staff
@@ -532,6 +537,11 @@ jobs:
           shoot call-three-dark call-three
           shoot call-five-dark call-five
           shoot call-twelve-dark call-twelve
+          shoot thread-chat-dark thread-chat
+          shoot thread-chat-open-dark thread-chat-open
+          shoot thread-chat-working-dark thread-chat-working
+          shoot thread-conversation-dark thread-conversation
+          shoot thread-conversation-open-dark thread-conversation-open
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
@@ -635,6 +645,11 @@ jobs:
           shoot large-text-call-three call-three
           shoot large-text-call-five call-five
           shoot large-text-call-twelve call-twelve
+          shoot large-text-thread-chat thread-chat
+          shoot large-text-thread-chat-open thread-chat-open
+          shoot large-text-thread-chat-working thread-chat-working
+          shoot large-text-thread-conversation thread-conversation
+          shoot large-text-thread-conversation-open thread-conversation-open
 
       - name: Keep the screenshots
         if: always()

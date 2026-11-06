@@ -115,6 +115,10 @@ struct MainTabsView: View {
             if appModel.isDemo, let screen = DemoOptions.screen, CallDemo.owns(screen), screen.hasPrefix("call-"), screen != "call-picker" {
                 appModel.callCenter.showDemo(CallDemo.session(for: screen), isScreenShown: screen != "call-minimized")
             }
+            // A notification about a reply in a thread, as if it had launched the app: the chat opens on that thread.
+            if appModel.isDemo, DemoOptions.screen == "thread-push" {
+                newSession.open(.chatThread(conversationId: ThreadDemo.chatConversationId, threadRootMessageId: ThreadDemo.chatThreadRootMessageId))
+            }
             // A notification tapped a few seconds after launch, for a test that sends the app away first.
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("push:") {
                 let conversationId = String(screen.dropFirst("push:".count))

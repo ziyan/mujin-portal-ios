@@ -287,6 +287,13 @@ final class DemoState: @unchecked Sendable {
             data.chats.append(CallDemo.chatRow(stamp: stamp))
             data.messages["chatconv03"] = CallDemo.messages(screen: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] ?? "", stamp: stamp)
         }
+        if ThreadDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
+            data.chats.append(ThreadDemo.chatRow(stamp: stamp))
+            data.conversations.append(ThreadDemo.assistantRow(stamp: stamp))
+            data.messages[ThreadDemo.chatConversationId] = ThreadDemo.chatMessages(
+                isAssistantWorking: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "thread-chat-working", stamp: stamp)
+            data.messages[ThreadDemo.assistantConversationId] = ThreadDemo.assistantMessages(stamp: stamp)
+        }
         data.tickets = [
             ticket("ticket01", 1, "Gripper drops boxes at pick station 3", "open", "high", requester: "user01", organization: "organization01", secondsAgo: 7_200),
             ticket("ticket02", 2, "Network drops on controller02", "pending", "normal", requester: "user03", organization: "organization02", secondsAgo: 20_000),
@@ -385,30 +392,38 @@ final class DemoState: @unchecked Sendable {
     }
 
     /// Plays an assistant answer through the feeds, then stores it.
-    func playAnswer(conversationId: String, text: String) {
+    func playAnswer(conversationId: String, text: String, threadRootMessageId: String? = nil) {
         let messageId = withData { data -> String in
             data.nextNumber += 1
             return "demo-message-\(data.nextNumber)"
         }
         Task {
+            // Every event of a run answering in a thread says which.
+            let threadFields: [String: Any] = threadRootMessageId.map { ["threadRootMessageId": $0] } ?? [:]
             try? await Task.sleep(nanoseconds: 300_000_000)
             var spoken = ""
             for word in text.split(separator: " ", omittingEmptySubsequences: false) {
                 spoken += (spoken.isEmpty ? "" : " ") + word
                 broadcast(
                     conversationId: conversationId,
-                    event: ["type": "text_delta", "runId": "run-demo", "textDelta": ["messageId": messageId, "text": (spoken == word ? "" : " ") + word]])
+                    event: ["type": "text_delta", "runId": "run-demo", "textDelta": ["messageId": messageId, "text": (spoken == word ? "" : " ") + word]]
+                        .merging(threadFields) { current, _ in current })
                 try? await Task.sleep(nanoseconds: 90_000_000)
             }
             withData { data in
-                data.messages[conversationId, default: []].append([
-                    "id": messageId, "role": "assistant", "content": text, "createdAt": ISO8601DateFormatter().string(from: Date()),
-                ])
+                let createdAt = ISO8601DateFormatter().string(from: Date())
+                data.messages[conversationId, default: []].append(
+                    ["id": messageId, "role": "assistant", "content": text, "createdAt": createdAt].merging(threadFields) { current, _ in current })
+                if let threadRootMessageId {
+                    ThreadDemo.countReply(under: threadRootMessageId, at: createdAt, in: &data.messages[conversationId, default: []])
+                }
                 if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
                     data.conversations[index]["activeRunId"] = NSNull()
                 }
             }
-            broadcast(conversationId: conversationId, event: ["type": "run_complete", "runId": "run-demo", "runComplete": ["stopReason": "end_turn"]])
+            broadcast(
+                conversationId: conversationId,
+                event: ["type": "run_complete", "runId": "run-demo", "runComplete": ["stopReason": "end_turn"]].merging(threadFields) { current, _ in current })
             // As on the server: the title it writes from the first exchange comes a few seconds after the turn ends, as an event.
             if conversationId.hasPrefix("conversation-new-") {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -504,9 +519,16 @@ struct DemoTransport: HTTPTransport {
         case "ServerCapabilities":
             // The call screens are shot against a server that has voice messages and calls; the others against one that does not.
             let hasCalls = CallDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            // The thread screens are shot against a server that reads one thread or the main history without replies.
+            let hasThreads = ThreadDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            let queryFields: [[String: Any]] = [
+                ["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"],
+                ["name": "globalSearch"],
+                ["name": "listConversationMessages", "args": hasThreads ? [["name": "threadRootMessageId"], ["name": "shouldCollapseThreads"]] : []],
+            ]
             return [
                 "__schema": [
-                    "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"], ["name": "globalSearch"]]],
+                    "queryType": ["fields": queryFields],
                     "mutationType": [
                         "fields": [
                             ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"], ["name": "openSiteChat"],
@@ -611,7 +633,7 @@ struct DemoTransport: HTTPTransport {
         case "SetChatTyping", "MarkChatRead", "EditChatMessage", "DeleteChatMessage", "RemoveMessageLinkPreviews":
             return [operation: NSNull()]
         case "ListConversationMessages":
-            return ["ListConversationMessages": state.withData { $0.messages[conversationId] ?? [] }]
+            return ["ListConversationMessages": ThreadDemo.messages(state.withData { $0.messages[conversationId] ?? [] }, variables: variables)]
         case "ListSites":
             let all: [[String: Any]] = [
                 ["id": "site01", "name": "site01", "organizationId": "organization01", "isArchived": false, "viewerCapabilities": ["virtual_controller:create"]],
@@ -937,7 +959,7 @@ struct DemoTransport: HTTPTransport {
                 }
             ]
         case "CountConversationMessages":
-            let loaded = state.withData { $0.messages[conversationId]?.count ?? 0 }
+            let loaded = ThreadDemo.messages(state.withData { $0.messages[conversationId] ?? [] }, variables: variables).count
             return ["CountConversationMessages": ["messageCount": conversationId == "conversation04" ? loaded + 12 : loaded]]
         case "RenameConversation":
             let title = variables["title"] as? String ?? ""
@@ -1027,19 +1049,34 @@ struct DemoTransport: HTTPTransport {
             return ["CreateConversation": ["conversation": created]]
         case "SendMessage" where conversationId.hasPrefix("chatconv"):
             let message = variables["message"] as? String ?? ""
-            let row: [String: Any] = [
+            var row: [String: Any] = [
                 "id": "demo-chat-\(Int.random(in: 1000...9999))", "role": "user", "content": message, "createdAt": ISO8601DateFormatter().string(from: Date()), "isChatMessage": true,
                 "authorUserId": "user01", "authorName": "Alex Example", "replyToMessageId": variables["replyToMessageId"] ?? NSNull(),
             ]
-            state.withData { $0.messages[conversationId, default: []].append(row) }
+            state.withData { data in
+                // On the screens with threads a reply goes in the thread of the message it answers.
+                if ThreadDemo.owns(DemoOptions.screen), let root = ThreadDemo.threadRoot(replyingTo: variables["replyToMessageId"] as? String, in: data.messages[conversationId] ?? []) {
+                    row["threadRootMessageId"] = root
+                    ThreadDemo.countReply(under: root, at: row["createdAt"] as? String ?? "", in: &data.messages[conversationId, default: []])
+                }
+                data.messages[conversationId, default: []].append(row)
+            }
             return ["SendMessage": ["runId": "", "message": row]]
         case "SendMessage":
             let message = variables["message"] as? String ?? ""
+            var threadRootMessageId: String?
             state.withData { data in
                 data.nextNumber += 1
-                data.messages[conversationId, default: []].append([
+                var row: [String: Any] = [
                     "id": "demo-user-\(data.nextNumber)", "role": "user", "content": message, "createdAt": ISO8601DateFormatter().string(from: Date()),
-                ])
+                ]
+                // On the screens with threads a reply goes in the thread of the message it answers, and so does the answer.
+                if ThreadDemo.owns(DemoOptions.screen), let root = ThreadDemo.threadRoot(replyingTo: variables["replyToMessageId"] as? String, in: data.messages[conversationId] ?? []) {
+                    row["threadRootMessageId"] = root
+                    threadRootMessageId = root
+                    ThreadDemo.countReply(under: root, at: row["createdAt"] as? String ?? "", in: &data.messages[conversationId, default: []])
+                }
+                data.messages[conversationId, default: []].append(row)
                 if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
                     data.conversations[index]["activeRunId"] = "run-demo"
                 }
@@ -1053,7 +1090,8 @@ struct DemoTransport: HTTPTransport {
             }
             state.playAnswer(
                 conversationId: conversationId,
-                text: "This is a demo answer. Your real assistant would look this up and reply here, one word at a time.")
+                text: "This is a demo answer. Your real assistant would look this up and reply here, one word at a time.",
+                threadRootMessageId: threadRootMessageId)
             return ["SendMessage": ["runId": "run-demo"]]
         case "AnswerQuestion":
             state.withData { data in
@@ -1231,6 +1269,16 @@ final class DemoSocket: FeedSocket, @unchecked Sendable {
         case .subscribe(_, _, let variables):
             inner.withValue { $0.conversationId = variables["conversationId"]?.stringValue ?? "" }
             state.withData { $0.sockets.append(self) }
+            // The chat where the assistant has been asked and has not answered: its run is at work in the thread of the question.
+            if DemoOptions.screen == "thread-chat-working", conversationId == ThreadDemo.chatConversationId {
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    self.push(event: [
+                        "type": "text_delta", "runId": "run-demo", "threadRootMessageId": "t06",
+                        "textDelta": ["messageId": "demo-working", "text": "Looking at the door"],
+                    ])
+                }
+            }
             // The title-event screen: a conversation is open when the server renames it, and the title changes at once.
             if DemoOptions.screen == "title-event", conversationId == "conversation01" {
                 let demoState = state
