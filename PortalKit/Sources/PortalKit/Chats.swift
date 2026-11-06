@@ -552,6 +552,12 @@ extension Documents {
         }
         """
 
+    public static let listSiteChatPeople = """
+        query ListSiteChatPeople($chatId: String!) {
+          ListSiteChatPeople(chatId: $chatId) { userId userName organizationId organizationName isMujinUser }
+        }
+        """
+
     public static let openSiteChat = """
         mutation OpenSiteChat($siteId: String) {
           OpenSiteChat(siteId: $siteId) { chat { \(chatRoomFields) } conversation { id } }
@@ -650,7 +656,7 @@ extension Documents {
 
     static var chatDocuments: [String] {
         [
-            listChats, getChat, listChatCandidates, startDirectChat, openSiteChat, createGroupChat, addChatMembers, removeChatMember, renameChat, setChatMemberAdmin,
+            listChats, getChat, listChatCandidates, startDirectChat, openSiteChat, listSiteChatPeople, createGroupChat, addChatMembers, removeChatMember, renameChat, setChatMemberAdmin,
             setChatNotificationLevel, setChatMemoryFiling, sendChatMessage, editChatMessage, deleteChatMessage, markChatRead, setChatTyping,
             listMessageLinkPreviews, removeMessageLinkPreviews, listAuthorizedAgents,
         ]
@@ -700,6 +706,12 @@ extension Connection {
         guard let id = try await execute(Documents.startDirectChat, variables: ["userId": .string(userId)], as: Answer.self).StartDirectChat?.conversation?.id
         else { throw PortalError.unreadableAnswer }
         return id
+    }
+
+    /// The people with access to the site of a chat, who join it when mentioned or called.
+    public func siteChatPeople(chatId: String) async throws -> [ChatCandidate] {
+        struct Answer: Decodable, Sendable { let ListSiteChatPeople: [ChatCandidate]? }
+        return try await execute(Documents.listSiteChatPeople, variables: ["chatId": .string(chatId)], as: Answer.self).ListSiteChatPeople ?? []
     }
 
     /// Opens the chat of a site the person can read and returns their conversation of it.

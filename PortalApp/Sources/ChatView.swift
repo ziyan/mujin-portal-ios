@@ -95,7 +95,7 @@ struct ChatView: View {
         .sheet(isPresented: $isChoosingWhoToCall) {
             if let model {
                 CallPeoplePicker(
-                    title: "Choose who to call", confirmTitle: "Call", people: (model.room?.currentMembers ?? []).filter { $0.userId != model.currentUserId },
+                    title: "Choose who to call", confirmTitle: "Call", people: model.reachablePeople.filter { $0.userId != model.currentUserId },
                     showsVideoChoice: true, maximumPeople: session.callMaximumPersonCount
                 ) { userIds, isVideoOn in startCall(model, userIds: userIds, isVideoOn: isVideoOn) }
             }
@@ -829,7 +829,7 @@ struct ChatInfoView: View {
                     } header: {
                         Text(room.isSite ? "\(room.currentMembers.count) people" : "People")
                     } footer: {
-                        if room.isSite { Text("Everyone with access to this site is in this chat.") }
+                        if room.isSite { Text("Anyone with access to this site can join by opening this chat or being mentioned in it.") }
                     }
                     Section {
                         Picker("Notify me", selection: Binding(
@@ -851,7 +851,7 @@ struct ChatInfoView: View {
                             Button { renameDraft = room.title; isRenaming = true } label: { Label("Rename group", systemImage: "pencil") }
                         }
                     }
-                    if room.isGroup, room.canWrite {
+                    if room.hasManyAuthors, room.canWrite {
                         Section {
                             Button(role: .destructive) { isConfirmingLeave = true } label: {
                                 Label("Leave chat", systemImage: "rectangle.portrait.and.arrow.right").foregroundStyle(Color.statusError)

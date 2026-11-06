@@ -65852,53 +65852,6 @@
         }
       }
     },
-    "Everyone with access to this site is in this chat.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Everyone with access to this site is in this chat."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このサイトにアクセスできる全員がこのチャットに参加しています。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有权访问此站点的所有人都在此聊天中。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有權存取此站點的所有人都在此聊天中。"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alle mit Zugriff auf diesen Standort sind in diesem Chat."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toutes les personnes ayant accès à ce site sont dans cette discussion."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Iedereen met toegang tot deze locatie zit in deze chat."
-          }
-        }
-      }
-    },
     "Could not open the site chat": {
       "extractionState": "manual",
       "localizations": {
@@ -65942,6 +65895,53 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kan de locatiechat niet openen"
+          }
+        }
+      }
+    },
+    "Anyone with access to this site can join by opening this chat or being mentioned in it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anyone with access to this site can join by opening this chat or being mentioned in it."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このサイトにアクセスできる人は、このチャットを開くか、チャット内でメンションされると参加できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有权访问此站点的人可以打开此聊天或在其中被提及来加入。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有權存取此站點的人可以開啟此聊天或在其中被提及來加入。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle mit Zugriff auf diesen Standort können beitreten, indem sie diesen Chat öffnen oder darin erwähnt werden."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toute personne ayant accès à ce site peut rejoindre cette discussion en l’ouvrant ou en y étant mentionnée."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iedereen met toegang tot deze locatie kan meedoen door deze chat te openen of erin genoemd te worden."
           }
         }
       }

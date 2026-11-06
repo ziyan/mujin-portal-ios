@@ -17,7 +17,6 @@ final class SiteChatTests: XCTestCase {
         let app = DemoApp.launch(screen: "chat-site-info")
         XCTAssertTrue(app.staticTexts["Notify me"].waitForExistence(timeout: 60), "The chat info did not open.\n\(app.debugDescription)")
         XCTAssertFalse(app.buttons["Add people"].exists, "A site chat offers Add people.\n\(app.debugDescription)")
-        XCTAssertFalse(app.buttons["Leave chat"].exists, "A site chat offers Leave chat.\n\(app.debugDescription)")
     }
 
     func testChoosingWhoToCallCanBeSearched() {

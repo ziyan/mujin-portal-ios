@@ -120,10 +120,10 @@ struct AppUpdateCard: View {
     }
 
     @ViewBuilder private var buttons: some View {
-        Button(action: onOpen) { Text(update.openTitle).lineLimit(1) }
+        Button(action: onOpen) { Text(update.openTitle) }
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("appUpdateOpen")
-        Button(action: onNotNow) { Text("Not now").lineLimit(1) }
+        Button(action: onNotNow) { Text("Not now") }
             .buttonStyle(.bordered)
             .accessibilityIdentifier("appUpdateNotNow")
     }
