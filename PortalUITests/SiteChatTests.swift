@@ -15,7 +15,10 @@ final class SiteChatTests: XCTestCase {
 
     func testTheChatInfoOffersNoWayToChangeWhoIsIn() {
         let app = DemoApp.launch(screen: "chat-site-info")
-        XCTAssertTrue(app.staticTexts["Notify me"].waitForExistence(timeout: 60), "The chat info did not open.\n\(app.debugDescription)")
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 60), "The chat info did not open.\n\(app.debugDescription)")
+        // Add people would sit right above this row, so reaching it brings that place on screen.
+        let notifications = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Notify me'")).firstMatch
+        XCTAssertTrue(reveal(notifications, in: app), "The chat info has no notification choice.\n\(app.debugDescription)")
         XCTAssertFalse(app.buttons["Add people"].exists, "A site chat offers Add people.\n\(app.debugDescription)")
     }
 
@@ -32,9 +35,19 @@ final class SiteChatTests: XCTestCase {
     func testTheSitePageOpensItsChat() {
         let app = DemoApp.launch(screen: "site")
         let row = DemoApp.element(app, "siteChatRow")
-        XCTAssertTrue(row.waitForExistence(timeout: 60), "The site page offers no chat.\n\(app.debugDescription)")
-        XCTAssertTrue(DemoApp.waitUntilHittable(row, timeout: 30), "The site chat row cannot be tapped.\n\(app.debugDescription)")
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 60), "The site page did not open.\n\(app.debugDescription)")
+        XCTAssertTrue(reveal(row, in: app), "The site page offers no chat.\n\(app.debugDescription)")
+        DemoApp.scrollToElement(row, in: app)
         row.tap()
         XCTAssertTrue(app.staticTexts["Plant North · Example Logistics"].waitForExistence(timeout: 30), "The site chat did not open.\n\(app.debugDescription)")
+    }
+
+    /// A list builds its rows as they come near the screen, so a row further down does not exist until the page has scrolled to it.
+    private func reveal(_ row: XCUIElement, in app: XCUIApplication) -> Bool {
+        for _ in 0..<12 {
+            if row.waitForExistence(timeout: 3) { return true }
+            app.swipeUp()
+        }
+        return row.exists
     }
 }
