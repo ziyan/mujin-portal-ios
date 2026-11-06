@@ -167,6 +167,32 @@ import Testing
         #expect(transcript.replyQuote(for: "m4") != nil)
     }
 
+    @Test func aMainHistoryDoesNotQuoteARootAboveEachOfItsReplies() {
+        func reply(_ id: String) -> ConversationMessage {
+            ConversationMessage(
+                id: id, role: "user", content: .string("Why?"), replyToMessageId: "m2", replyToExcerpt: "Hello", replyToAuthorName: "Assistant", threadRootMessageId: "m2")
+        }
+        var transcript = Transcript()
+        transcript.load(messages: [answerRow("m2", text: "Hello", replyCount: 3), reply("m3"), answerRow("m4", text: "Because", root: "m2"), reply("m5")], questions: [], approvals: [], isRunning: false)
+        #expect(transcript.replyQuote(for: "m3") == nil)
+        #expect(transcript.replyQuote(for: "m5") == nil)
+    }
+
+    @Test func aReplyKeepsItsQuoteWhileTheRootIsNotLoaded() {
+        let reply = ConversationMessage(
+            id: "m3", role: "user", content: .string("Why?"), replyToMessageId: "m2", replyToExcerpt: "Hello", replyToAuthorName: "Assistant", threadRootMessageId: "m2")
+        var transcript = Transcript()
+        transcript.load(messages: [userRow("m1", text: "Hi"), reply], questions: [], approvals: [], isRunning: false)
+        #expect(transcript.replyQuote(for: "m3")?.excerpt == "Hello")
+    }
+
+    @Test func aQuoteOfAnotherMessageInTheThreadIsNotARepeatOfTheRoot() {
+        #expect(ThreadRouting.quoteRepeatsRoot(replyToMessageId: "m2", threadRootMessageId: "m2", isRootShown: true))
+        #expect(!ThreadRouting.quoteRepeatsRoot(replyToMessageId: "m3", threadRootMessageId: "m2", isRootShown: true))
+        #expect(!ThreadRouting.quoteRepeatsRoot(replyToMessageId: "m2", threadRootMessageId: "m2", isRootShown: false))
+        #expect(!ThreadRouting.quoteRepeatsRoot(replyToMessageId: "m2", threadRootMessageId: nil, isRootShown: true))
+    }
+
     @Test func aMainHistoryKeepsTheQuoteOfAnOldReply() {
         var transcript = Transcript()
         let oldReply = ConversationMessage(
