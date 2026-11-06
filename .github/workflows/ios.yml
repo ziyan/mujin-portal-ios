@@ -263,6 +263,20 @@ jobs:
           shoot chat-call-history chat-call-history
           shoot chat-call-history-detail chat-call-history-detail
           shoot thread-link thread-link
+          shoot dictate-chat dictate-chat
+          shoot dictate-chat-listening dictate-chat-listening
+          shoot dictate-chat-words dictate-chat-words
+          shoot dictate-conversation dictate-conversation
+          shoot dictate-conversation-listening dictate-conversation-listening
+          shoot dictate-conversation-words dictate-conversation-words
+          shoot dictate-thread-chat dictate-thread-chat
+          shoot dictate-thread-conversation dictate-thread-conversation
+          shoot read-aloud-chat read-aloud-chat
+          shoot read-aloud-chat-playing read-aloud-chat-playing
+          shoot read-aloud-conversation read-aloud-conversation
+          shoot read-aloud-conversation-playing read-aloud-conversation-playing
+          shoot read-aloud-thread-chat read-aloud-thread-chat
+          shoot read-aloud-thread-conversation read-aloud-thread-conversation
           shoot chat-add-people chat-add-people
           shoot chats-new chats-new
           shoot chats-new-staff chats-new-group staff
@@ -552,6 +566,20 @@ jobs:
           shoot chat-call-history-dark chat-call-history
           shoot chat-call-history-detail-dark chat-call-history-detail
           shoot thread-link-dark thread-link
+          shoot dictate-chat-dark dictate-chat
+          shoot dictate-chat-listening-dark dictate-chat-listening
+          shoot dictate-chat-words-dark dictate-chat-words
+          shoot dictate-conversation-dark dictate-conversation
+          shoot dictate-conversation-listening-dark dictate-conversation-listening
+          shoot dictate-conversation-words-dark dictate-conversation-words
+          shoot dictate-thread-chat-dark dictate-thread-chat
+          shoot dictate-thread-conversation-dark dictate-thread-conversation
+          shoot read-aloud-chat-dark read-aloud-chat
+          shoot read-aloud-chat-playing-dark read-aloud-chat-playing
+          shoot read-aloud-conversation-dark read-aloud-conversation
+          shoot read-aloud-conversation-playing-dark read-aloud-conversation-playing
+          shoot read-aloud-thread-chat-dark read-aloud-thread-chat
+          shoot read-aloud-thread-conversation-dark read-aloud-thread-conversation
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
           shoot large-text-welcome welcome
@@ -665,6 +693,20 @@ jobs:
           shoot large-text-chat-call-history chat-call-history
           shoot large-text-chat-call-history-detail chat-call-history-detail
           shoot large-text-thread-link thread-link
+          shoot large-text-dictate-chat dictate-chat
+          shoot large-text-dictate-chat-listening dictate-chat-listening
+          shoot large-text-dictate-chat-words dictate-chat-words
+          shoot large-text-dictate-conversation dictate-conversation
+          shoot large-text-dictate-conversation-listening dictate-conversation-listening
+          shoot large-text-dictate-conversation-words dictate-conversation-words
+          shoot large-text-dictate-thread-chat dictate-thread-chat
+          shoot large-text-dictate-thread-conversation dictate-thread-conversation
+          shoot large-text-read-aloud-chat read-aloud-chat
+          shoot large-text-read-aloud-chat-playing read-aloud-chat-playing
+          shoot large-text-read-aloud-conversation read-aloud-conversation
+          shoot large-text-read-aloud-conversation-playing read-aloud-conversation-playing
+          shoot large-text-read-aloud-thread-chat read-aloud-thread-chat
+          shoot large-text-read-aloud-thread-conversation read-aloud-thread-conversation
 
       - name: Keep the screenshots
         if: always()
