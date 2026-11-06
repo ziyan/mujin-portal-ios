@@ -218,13 +218,14 @@ final class ReadAloudController {
 struct ReadAloudBar: View {
     let readAloud: ReadAloudController
     @Environment(\.accessibilityReduceMotion) private var isMotionReduced
+    @Environment(AppModel.self) private var appModel
 
     var body: some View {
         if readAloud.phase != .idle {
             HStack(spacing: 12) {
                 Image(systemName: "speaker.wave.2.fill")
                     .foregroundStyle(Color.accentColor)
-                    .symbolEffect(.variableColor.iterative, isActive: readAloud.phase == .playing && !isMotionReduced)
+                    .symbolEffect(.variableColor.iterative, isActive: readAloud.phase == .playing && !isMotionReduced && !appModel.isDemo)
                     .accessibilityHidden(true)
                 (readAloud.phase == .preparing ? Text("Preparing to read…") : Text("Reading aloud"))
                     .font(.subheadline.weight(.semibold))

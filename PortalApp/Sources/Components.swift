@@ -32,7 +32,6 @@ struct ComposerCard<Accessory: View>: View {
     @ViewBuilder var accessory: Accessory
 
     @State private var isFocused = false
-    @Environment(\.accessibilityReduceMotion) private var isMotionReduced
     /// The round buttons grow with the text, held where their symbols stay inside them.
     @ScaledMetric(relativeTo: .body) private var scaledDiameter: CGFloat = 36
     private var diameter: CGFloat { min(scaledDiameter, 60) }
@@ -70,7 +69,6 @@ struct ComposerCard<Accessory: View>: View {
                         Image(systemName: "mic")
                             .font(.body.weight(.medium))
                             .foregroundStyle(dictation.isListening ? Color.accentColor : Color.secondary)
-                            .symbolEffect(.pulse, isActive: dictation.isListening && !isMotionReduced)
                             .frame(width: diameter, height: diameter)
                             .background(dictation.isListening ? Color.accentColor.opacity(0.18) : Color.clear, in: .circle)
                             .frame(minWidth: 44, minHeight: 44)

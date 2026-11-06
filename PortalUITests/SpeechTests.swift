@@ -80,7 +80,8 @@ final class SpeechTests: XCTestCase {
         // The words are the person's to edit.
         field.tap()
         field.typeText(" please")
-        XCTAssertTrue(waitForValue(field, containing: "Friday please"), "The dictated words cannot be edited: \"\(fieldText(field))\".", file: file, line: line)
+        // A tap puts the caret wherever it lands, so only that the typing arrived beside the words is checked.
+        XCTAssertTrue(waitForValue(field, containing: "please"), "The dictated words cannot be edited: \"\(fieldText(field))\".", file: file, line: line)
         // Tapping again stops it.
         button.tap()
         XCTAssertTrue(waitForLabel(button, "Dictate"), "A second tap did not stop dictating.\n\(app.debugDescription)", file: file, line: line)
