@@ -16,4 +16,12 @@ final class CallScreenTests: XCTestCase {
         while leave.exists, Date() < deadline { Thread.sleep(forTimeInterval: 0.25) }
         XCTAssertFalse(leave.exists, "The call screen did not close.\n\(app.debugDescription)")
     }
+
+    /// A dropped call says what is happening and keeps its controls.
+    func testALostConnectionSaysItIsReconnecting() {
+        let app = DemoApp.launch(screen: "call-reconnecting")
+        let status = app.staticTexts["Reconnecting\u{2026}"]
+        XCTAssertTrue(status.waitForExistence(timeout: 60), "The call does not say it is reconnecting.\n\(app.debugDescription)")
+        XCTAssertTrue(app.buttons["Leave call"].exists, "A person can always leave a call that is reconnecting.\n\(app.debugDescription)")
+    }
 }

@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import Foundation
+import Network
 import Observation
 import PortalKit
 import SwiftUI
@@ -26,6 +27,8 @@ final class ChatCallSession: Identifiable {
         case starting
         case connecting
         case connected
+        /// The media dropped and is being replaced; the person is still on the call.
+        case reconnecting
         case ended
     }
 
@@ -78,6 +81,16 @@ final class ChatCallSession: Identifiable {
     private var routeObserver: NSObjectProtocol?
     private var hasLeft = false
     private var lastAnsweredSequence: Int?
+    /// The session the server gave this phone, named when it reconnects.
+    @ObservationIgnored private var mediaSessionId: String?
+    /// Counts the connections made, so a late report from a closed one is ignored.
+    @ObservationIgnored private var mediaGeneration = 0
+    @ObservationIgnored private var firstConnectTask: Task<Void, Never>?
+    @ObservationIgnored private var disconnectTask: Task<Void, Never>?
+    @ObservationIgnored private var reconnectTask: Task<Void, Never>?
+    /// The wait between attempts, which a change of network ends early.
+    @ObservationIgnored private var reconnectWait: Task<Void, Never>?
+    @ObservationIgnored private var networkMonitor: NWPathMonitor?
     @ObservationIgnored private var speaker = ActiveSpeaker()
     @ObservationIgnored private var lastSentPlan: [String: VideoQuality] = [:]
     @ObservationIgnored private var subscriptionFailureCount = 0
@@ -212,6 +225,7 @@ final class ChatCallSession: Identifiable {
         switch phase {
         case .starting, .connecting: return String(localized: "Connecting\u{2026}")
         case .connected: return elapsedText
+        case .reconnecting: return String(localized: "Reconnecting\u{2026}")
         case .ended: return String(localized: "Call ended")
         }
     }
@@ -262,6 +276,8 @@ final class ChatCallSession: Identifiable {
             let signalQueue = CallSignalQueue { [weak self] signal in await self?.handle(signal) }
             queue = signalQueue
             startFeeds(callId: activeCallId, connection: connection, socketFactory: socketFactory, queue: signalQueue)
+            watchFirstConnect()
+            observeNetwork()
             try await connectMedia(callId: activeCallId, connection: connection)
             await signalQueue.joinCompleted()
         } catch {
@@ -271,12 +287,31 @@ final class ChatCallSession: Identifiable {
 
     private func connectMedia(callId: String, connection: Connection) async throws {
         phase = .connecting
+        let created = try await makeMedia()
+        let offer = try await created.makeOffer()
+        let joined = try await connection.joinChatCallMedia(id: callId, offerSdp: offer)
+        mediaSessionId = joined.mediaSessionId
+        try await created.acceptAnswer(joined.answerSdp)
+        // The others are told the camera is on (or off) once the media is joined: the server does not know it from the media
+        try? await connection.setChatCallMedia(id: callId, isMuted: isMuted, isVideoOn: isCameraOn)
+    }
+
+    /// A new connection with the microphone and, when it is on, the camera. It replaces the one before, whose reports are ignored from now on.
+    private func makeMedia() async throws -> CallMedia {
+        mediaGeneration += 1
+        let generation = mediaGeneration
         let callbacks = CallMedia.Callbacks(
             onRemoteVideo: { [weak self] userId, box in
-                Task { @MainActor in self?.setRemoteVideo(userId: userId, box: box) }
+                Task { @MainActor in
+                    guard self?.mediaGeneration == generation else { return }
+                    self?.setRemoteVideo(userId: userId, box: box)
+                }
             },
-            onConnectionChange: { [weak self] isConnected, isFailed in
-                Task { @MainActor in self?.mediaChanged(isConnected: isConnected, isFailed: isFailed) }
+            onConnectionChange: { [weak self] state in
+                Task { @MainActor in
+                    guard self?.mediaGeneration == generation else { return }
+                    self?.mediaChanged(state)
+                }
             },
             onSpeaking: { [weak self] ids in
                 Task { @MainActor in self?.updateSpeaking(ids) }
@@ -288,11 +323,127 @@ final class ChatCallSession: Identifiable {
         if isCameraOn {
             if await created.setCameraOn(true) { localVideo = created.localVideoBox } else { isCameraOn = false }
         }
+        return created
+    }
+
+    // MARK: losing the media
+
+    /// A first connection that never comes up has failed, rather than saying "Connecting" for ever.
+    private func watchFirstConnect() {
+        firstConnectTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(CallReconnectPlan.firstConnectTimeout * 1_000_000_000))
+            guard !Task.isCancelled, let self, self.connectedAt == nil, self.phase != .ended else { return }
+            self.fail(String(localized: "Could not connect to the call."))
+        }
+    }
+
+    /// A change of network ends a wait: the old connection cannot recover on a network it did not gather for.
+    private func observeNetwork() {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard path.status == .satisfied else { return }
+            Task { @MainActor in self?.networkChanged() }
+        }
+        monitor.start(queue: DispatchQueue(label: "call.network"))
+        networkMonitor = monitor
+    }
+
+    private func networkChanged() {
+        if disconnectTask != nil {
+            disconnectTask?.cancel()
+            disconnectTask = nil
+            startReconnecting()
+        }
+        reconnectWait?.cancel()
+    }
+
+    private func startReconnecting() {
+        guard phase == .connected, reconnectTask == nil, let connection, let callId, mediaSessionId != nil else {
+            // A server that gave no session cannot reconnect the phone.
+            if phase == .connected, mediaSessionId == nil { fail(String(localized: "The connection to the call was lost.")) }
+            return
+        }
+        phase = .reconnecting
+        let startedAt = Date()
+        reconnectTask = Task { [weak self] in
+            await self?.keepReconnecting(callId: callId, connection: connection, startedAt: startedAt)
+        }
+    }
+
+    private func keepReconnecting(callId: String, connection: Connection, startedAt: Date) async {
+        var failedAttempts = 0
+        while !Task.isCancelled, phase == .reconnecting {
+            if CallReconnectPlan.shouldGiveUp(elapsed: Date().timeIntervalSince(startedAt)) {
+                reconnectTask = nil
+                fail(String(localized: "The connection to the call was lost."))
+                return
+            }
+            do {
+                if try await attemptReconnect(callId: callId, connection: connection) { return }
+            } catch let error as PortalError where error == .signedOut {
+                reconnectTask = nil
+                fail(error.userMessage)
+                return
+            } catch {
+                // Nothing reached the server, or it could not take the call just now: try again.
+            }
+            failedAttempts += 1
+            let delay = CallReconnectPlan.delay(afterFailedAttempts: failedAttempts)
+            let wait = Task<Void, Never> { _ = try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
+            reconnectWait = wait
+            await wait.value
+            reconnectWait = nil
+        }
+    }
+
+    /// One attempt, on a new connection. True when there is nothing more to try.
+    private func attemptReconnect(callId: String, connection: Connection) async throws -> Bool {
+        guard let session = mediaSessionId, let socketFactory else { return true }
+        let closing = media
+        media = nil
+        remoteVideo = [:]
+        await closing?.close()
+        let created = try await makeMedia()
         let offer = try await created.makeOffer()
-        let answer = try await connection.joinChatCallMedia(id: callId, offerSdp: offer)
-        try await created.acceptAnswer(answer)
-        // The others are told the camera is on (or off) once the media is joined: the server does not know it from the media alone.
-        try? await connection.setChatCallMedia(id: callId, isMuted: isMuted, isVideoOn: isCameraOn)
+        // The offers of the new session wait for its answer, as on a first join. The old subscription may have ended with the session.
+        let signalQueue = CallSignalQueue { [weak self] signal in await self?.handle(signal) }
+        queue = signalQueue
+        startSignals(callId: callId, connection: connection, socketFactory: socketFactory, queue: signalQueue)
+        switch try await connection.reconnectChatCallMedia(id: callId, offerSdp: offer, mediaSessionId: session) {
+        case .ended:
+            stopReconnecting(message: nil)
+            return true
+        case .moved:
+            stopReconnecting(message: String(localized: "The call moved to another device."))
+            return true
+        case .full:
+            stopReconnecting(message: String(localized: "The call is full."))
+            return true
+        case .reconnected(let answerSdp, let newSession):
+            mediaSessionId = newSession
+            try await created.acceptAnswer(answerSdp)
+            await signalQueue.joinCompleted()
+            try? await connection.setChatCallMedia(id: callId, isMuted: isMuted, isVideoOn: isCameraOn)
+            return await waitForConnection()
+        }
+    }
+
+    /// True once the new connection is up. A connection that does not come up is replaced by the next attempt.
+    private func waitForConnection() async -> Bool {
+        let deadline = Date().addingTimeInterval(CallReconnectPlan.attemptTimeout)
+        while Date() < deadline, !Task.isCancelled {
+            if phase != .reconnecting { return true }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+        return phase != .reconnecting
+    }
+
+    /// The server says this phone has no call to come back to, so there is nothing to leave.
+    private func stopReconnecting(message: String?) {
+        reconnectTask = nil
+        hasLeft = true
+        errorText = message
+        finish()
     }
 
     private func askForMicrophone() async -> Bool {
@@ -328,6 +479,11 @@ final class ChatCallSession: Identifiable {
                 }
             }
         }
+        startSignals(callId: callId, connection: connection, socketFactory: socketFactory, queue: queue)
+    }
+
+    private func startSignals(callId: String, connection: Connection, socketFactory: @escaping FeedSocketFactory, queue: CallSignalQueue) {
+        signalTask?.cancel()
         signalTask = Task {
             for await update in ChatCallFeed.signals(connection: connection, callId: callId, socketFactory: socketFactory) {
                 if case .signal(let signal) = update { await queue.receive(signal) }
@@ -348,7 +504,9 @@ final class ChatCallSession: Identifiable {
 
     /// An offer from the server, which changes who is sent to the phone. Handled one at a time, in order.
     private func handle(_ signal: ChatCallSignal) async {
+        // Sent when the person left or the call ended, never for a lost connection: there is nothing to come back to.
         if signal.signalKind == "closed" {
+            hasLeft = true
             finish()
             return
         }
@@ -370,15 +528,43 @@ final class ChatCallSession: Identifiable {
         if let box { remoteVideo[userId] = box } else { remoteVideo[userId] = nil }
     }
 
-    private func mediaChanged(isConnected: Bool, isFailed: Bool) {
-        if isConnected, phase != .connected, phase != .ended {
-            phase = .connected
-            connectedAt = connectedAt ?? Date()
-            onConnected?(self)
+    private func mediaChanged(_ state: CallMedia.ConnectionState) {
+        switch state {
+        case .connected:
+            disconnectTask?.cancel()
+            disconnectTask = nil
+            guard phase != .ended else { return }
+            if phase != .connected {
+                let isFirstConnection = connectedAt == nil
+                phase = .connected
+                reconnectTask = nil
+                reconnectWait?.cancel()
+                connectedAt = connectedAt ?? Date()
+                firstConnectTask?.cancel()
+                if isFirstConnection { onConnected?(self) }
+            }
+            // Each time the media comes up, first or after a reconnect, the server hears the whole plan again.
+            scheduleSubscriptions(resendAll: true)
+        case .disconnected:
+            guard phase == .connected, disconnectTask == nil else { return }
+            disconnectTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(CallReconnectPlan.disconnectedGrace * 1_000_000_000))
+                guard !Task.isCancelled, let self else { return }
+                self.disconnectTask = nil
+                self.startReconnecting()
+            }
+        case .failed:
+            disconnectTask?.cancel()
+            disconnectTask = nil
+            // While reconnecting, the next attempt replaces a connection that failed.
+            if phase == .connected {
+                startReconnecting()
+            } else if phase == .connecting || phase == .starting {
+                fail(String(localized: "The connection to the call was lost."))
+            }
+        case .other:
+            break
         }
-        // Each time the media comes up, first or after a reconnect, the server hears the whole plan again.
-        if isConnected, phase == .connected { scheduleSubscriptions(resendAll: true) }
-        if isFailed, phase != .ended { fail(String(localized: "The connection to the call was lost.")) }
     }
 
     // MARK: controls
@@ -470,6 +656,12 @@ final class ChatCallSession: Identifiable {
     private func finish() {
         guard phase != .ended else { return }
         phase = .ended
+        firstConnectTask?.cancel()
+        disconnectTask?.cancel()
+        reconnectTask?.cancel()
+        reconnectWait?.cancel()
+        networkMonitor?.cancel()
+        networkMonitor = nil
         subscriptionTask?.cancel()
         eventTask?.cancel()
         signalTask?.cancel()
@@ -534,13 +726,13 @@ final class ChatCallSession: Identifiable {
     // MARK: demo
 
     /// A session the demo shows without a network: a call in progress with fixed people.
-    static func demo(call: ChatCall, chatTitle: String, isCameraOn: Bool, elapsed: TimeInterval, speaking: Set<String>) -> ChatCallSession {
+    static func demo(call: ChatCall, chatTitle: String, isCameraOn: Bool, elapsed: TimeInterval, speaking: Set<String>, isReconnecting: Bool = false) -> ChatCallSession {
         let session = ChatCallSession(
             uuid: UUID(), entry: .join(callId: call.id), chatId: call.chatId ?? "chat", chatTitle: chatTitle, userId: "user01", connection: nil, socketFactory: nil,
             isVideoOn: isCameraOn, isDemo: true)
         session.call = call
         session.callId = call.id
-        session.phase = .connected
+        session.phase = isReconnecting ? .reconnecting : .connected
         session.connectedAt = Date().addingTimeInterval(-elapsed)
         session.speakingUserIds = speaking
         session.refreshSpeaker()

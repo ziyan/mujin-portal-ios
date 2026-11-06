@@ -398,6 +398,7 @@ jobs:
           shoot call-voice call-voice
           shoot call-video call-video
           shoot call-transcription call-transcription
+          shoot call-reconnecting call-reconnecting
           shoot call-minimized call-minimized
           shoot call-picker call-picker
           shoot call-ring-more call-ring-more
@@ -616,6 +617,9 @@ jobs:
           shoot large-text-chat-voice-composer chat-voice-composer
           shoot large-text-chat-voice-recording chat-voice-recording
           shoot large-text-chat-call-banner chat-call-banner
+          shoot large-text-chat-call-transcript chat-call-transcript
+          shoot large-text-call-reconnecting call-reconnecting
+          shoot large-text-update-available update-available
           shoot large-text-call-voice call-voice
           shoot large-text-call-video call-video
           shoot large-text-call-transcription call-transcription

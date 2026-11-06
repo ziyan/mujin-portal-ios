@@ -6,7 +6,7 @@ import PortalKit
 enum CallDemo {
     static let screens: Set<String> = [
         "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner", "chat-call-transcript", "call-voice", "call-video", "call-transcription",
-        "call-minimized", "call-picker", "call-ring-more", "call-ringing", "call-two", "call-three", "call-five", "call-twelve",
+        "call-minimized", "call-reconnecting", "call-picker", "call-ring-more", "call-ringing", "call-two", "call-three", "call-five", "call-twelve",
     ]
 
     /// The screens that show people on camera.
@@ -42,7 +42,7 @@ enum CallDemo {
         switch screen {
         case "call-ringing":
             members.append(ChatCallMember(userId: "user04", userName: "Jordan Placeholder", ringState: "ringing", isInCall: false, isMuted: false, isVideoOn: false))
-        case "call-two":
+        case "call-two", "call-reconnecting":
             members.append(joined("user03", "Robin Demo"))
         case "call-three":
             members += [joined("user03", "Robin Demo"), joined("user04", "Jordan Placeholder", muted: true)]
@@ -73,7 +73,7 @@ enum CallDemo {
     static func session(for screen: String) -> ChatCallSession {
         ChatCallSession.demo(
             call: call(for: screen), chatTitle: "Pick station team", isCameraOn: isVideoScreen(screen), elapsed: 754,
-            speaking: ["user03"])
+            speaking: ["user03"], isReconnecting: screen == "call-reconnecting")
     }
 
     // MARK: server answers

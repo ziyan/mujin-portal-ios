@@ -211,6 +211,12 @@ import Testing
         #expect(!ChatCallRules.canStart(in: nil, userId: "user01"))
     }
 
+    @Test func aDroppedCallTriesSoonThenLessOftenAndGivesUpAfterAMinute() {
+        #expect((1...6).map(CallReconnectPlan.delay(afterFailedAttempts:)) == [1, 2, 4, 8, 8, 8])
+        #expect(!CallReconnectPlan.shouldGiveUp(elapsed: 59))
+        #expect(CallReconnectPlan.shouldGiveUp(elapsed: 60))
+    }
+
     @Test func aCallThatIsOverSaysWhereItsTranscriptIs() {
         let ended = "2026-03-01T10:04:32Z"
         #expect(ChatCall(id: "c", endedAt: ended, transcriptState: "done").transcriptStatus == .ready)

@@ -166,6 +166,8 @@ struct CallLineView: View {
                     Spacer(minLength: 8)
                     Button { isShowingTranscript.toggle() } label: {
                         Text(isShowingTranscript ? "Hide transcript" : "Show transcript").font(.footnote.weight(.medium)).multilineTextAlignment(.trailing)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
@@ -191,17 +193,22 @@ struct CallLineView: View {
                         (Text((segment.userName ?? "") + ": ").font(.footnote.weight(.semibold)) + Text(segment.text ?? "").font(.footnote))
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    ForEach(recordings) { recording in
-                        Button { openRecording(recording) } label: {
-                            Label("Recording of \(shownCall.member(recording.uploadedByUserId)?.userName ?? "")", systemImage: "waveform")
-                                .font(.footnote.weight(.medium))
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(recordings) { recording in
+                            Button { openRecording(recording) } label: {
+                                Label("Recording of \(shownCall.member(recording.uploadedByUserId)?.userName ?? "")", systemImage: "waveform")
+                                    .font(.footnote.weight(.medium))
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.accentColor)
+                            .accessibilityIdentifier("callRecording-\(recording.id)")
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityIdentifier("callRecording-\(recording.id)")
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("callTranscript")
             }
         }
