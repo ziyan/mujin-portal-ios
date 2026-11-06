@@ -195,8 +195,11 @@ public struct SiteSummary: Codable, Equatable, Identifiable, Sendable {
     public let isArchived: Bool?
     /// What the viewer may do at this site, such as `virtual_controller:create`.
     public let viewerCapabilities: [String]?
+    /// The controller that stands for the whole site, when the site has one. Only a server that has the field says.
+    public let telemetrySourceControllerId: String?
 
-    public init(id: String, name: String?, organizationId: String? = nil, isArchived: Bool? = nil, viewerCapabilities: [String]? = nil) {
+    public init(id: String, name: String?, organizationId: String? = nil, isArchived: Bool? = nil, viewerCapabilities: [String]? = nil, telemetrySourceControllerId: String? = nil) {
+        self.telemetrySourceControllerId = telemetrySourceControllerId
         self.viewerCapabilities = viewerCapabilities
         self.id = id
         self.name = name
@@ -209,14 +212,14 @@ public struct SiteSummary: Codable, Equatable, Identifiable, Sendable {
 
 extension Connection {
     /// The sites the person can open tickets for, by name.
-    public func sites(organizationId: String? = nil) async throws -> [SiteSummary] {
-        let rows = try await allSites(organizationId: organizationId)
+    public func sites(organizationId: String? = nil, includesTelemetrySource: Bool = false) async throws -> [SiteSummary] {
+        let rows = try await allSites(organizationId: organizationId, includesTelemetrySource: includesTelemetrySource)
         return rows.filter { $0.isArchived != true }.sorted { ($0.name ?? "").localizedCompare($1.name ?? "") == .orderedAscending }
     }
 
     /// Every site the person can see, archived ones included. The server answers in pages (50 by default, 200 at most), so
     /// this asks page after page until the total it reports is reached or a page comes back empty.
-    public func allSites(organizationId: String? = nil, pageSize: Int = 200) async throws -> [SiteSummary] {
+    public func allSites(organizationId: String? = nil, pageSize: Int = 200, includesTelemetrySource: Bool = false) async throws -> [SiteSummary] {
         struct Answer: Decodable, Sendable {
             struct Meta: Decodable, Sendable { let totalCount: Int? }
             struct List: Decodable, Sendable {
@@ -229,7 +232,8 @@ extension Connection {
         while true {
             var variables: [String: JSONValue] = ["options": .object(["first": .number(Double(pageSize)), "after": .number(Double(collected.count))])]
             if let organizationId { variables["organizationId"] = .string(organizationId) }
-            let list = try await execute(Documents.listSites, variables: variables, as: Answer.self).ListSites
+            let document = includesTelemetrySource ? Documents.withTelemetrySource(Documents.listSites) : Documents.listSites
+            let list = try await execute(document, variables: variables, as: Answer.self).ListSites
             let page = list.sites ?? []
             collected += page
             if page.isEmpty { break }
