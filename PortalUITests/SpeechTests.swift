@@ -36,6 +36,18 @@ final class SpeechTests: XCTestCase {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
+    /// Holds the message until its actions open, and returns their Read aloud row. A press that lands while the list is still settling
+    /// opens nothing, so it is made again, scrolling to the message first each time.
+    private func hold(_ held: XCUIElement, in app: XCUIApplication) -> XCUIElement {
+        let action = DemoApp.button(app, "readAloudAction")
+        for _ in 0..<3 {
+            DemoApp.scrollToElement(held, in: app)
+            held.press(forDuration: 1.0)
+            if action.waitForExistence(timeout: 8) { break }
+        }
+        return action
+    }
+
     // MARK: - Not offered
 
     func testNeitherIsOfferedByAServerThatDoesNotSayItHasThem() {
@@ -171,10 +183,7 @@ final class SpeechTests: XCTestCase {
         let app = DemoApp.launch(screen: "read-aloud-conversation-playing")
         XCTAssertTrue(DemoApp.element(app, "readAloudBar").waitForExistence(timeout: 90), "The message is not shown as being read.\n\(app.debugDescription)")
         // The conversation opens at its end; the held message is found by its words, scrolling to it.
-        let held = message(app, "The checklist is at")
-        DemoApp.scrollToElement(held, in: app)
-        held.press(forDuration: 1.0)
-        let action = DemoApp.button(app, "readAloudAction")
+        let action = hold(message(app, "The checklist is at"), in: app)
         XCTAssertTrue(action.waitForExistence(timeout: 30), "The actions of the message being read have no Read aloud row.\n\(app.debugDescription)")
         XCTAssertTrue(action.label.contains("Stop reading"), "The row does not offer to stop: \"\(action.label)\".")
         action.tap()
@@ -185,9 +194,7 @@ final class SpeechTests: XCTestCase {
         let app = DemoApp.launch(screen: "dictate-thread-chat")
         let held = message(app, Self.threadMessage)
         XCTAssertTrue(held.waitForExistence(timeout: 90), "The thread did not open.\n\(app.debugDescription)")
-        DemoApp.scrollToElement(held, in: app)
-        held.press(forDuration: 1.0)
-        let action = DemoApp.button(app, "readAloudAction")
+        let action = hold(held, in: app)
         XCTAssertTrue(action.waitForExistence(timeout: 30), "The actions of a message in a thread have no Read aloud.\n\(app.debugDescription)")
         action.tap()
         XCTAssertTrue(DemoApp.element(app, "readAloudBar").waitForExistence(timeout: 30), "The thread message is not shown as being read.\n\(app.debugDescription)")
@@ -198,9 +205,7 @@ final class SpeechTests: XCTestCase {
         XCTAssertTrue(DemoApp.element(app, "readAloudBar").waitForExistence(timeout: 90), "The first message is not being read.\n\(app.debugDescription)")
         // Another answer of the conversation, held while the first is being read.
         let other = message(app, "Here is the summary for this week")
-        DemoApp.scrollToElement(other, in: app)
-        other.press(forDuration: 1.0)
-        let action = DemoApp.button(app, "readAloudAction")
+        let action = hold(other, in: app)
         XCTAssertTrue(action.waitForExistence(timeout: 30), "The other message has no Read aloud.\n\(app.debugDescription)")
         XCTAssertTrue(action.label.contains("Read aloud"), "The other message offers \"\(action.label)\" while a different one is being read.")
         action.tap()
