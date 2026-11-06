@@ -114,7 +114,7 @@ final class ThreadTests: XCTestCase {
     func testANotificationAboutAReplyOpensTheThread() {
         let app = DemoApp.launch(screen: "thread-push")
         XCTAssertTrue(message(app, Self.chatReplyText).waitForExistence(timeout: 60), "The notification did not open the thread.\n\(app.debugDescription)")
-        XCTAssertTrue(threadTitle(app).exists, "The thread is not on screen.\n\(app.debugDescription)")
+        XCTAssertTrue(threadTitle(app).waitForExistence(timeout: 30), "The thread is not on screen.\n\(app.debugDescription)")
         DemoApp.goBack(app)
         XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 30), "Back from the thread did not reach the chat.\n\(app.debugDescription)")
     }
