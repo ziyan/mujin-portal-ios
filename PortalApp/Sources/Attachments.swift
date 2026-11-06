@@ -82,6 +82,8 @@ final class AttachmentDrafts {
     enum PictureSource {
         case photo
         case pasted
+        /// The app's own window, drawn when the person took a screenshot.
+        case screenshot
     }
 
     struct Item: Identifiable {
@@ -153,16 +155,17 @@ final class AttachmentDrafts {
             errorText = String(localized: "That picture could not be read.")
             return
         }
-        let number: Int
+        let label: String
         switch source {
         case .photo:
             photoCount += 1
-            number = photoCount
+            label = String(localized: "Photo \(photoCount)")
         case .pasted:
             pastedCount += 1
-            number = pastedCount
+            label = String(localized: "Pasted picture \(pastedCount)")
+        case .screenshot:
+            label = String(localized: "Screenshot")
         }
-        let label = source == .photo ? String(localized: "Photo \(number)") : String(localized: "Pasted picture \(number)")
         add(
             data: encoded.data, filename: label + "." + encoded.format.fileExtension, contentType: encoded.format.contentType,
             preview: PictureEncoder.thumbnail(encoded.data))

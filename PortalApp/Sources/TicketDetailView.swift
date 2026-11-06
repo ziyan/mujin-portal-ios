@@ -14,6 +14,8 @@ final class TicketDetailModel {
 
     let ticketId: String
     let connection: Connection
+    /// Whether to ask for the flag that marks feedback about Portal, which only a server that offers it has.
+    let includesPortalFeedbackFlag: Bool
     let onError: @MainActor (Error) -> Void
     private(set) var phase = Phase.loading
     private(set) var ticket: Ticket?
@@ -21,15 +23,16 @@ final class TicketDetailModel {
     private(set) var isSending = false
     var actionError: String?
 
-    init(ticketId: String, connection: Connection, onError: @escaping @MainActor (Error) -> Void) {
+    init(ticketId: String, connection: Connection, includesPortalFeedbackFlag: Bool = false, onError: @escaping @MainActor (Error) -> Void) {
         self.ticketId = ticketId
         self.connection = connection
+        self.includesPortalFeedbackFlag = includesPortalFeedbackFlag
         self.onError = onError
     }
 
     func load() async {
         do {
-            async let loadedTicket = connection.ticket(id: ticketId)
+            async let loadedTicket = connection.ticket(id: ticketId, includesPortalFeedbackFlag: includesPortalFeedbackFlag)
             async let loadedComments = connection.ticketComments(ticketId: ticketId)
             let (newTicket, newComments) = try await (loadedTicket, loadedComments)
             ticket = newTicket
@@ -132,6 +135,7 @@ struct TicketDetailView: View {
         .task(id: ticketId) {
             let detailModel = TicketDetailModel(
                 ticketId: ticketId, connection: appModel.connection(for: session.account),
+                includesPortalFeedbackFlag: session.capabilities.offersPortalFeedback,
                 onError: { [appModel, session] error in appModel.handle(error, account: session.account) })
             model = detailModel
             await detailModel.load()
@@ -200,6 +204,7 @@ struct TicketDetailView: View {
 
     private func header(_ ticket: Ticket) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            if ticket.isPortalFeedback == true { PortalFeedbackLabel() }
             Text(ticket.title ?? "")
                 .font(.title3.weight(.semibold))
             HStack(spacing: 12) {

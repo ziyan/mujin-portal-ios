@@ -15,6 +15,8 @@ final class TicketsModel {
 
     let connection: Connection
     let organizationId: String?
+    /// Whether to ask for the flag that marks feedback about Portal, which only a server that offers it has.
+    let includesPortalFeedbackFlag: Bool
     let onError: @MainActor (Error) -> Void
     private(set) var phase = Phase.loading
     private(set) var tickets: [Ticket] = []
@@ -22,9 +24,13 @@ final class TicketsModel {
     let cache: ResponseCache?
     let accountKey: String
 
-    init(connection: Connection, organizationId: String?, cache: ResponseCache? = nil, accountKey: String = "", onError: @escaping @MainActor (Error) -> Void) {
+    init(
+        connection: Connection, organizationId: String?, includesPortalFeedbackFlag: Bool = false, cache: ResponseCache? = nil, accountKey: String = "",
+        onError: @escaping @MainActor (Error) -> Void
+    ) {
         self.connection = connection
         self.organizationId = organizationId
+        self.includesPortalFeedbackFlag = includesPortalFeedbackFlag
         self.cache = cache
         self.accountKey = accountKey
         self.onError = onError
@@ -40,7 +46,7 @@ final class TicketsModel {
             if held.isFresh && !force { return }
         }
         do {
-            tickets = try await connection.tickets(organizationId: organizationId)
+            tickets = try await connection.tickets(organizationId: organizationId, includesPortalFeedbackFlag: includesPortalFeedbackFlag)
             cache?.store(tickets, for: cacheKey)
             phase = .loaded
         } catch {
@@ -63,8 +69,14 @@ struct TicketsView: View {
     @State private var model: TicketsModel?
     @State private var scope = TicketScope.mine
     @State private var tab = TicketTab.open
-    @State private var path: [PortalRoute] = ["ticket", "ticket-menu", "attachment-viewer", "attachment-viewer-tall"].contains(DemoOptions.screen ?? "") ? [.ticket(id: "ticket01")] : []
+    @State private var path: [PortalRoute] = TicketsView.demoPath
     @State private var isCreating = false
+
+    /// The screen a demo run opens on: a ticket, or the list.
+    private static var demoPath: [PortalRoute] {
+        if DemoOptions.screen == FeedbackDemo.ticketScreen { return [.ticket(id: FeedbackDemo.ticketId)] }
+        return ["ticket", "ticket-menu", "attachment-viewer", "attachment-viewer-tall"].contains(DemoOptions.screen ?? "") ? [.ticket(id: "ticket01")] : []
+    }
 
     var body: some View {
         if embedsNavigation {
@@ -201,6 +213,7 @@ struct TicketRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            if ticket.isPortalFeedback == true { PortalFeedbackLabel() }
             Text(ticket.title ?? "")
                 .font(.headline)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)

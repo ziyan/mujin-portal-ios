@@ -50,6 +50,8 @@ final class SessionModel {
     var onRingStopped: ((String) -> Void)?
     /// A ticket the Tickets tab should open, from a notification.
     var ticketToOpen: String?
+    /// The feedback sheet a screenshot opened, nil while none is up.
+    var feedbackRequest: FeedbackRequest?
     /// Set when a notification asks More to show the Automations screen.
     var automationsRequested = false
     var isShowingNotifications = DemoOptions.screen == "notifications"
@@ -133,7 +135,7 @@ final class SessionModel {
     func ticketsModel(for organizationId: String?) -> TicketsModel {
         let key = organizationId ?? ""
         if let existing = ticketModels[key] { return existing }
-        let model = TicketsModel(connection: connection, organizationId: organizationId, cache: cache, accountKey: account.accountKey, onError: onError)
+        let model = TicketsModel(connection: connection, organizationId: organizationId, includesPortalFeedbackFlag: capabilities.offersPortalFeedback, cache: cache, accountKey: account.accountKey, onError: onError)
         ticketModels[key] = model
         return model
     }
@@ -468,6 +470,7 @@ enum DemoOptions {
     static var section: AppSection? {
         guard let screen else { return nil }
         if SearchDemo.owns(screen) { return .search }
+        if FeedbackDemo.owns(screen) { return FeedbackDemo.section(for: screen) }
         if screen.hasPrefix("more-") { return .more }
         if screen.hasPrefix("update-available") { return .assistant }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
@@ -488,7 +491,8 @@ enum DemoOptions {
         switch screen ?? "" {
         case let name where name.hasPrefix("automations"): [.automations]
         case "about": [.about]
-        case "settings", "settings-update", "accounts": [.settings]
+        case "settings", "settings-update", "accounts", "feedback-form", "feedback-form-open": [.settings]
+        case "feedback-list", "feedback-list-empty", "feedback-list-error": [.settings, .myFeedback]
         case "tab-bar-edit": [.settings, .tabBarEditor]
         case "goals": [.goals]
         case "goal": [.goals, .goal("goal01")]
