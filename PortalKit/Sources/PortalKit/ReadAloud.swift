@@ -165,6 +165,8 @@ public enum ReadAloudText {
         Rule(#"(^|[\s(])[*_]([^*_\n]+)[*_](?=[\s).,!?;:]|$)"#, "$1$2"),
         Rule(#"\s+"#, " "),
         Rule(#" ([.,!?;:])"#, "$1"),
+        // The end of one table row and the start of the next would otherwise be said as two commas.
+        Rule(#",(?:\s*,)+"#, ","),
         Rule(#"^[,\s]+|[,\s]+$"#, ""),
     ]
 }

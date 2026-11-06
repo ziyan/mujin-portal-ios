@@ -152,6 +152,11 @@ import Testing
         #expect(!tracker.isSilent(at: start.addingTimeInterval(120)))
     }
 
+    @Test func stopWaitsAboutASecondWhenQuietAndAtMostThreeWhenSpeechIsOpen() {
+        #expect(DictationTiming.stopWaitSeconds(isSpeechPending: false) == 1)
+        #expect(DictationTiming.stopWaitSeconds(isSpeechPending: true) == 3)
+    }
+
     @Test func theLimitsAreThirtySecondsOfSilenceAndAFewSecondsForTheLastWords() {
         #expect(DictationTiming.silenceLimitSeconds == 30)
         #expect(DictationTiming.finalWordsLimitSeconds > 0 && DictationTiming.finalWordsLimitSeconds <= 5)
@@ -245,6 +250,15 @@ import Testing
 
     @Test func noSpeechProviderIsSaidInWords() async {
         #expect(await refusal(status: 404) == PortalError.refused("No speech provider is set up."))
+    }
+
+    @Test func theMessageInsideTheErrorObjectIsShownForA403() async {
+        let body = ScriptedTransport.json(["error": ["message": "Your plan has no spoken messages."]])
+        #expect(await refusal(status: 403, body: body) == PortalError.refused("Your plan has no spoken messages."))
+    }
+
+    @Test func aBare403SaysTheLimitNotTheStatus() async {
+        #expect(await refusal(status: 403) == PortalError.refused("The limit for spoken messages has been reached."))
     }
 
     @Test func theServersOwnReasonComesFirst() async {

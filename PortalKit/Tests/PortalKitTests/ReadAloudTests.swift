@@ -26,7 +26,15 @@ import Testing
 
     @Test func aTableReadsAsItsCellsSeparatedByCommas() {
         let table = "Dips this week:\n\n| Station | Dips | Lowest kPa |\n| :--- | ---: | ---: |\n| Station 3 | 4 | 31 |\n| Station 1 | 1 | 38 |"
-        #expect(ReadAloudText.speakable(from: table) == "Dips this week:, Station, Dips, Lowest kPa,, Station 3, 4, 31,, Station 1, 1, 38")
+        #expect(ReadAloudText.speakable(from: table) == "Dips this week:, Station, Dips, Lowest kPa, Station 3, 4, 31, Station 1, 1, 38")
+    }
+
+    @Test func rowsOfATableAreNotSeparatedByTwoCommas() {
+        let table = "| Name | Count |\n| --- | --- |\n| Door | 4 |\n| Gate | 2 |"
+        let spoken = ReadAloudText.speakable(from: table)
+        #expect(spoken == "Name, Count, Door, 4, Gate, 2")
+        #expect(!spoken.contains(",,"))
+        #expect(ReadAloudText.speakable(from: "One,, two , , three") == "One, two, three")
     }
 
     @Test func aCodeBlockAFormulaAndACommentAreLeftOutWhole() {

@@ -181,15 +181,17 @@ extension Connection {
     static func speechRefusal(_ data: Data, status: Int) -> PortalError {
         if let message = restMessage(data) { return .refused(message) }
         switch status {
-        case 402: return .refused("The limit for spoken messages has been reached.")
+        case 402, 403: return .refused("The limit for spoken messages has been reached.")
         case 404: return .refused("No speech provider is set up.")
         default: return .refused("The server answered HTTP \(status).")
         }
     }
 
     private static func restMessage(_ data: Data) -> String? {
-        struct Failure: Decodable { let message: String?; let error: String? }
-        guard let failure = try? JSONDecoder().decode(Failure.self, from: data), let message = failure.message ?? failure.error, !message.isEmpty else { return nil }
+        // The voice routes answer {"error": {"message": "..."}}; other routes a flat message or error string.
+        guard let value = try? JSONDecoder().decode(JSONValue.self, from: data) else { return nil }
+        let message = value["error"]?["message"]?.stringValue ?? value["message"]?.stringValue ?? value["error"]?.stringValue
+        guard let message, !message.isEmpty else { return nil }
         return message
     }
 }

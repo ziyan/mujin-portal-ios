@@ -51,6 +51,13 @@ public enum DictationTiming {
     public static let silenceLimitSeconds: TimeInterval = 30
     /// After the person taps stop, the longest the words still being said or transcribed are waited for.
     public static let finalWordsLimitSeconds: TimeInterval = 3
+    /// After the person taps stop with nothing being said, how long the last final transcript is still waited for.
+    public static let quietStopWaitSeconds: TimeInterval = 1
+
+    /// How long to wait after stop before ending the session: `stop` ends it at once, so the last final transcript must land first.
+    public static func stopWaitSeconds(isSpeechPending: Bool) -> TimeInterval {
+        isSpeechPending ? finalWordsLimitSeconds : quietStopWaitSeconds
+    }
 }
 
 /// DictationTracker follows what the dictation socket says: the live caption of each utterance, the final words of each once, which

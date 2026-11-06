@@ -66,6 +66,8 @@ final class DictationController {
     @ObservationIgnored private var startedAt = Date()
     @ObservationIgnored private var isReady = false
     @ObservationIgnored private var isStopping = false
+    @ObservationIgnored private var isWaitingOnSpeech = false
+    @ObservationIgnored private var stoppedAt = Date()
     /// Counts the dictations, so one that ended never changes what the next one shows.
     @ObservationIgnored private var generation = 0
 
@@ -129,22 +131,38 @@ final class DictationController {
         }
     }
 
-    /// The person's stop: the words being said are waited for, and then dictation ends.
+    /// The person's stop. The microphone goes on, silent, so the server hears the last utterance end, and `stop` is sent only once
+    /// the last final transcript has landed: after about a second when nothing was being said, and after at most three seconds
+    /// when something was, or when speech starts during the wait.
     func stop() {
         guard phase == .connecting || phase == .listening else { return }
-        guard phase == .listening, isReady, tracker.isSpeechPending else {
+        guard phase == .listening, isReady else {
             finish()
             return
         }
         isStopping = true
         phase = .finishing
         captionText = ""
+        stoppedAt = Date()
+        isWaitingOnSpeech = tracker.isSpeechPending
         let current = generation
         finishTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(DictationTiming.finalWordsLimitSeconds))
-            guard !Task.isCancelled else { return }
-            self?.finish(generation: current)
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled, let self, self.generation == current else { return }
+                if self.isFinishDue(at: Date()) {
+                    self.finish(generation: current)
+                    return
+                }
+            }
         }
+    }
+
+    /// Whether the wait after the person's stop is over: the limit has passed, or the speech waited on has all come.
+    private func isFinishDue(at date: Date) -> Bool {
+        let limit = DictationTiming.stopWaitSeconds(isSpeechPending: isWaitingOnSpeech)
+        if date.timeIntervalSince(stoppedAt) >= limit { return true }
+        return isWaitingOnSpeech && !tracker.isSpeechPending
     }
 
     /// Ends dictation at once and drops the words not yet final: the box they were for was sent, or is gone.
@@ -195,6 +213,7 @@ final class DictationController {
         sessionBeforeDictation = nil
         isReady = false
         isStopping = false
+        isWaitingOnSpeech = false
         onWords = nil
         captionText = ""
         phase = .idle
@@ -254,8 +273,9 @@ final class DictationController {
             let update = tracker.accept(event, at: Date())
             if !isStopping, let caption = update.captionText { captionText = caption }
             if let words = update.transcriptText { onWords?(words) }
-            // Once the words being said have all come, a stop the person asked for is done.
-            if isStopping, !tracker.isSpeechPending { finish() }
+            // Speech that starts during the wait is waited for too, up to the longer limit.
+            if isStopping, tracker.isSpeechPending { isWaitingOnSpeech = true }
+            if isStopping, isFinishDue(at: Date()) { finish() }
         }
     }
 
