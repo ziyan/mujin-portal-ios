@@ -5,19 +5,28 @@ import UIKit
 /// ChatView is one chat with people: their messages on the left, the
 /// person's own on the right, replies, edits, reactions, who is typing, who
 /// has read, and cards under messages that hold links. The assistant joins
-/// when a message mentions the agent by its name or replies to one of its answers.
+/// when a message mentions the agent by its name or replies to one of its answers. On a server with message threads a reply goes in
+/// a thread: the main history shows how many replies a message has, and a tap opens the thread as a screen of its own, which is
+/// this same view with a `threadRootMessageId`.
 struct ChatView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
     let account: Account
     let conversationId: String
     let chatId: String?
+    /// The message whose thread this screen shows alone, with its own composer. Nil for the whole chat.
+    var threadRootMessageId: String?
+    /// A thread a notification asks this chat to open on, which this view takes and clears.
+    var requestedThreadRootMessageId: Binding<String?> = .constant(nil)
 
     @State private var model: ChatModel?
+    @State private var openedThreadRootId: String?
+    /// The message a link pointed at, marked for a moment.
+    @State private var highlightedMessageId: String?
     @State private var isOnScreen = false
     @State private var draft = DemoOptions.screen == "chat-mention" ? "Can @" : ""
     @State private var messageToDelete: ChatMessage?
-    @State private var isShowingInfo = DemoOptions.screen == "chat-info" || DemoOptions.screen == "chat-site-info"
+    @State private var isShowingInfo = DemoOptions.screen == "chat-info" || DemoOptions.screen == "chat-site-info" || DemoOptions.screen?.hasPrefix("chat-call-history") == true
     @State private var isAddingPeople = DemoOptions.screen == "chat-add-people"
     @State private var drafts = AttachmentDrafts()
     @State private var recorder = VoiceMessageRecorder()
@@ -27,6 +36,7 @@ struct ChatView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var callCenter: CallCenter { appModel.callCenter }
+    private var isThread: Bool { threadRootMessageId != nil }
 
     var body: some View {
         Group {
@@ -36,9 +46,20 @@ struct ChatView: View {
                 ProgressView()
             }
         }
-        .conversationBar(title: model?.title ?? String(localized: "Chat"), onTitleTap: model?.room == nil ? nil : { isShowingInfo = true })
+        .conversationBar(
+            title: isThread ? "\(String(localized: "Thread")) \u{00B7} \(model?.title ?? String(localized: "Chat"))" : (model?.title ?? String(localized: "Chat")),
+            onTitleTap: isThread || model?.room == nil ? nil : { isShowingInfo = true }
+        )
+        .navigationDestination(item: $openedThreadRootId) { rootId in
+            ChatView(account: account, conversationId: conversationId, chatId: model?.chatId ?? chatId, threadRootMessageId: rootId)
+        }
+        .onChange(of: requestedThreadRootMessageId.wrappedValue, initial: true) { _, rootId in
+            guard !isThread, let rootId else { return }
+            openedThreadRootId = rootId
+            requestedThreadRootMessageId.wrappedValue = nil
+        }
         .toolbar {
-            if let model, canCall(model) {
+            if !isThread, let model, canCall(model) {
                 ToolbarItem(placement: .topBarTrailing) {
                     // A site chat holds everyone with access to the site, so a call there always starts with choosing who.
                     if model.room?.isSite == true {
@@ -54,7 +75,7 @@ struct ChatView: View {
                     }
                 }
             }
-            if let model, model.room != nil {
+            if !isThread, let model, model.room != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         // A group's administrators add to it; either person adds to a direct chat, which becomes a group; others see no such row.
@@ -97,11 +118,14 @@ struct ChatView: View {
             if let model, model.conversationId == conversationId { return }
             let chatModel = ChatModel(
                 conversationId: conversationId, chatId: chatId, currentUserId: account.userId, connection: appModel.connection(for: account),
-                socketFactory: appModel.socketFactory, onError: { [appModel, account] error in appModel.handle(error, account: account) })
+                socketFactory: appModel.socketFactory, threadRootMessageId: threadRootMessageId,
+                offersMessageThreads: session.capabilities.offersMessageThreads,
+                onError: { [appModel, account] error in appModel.handle(error, account: account) })
             chatModel.offersStructuredMentions = session.capabilities.offersStructuredMentions
             model = chatModel
             chatModel.start()
             if appModel.isDemo, DemoOptions.screen == "chat-composer" { drafts.stageDemo() }
+            if appModel.isDemo, DemoOptions.screen == "thread-chat-working" { chatModel.stageDemoWorking(inThreadOf: "t06") }
             if appModel.isDemo, CallDemo.owns(DemoOptions.screen) { CallDemo.markPlayed() }
             if appModel.isDemo, DemoOptions.screen == "chat-reply" {
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -130,7 +154,7 @@ struct ChatView: View {
             ProgressView()
         case .failed(let message):
             ContentUnavailableView {
-                Label("Could not load this chat", systemImage: "wifi.exclamationmark")
+                Label(isThread ? LocalizedStringKey("Could not load this thread") : LocalizedStringKey("Could not load this chat"), systemImage: "wifi.exclamationmark")
             } description: {
                 Text(message)
             } actions: {
@@ -138,7 +162,7 @@ struct ChatView: View {
             }
         case .loaded:
             messages(model)
-                .safeAreaInset(edge: .top, spacing: 0) { callBanner(model) }
+                .safeAreaInset(edge: .top, spacing: 0) { if !isThread { callBanner(model) } }
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer(model) }
         }
     }
@@ -156,7 +180,7 @@ struct ChatView: View {
                         .buttonStyle(.bordered)
                         .disabled(model.isLoadingEarlier)
                     }
-                    if model.timeline.messages.isEmpty {
+                    if model.timeline.messages.isEmpty, !isThread {
                         ContentUnavailableView {
                             Label("No messages yet", systemImage: "bubble.left.and.bubble.right")
                         } description: {
@@ -185,9 +209,23 @@ struct ChatView: View {
                             message: message, model: model, isLastOwn: message.id == lastOwnMessageId(model),
                             startsRun: isNewDay || previous == nil || previous?.authorUserId != message.authorUserId || previous?.isAssistant != message.isAssistant,
                             previousMessageId: previous?.id,
-                            askDelete: { messageToDelete = $0 }
+                            askDelete: { messageToDelete = $0 },
+                            onOpenThread: threadOpener(model),
+                            commentLine: commentLine(for: message, previous: previous, model: model)
                         )
+                        .threadBar(
+                            isShown: model.canOpenThreads && message.threadKey != nil,
+                            joinsBelow: index + 1 < messages.count && messages[index + 1].threadKey == message.threadKey, gap: 10)
+                        .background {
+                            if highlightedMessageId == message.id {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.accentColor.opacity(0.18)).padding(-4)
+                            }
+                        }
                         .id(message.id)
+                        }
+                        // The replies of a thread follow its root, which says how many there are.
+                        if isThread, message.id == model.threadRootMessageId {
+                            ThreadRepliesDivider(replyCount: messages.count - 1)
                         }
                     }
                     ForEach(model.questions) { card in
@@ -196,7 +234,7 @@ struct ChatView: View {
                     ForEach(model.approvals) { card in
                         ApprovalCardView(card: card) { isApproved in Task { await model.decide(card, isApproved: isApproved) } }
                     }
-                    if model.isOwnTurnRunning && model.questions.isEmpty && model.approvals.isEmpty {
+                    if model.isAssistantWorkingHere && model.questions.isEmpty && model.approvals.isEmpty {
                         Label("The assistant is working on your message", systemImage: "sparkles")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -212,11 +250,12 @@ struct ChatView: View {
             .scrollDismissesKeyboard(.immediately)
             .background(Color.portalPage)
             .defaultScrollAnchor(.bottom)
+            .task(id: focusedMessageId) { await showFocusedMessage(model, proxy: proxy) }
             .onChange(of: model.timeline.messages.last?.id) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
             .overlay(alignment: .top) {
-                if !model.isFeedLive {
+                if model.isFeedLost {
                     Label("Reconnecting", systemImage: "arrow.triangle.2.circlepath")
                         .font(.footnote)
                         .padding(.horizontal, 12)
@@ -226,6 +265,49 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    /// The line above the first reply of a run in the main history: which message it comments on. Not shown right after the root or
+    /// after another reply of the same thread.
+    private func commentLine(for message: ChatMessage, previous: ChatMessage?, model: ChatModel) -> CommentLine? {
+        guard model.canOpenThreads, let root = message.threadRootMessageId, previous?.id != root, previous?.threadRootMessageId != root,
+            let rootMessage = model.timeline.messages.first(where: { $0.id == root }), !rootMessage.isDeleted
+        else { return nil }
+        let isOwn = rootMessage.authorUserId == model.currentUserId && !rootMessage.isAssistant
+        let author: String? = isOwn ? nil : (rootMessage.isAssistant ? String(localized: "Assistant") : (rootMessage.authorName ?? model.member(rootMessage.authorUserId)?.shownName ?? String(localized: "Someone")))
+        return CommentLine(rootMessageId: root, author: author, excerpt: ThreadExcerpt.start(of: rootMessage.text))
+    }
+
+    /// The message a link points at, when this screen is where it belongs: the thread it is in, or the whole chat.
+    private var focusedMessageId: String? {
+        guard let focus = session.messageToFocus, focus.conversationId == conversationId, focus.threadRootMessageId == threadRootMessageId else { return nil }
+        return focus.messageId
+    }
+
+    /// Brings the message into view, reading earlier pages until it is held, and marks it briefly.
+    private func showFocusedMessage(_ model: ChatModel, proxy: ScrollViewProxy) async {
+        guard let messageId = focusedMessageId else { return }
+        var pagesRead = 0
+        while !model.timeline.messages.contains(where: { $0.id == messageId }), model.window.earlierCount > 0, pagesRead < 40 {
+            await model.loadEarlier()
+            pagesRead += 1
+        }
+        session.messageToFocus = nil
+        guard model.timeline.messages.contains(where: { $0.id == messageId }) else {
+            session.linkNotice = String(localized: "That message could not be found.")
+            return
+        }
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        withAnimation { proxy.scrollTo(messageId, anchor: .center) }
+        highlightedMessageId = messageId
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        highlightedMessageId = nil
+    }
+
+    /// Opens the thread of a message, on a server with threads and on the main history; nowhere else a reply opens one.
+    private func threadOpener(_ model: ChatModel) -> ((String) -> Void)? {
+        guard model.canOpenThreads else { return nil }
+        return { openedThreadRootId = $0 }
     }
 
     // MARK: calls
@@ -416,6 +498,7 @@ struct ChatView: View {
     }
 
     private func fieldPrompt(_ model: ChatModel) -> LocalizedStringKey {
+        if isThread { return LocalizedStringKey("Reply in thread…") }
         if !dynamicTypeSize.isAccessibilitySize, let agent = model.agents.first?.name { return LocalizedStringKey("Message, or @\(agent) to ask") }
         return LocalizedStringKey("Message")
     }
@@ -474,6 +557,14 @@ struct ChatView: View {
     }
 }
 
+/// CommentLine is what the line above the first reply of a run says: the message it comments on.
+struct CommentLine: Equatable {
+    let rootMessageId: String
+    /// Nil when the message is the person's own.
+    let author: String?
+    let excerpt: String
+}
+
 /// BubbleKey is everything a chat bubble draws, so the bubble is drawn again only when one of them changes.
 private struct BubbleKey: Equatable {
     let message: ChatMessage
@@ -500,6 +591,9 @@ private struct MessageRow: View {
     /// The message directly above this one, which a reply to it need not quote.
     var previousMessageId: String?
     let askDelete: (ChatMessage) -> Void
+    /// Opens the thread of a message. Nil where a reply is quoted instead: in a thread, and on a server without threads.
+    var onOpenThread: ((String) -> Void)?
+    var commentLine: CommentLine?
 
     private var isMine: Bool { message.authorUserId == model.currentUserId && !message.isAssistant }
 
@@ -522,17 +616,44 @@ private struct MessageRow: View {
             }
             VStack(alignment: isMine ? .trailing : .leading, spacing: 4) {
                 if !isMine, startsRun { authorLine }
+                if let commentLine, let onOpenThread {
+                    ThreadCommentLine(author: commentLine.author, excerpt: commentLine.excerpt) { onOpenThread(commentLine.rootMessageId) }
+                }
                 if showsQuote { quote }
-                bubble
+                tappableBubble
                 ForEach(model.previews[message.id] ?? []) { card in
                     LinkPreviewCardView(card: card, connection: model.connection)
                         .frame(maxWidth: 320)
+                }
+                if let onOpenThread, message.threadSummary?.isCountShown == true || isAssistantWorkingInThread {
+                    ThreadReplyControl(summary: message.threadSummary, isWorking: isAssistantWorkingInThread) { onOpenThread(message.id) }
                 }
                 if isMine, isLastOwn { receipt }
             }
         }
         .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
         }
+    }
+
+    /// The thread a tap on this message opens: the one it is a reply in, else its own when it has replies.
+    private var threadToOpen: String? {
+        guard onOpenThread != nil else { return nil }
+        return ThreadRouting.threadToOpen(messageId: message.id, threadRootMessageId: message.threadRootMessageId, replyCount: message.threadReplyCount)
+    }
+
+    /// A tap on a message that belongs to a thread opens the thread; links and buttons inside it keep working.
+    @ViewBuilder
+    private var tappableBubble: some View {
+        if let root = threadToOpen, let onOpenThread {
+            bubble.onTapGesture { onOpenThread(root) }
+        } else {
+            bubble
+        }
+    }
+
+    /// The assistant is answering in the thread of this message, which the main history says under the message.
+    private var isAssistantWorkingInThread: Bool {
+        model.isOwnTurnRunning && model.workingThreadRootMessageId == message.id
     }
 
     private var authorLine: some View {
@@ -565,6 +686,10 @@ private struct MessageRow: View {
     private var showsQuote: Bool {
         guard message.isReply, let replyId = message.replyToMessageId else { return false }
         if replyId == previousMessageId { return false }
+        // In a thread every reply answers its root, which sits at the top of the screen.
+        if replyId == model.threadRootMessageId { return false }
+        // The line above the reply already says which message it comments on.
+        if commentLine != nil, replyId == message.threadRootMessageId { return false }
         if !message.hasQuotedText, model.timeline.messages.contains(where: { $0.id == replyId }) { return false }
         return true
     }
@@ -613,16 +738,8 @@ private struct MessageRow: View {
                     })
             } else {
             VStack(alignment: .leading, spacing: 2) {
-                // People write plain text; a table or a Markdown link in it is laid out as Markdown, which gives up the name chips.
-                if message.isAssistant || MarkdownBlocks.hasTable(message.text) || message.text.contains("](") {
-                    RichBodyView(markdown: message.text, connection: model.connection, isSelectable: false)
-                } else if TicketBody.hasAttachments(message.text) {
-                    RichBodyView(markdown: message.text, connection: model.connection) { words in
-                        Text(Self.attributed(MentionText.rendered(words, members: model.room?.members ?? [], agents: model.agents), mentionNames: model.mentionNames, onAccent: isMine))
-                    }
-                } else {
-                    Text(Self.attributed(MentionText.rendered(message.text, members: model.room?.members ?? [], agents: model.agents), mentionNames: model.mentionNames, onAccent: isMine))
-                }
+                // People's messages are Markdown. The words around code and links keep the name chips of the people mentioned.
+                RichBodyView(markdown: message.text, connection: model.connection, isSelectable: false) { words in markdownText(words) }
                 if message.isEdited {
                     Text("edited").font(.caption2).foregroundStyle(AnyShapeStyle(.secondary))
                 }
@@ -658,6 +775,25 @@ private struct MessageRow: View {
         return MarkdownView.styledLinks(result)
     }
 
+    /// The words of a message as Markdown. One paragraph hugs its text, as a bubble does; anything with blocks (a list, a quote, code,
+    /// a table) uses the width the bubble has.
+    @ViewBuilder
+    private func markdownText(_ words: String) -> some View {
+        let text = MentionText.rendered(words, members: model.room?.members ?? [], agents: model.agents)
+        if case .paragraph(let paragraph)? = MarkdownBlocks.parse(text).first, MarkdownBlocks.parse(text).count == 1 {
+            Text(MarkdownView.chips(MarkdownView.inline(paragraph), names: model.mentionNames, isOnAccent: isMine))
+        } else {
+            MarkdownView(markdown: text, isSelectable: false, mentionNames: model.mentionNames, isOnAccent: isMine)
+        }
+    }
+
+    /// Copies the address of the message: `/chat/<chatId>/<messageId>` on the account's server.
+    private var copyLinkAction: (() -> Void)? {
+        guard let chatId = model.chatId, let server = appModel.activeAccount?.server else { return nil }
+        let address = MessagePermalink.chatMessage(server: server, chatId: chatId, messageId: message.id).absoluteString
+        return { UIPasteboard.general.string = address }
+    }
+
     /// What a long press on the message offers. A person reacts to anyone's message; the rest follows what the room allows.
     private var heldActions: MessageActions {
         let hasPreviews = !(model.previews[message.id] ?? []).isEmpty
@@ -665,10 +801,11 @@ private struct MessageRow: View {
             messageId: message.id, text: message.text, isTrailing: isMine,
             ownReaction: Reactions.summaries(model.timeline.reactions(for: message.id), currentUserId: model.currentUserId).first { $0.isMine }?.emoji,
             onReact: { emoji in Task { await model.react(messageId: message.id, emoji: emoji) } },
-            onReply: model.canWrite ? { model.replyTarget = message } : nil,
+            onReply: model.canWrite ? { if let onOpenThread { onOpenThread(threadToOpen ?? message.id) } else { model.replyTarget = message } } : nil,
             onEdit: model.canEdit(message) ? { model.editTarget = message } : nil,
             onRemoveLinkPreviews: isMine && hasPreviews ? { Task { await model.removePreviews(of: message) } } : nil,
-            onDelete: model.canDelete(message) ? { askDelete(message) } : nil)
+            onDelete: model.canDelete(message) ? { askDelete(message) } : nil,
+            onCopyLink: copyLinkAction)
     }
 
     @ViewBuilder
@@ -702,6 +839,7 @@ struct ChatInfoView: View {
     @State private var isConfirmingLeave = false
     @State private var memberToRemove: ChatMember?
     @State private var searchText = ""
+    @State private var isShowingCalls = DemoOptions.screen == "chat-call-history" || DemoOptions.screen == "chat-call-history-detail"
 
     /// The people to show: a site chat can hold hundreds, so it can be searched.
     private func shownMembers(of room: ChatRoom) -> [ChatMember] {
@@ -743,6 +881,12 @@ struct ChatInfoView: View {
                     } footer: {
                         if room.isSite { Text("Anyone with access to this site can join by opening this chat or being mentioned in it.") }
                     }
+                    if session.capabilities.offersChatCallHistory, model.chatId != nil {
+                        Section {
+                            NavigationLink { ChatCallsView(model: model) } label: { Label("Calls", systemImage: "phone") }
+                                .accessibilityIdentifier("chatCallsRow")
+                        }
+                    }
                     Section {
                         Picker("Notify me", selection: Binding(
                             get: { room.readerNotificationLevel ?? "all" },
@@ -776,6 +920,7 @@ struct ChatInfoView: View {
                 }
             } }
 .portalList()
+            .navigationDestination(isPresented: $isShowingCalls) { ChatCallsView(model: model) }
             .searchablePeople(isOn: model.room?.isSite == true, text: $searchText)
             .navigationTitle(model.title)
             .navigationBarTitleDisplayMode(.inline)

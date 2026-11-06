@@ -162,6 +162,16 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
 - **Video selection.** The phone sends one video track in two simulcast layers (rid `small` at a quarter size, 150 kbps, 15 fps; rid `full` up to 720p, 1.5 Mbps, 30 fps), VP8 preferred, H.264 allowed. It tells the server how much of each person's video it wants (`SetChatCallVideoSubscriptions`): full for the main stage, small for strip tiles in view, off for tiles scrolled out and for everyone while the call is minimized. The plan is sent once the media is up, again after a reconnect, and after every change, debounced by 300 ms. A call's size limit comes from `GetChatCallMaximumPersonCount`.
 - **Without a server that has them**, none of it shows: `ServerCapabilities` reads the schema once per sign-in.
 
+## Message threads
+
+A reply goes in a thread, in chats with people and in conversations with the assistant. The main history shows every message in time
+order, replies included, and a reply keeps its quote of what it answers. A message that belongs to a thread opens it when tapped (a
+reply, or a message with replies), and a message with replies also says "N replies" and when the last came. Reply on a message opens its
+thread. A thread (`threadRootMessageId`) is a screen of its own, the root first, with its own composer; a reply sent from it goes to the
+message picked, else to the root. Every event reaches the main history, so the streaming text of a threaded run shows there and in the
+thread if it is open, and a thread shows only its own run. A push that carries `threadRootMessageId` opens that thread. A server without
+the argument and fields is sent none of them (`ServerCapabilities.offersMessageThreads`) and behaves as before.
+
 ## TestFlight
 
 TestFlight builds come from the `TestFlight` job of `.github/workflows/ios.yml`,

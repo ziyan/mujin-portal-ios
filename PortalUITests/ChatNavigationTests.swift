@@ -121,7 +121,7 @@ final class ChatNavigationTests: XCTestCase {
     func testGoingBackAndInAgainDrawsTheConversation() {
         let app = DemoApp.launch(screen: "main-chat")
         XCTAssertTrue(message(app, Self.mainChatMessage).waitForExistence(timeout: 30), "The conversation did not open.\n\(app.debugDescription)")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        DemoApp.goBack(app)
         // The open conversation has the same words in its title, so the list is told by its own bar.
         XCTAssertTrue(app.navigationBars["Chat"].waitForExistence(timeout: 30), "Going back left the conversation on screen.\n\(app.debugDescription)")
         let row = app.staticTexts["Main chat"].firstMatch

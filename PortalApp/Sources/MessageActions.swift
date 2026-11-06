@@ -20,6 +20,8 @@ struct MessageActions {
     let onDelete: (() -> Void)?
     /// Set by the bubble that holds the message, which owns the sheet for it.
     var onSelect: () -> Void = {}
+    /// Puts the address of the message on the pasteboard. Nil for a message that is not stored yet.
+    var onCopyLink: (() -> Void)?
 }
 
 /// HoldableMessage is a message bubble that opens its actions on a long press.
@@ -47,6 +49,7 @@ struct HoldableMessage<Bubble: View>: View {
                     if let onReply = actions.onReply { Button("Reply", action: onReply) }
                     if let onEdit = actions.onEdit { Button("Edit", action: onEdit) }
                     Button("Copy") { UIPasteboard.general.string = actions.text }
+                    if let onCopyLink = actions.onCopyLink { Button("Copy link", action: onCopyLink) }
                     Button("Select") { selectingText = SelectingText(text: actions.text) }
                     if let onReact = actions.onReact {
                         ForEach(Reactions.palette, id: \.self) { emoji in
@@ -265,6 +268,10 @@ struct MessageActionsView: View {
             row("Copy", systemImage: "doc.on.doc") {
                 UIPasteboard.general.string = actions.text
                 onClose(nil)
+            }
+            if let onCopyLink = actions.onCopyLink {
+                Divider()
+                row("Copy link", systemImage: "link") { onClose { onCopyLink() } }
             }
             Divider()
             row("Select", systemImage: "selection.pin.in.out") { onClose { actions.onSelect() } }

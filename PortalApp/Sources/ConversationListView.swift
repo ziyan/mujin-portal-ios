@@ -14,6 +14,8 @@ struct ConversationListView: View {
     @State private var chatConversationIds: Set<String> = []
     @State private var searchText = ""
     @State private var isComposing = false
+    /// A thread a notification asked for, which the conversation it is in opens on.
+    @State private var requestedThread: ThreadToOpen?
 
     var body: some View {
         NavigationSplitView(preferredCompactColumn: Binding(
@@ -48,14 +50,17 @@ struct ConversationListView: View {
                     // messages, so the choice is made once: a screen that changed when the list arrived would draw them twice.
                     let listed = model?.conversation(id: shownConversationId)
                     if listed?.conversationKind == "chat" || chatConversationIds.contains(shownConversationId) {
-                        ChatView(account: account, conversationId: shownConversationId, chatId: listed?.chatId)
+                        ChatView(
+                            account: account, conversationId: shownConversationId, chatId: listed?.chatId,
+                            requestedThreadRootMessageId: requestedThreadBinding(for: shownConversationId))
                     } else if listed == nil, model?.phase ?? .loading == .loading {
                         ProgressView()
                     } else {
                         ConversationView(
                             account: account, conversationId: shownConversationId,
                             title: model?.conversation(id: shownConversationId)?.title,
-                            onTitleChanged: { [shownConversationId] title in model?.retitle(id: shownConversationId, title: title) })
+                            onTitleChanged: { [shownConversationId] title in model?.retitle(id: shownConversationId, title: title) },
+                            requestedThreadRootMessageId: requestedThreadBinding(for: shownConversationId))
                     }
                 }
                 .id(shownConversationId)
@@ -81,13 +86,15 @@ struct ConversationListView: View {
             }
             if appModel.isDemo, let screen = DemoOptions.screen {
                 if screen.hasPrefix("chat:") { selection.open(String(screen.dropFirst("chat:".count))) }
-                if screen == "chat-info" { selection.open("chatconv02") }
+                if screen == "chat-info" || screen.hasPrefix("chat-call-history") { selection.open("chatconv02") }
                 if screen == "chat-site-info" || screen == "chat-site-picker" { selection.open("chatsite01") }
                 if screen == "photo-chat" { selection.open("conversation-photos") }
                 if screen == "voice" || screen == "conversation-links" || screen == "message-actions" || screen == "select-text" || screen == "title-event" { selection.open("conversation01") }
                 if screen == "side-chat-links" { selection.open("conversation05") }
                 if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selection.open("chatconv01") }
                 if let conversationId = CallDemo.conversationId(for: screen) { selection.open(conversationId) }
+                if let conversationId = ThreadDemo.conversationId(for: screen) { selection.open(conversationId) }
+                if let thread = ThreadDemo.threadToOpen(for: screen) { requestedThread = thread }
                 if screen.hasPrefix("chats-new") { isComposing = true }
             }
         }
@@ -113,16 +120,30 @@ struct ConversationListView: View {
         .onChange(of: session.chatToOpen, initial: true) { _, conversationId in
             guard let conversationId else { return }
             chatConversationIds.insert(conversationId)
+            takeRequestedThread()
             selection.open(conversationId)
             session.chatToOpen = nil
             Task { await model?.load() }
         }
         .onChange(of: session.conversationToOpen, initial: true) { _, conversationId in
             guard let conversationId else { return }
+            takeRequestedThread()
             selection.open(conversationId)
             session.conversationToOpen = nil
             Task { await model?.load() }
         }
+    }
+
+    /// The thread to open on in a conversation, when a notification asked for one in it.
+    private func requestedThreadBinding(for conversationId: String) -> Binding<String?> {
+        Binding(
+            get: { requestedThread?.conversationId == conversationId ? requestedThread?.threadRootMessageId : nil },
+            set: { if $0 == nil, requestedThread?.conversationId == conversationId { requestedThread = nil } })
+    }
+
+    private func takeRequestedThread() {
+        requestedThread = session.threadToOpen
+        session.threadToOpen = nil
     }
 
     @ViewBuilder

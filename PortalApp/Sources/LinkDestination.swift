@@ -14,6 +14,8 @@ enum LinkResolution: Equatable {
     case lookup
     /// A conversation or a chat, opened on the Chat tab.
     case conversation(String)
+    /// One message of a chat, opened in the person's own conversation of it.
+    case chatMessage(chatId: String, messageId: String)
     /// A tab already on the bar.
     case tab(AppSection)
     /// The notification inbox.
@@ -25,7 +27,7 @@ enum LinkResolution: Equatable {
     var isSheet: Bool {
         switch self {
         case .screen, .lookup: true
-        case .conversation, .tab, .notifications, .web: false
+        case .conversation, .chatMessage, .tab, .notifications, .web: false
         }
     }
 }
@@ -49,6 +51,8 @@ extension SessionModel {
             return .web
         case .conversation(let id):
             return .conversation(id)
+        case .chatMessage(let chatId, let messageId):
+            return capabilities.offersMessageLinks ? .chatMessage(chatId: chatId, messageId: messageId) : .web
         case .user(let id):
             if id == userId { return .screen(.more(.account(.profile))) }
             guard let organization, peopleAccess.canSeeMembers(in: organization) else { return .web }

@@ -3,7 +3,8 @@ import Observation
 import PortalKit
 
 /// ConversationModel is one open conversation: its transcript, kept current
-/// by the subscription feed, and what the person does in it.
+/// by the subscription feed, and what the person does in it. With a `threadRootMessageId` it is one thread of the conversation
+/// instead: the message it hangs from and its replies, with its own composer.
 @MainActor
 @Observable
 final class ConversationModel {
@@ -18,8 +19,12 @@ final class ConversationModel {
     let connection: Connection
     let socketFactory: FeedSocketFactory
     let onError: @MainActor (Error) -> Void
+    /// The thread this model shows, by the id of the message it hangs from. Nil for the main history.
+    private(set) var threadRootMessageId: String?
+    /// Whether the server has message threads. Without them every message is read, as before.
+    let offersMessageThreads: Bool
 
-    private(set) var transcript = Transcript()
+    private(set) var transcript: Transcript
     /// The cards under messages that hold a link: asked for and polled the way a people chat does.
     let linkPreviews: LinkPreviewLoader
     private(set) var window = MessageWindow()
@@ -28,8 +33,8 @@ final class ConversationModel {
     /// Told when the server gives the conversation another title, such as the one it writes after the first answer.
     var onTitleChanged: (@MainActor (String) -> Void)?
     private(set) var isMain = false
-    /// Whether the live feed is up. False while it reconnects.
-    private(set) var isFeedLive = false
+    /// Whether the live feed has dropped and not come back. The first connection of an opened conversation does not count.
+    private(set) var isFeedLost = false
     private(set) var isLoadingEarlier = false
     /// Background work this conversation started that has not ended.
     private(set) var backgroundWork: [BackgroundWork] = []
@@ -65,8 +70,11 @@ final class ConversationModel {
 
     init(
         conversationId: String, currentUserId: String, connection: Connection, socketFactory: @escaping FeedSocketFactory,
-        onError: @escaping @MainActor (Error) -> Void
+        threadRootMessageId: String? = nil, offersMessageThreads: Bool = false, onError: @escaping @MainActor (Error) -> Void
     ) {
+        self.threadRootMessageId = ThreadRouting.normalized(threadRootMessageId)
+        self.offersMessageThreads = offersMessageThreads
+        self.transcript = Transcript(threadRootMessageId: threadRootMessageId)
         self.conversationId = conversationId
         self.currentUserId = currentUserId
         self.connection = connection
@@ -76,10 +84,15 @@ final class ConversationModel {
     }
 
     var isRunning: Bool { transcript.isRunning }
+    var isThread: Bool { threadRootMessageId != nil }
+    /// Whether this screen is the main history of a server with threads: a tap on a message of a thread opens it.
+    var canOpenThreads: Bool { offersMessageThreads && !isThread }
+    /// Whether the run at work answers where this screen looks: in this thread, or in no thread on the main history.
+    var isRunningHere: Bool { transcript.isRunningInView }
 
     /// A turn is running and nothing of the answer has shown yet: the last thing in the transcript is the person's own message.
     var isAwaitingFirstWords: Bool {
-        guard let last = transcript.entries.last(where: { entry in
+        guard isRunningHere, let last = transcript.entries.last(where: { entry in
             if case .note = entry { return false }
             return true
         }) else { return false }
@@ -129,7 +142,7 @@ final class ConversationModel {
     private func handle(_ update: FeedUpdate) async {
         switch update {
         case .connected:
-            isFeedLive = true
+            isFeedLost = false
             // What was said while the feed was down is only in the history;
             // the server replays the running turn on this socket. Reactions
             // are never replayed, so older local changes give way to the history.
@@ -150,9 +163,9 @@ final class ConversationModel {
             default: break
             }
         case .reconnecting:
-            isFeedLive = false
+            isFeedLost = true
         case .signedOut:
-            isFeedLive = false
+            isFeedLost = true
             onError(PortalError.signedOut)
         }
     }
@@ -198,9 +211,13 @@ final class ConversationModel {
     func reload(isRunFinished: Bool = false) async {
         do {
             async let summary = connection.conversation(id: conversationId)
-            async let messages = connection.messages(conversationId: conversationId, latestCount: window.reloadCount)
+            async let messages = connection.messages(
+                conversationId: conversationId, latestCount: isThread ? ThreadRouting.threadMessageCount : window.reloadCount,
+                threadRootMessageId: threadRootMessageId)
             async let waitingCards = connection.waitingCards(conversationId: conversationId)
-            async let total = try? connection.messageCount(conversationId: conversationId)
+            // A thread is read whole, so it has no count of earlier messages.
+            let shouldCountMessages = !isThread
+            async let total: Int? = shouldCountMessages ? connection.messageCountOrNil(conversationId: conversationId) : nil
             let (loadedSummary, loadedMessages, loadedCards) = try await (summary, messages, waitingCards)
             window.replace(with: loadedMessages, totalCount: await total)
             cards = loadedCards
@@ -260,7 +277,8 @@ final class ConversationModel {
         isLoadingEarlier = true
         defer { isLoadingEarlier = false }
         do {
-            let page = try await connection.messages(conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
+            let page = try await connection.messages(
+                conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
             window.prepend(page)
             transcript.load(messages: window.messages, questions: cards.questions, approvals: cards.approvals, isRunning: transcript.isRunning)
             await askForPreviews(page)
@@ -313,10 +331,14 @@ final class ConversationModel {
         let viewing = viewingReference?.viewing
         transcript.appendPendingUser(trimmed, viewing: viewing)
         do {
-            try await connection.sendMessage(conversationId: conversationId, text: trimmed, viewing: viewing, replyToMessageId: reply?.messageId, pageTitle: title)
+            try await connection.sendMessage(
+                conversationId: conversationId, text: trimmed, viewing: viewing,
+                replyToMessageId: ThreadRouting.replyToMessageId(pickedMessageId: reply?.messageId, viewThreadRootMessageId: threadRootMessageId),
+                pageTitle: title)
             replyTarget = nil
             viewingReference = nil
             attachments?.removeUploaded()
+            await followThreadRoot()
             return true
         } catch {
             transcript.removePendingUser(trimmed)
@@ -324,6 +346,17 @@ final class ConversationModel {
             onError(error)
             return false
         }
+    }
+
+    /// An old answer with no thread joins its question's thread on its first reply: the screen that was opened from it moves to the
+    /// thread the server says it is in now.
+    private func followThreadRoot() async {
+        guard let openRoot = threadRootMessageId,
+            let root = await connection.messageThreadRoot(conversationId: conversationId, messageId: openRoot), root != openRoot
+        else { return }
+        threadRootMessageId = root
+        transcript = Transcript(threadRootMessageId: root)
+        await reload()
     }
 
     func cancelRun() async {

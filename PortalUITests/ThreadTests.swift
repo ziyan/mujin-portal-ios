@@ -1,0 +1,176 @@
+import XCTest
+
+/// A reply goes in a thread: the main history of a chat or a conversation shows how many replies a message has, and a tap opens the
+/// thread alone, with its own composer and a way back.
+@MainActor
+final class ThreadTests: XCTestCase {
+    private static let chatRootText = "The dock door 4 sensor has been flickering since this morning."
+    private static let chatReplyText = "I saw it too. The cable looks loose at the frame."
+    private static let chatMainText = "Shift change moves to 14:00 on Friday."
+    private static let assistantRootText = "Door 4 had the most faults this week"
+    private static let assistantReplyText = "Two of the nine were real faults."
+    private static let assistantMainText = "Remind me to check the door 4 wiring on Friday."
+
+    override func setUp() async throws {
+        continueAfterFailure = false
+    }
+
+    private func message(_ app: XCUIApplication, _ text: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
+    /// The title of a thread screen: "Thread" and the name of the chat.
+    private func threadTitle(_ app: XCUIApplication) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Thread")).firstMatch
+    }
+
+    private func replyControl(_ app: XCUIApplication, containing text: String) -> XCUIElement {
+        app.buttons.matching(identifier: "threadReplyControl").matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
+    private func assertOpensThread(_ app: XCUIApplication, replies: String, shows: String, leavesOut: String, file: StaticString = #filePath, line: UInt = #line) {
+        let control = replyControl(app, containing: replies)
+        XCTAssertTrue(control.waitForExistence(timeout: 60), "There is no \"\(replies)\" under the message.\n\(app.debugDescription)", file: file, line: line)
+        // The chat opens at its end, so a message near the top has to be scrolled to.
+        DemoApp.scrollToElement(control, in: app, file: file, line: line)
+        control.tap()
+        XCTAssertTrue(threadTitle(app).waitForExistence(timeout: 30), "The thread did not open.\n\(app.debugDescription)", file: file, line: line)
+        XCTAssertTrue(message(app, shows).waitForExistence(timeout: 30), "The thread does not show its reply.\n\(app.debugDescription)", file: file, line: line)
+        XCTAssertFalse(message(app, leavesOut).exists, "The thread shows a message of the main history.\n\(app.debugDescription)", file: file, line: line)
+    }
+
+    // MARK: a chat with people
+
+    func testTheMainHistoryOfAChatShowsEveryMessageAndCountsRepliesOnTheirRoot() {
+        let app = DemoApp.launch(screen: "thread-chat")
+        XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 60), "The chat did not open.\n\(app.debugDescription)")
+        XCTAssertTrue(replyControl(app, containing: "3 replies").exists, "The message with a thread does not say how many replies it has.\n\(app.debugDescription)")
+        // A question with its one answer needs no count.
+        XCTAssertFalse(replyControl(app, containing: "1 reply").exists, "A thread of one reply shows a count.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, Self.chatReplyText).exists, "A reply is missing from the main history.\n\(app.debugDescription)")
+    }
+
+    func testATapOnAReplyInTheMainHistoryOpensItsThread() {
+        let app = DemoApp.launch(screen: "thread-chat")
+        let reply = message(app, Self.chatReplyText)
+        XCTAssertTrue(reply.waitForExistence(timeout: 60), "The reply is not in the main history.\n\(app.debugDescription)")
+        DemoApp.scrollToElement(reply, in: app)
+        reply.tap()
+        XCTAssertTrue(threadTitle(app).waitForExistence(timeout: 30), "The thread did not open.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, Self.chatRootText).waitForExistence(timeout: 30), "The thread does not start with its root.\n\(app.debugDescription)")
+        XCTAssertFalse(message(app, Self.chatMainText).exists, "The thread shows a message of the main history.\n\(app.debugDescription)")
+    }
+
+    func testAReplyInTheMainHistoryHasABarAndSaysWhatItCommentsOn() {
+        let app = DemoApp.launch(screen: "thread-chat")
+        XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 60), "The chat did not open.\n\(app.debugDescription)")
+        // The third message of the thread is the first reply after other messages: it says what it comments on.
+        let line = app.buttons.matching(identifier: "threadCommentLine").firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 30), "No reply says which message it comments on.\n\(app.debugDescription)")
+        XCTAssertTrue(line.label.contains("Commented on"), "The line does not say what it is.\n\(line.label)")
+        XCTAssertTrue(line.label.contains("dock door 4 sensor"), "The line does not start the message it comments on.\n\(line.label)")
+    }
+
+    func testAnOldReplyKeepsItsQuoteInTheMainHistory() {
+        let app = DemoApp.launch(screen: "thread-chat")
+        XCTAssertTrue(message(app, "Fine by me.").waitForExistence(timeout: 60), "The chat did not open.\n\(app.debugDescription)")
+        // The quote of the message it answers sits above the reply, named by its author.
+        XCTAssertTrue(
+            message(app, "Jordan Placeholder, \(Self.chatMainText)").waitForExistence(timeout: 30), "The old reply lost its quote.\n\(app.debugDescription)")
+    }
+
+    func testATapOnTheCountOpensTheThreadAndBackComesBackToTheChat() {
+        let app = DemoApp.launch(screen: "thread-chat")
+        XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 60), "The chat did not open.\n\(app.debugDescription)")
+        assertOpensThread(app, replies: "3 replies", shows: Self.chatReplyText, leavesOut: Self.chatMainText)
+        XCTAssertTrue(message(app, Self.chatRootText).exists, "The thread does not start with the message it hangs from.\n\(app.debugDescription)")
+        DemoApp.goBack(app)
+        XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 30), "Back did not return to the chat.\n\(app.debugDescription)")
+        XCTAssertFalse(threadTitle(app).exists, "The thread is still open.\n\(app.debugDescription)")
+    }
+
+    func testAReplySentInAThreadStaysInTheThreadAndCountsInTheChat() {
+        let app = DemoApp.launch(screen: "thread-chat-open")
+        XCTAssertTrue(message(app, Self.chatReplyText).waitForExistence(timeout: 60), "The thread did not open.\n\(app.debugDescription)")
+        let field = DemoApp.element(app, "chatMessageField")
+        XCTAssertTrue(field.waitForExistence(timeout: 30), "The thread has no composer.\n\(app.debugDescription)")
+        field.tap()
+        field.typeText("I can look at it after lunch")
+        DemoApp.button(app, "chatSendButton").tap()
+        XCTAssertTrue(message(app, "I can look at it after lunch").waitForExistence(timeout: 30), "The reply did not appear in the thread.\n\(app.debugDescription)")
+        DemoApp.goBack(app)
+        XCTAssertTrue(replyControl(app, containing: "4 replies").waitForExistence(timeout: 30), "The chat did not count the new reply.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, "I can look at it after lunch").exists, "The reply is missing from the main history.\n\(app.debugDescription)")
+    }
+
+    func testTheAssistantAtWorkIsShownOnTheMessageItIsAnswering() {
+        let app = DemoApp.launch(screen: "thread-chat-working")
+        XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 60), "The chat did not open.\n\(app.debugDescription)")
+        XCTAssertTrue(
+            replyControl(app, containing: "Working on an answer").waitForExistence(timeout: 30),
+            "The message does not say the assistant is answering.\n\(app.debugDescription)")
+    }
+
+    func testANotificationAboutAReplyOpensTheThread() {
+        let app = DemoApp.launch(screen: "thread-push")
+        XCTAssertTrue(message(app, Self.chatReplyText).waitForExistence(timeout: 60), "The notification did not open the thread.\n\(app.debugDescription)")
+        XCTAssertTrue(threadTitle(app).waitForExistence(timeout: 30), "The thread is not on screen.\n\(app.debugDescription)")
+        DemoApp.goBack(app)
+        XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 30), "Back from the thread did not reach the chat.\n\(app.debugDescription)")
+    }
+
+    // MARK: a conversation with the assistant
+
+    func testTheMainHistoryOfAConversationShowsEveryMessageAndCountsRepliesOnTheirRoot() {
+        let app = DemoApp.launch(screen: "thread-conversation")
+        XCTAssertTrue(message(app, Self.assistantMainText).waitForExistence(timeout: 60), "The conversation did not open.\n\(app.debugDescription)")
+        XCTAssertTrue(replyControl(app, containing: "2 replies").exists, "The answer with a thread does not say how many replies it has.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, Self.assistantReplyText).exists, "A reply is missing from the main history.\n\(app.debugDescription)")
+    }
+
+    func testATapOnTheCountOpensTheConversationThreadAndBackReturns() {
+        let app = DemoApp.launch(screen: "thread-conversation")
+        XCTAssertTrue(message(app, Self.assistantMainText).waitForExistence(timeout: 60), "The conversation did not open.\n\(app.debugDescription)")
+        assertOpensThread(app, replies: "2 replies", shows: Self.assistantReplyText, leavesOut: Self.assistantMainText)
+        XCTAssertTrue(message(app, Self.assistantRootText).exists, "The thread does not start with the answer it hangs from.\n\(app.debugDescription)")
+        DemoApp.goBack(app)
+        XCTAssertTrue(message(app, Self.assistantMainText).waitForExistence(timeout: 30), "Back did not return to the conversation.\n\(app.debugDescription)")
+    }
+
+    func testAReplyInAConversationThreadIsAnsweredInTheThread() {
+        let app = DemoApp.launch(screen: "thread-conversation-open")
+        XCTAssertTrue(message(app, Self.assistantReplyText).waitForExistence(timeout: 60), "The thread did not open.\n\(app.debugDescription)")
+        let field = DemoApp.element(app, "messageField")
+        XCTAssertTrue(field.waitForExistence(timeout: 30), "The thread has no composer.\n\(app.debugDescription)")
+        field.tap()
+        field.typeText("Is it urgent")
+        DemoApp.button(app, "sendButton").tap()
+        XCTAssertTrue(message(app, "Is it urgent").waitForExistence(timeout: 30), "The reply did not appear in the thread.\n\(app.debugDescription)")
+        // The demo's feed events do not reach a test run, so the answer is read from the history when the conversation comes back.
+        Thread.sleep(forTimeInterval: 4)
+        DemoApp.goBack(app)
+        XCTAssertTrue(message(app, "Is it urgent").waitForExistence(timeout: 30), "The reply is missing from the main history.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, "This is a demo answer").waitForExistence(timeout: 30), "The answer is missing from the main history.\n\(app.debugDescription)")
+    }
+
+    // MARK: links and past calls
+
+    func testALinkToAMessageOpensTheThreadItIsIn() {
+        let app = DemoApp.launch(screen: "thread-link")
+        XCTAssertTrue(threadTitle(app).waitForExistence(timeout: 60), "The link did not open the thread.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, "Can someone tighten it before the afternoon shift?").waitForExistence(timeout: 30), "The thread does not show the message.\n\(app.debugDescription)")
+    }
+
+    func testTheCallsOfAChatAreListed() {
+        let app = DemoApp.launch(screen: "chat-call-history")
+        let row = DemoApp.element(app, "pastCallRow")
+        XCTAssertTrue(row.waitForExistence(timeout: 60), "The chat lists no past call.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, "Missed").waitForExistence(timeout: 30), "The missed call is not listed.\n\(app.debugDescription)")
+    }
+
+    func testACallOpensToWhoSaidWhatAndItsRecordings() {
+        let app = DemoApp.launch(screen: "chat-call-history-detail")
+        XCTAssertTrue(message(app, "Door 4 is flickering again.").waitForExistence(timeout: 60), "The call does not show what was said.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.element(app, "callRecording-rec1").exists, "The call does not offer its recording.\n\(app.debugDescription)")
+    }
+}

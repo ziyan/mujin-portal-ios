@@ -27,6 +27,12 @@ final class SessionModel {
     var conversationToOpen: String?
     /// A chat's conversation the Chats tab should open, from a notification.
     var chatToOpen: String?
+    /// The thread the conversation named by `chatToOpen` or `conversationToOpen` should open on, from a notification about a reply.
+    var threadToOpen: ThreadToOpen?
+    /// A message a link points at, which the chat it is in scrolls to and marks for a moment.
+    var messageToFocus: MessageFocus?
+    /// Why a link to a message could not be opened, shown in a short alert.
+    var linkNotice: String?
     /// Unread messages across the person's chats.
     private(set) var chatUnreadCount = 0
     /// The going calls of the person's chats, kept current by the call feed.
@@ -285,7 +291,15 @@ final class SessionModel {
         case .conversation(let id):
             conversationToOpen = id
             selectedSection = .assistant
+        case .conversationThread(let id, let threadRootMessageId):
+            threadToOpen = ThreadToOpen(conversationId: id, threadRootMessageId: threadRootMessageId)
+            conversationToOpen = id
+            selectedSection = .assistant
         case .chat(let conversationId):
+            chatToOpen = conversationId
+            selectedSection = .assistant
+        case .chatThread(let conversationId, let threadRootMessageId):
+            threadToOpen = ThreadToOpen(conversationId: conversationId, threadRootMessageId: threadRootMessageId)
             chatToOpen = conversationId
             selectedSection = .assistant
         case .goal(let id):
@@ -296,6 +310,22 @@ final class SessionModel {
             selectedSection = .more
         case .notifications:
             isShowingNotifications = true
+        }
+    }
+
+    /// Opens a link to a message of a chat: the person's own conversation of it, in the thread the message is in when it is in one.
+    func openChatMessage(chatId: String, messageId: String) async {
+        do {
+            let conversationId = try await connection.openChatMessage(chatId: chatId, messageId: messageId)
+            let root = await connection.messageThreadRoot(conversationId: conversationId, messageId: messageId)
+            messageToFocus = MessageFocus(conversationId: conversationId, messageId: messageId, threadRootMessageId: root)
+            if let root {
+                open(.chatThread(conversationId: conversationId, threadRootMessageId: root))
+            } else {
+                open(.chat(conversationId: conversationId))
+            }
+        } catch {
+            linkNotice = String(localized: "That message could not be found.")
         }
     }
 
@@ -393,6 +423,8 @@ final class SessionModel {
             capabilities = newCapabilities
             // A server with voice messages or calls takes their fields of a chat message; an older one refuses them.
             await connection.setChatMedia(hasVoice: newCapabilities.offersVoiceMessages, hasCalls: newCapabilities.offersChatCalls)
+            // A server with message threads takes their fields and arguments; an older one refuses them.
+            await connection.setMessageThreads(newCapabilities.offersMessageThreads)
             await refreshCalls()
             phase = .loaded
             await refreshWaiting()
@@ -436,7 +468,7 @@ enum DemoOptions {
         // Screens that live under More.
         if ["automations", "notifications", "about", "settings-update", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image", "accounts", "tab-bar-edit"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") || screen.hasPrefix("attachment-viewer") { return .tickets }
-        if screen.hasPrefix("chat") { return .chats }
+        if screen.hasPrefix("chat") || screen.hasPrefix("thread-") { return .chats }
         if screen.hasPrefix("site-staff") || screen == "sites-staff" || screen == "surveillance-staff" { return .site }
         if screen == "surveillance" { return .more }
         if screen == "surveillance-tab" || screen == "surveillance-many" || screen == "surveillance-many-scrolled" { return .surveillance }
@@ -479,4 +511,17 @@ enum DemoOptions {
 
     /// Whether the demo person works for the administrator organization.
     static var isStaff: Bool { environment["PORTAL_DEMO_PERSONA"] == "staff" }
+}
+
+/// MessageFocus is the message a link points at, and the thread it is in when it is in one.
+struct MessageFocus: Equatable {
+    let conversationId: String
+    let messageId: String
+    let threadRootMessageId: String?
+}
+
+/// ThreadToOpen is a thread a notification asked for: the conversation it is in and the message it hangs from.
+struct ThreadToOpen: Equatable {
+    let conversationId: String
+    let threadRootMessageId: String
 }

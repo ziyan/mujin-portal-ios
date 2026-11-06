@@ -49,7 +49,7 @@ struct AllVirtualControllersView: View {
         }
         .navigationTitle("Virtual controllers")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .searchable(text: $filter.query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search virtual controllers")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

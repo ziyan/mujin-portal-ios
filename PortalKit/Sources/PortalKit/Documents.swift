@@ -210,6 +210,8 @@ public enum Documents {
         documents += accountSecurityDocuments
         documents += peopleDocuments
         documents += webAppDocuments
+        documents += messageThreadDocuments
+        documents += messageLinkDocuments
         return documents
     }
 }

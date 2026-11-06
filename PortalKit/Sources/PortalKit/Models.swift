@@ -134,6 +134,11 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
     public let voiceMessage: VoiceMessage?
     /// The call this message is the line of, when the server has calls.
     public let call: ChatCall?
+    /// The message this one is a reply in the thread of, when the server has threads. Empty for a message in the main history.
+    public let threadRootMessageId: String?
+    /// On a message that has a thread: how many replies it holds and when the last came.
+    public let threadReplyCount: Int?
+    public let threadLastReplyAt: String?
 
     public init(
         id: String, role: String, content: JSONValue? = nil, toolCalls: JSONValue? = nil, toolCallId: String? = nil,
@@ -143,8 +148,12 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
         authorOrganizationName: String? = nil, onBehalfOfUserId: String? = nil, onBehalfOfUserName: String? = nil,
         replyToMessageId: String? = nil, replyToExcerpt: String? = nil, replyToAuthorName: String? = nil,
         isAddressingAssistant: Bool? = nil, editedAt: String? = nil, deletedAt: String? = nil, linkPreviewsRemovedAt: String? = nil,
-        voiceMessage: VoiceMessage? = nil, call: ChatCall? = nil
+        voiceMessage: VoiceMessage? = nil, call: ChatCall? = nil, threadRootMessageId: String? = nil, threadReplyCount: Int? = nil,
+        threadLastReplyAt: String? = nil
     ) {
+        self.threadRootMessageId = threadRootMessageId
+        self.threadReplyCount = threadReplyCount
+        self.threadLastReplyAt = threadLastReplyAt
         self.voiceMessage = voiceMessage
         self.call = call
         self.isChatMessage = isChatMessage

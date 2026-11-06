@@ -72,13 +72,17 @@ public struct PushPayload: Equatable, Sendable {
     public let alertArguments: [String]
     /// Who wrote a chat message; absent for the assistant and from an older server.
     public let authorUserId: String?
+    /// For a message said in a thread: the message the thread hangs from, which tapping the notification opens. Absent from an older
+    /// server and for a message in the main history.
+    public let threadRootMessageId: String?
 
     public init(
         userId: String, organizationId: String? = nil, kind: String, notificationId: String? = nil, conversationId: String? = nil,
         interactionId: String? = nil, waitingKind: String? = nil, chatId: String? = nil, goalId: String? = nil, jobId: String? = nil,
         choices: [String] = [], isAnswered: Bool = false, threadId: String? = nil, alertArguments: [String] = [],
-        authorUserId: String? = nil
+        authorUserId: String? = nil, threadRootMessageId: String? = nil
     ) {
+        self.threadRootMessageId = threadRootMessageId
         self.authorUserId = authorUserId
         self.alertArguments = alertArguments
         self.userId = userId
@@ -121,7 +125,7 @@ public struct PushPayload: Equatable, Sendable {
             choices: Self.buttonChoices(choices), isAnswered: text("isAnswered") == "true" || (portal["isAnswered"] as? Bool) == true,
             threadId: ((userInfo["aps"] as? [String: Any])?["thread-id"] as? String),
             alertArguments: (((userInfo["aps"] as? [String: Any])?["alert"] as? [String: Any])?["loc-args"] as? [String]) ?? [],
-            authorUserId: text("authorUserId"))
+            authorUserId: text("authorUserId"), threadRootMessageId: text("threadRootMessageId"))
     }
 
     /// The choices that become buttons: non-empty, clipped, at most four.
@@ -154,9 +158,13 @@ public struct PushPayload: Equatable, Sendable {
     public var route: PushRoute {
         switch kind {
         case "agent_waiting", "agent_message":
+            if let conversationId, let threadRootMessageId { return .conversationThread(id: conversationId, threadRootMessageId: threadRootMessageId) }
             if let conversationId { return .conversation(id: conversationId) }
             return .notifications
         case "chat_message", "chat_call":
+            if kind == "chat_message", let conversationId, let threadRootMessageId {
+                return .chatThread(conversationId: conversationId, threadRootMessageId: threadRootMessageId)
+            }
             if let conversationId { return .chat(conversationId: conversationId) }
             return .notifications
         case "agent_goal_needs_you":
@@ -192,7 +200,11 @@ public struct PushPayload: Equatable, Sendable {
 /// PushRoute is a place in the app a notification opens.
 public enum PushRoute: Equatable, Sendable {
     case conversation(id: String)
+    /// A conversation with the assistant, opened on one of its threads.
+    case conversationThread(id: String, threadRootMessageId: String)
     case chat(conversationId: String)
+    /// A chat with people, opened on one of its threads.
+    case chatThread(conversationId: String, threadRootMessageId: String)
     case goal(id: String)
     case automations
     case notifications

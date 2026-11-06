@@ -31,9 +31,17 @@ public actor Connection {
         hasChatCalls = hasCalls
     }
 
+    /// Whether this server's messages carry thread fields, which an older server refuses. Set from its capabilities.
+    public private(set) var hasMessageThreads = false
+
+    public func setMessageThreads(_ hasThreads: Bool) {
+        hasMessageThreads = hasThreads
+    }
+
     /// The document as this server takes it.
     public func prepared(_ document: String) -> String {
-        Documents.withChatMedia(document, hasVoice: hasVoiceMessages, hasCalls: hasChatCalls)
+        let withMedia = Documents.withChatMedia(document, hasVoice: hasVoiceMessages, hasCalls: hasChatCalls)
+        return hasMessageThreads ? Documents.withThreads(withMedia) : withMedia
     }
 
     /// How long before a token runs out it is renewed. Access tokens last

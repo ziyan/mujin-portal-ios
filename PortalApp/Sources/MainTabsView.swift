@@ -115,6 +115,14 @@ struct MainTabsView: View {
             if appModel.isDemo, let screen = DemoOptions.screen, CallDemo.owns(screen), screen.hasPrefix("call-"), screen != "call-picker" {
                 appModel.callCenter.showDemo(CallDemo.session(for: screen), isScreenShown: screen != "call-minimized")
             }
+            // A notification about a reply in a thread, as if it had launched the app: the chat opens on that thread.
+            if appModel.isDemo, DemoOptions.screen == "thread-push" {
+                newSession.open(.chatThread(conversationId: ThreadDemo.chatConversationId, threadRootMessageId: ThreadDemo.chatThreadRootMessageId))
+            }
+            // A link to a message of the chat that is in a thread: the chat opens on the thread, at that message.
+            if appModel.isDemo, DemoOptions.screen == "thread-link" {
+                Task { await newSession.openChatMessage(chatId: "chat-thread", messageId: "t03") }
+            }
             // A notification tapped a few seconds after launch, for a test that sends the app away first.
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("push:") {
                 let conversationId = String(screen.dropFirst("push:".count))
@@ -166,6 +174,7 @@ struct MainTabsView: View {
         appModel.openedLink = nil
         switch resolution {
         case .conversation(let id): session.open(.conversation(id: id))
+        case .chatMessage(let chatId, let messageId): Task { await session.openChatMessage(chatId: chatId, messageId: messageId) }
         case .tab(let section): session.selectedSection = section
         case .notifications: session.isShowingNotifications = true
         case .web:
@@ -204,6 +213,9 @@ struct MainTabsView: View {
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
         .environment(session)
+        .alert(
+            "That message could not be found.", isPresented: Binding(get: { session.linkNotice != nil }, set: { if !$0 { session.linkNotice = nil } }),
+            actions: { Button("OK", role: .cancel) {} })
     }
 
     private func tabs(_ session: SessionModel) -> some View {
@@ -299,7 +311,7 @@ private struct DestinationTab: View {
                 .portalDestinations()
                 .navigationDestination(for: MoreDestination.self) { destination in
                     MoreDestinationView(destination: destination)
-                        .toolbarVisibility(.hidden, for: .tabBar)
+                        .hidesTabBarWhenCompact()
                 }
         }
     }
