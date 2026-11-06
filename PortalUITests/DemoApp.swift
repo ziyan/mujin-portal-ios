@@ -4,9 +4,9 @@ import XCTest
 /// same one the screenshots job passes as PORTAL_DEMO_SCREEN.
 @MainActor
 enum DemoApp {
-    static func launch(screen: String, persona: String? = nil, environment: [String: String] = [:]) -> XCUIApplication {
+    static func launch(screen: String, persona: String? = nil, environment: [String: String] = [:], arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-demo"]
+        app.launchArguments = ["-demo"] + arguments
         app.launchEnvironment["PORTAL_DEMO_SCREEN"] = screen
         if let persona { app.launchEnvironment["PORTAL_DEMO_PERSONA"] = persona }
         app.launchEnvironment.merge(environment) { _, new in new }
