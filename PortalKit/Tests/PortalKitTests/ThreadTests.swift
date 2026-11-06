@@ -422,3 +422,12 @@ import Testing
         #expect(page.calls.first?.recordingCount == 2 && page.calls.first?.messageId == "m3")
     }
 }
+
+@Suite struct ChatLinkPreviewRuleTests {
+    @Test func aBareChatMessagePathMayHoldALink() {
+        #expect(LinkPreviewRules.mayHoldLink("/chat/abc/def"))
+        #expect(LinkPreviewRules.mayHoldLink("Here it is: /chat/abc/def"))
+        #expect(!LinkPreviewRules.mayHoldLink("Let us chat about it"))
+        #expect(!LinkPreviewRules.mayHoldLink("the chat/abc idea"))
+    }
+}

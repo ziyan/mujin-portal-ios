@@ -316,7 +316,7 @@ public enum LinkPreviewRules {
     public static func mayHoldLink(_ text: String) -> Bool {
         if text.contains("http://") || text.contains("https://") { return true }
         guard let expression = try? NSRegularExpression(
-            pattern: #"(^|\s)/(ticket|site|controller|virtual-controller|virtualcontroller|incident|page|release)/[^\s]+"#)
+            pattern: #"(^|\s)/(ticket|site|controller|virtual-controller|virtualcontroller|incident|page|release|chat)/[^\s]+"#)
         else { return false }
         return expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
