@@ -297,6 +297,7 @@ jobs:
           shoot alarm-levels-warnings alarm-levels-warnings
           shoot alarm-levels-controller alarm-levels-controller
           shoot alarm-levels-list alarm-levels-list
+          shoot alarm-levels-critical alarm-levels-critical
           shoot chat-add-people chat-add-people
           shoot chats-new chats-new
           shoot chats-new-staff chats-new-group staff
@@ -521,6 +522,7 @@ jobs:
           shoot feedback-list-dark feedback-list
           shoot exclusion-site-dark exclusion-site
           shoot alarm-levels-list-dark alarm-levels-list
+          shoot alarm-levels-critical-dark alarm-levels-critical
           shoot release-menu-dark release-menu
           shoot chat-link-tap-dark chat-link-tap
           shoot notifications-dark notifications

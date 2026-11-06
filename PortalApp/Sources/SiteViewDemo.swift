@@ -12,7 +12,7 @@ enum SiteViewDemo {
     ]
 
     /// Screens for the alarm levels. They are served by the same server, which has the feature.
-    static let alarmLevelScreens: Set<String> = ["alarm-levels", "alarm-levels-warnings", "alarm-levels-controller", "alarm-levels-list"]
+    static let alarmLevelScreens: Set<String> = ["alarm-levels", "alarm-levels-warnings", "alarm-levels-controller", "alarm-levels-list", "alarm-levels-critical"]
 
     static func owns(_ screen: String?) -> Bool { screen.map { exclusionScreens.contains($0) || alarmLevelScreens.contains($0) } ?? false }
 

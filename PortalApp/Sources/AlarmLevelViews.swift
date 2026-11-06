@@ -56,20 +56,58 @@ struct AlarmLevelBar: View {
 
     private func chip(_ level: AlarmLevel, count: Int) -> some View {
         let isOn = preference.filter.selectedLevels.contains(level)
+        let isCriticalOn = isOn && level == .critical
+        let wordColor = isCriticalOn ? Color.white : Color.onAccent
         return HStack(spacing: 6) {
             Text(level.title)
-            Text(count.formatted()).monospacedDigit().foregroundStyle(isOn ? Color.onAccent.opacity(0.85) : Color.secondary)
+            Text(count.formatted()).monospacedDigit().foregroundStyle(isOn ? wordColor.opacity(0.85) : Color.secondary)
         }
-        .font(.subheadline.weight(.medium))
-        .foregroundStyle(isOn ? Color.onAccent : Color.primary)
+        .font(.subheadline.weight(isCriticalOn ? .bold : .medium))
+        .foregroundStyle(isOn ? wordColor : Color.primary)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(isOn ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color(.tertiarySystemFill)), in: Capsule())
+        .background(isOn ? AnyShapeStyle(isCriticalOn ? Color.statusCritical : Color.accentColor) : AnyShapeStyle(Color(.tertiarySystemFill)), in: Capsule())
         .frame(minHeight: 44)
         .rowTapTarget { preference.filter.toggle(level) }
         .accessibilityElement(children: .combine)
         .accessibilityValue(isOn ? Text("On") : Text("Off"))
         .accessibilityIdentifier("alarmLevel.\(level.rawValue)")
+    }
+}
+
+/// AlarmSeverityIcon is the symbol of an alarm row. Critical differs from Error in shape as well as color, so the two can be told
+/// apart at a glance and without seeing color. Its white mark keeps it readable on a dark card.
+struct AlarmSeverityIcon: View {
+    let severityRank: Int
+
+    var body: some View {
+        switch severityRank {
+        case 0:
+            Image(systemName: "xmark.octagon.fill").symbolRenderingMode(.palette).foregroundStyle(Color.white, Color.statusCritical)
+        case 1:
+            Image(systemName: "exclamationmark.octagon.fill").foregroundStyle(Color.statusError)
+        default:
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.statusWarning)
+        }
+    }
+}
+
+/// AlarmSeverityText is an alarm's level in words: white on the critical color for Critical, the status color for the others.
+struct AlarmSeverityText: View {
+    let text: String
+    let severityRank: Int
+
+    var body: some View {
+        if severityRank == 0 {
+            Text(text)
+                .fontWeight(.bold)
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 2)
+                .background(Color.statusCritical, in: Capsule())
+        } else {
+            Text(text).foregroundStyle(severityRank == 1 ? Color.statusError : Color.statusWarning)
+        }
     }
 }
 

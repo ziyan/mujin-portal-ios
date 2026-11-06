@@ -770,7 +770,8 @@ struct DemoTransport: HTTPTransport {
             controllerClock.timeZone = TimeZone(secondsFromGMT: -4 * 3600) ?? .current
             return [
                 "GetAlarmDetail": [
-                    "logEntryId": variables["logEntryId"] as? String ?? "alarmEntry01", "alarmStatus": "active", "alarmLevel": "error",
+                    "logEntryId": variables["logEntryId"] as? String ?? "alarmEntry01", "alarmStatus": "active",
+                    "alarmLevel": ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "alarm-levels-critical" ? "critical" : "error",
                     "alarmMessage": "Gripper suction pressure is low", "occurredAt": controllerClock.string(from: Date().addingTimeInterval(-1_200)),
                     "originKind": "device", "originControllerId": "controller01",
                     "originFields": [["key": "deviceName", "value": "gripper_1"], ["key": "zoneName", "value": "pick_zone_a"]],
