@@ -30,6 +30,7 @@ struct ChatView: View {
     @State private var isAddingPeople = DemoOptions.screen == "chat-add-people"
     @State private var drafts = AttachmentDrafts()
     @State private var recorder = VoiceMessageRecorder()
+    @State private var dictation = DictationController()
     @State private var isShowingVoiceHint = false
     @State private var isChoosingWhoToCall = DemoOptions.screen == "call-picker" || DemoOptions.screen == "chat-site-picker"
     @AppStorage("chatVoiceMode") private var isVoiceModePreferred = false
@@ -125,6 +126,9 @@ struct ChatView: View {
             model = chatModel
             chatModel.start()
             if appModel.isDemo, DemoOptions.screen == "chat-composer" { drafts.stageDemo() }
+            if appModel.isDemo, SpeechDemo.stagesListening(DemoOptions.screen, isThread: isThread) { dictation.stageListening(captionText: DemoSpeech.firstCaption) }
+            if appModel.isDemo, SpeechDemo.stagesWords(DemoOptions.screen) { draft = DemoSpeech.dictatedWords }
+            if appModel.isDemo, let messageId = SpeechDemo.messageToPlay(DemoOptions.screen, isThread: isThread) { session.readAloud.stageDemo(messageId: messageId) }
             if appModel.isDemo, DemoOptions.screen == "thread-chat-working" { chatModel.stageDemoWorking(inThreadOf: "t06") }
             if appModel.isDemo, CallDemo.owns(DemoOptions.screen) { CallDemo.markPlayed() }
             if appModel.isDemo, DemoOptions.screen == "chat-reply" {
@@ -143,8 +147,15 @@ struct ChatView: View {
         // The feed stays open only while the chat is seen, which is how the server knows to send no notification for it.
         .onCoveredChange { isCovered in
             guard isOnScreen else { return }
-            if isCovered { model?.stop() } else { model?.start() }
+            if isCovered {
+                model?.stop()
+                dictation.abort()
+                session.readAloud.stop()
+            } else {
+                model?.start()
+            }
         }
+        .speechLifecycle(dictation)
     }
 
     @ViewBuilder
@@ -396,6 +407,8 @@ struct ChatView: View {
 
     private func composer(_ model: ChatModel) -> some View {
         VStack(spacing: 6) {
+            if session.readAloud.isShowingBar { ReadAloudBar(readAloud: session.readAloud) }
+            if dictation.isShowingStatus { DictationStatus(dictation: dictation) }
             if let error = model.actionError {
                 Text(error).font(.footnote).foregroundStyle(Color.statusError).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
             }
@@ -452,13 +465,15 @@ struct ChatView: View {
                     placeholder: fieldPrompt(model), text: $draft, drafts: model.editTarget == nil ? drafts : nil, isEnabled: model.canWrite,
                     canSend: !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (model.editTarget == nil && !drafts.items.isEmpty),
                     sendSymbol: model.editTarget == nil ? "arrow.up" : "checkmark", sendLabel: model.editTarget == nil ? "Send" : "Save edit",
-                    fieldIdentifier: "chatMessageField", sendIdentifier: "chatSendButton",
+                    dictation: dictationControl(model), fieldIdentifier: "chatMessageField", sendIdentifier: "chatSendButton",
                     onEscape: {
                         guard draft.isEmpty, model.replyTarget != nil else { return false }
                         model.replyTarget = nil
                         return true
                     },
                     onSend: {
+                        // What is still being said belongs to the message that was sent, not to the next one.
+                        dictation.abort()
                         let text = draft
                         draft = ""
                         Task { if await !model.send(text, attachments: drafts) { draft = text } }
@@ -482,12 +497,31 @@ struct ChatView: View {
                 .onChange(of: draft) { _, text in
                     if !text.isEmpty && model.editTarget == nil { model.noteTyping() }
                 }
+                // The voice message bar takes the composer's place, with no microphone button to stop dictating.
+                .onChange(of: isVoiceModePreferred) { _, _ in dictation.abort() }
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 6)
         .onChange(of: model.editTarget) { _, target in
             if let target { draft = target.text }
+        }
+    }
+
+    /// The microphone button, when the server has dictation set up for this person.
+    private func dictationControl(_ model: ChatModel) -> DictationControl? {
+        guard session.voiceAvailability.isDictationAvailable else { return nil }
+        return DictationControl(isListening: dictation.isListening, isEnabled: model.canWrite && dictation.phase != .finishing) { toggleDictation() }
+    }
+
+    private func toggleDictation() {
+        if callCenter.isInCall {
+            dictation.report(String(localized: "You cannot dictate during a call."))
+            return
+        }
+        session.readAloud.stop()
+        dictation.toggle(place: .chat, connection: appModel.connection(for: account), isDemo: appModel.isDemo) { words in
+            draft = DictationText.appending(words, to: draft)
         }
     }
 
@@ -805,7 +839,9 @@ private struct MessageRow: View {
             onEdit: model.canEdit(message) ? { model.editTarget = message } : nil,
             onRemoveLinkPreviews: isMine && hasPreviews ? { Task { await model.removePreviews(of: message) } } : nil,
             onDelete: model.canDelete(message) ? { askDelete(message) } : nil,
-            onCopyLink: copyLinkAction)
+            onCopyLink: copyLinkAction,
+            // A voice message has its own player, and a call line has no words.
+            readAloudText: message.voice == nil && message.call == nil && !message.isDeleted ? message.text : nil)
     }
 
     @ViewBuilder

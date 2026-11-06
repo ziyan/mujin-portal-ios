@@ -40,6 +40,7 @@ final class VoiceAudioEngine: @unchecked Sendable {
     private let player = AVAudioPlayerNode()
     private let playbackFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(VoiceAudio.sampleRateHertz), channels: 1, interleaved: false)!
     private var resampler: LinearResampler?
+    private var frameByteCount = VoiceAudio.bytesPerFrame
     private var pending = Data()
     private let lock = NSLock()
     private var epoch = 0
@@ -48,7 +49,10 @@ final class VoiceAudioEngine: @unchecked Sendable {
     /// Called on the audio thread with each 4,800-byte frame of 24 kHz 16-bit mono audio.
     var onFrame: (@Sendable (Data) -> Void)?
 
-    func start() throws {
+    /// Starts the microphone, cut into frames of `format`: a call uses the standard one, and dictation the one its socket names.
+    func start(format: DictationFormat = .standard) throws {
+        frameByteCount = format.bytesPerFrame
+        pending = Data()
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
         try session.setActive(true)
@@ -57,10 +61,10 @@ final class VoiceAudioEngine: @unchecked Sendable {
         try input.setVoiceProcessingEnabled(true)
         engine.attach(player)
         engine.connect(player, to: engine.mainMixerNode, format: playbackFormat)
-        let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 else { throw VoiceAudioError.noMicrophone }
-        resampler = LinearResampler(inputRate: format.sampleRate)
-        input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
+        let inputFormat = input.outputFormat(forBus: 0)
+        guard inputFormat.sampleRate > 0 else { throw VoiceAudioError.noMicrophone }
+        resampler = LinearResampler(inputRate: inputFormat.sampleRate, outputRate: Double(format.sampleRateHertz))
+        input.installTap(onBus: 0, bufferSize: 2048, format: inputFormat) { [weak self] buffer, _ in
             self?.handle(buffer)
         }
         engine.prepare()
@@ -90,9 +94,9 @@ final class VoiceAudioEngine: @unchecked Sendable {
             bytes.append(UInt8(truncatingIfNeeded: value >> 8))
         }
         pending.append(bytes)
-        while pending.count >= VoiceAudio.bytesPerFrame {
-            let frame = pending.prefix(VoiceAudio.bytesPerFrame)
-            pending.removeFirst(VoiceAudio.bytesPerFrame)
+        while pending.count >= frameByteCount {
+            let frame = pending.prefix(frameByteCount)
+            pending.removeFirst(frameByteCount)
             onFrame?(Data(frame))
         }
     }

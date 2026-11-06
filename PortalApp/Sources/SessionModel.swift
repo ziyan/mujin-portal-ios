@@ -19,6 +19,10 @@ final class SessionModel {
     private(set) var phase = Phase.loading
     private(set) var profile: Profile?
     private(set) var capabilities = ServerCapabilities()
+    /// Which of dictation and reading aloud the server has set up for this person. Neither, until the server says.
+    private(set) var voiceAvailability = VoiceAvailability.unavailable
+    /// The one message being read aloud, whichever screen asked.
+    let readAloud: ReadAloudController
     /// Questions and approvals that wait for the person, in any conversation.
     private(set) var waiting: [WaitingItem] = []
     /// The tab in front. Screens change it to take the person elsewhere.
@@ -80,6 +84,7 @@ final class SessionModel {
         self.account = account
         self.connection = connection
         self.onError = onError
+        self.readAloud = ReadAloudController(connection: connection)
         let directory = Self.avatarDirectory(accountKey: account.accountKey)
         self.avatars = AvatarStore(connection: connection, directory: directory)
         self.surveillance = SurveillanceModel(connection: connection, cache: cache, accountKey: account.accountKey)
@@ -425,6 +430,8 @@ final class SessionModel {
             await connection.setChatMedia(hasVoice: newCapabilities.offersVoiceMessages, hasCalls: newCapabilities.offersChatCalls)
             // A server with message threads takes their fields and arguments; an older one refuses them.
             await connection.setMessageThreads(newCapabilities.offersMessageThreads)
+            // Asked only of a server whose schema has the fields; an older one has neither feature.
+            voiceAvailability = await connection.voiceAvailability(capabilities: newCapabilities)
             await refreshCalls()
             phase = .loaded
             await refreshWaiting()

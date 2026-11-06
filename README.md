@@ -162,6 +162,22 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
 - **Video selection.** The phone sends one video track in two simulcast layers (rid `small` at a quarter size, 150 kbps, 15 fps; rid `full` up to 720p, 1.5 Mbps, 30 fps), VP8 preferred, H.264 allowed. It tells the server how much of each person's video it wants (`SetChatCallVideoSubscriptions`): full for the main stage, small for strip tiles in view, off for tiles scrolled out and for everyone while the call is minimized. The plan is sent once the media is up, again after a reconnect, and after every change, debounced by 300 ms. A call's size limit comes from `GetChatCallMaximumPersonCount`.
 - **Without a server that has them**, none of it shows: `ServerCapabilities` reads the schema once per sign-in.
 
+## Dictation and reading aloud
+
+- **Dictate.** A plain microphone button in the composer of a chat with people and of a conversation with the assistant, threads
+  included. It opens the voice socket a call uses, with `purpose: dictation` and `dictationPlace` (`chat` or `agent`), and streams
+  the microphone as 16-bit mono PCM in the format the `ready` event names. The live words show above the box; each final
+  transcript is added to the end of the box with a space before it, and nothing is sent. It stops by itself after 30 seconds with no
+  words, when the message is sent, the screen goes away, the app goes to the background or a call starts, and a tap on stop waits up
+  to 3 seconds for the words still being said. The audio session it changed is put back.
+- **Read aloud.** An action beside Copy link on a message of text (not a voice message, not a message still being written). The text
+  is made speakable (`ReadAloudText`, after the web app: no images, code blocks, formulas or bare addresses, link text kept, a table
+  as commas), cut into pieces of whole sentences of at most 4,096 characters, and spoken through `Connection.synthesize` with the
+  person's own voice. The next piece is fetched while one plays. One message plays at a time, with the ringer switch silent, and a call
+  or an interruption stops it. A billing limit (402) or no speech provider (404) is said in words.
+- **Without a server that has them**, neither shows: `GetAgentVoiceSetting` gains `isDictationAvailable` and
+  `isReadAloudAvailable`, and the app asks for them only when the schema's `AgentVoiceSetting` type has them.
+
 ## Message threads
 
 A reply goes in a thread, in chats with people and in conversations with the assistant. The main history shows every message in time
