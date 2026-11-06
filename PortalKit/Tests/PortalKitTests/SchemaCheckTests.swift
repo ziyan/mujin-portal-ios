@@ -46,6 +46,18 @@ import Testing
         }
     }
 
+    /// Message threads are built against the contract the server has, which the vendored schema holds: the fields and arguments are
+    /// checked wherever the app adds them for a server that offers them.
+    @Test func theThreadFieldsAreValidWhereTheyAreAdded() throws {
+        var checked = 0
+        for document in Documents.all where document.contains("linkPreviewsRemovedAt") || document.contains("OnConversationEvent(") {
+            let problems = try DocumentValidator(schema: Self.schema).problems(in: Documents.withThreads(document))
+            #expect(problems.isEmpty, "\(document.prefix(60)): \(problems)")
+            checked += 1
+        }
+        #expect(checked >= 4)
+    }
+
     @Test func theValidatorCatchesAWrongField() throws {
         let problems = try DocumentValidator(schema: Self.schema).problems(
             in: "query ListConversations($userId: String) { ListConversations(userId: $userId) { conversations { id noSuchField } } }")

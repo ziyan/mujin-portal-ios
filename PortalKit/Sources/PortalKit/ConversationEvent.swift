@@ -199,13 +199,16 @@ public struct ConversationEvent: Codable, Equatable, Sendable {
     public let modelSwitch: ModelSwitch?
     public let conversationUpdated: ConversationUpdated?
     public let chat: Chat?
+    /// The thread a run answers in, on every event of that run. Empty for a run in the main history.
+    public let threadRootMessageId: String?
 
     public init(
         type: String, runId: String? = nil, textDelta: TextDelta? = nil, toolCall: ToolCall? = nil, toolResult: ToolResult? = nil,
         pendingQuestion: PendingQuestion? = nil, pendingApproval: PendingApproval? = nil, runComplete: RunComplete? = nil, runError: RunError? = nil,
         roundRetry: RoundRetry? = nil, reacted: Reacted? = nil, modelSwitch: ModelSwitch? = nil,
-        conversationUpdated: ConversationUpdated? = nil, chat: Chat? = nil
+        conversationUpdated: ConversationUpdated? = nil, chat: Chat? = nil, threadRootMessageId: String? = nil
     ) {
+        self.threadRootMessageId = threadRootMessageId
         self.chat = chat
         self.conversationUpdated = conversationUpdated
         self.roundRetry = roundRetry

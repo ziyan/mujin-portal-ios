@@ -48,23 +48,44 @@ extension Array where Element == WaitingItem {
 
 extension Connection {
     /// The latest messages of a conversation, oldest first. With
-    /// `beforeMessageId` it is the page before that message.
-    public func messages(conversationId: String, latestCount: Int?, beforeMessageId: String? = nil) async throws -> [ConversationMessage] {
+    /// `beforeMessageId` it is the page before that message. On a server with threads, `shouldCollapseThreads` leaves out the replies
+    /// and `threadRootMessageId` reads one thread, its root first; they are sent only when given.
+    public func messages(
+        conversationId: String, latestCount: Int?, beforeMessageId: String? = nil, shouldCollapseThreads: Bool = false,
+        threadRootMessageId: String? = nil
+    ) async throws -> [ConversationMessage] {
         struct Answer: Decodable, Sendable { let ListConversationMessages: [ConversationMessage]? }
         var variables: [String: JSONValue] = ["conversationId": .string(conversationId)]
         if let latestCount { variables["latestMessageCount"] = .number(Double(latestCount)) }
         if let beforeMessageId { variables["beforeMessageId"] = .string(beforeMessageId) }
-        return try await execute(Documents.listMessages, variables: variables, as: Answer.self).ListConversationMessages ?? []
+        var document = Documents.listMessages
+        if shouldCollapseThreads || ThreadRouting.normalized(threadRootMessageId) != nil {
+            document = Documents.listMessagesInThreads
+            if shouldCollapseThreads { variables["shouldCollapseThreads"] = .bool(true) }
+            if let threadRootMessageId = ThreadRouting.normalized(threadRootMessageId) { variables["threadRootMessageId"] = .string(threadRootMessageId) }
+        }
+        return try await execute(document, variables: variables, as: Answer.self).ListConversationMessages ?? []
     }
 
-    /// How many messages the conversation holds, for "N earlier messages".
-    public func messageCount(conversationId: String) async throws -> Int {
+    /// How many messages the conversation holds, for "N earlier messages". With `shouldCollapseThreads` it counts the main history.
+    public func messageCount(conversationId: String, shouldCollapseThreads: Bool = false) async throws -> Int {
         struct Answer: Decodable, Sendable {
             struct Count: Decodable, Sendable { let messageCount: Int? }
             let CountConversationMessages: Count?
         }
-        let answer = try await execute(Documents.countMessages, variables: ["conversationId": .string(conversationId)], as: Answer.self)
+        var variables: [String: JSONValue] = ["conversationId": .string(conversationId)]
+        var document = Documents.countMessages
+        if shouldCollapseThreads {
+            document = Documents.countMessagesInThreads
+            variables["shouldCollapseThreads"] = .bool(true)
+        }
+        let answer = try await execute(document, variables: variables, as: Answer.self)
         return answer.CountConversationMessages?.messageCount ?? 0
+    }
+
+    /// The count, or nil when it could not be read: the screen shows no "N earlier messages" then.
+    public func messageCountOrNil(conversationId: String, shouldCollapseThreads: Bool = false) async -> Int? {
+        try? await messageCount(conversationId: conversationId, shouldCollapseThreads: shouldCollapseThreads)
     }
 
     /// Searches the person's conversations by title and by what was said.

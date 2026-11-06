@@ -341,8 +341,16 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
     public let hasPreviewsRemoved: Bool
     public let voice: VoiceMessage?
     public let call: ChatCall?
+    /// The message this one is a reply in the thread of; nil in the main history.
+    public let threadRootMessageId: String?
+    /// How many replies this message's thread holds and when the last came; zero and nil when it has none.
+    public internal(set) var threadReplyCount: Int
+    public internal(set) var threadLastReplyAt: String?
 
     public init(_ message: ConversationMessage) {
+        threadRootMessageId = ThreadRouting.normalized(message.threadRootMessageId)
+        threadReplyCount = max(0, message.threadReplyCount ?? 0)
+        threadLastReplyAt = message.threadLastReplyAt
         voice = message.voiceMessage
         call = message.call
         id = message.id
@@ -366,6 +374,9 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
     public var isVoiceMessage: Bool { voice != nil }
     public var isCallLine: Bool { call != nil }
     public var isReply: Bool { !(replyToMessageId ?? "").isEmpty }
+    /// The message has a thread under it, which the main history shows as a count.
+    public var hasThread: Bool { threadReplyCount > 0 }
+    public var threadSummary: ThreadSummary? { hasThread ? ThreadSummary(replyCount: threadReplyCount, lastReplyAt: threadLastReplyAt) : nil }
     /// A reply whose quoted message was said before the person joined has no excerpt.
     public var hasQuotedText: Bool { !(replyToExcerpt ?? "").isEmpty }
 }
@@ -379,6 +390,8 @@ public enum ChatEffect: Equatable, Sendable {
     case refetchPreviews(messageId: String)
     /// A message arrived from someone else.
     case received(messageId: String)
+    /// A reply arrived in the thread of a message. The main history leaves it out and counts it under `rootMessageId`.
+    case threadReplied(rootMessageId: String, messageId: String)
 }
 
 /// ChatTimeline is the messages of one chat, kept current by its events.
@@ -393,16 +406,37 @@ public struct ChatTimeline: Equatable, Sendable {
     private var typingNames: [String: String] = [:]
     private var isAssistantTypingAt: Date?
     public private(set) var readMarks: [String: String] = [:]
+    /// The thread this timeline lists, by the id of the message it hangs from. Nil for the main history.
+    public let threadRootMessageId: String?
+    /// The newest message said in the chat that this phone knows of, a reply the main history leaves out included.
+    /// The read mark follows it.
+    public private(set) var newestMessageId: String?
+    private var countedReplyIds: Set<String> = []
 
-    public init() {}
+    public init(threadRootMessageId: String? = nil) {
+        self.threadRootMessageId = ThreadRouting.normalized(threadRootMessageId)
+    }
+
+    public var isThread: Bool { threadRootMessageId != nil }
 
     /// Replaces the history. Only messages said in the room are kept: the
-    /// person's private tool rows are not part of what the room reads.
+    /// person's private tool rows are not part of what the room reads. The main history keeps no reply that a thread holds.
     public mutating func load(_ rows: [ConversationMessage]) {
-        let shared = rows.filter { $0.isChatMessage == true && ($0.role == "user" || $0.role == "assistant") }
+        let shared = rows.filter {
+            $0.isChatMessage == true && ($0.role == "user" || $0.role == "assistant")
+                && ThreadRouting.belongs($0, toViewWithThreadRootMessageId: threadRootMessageId)
+        }
         messages = shared.map(ChatMessage.init)
         persistedReactions = [:]
+        countedReplyIds = []
         for row in shared where !(row.reactions ?? []).isEmpty { persistedReactions[row.id] = row.reactions }
+        if !isThread, let last = messages.last?.id { newestMessageId = last }
+    }
+
+    /// Records a message newer than the ones listed, such as the newest reply a read of everything found.
+    public mutating func noteNewestMessage(_ messageId: String?) {
+        guard let messageId, !messageId.isEmpty else { return }
+        newestMessageId = messageId
     }
 
     public func reactions(for messageId: String) -> [Reaction] {
@@ -415,6 +449,7 @@ public struct ChatTimeline: Equatable, Sendable {
 
     /// Adds or replaces a message the person just sent, before its event arrives.
     public mutating func upsert(_ row: ConversationMessage) {
+        guard ThreadRouting.belongs(row, toViewWithThreadRootMessageId: threadRootMessageId) else { return }
         let message = ChatMessage(row)
         if let index = messages.firstIndex(where: { $0.id == message.id }) { messages[index] = message } else { messages.append(message) }
     }
@@ -435,6 +470,19 @@ public struct ChatTimeline: Equatable, Sendable {
         switch ConversationEvent.Kind(rawValue: chat.type ?? event.type) {
         case .chatSaid, .chatEdited:
             guard let row = chat.message else { return .none }
+            let isSaid = ConversationEvent.Kind(rawValue: chat.type ?? event.type) == .chatSaid
+            guard ThreadRouting.belongs(row, toViewWithThreadRootMessageId: threadRootMessageId) else {
+                // A reply in a thread this screen does not list: the main history counts it under its root, once.
+                guard isSaid, !isThread, let root = ThreadRouting.normalized(row.threadRootMessageId) else { return .none }
+                noteNewestMessage(row.id)
+                guard countedReplyIds.insert(row.id).inserted else { return .none }
+                if let index = messages.firstIndex(where: { $0.id == root }) {
+                    messages[index].threadReplyCount += 1
+                    messages[index].threadLastReplyAt = row.createdAt
+                }
+                typingAt[row.authorUserId ?? ""] = nil
+                return .threadReplied(rootMessageId: root, messageId: row.id)
+            }
             let message = ChatMessage(row)
             if !(row.reactions ?? []).isEmpty { persistedReactions[row.id] = row.reactions }
             if let index = messages.firstIndex(where: { $0.id == message.id }) {
@@ -442,6 +490,7 @@ public struct ChatTimeline: Equatable, Sendable {
                 return .none
             }
             messages.append(message)
+            noteNewestMessage(message.id)
             typingAt[message.authorUserId ?? ""] = nil
             return .received(messageId: message.id)
         case .chatDeleted:
@@ -451,7 +500,8 @@ public struct ChatTimeline: Equatable, Sendable {
                 ConversationMessage(
                     id: old.id, role: old.isAssistant ? "assistant" : "user", content: .string(""), createdAt: old.createdAt, isChatMessage: true,
                     authorUserId: old.authorUserId, authorName: old.authorName, authorOrganizationName: old.authorOrganizationName,
-                    deletedAt: "deleted"))
+                    deletedAt: "deleted", threadRootMessageId: old.threadRootMessageId, threadReplyCount: old.threadReplyCount,
+                    threadLastReplyAt: old.threadLastReplyAt))
             return .none
         case .chatReacted:
             guard let id = chat.messageId else { return .none }

@@ -9,10 +9,14 @@ public struct ServerCapabilities: Equatable, Sendable {
     public let subscriptionNames: Set<String>
     /// The arguments the SendMessage mutation takes.
     public let sendMessageArgumentNames: Set<String>
+    /// The arguments the ListConversationMessages query takes.
+    public let listMessageArgumentNames: Set<String>
 
     public init(
-        queryNames: Set<String> = [], mutationNames: Set<String> = [], subscriptionNames: Set<String> = [], sendMessageArgumentNames: Set<String> = []
+        queryNames: Set<String> = [], mutationNames: Set<String> = [], subscriptionNames: Set<String> = [], sendMessageArgumentNames: Set<String> = [],
+        listMessageArgumentNames: Set<String> = []
     ) {
+        self.listMessageArgumentNames = listMessageArgumentNames
         self.sendMessageArgumentNames = sendMessageArgumentNames
         self.queryNames = Set(queryNames.map(Self.normalized))
         self.mutationNames = Set(mutationNames.map(Self.normalized))
@@ -69,9 +73,11 @@ public struct ServerCapabilities: Equatable, Sendable {
     init(_ introspection: Introspection) {
         func names(_ type: Introspection.RootType?) -> Set<String> { Set((type?.fields ?? []).map(\.name)) }
         let sendArguments = (introspection.__schema.mutationType?.fields ?? []).first { Self.normalized($0.name) == "sendMessage" }?.args ?? []
+        let listArguments = (introspection.__schema.queryType?.fields ?? []).first { Self.normalized($0.name) == "listConversationMessages" }?.args ?? []
         self.init(
             queryNames: names(introspection.__schema.queryType), mutationNames: names(introspection.__schema.mutationType),
-            subscriptionNames: names(introspection.__schema.subscriptionType), sendMessageArgumentNames: Set(sendArguments.map(\.name)))
+            subscriptionNames: names(introspection.__schema.subscriptionType), sendMessageArgumentNames: Set(sendArguments.map(\.name)),
+            listMessageArgumentNames: Set(listArguments.map(\.name)))
     }
 }
 
@@ -80,7 +86,7 @@ extension Documents {
     public static let serverCapabilities = """
         query ServerCapabilities {
           __schema {
-            queryType { fields { name } }
+            queryType { fields { name args { name } } }
             mutationType { fields { name args { name } } }
             subscriptionType { fields { name } }
           }
