@@ -39,7 +39,7 @@ struct CameraDetailView: View {
         .navigationTitle(target.camera.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(isLandscapePhone ? .hidden : .automatic, for: .navigationBar)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .statusBarHidden(isLandscapePhone)
         .toolbar {
             if let player {

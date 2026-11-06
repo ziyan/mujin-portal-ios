@@ -19,7 +19,7 @@ extension ControllerDetailView {
                 }
             }
             if !alarms.isEmpty {
-                Section("Active alarms") { ForEach(alarms) { SiteRows.alarmLink($0, controllers: [controller]) } }
+                Section("Active alarms") { ActiveAlarmRows.rows(alarms, controllers: [controller]) }
             }
             if let rows = orchestrators?.list, !rows.isEmpty {
                 Section("Orchestrators") {
@@ -75,6 +75,15 @@ extension ControllerDetailView {
                     Label("Alarm subscriptions", systemImage: "bell.badge").foregroundStyle(.primary)
                 }
             }
+            if canChangeExclusion {
+                Section {
+                    Toggle("Exclude from site and cell views", isOn: Binding(get: { isLeftOutOfSiteViews }, set: { value in Task { await saveExclusion(value) } }))
+                        .disabled(isSavingExclusion)
+                        .accessibilityIdentifier("excludeFromSiteViewsToggle")
+                } footer: {
+                    Text("Its alarms, orchestrators, mobile robots and telemetry stop counting at its site and cells, as for a simulation controller. Its own pages keep working.")
+                }
+            }
             if controller.canEdit || controller.canDeleteBackups {
                 Section {
                     if controller.canEdit {
@@ -92,19 +101,47 @@ extension ControllerDetailView {
         }
     }
 
+    /// The toggle is for a person who may edit the controller, on a server that has the feature, for a controller that has a site to be left out of.
+    var canChangeExclusion: Bool {
+        session.capabilities.offersSiteExclusion && controller.canEdit && !(controller.siteId ?? "").isEmpty
+    }
+
     var canMove: Bool { ControllerMoveAccess.canOffer(permissions: session.profile?.me.permissions ?? []) }
 
     func loadExtras() async {
         let connection = appModel.connection(for: session.account)
-        if let siteId = controller.siteId, !siteId.isEmpty {
-            if let result = try? await connection.siteAlarms(siteId: siteId) { alarms = ControllerLive.alarms(result.alarms, controllerId: controller.id) }
-            if let rows = try? await connection.siteOrchestrators(siteId: siteId) { orchestrators = ControllerLive.orchestrators(rows, controllerId: controller.id) }
-            if let all = try? await connection.siteRobots(siteId: siteId) { robots = ControllerLive.robots(all, controllerId: controller.id) }
+        // The controller's own reads. The site's leave out a controller that is excluded, and may hold only the site's telemetry source.
+        let controllerId = controller.id
+        async let alarmRows = try? connection.controllerAlarms(controllerId: controllerId)
+        async let orchestratorRow = try? connection.controllerOrchestrators(controllerId: controllerId)
+        async let robotRows = try? connection.controllerRobots(controllerId: controllerId)
+        if let rows = await alarmRows { alarms = rows }
+        if let row = await orchestratorRow { orchestrators = row }
+        if let rows = await robotRows { robots = rows }
+        if session.capabilities.offersSiteExclusion, let fresh = try? await connection.controller(id: controller.id, includesExclusionFlag: true) {
+            isExcluded = fresh.isExcludedFromSiteViews == true
         }
         if let all = try? await connection.incidents(organizationId: controller.organizationId) { incidents = ControllerLive.incidents(all, controllerId: controller.id) }
         telemetry = try? await connection.siteTelemetry(controllerIds: [controller.id])
         tickets = (try? await connection.tickets(controllerId: controller.id, first: 20)) ?? []
         syncProgress = (try? await connection.syncProgress(controllerId: controller.id)) ?? []
+    }
+
+    /// Saves the toggle at once and puts it back if the server refuses, saying why.
+    func saveExclusion(_ isExcludedNow: Bool) async {
+        let before = isLeftOutOfSiteViews
+        guard isExcludedNow != before else { return }
+        isSavingExclusion = true
+        defer { isSavingExclusion = false }
+        isExcluded = isExcludedNow
+        do {
+            try await appModel.connection(for: session.account).setControllerExcluded(id: controller.id, isExcluded: isExcludedNow)
+            session.cache.clear(accountKey: session.account.accountKey)
+        } catch {
+            isExcluded = before
+            appModel.handle(error, account: session.account)
+            errorText = error.userMessage
+        }
     }
 
     func saveComment() async {
@@ -232,7 +269,7 @@ struct ControllerBackupsView: View {
         }
         .navigationTitle("Backups")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .confirmationDialog("Delete this backup?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible, presenting: deleting) { backup in
             Button("Delete", role: .destructive) { Task { await delete(backup) } }
         } message: { _ in

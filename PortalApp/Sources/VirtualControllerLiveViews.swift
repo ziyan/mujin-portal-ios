@@ -18,7 +18,7 @@ extension VirtualControllerDetailView {
                 }
             }
             if !liveAlarms.isEmpty {
-                Section("Active alarms") { ForEach(liveAlarms) { SiteRows.alarm($0) } }
+                Section("Active alarms") { ActiveAlarmRows.rows(liveAlarms, controllers: []) }
             }
             if !liveTickets.isEmpty {
                 Section("Tickets") {

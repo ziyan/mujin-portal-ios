@@ -163,7 +163,9 @@ extension Connection {
     }
 }
 
-/// ControllerLive narrows what a site reports to one controller.
+/// ControllerLive narrows incidents to one controller. A controller's alarms, orchestrators and robots are read from the controller
+/// (`controllerAlarms` and the like), never filtered from the site's reads, which leave out an excluded controller and may hold only
+/// the site's telemetry source.
 public enum ControllerLive {
     public static func alarms(_ alarms: [SiteAlarm], controllerId: String) -> [SiteAlarm] {
         alarms.filter { $0.controllerId == controllerId }.sorted { $0.severityRank < $1.severityRank }

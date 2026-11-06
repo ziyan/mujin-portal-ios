@@ -140,7 +140,7 @@ struct AlarmDetailView: View {
         ScrollViewReader { proxy in
         List { PortalRows {
             Section {
-                LabeledContent("Severity") { Text(severityText).foregroundStyle(alarm.severityRank <= 1 ? Color.statusError : Color.statusWarning) }
+                LabeledContent("Severity") { AlarmSeverityText(text: severityText, severityRank: alarm.severityRank) }
                 if let status = nonEmpty(detail?.alarmStatus ?? alarm.status) { LabeledContent("Status") { Text(status) } }
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Message").font(.footnote).foregroundStyle(.secondary)

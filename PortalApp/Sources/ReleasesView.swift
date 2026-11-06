@@ -197,7 +197,7 @@ struct ReleaseDetailView: View {
         }
         .navigationTitle(release?.displayName ?? "")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .toolbar {
             // Newer and older releases, in the order of the list, replace this page in place.
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -359,7 +359,7 @@ struct ReleaseImageView: View {
         }
         .navigationTitle(image?.tag ?? "")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .task { await load() }
     }
 
@@ -418,7 +418,7 @@ struct ReleaseUsersView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .task { await load() }
     }
 

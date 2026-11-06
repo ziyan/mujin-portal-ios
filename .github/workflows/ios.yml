@@ -285,6 +285,19 @@ jobs:
           shoot feedback-list-error feedback-list-error
           shoot feedback-tickets feedback-tickets
           shoot feedback-ticket feedback-ticket
+          shoot exclusion-site exclusion-site
+          shoot exclusion-site-nosource exclusion-site-nosource
+          shoot exclusion-cell exclusion-cell
+          shoot exclusion-cell-source exclusion-cell-source
+          shoot exclusion-controllers exclusion-controllers
+          shoot exclusion-controller exclusion-controller
+          shoot exclusion-controller-included exclusion-controller-included
+          shoot exclusion-controller-readonly exclusion-controller-readonly
+          shoot alarm-levels alarm-levels
+          shoot alarm-levels-warnings alarm-levels-warnings
+          shoot alarm-levels-controller alarm-levels-controller
+          shoot alarm-levels-list alarm-levels-list
+          shoot alarm-levels-critical alarm-levels-critical
           shoot chat-add-people chat-add-people
           shoot chats-new chats-new
           shoot chats-new-staff chats-new-group staff
@@ -507,6 +520,9 @@ jobs:
           shoot ticket-menu-dark ticket-menu
           shoot feedback-drawer-dark feedback-drawer
           shoot feedback-list-dark feedback-list
+          shoot exclusion-site-dark exclusion-site
+          shoot alarm-levels-list-dark alarm-levels-list
+          shoot alarm-levels-critical-dark alarm-levels-critical
           shoot release-menu-dark release-menu
           shoot chat-link-tap-dark chat-link-tap
           shoot notifications-dark notifications

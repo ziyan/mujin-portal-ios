@@ -41,6 +41,46 @@ enum SiteSectionViews {
         StatTile(label: "Machines", value: telemetry.machinesTotal.formatted(), detail: "\(telemetry.machinesReporting) reporting", symbol: "server.rack")
     }
 
+    // MARK: what the views leave out
+
+    /// Says which controller the site's totals and alarms come from, on a site, and which controllers this view leaves out, so a controller
+    /// that was excluded by mistake is noticed. Each id opens its controller.
+    @ViewBuilder
+    static func viewNotes(_ model: SiteModel) -> some View {
+        let sourceId = model.cellId == nil ? model.sourceControllerId : nil
+        if sourceId != nil || !model.excludedControllerIds.isEmpty {
+            Section {
+                if let sourceId {
+                    controllerNote("Site totals and alarms come from:", ids: [sourceId], model: model)
+                }
+                if !model.excludedControllerIds.isEmpty {
+                    controllerNote("Excluded from this view:", ids: model.excludedControllerIds, model: model)
+                }
+            }
+        }
+    }
+
+    private static func controllerNote(_ label: LocalizedStringKey, ids: [String], model: SiteModel) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                Text(label).foregroundStyle(.secondary)
+                controllerLinks(ids, model: model)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(label).foregroundStyle(.secondary)
+                controllerLinks(ids, model: model)
+            }
+        }
+        .font(.footnote)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private static func controllerLinks(_ ids: [String], model: SiteModel) -> some View {
+        HStack(spacing: 10) {
+            ForEach(ids, id: \.self) { id in ControllerNoteLink(controllerId: id, model: model) }
+        }
+    }
+
     // MARK: overview
 
     /// The counts, each a tile that opens its full list. Each tile is its own tap target (`StatTile(route:)`), so a tap opens
@@ -55,6 +95,8 @@ enum SiteSectionViews {
     @ViewBuilder
     private static func overviewTiles(_ model: SiteModel) -> some View {
         let isCell = model.cellId != nil
+        // The count is of the levels the person has on, Critical and Error until they choose others.
+        let shownAlarms = AlarmLevelPreference.shared.activeFilter.visible(model.alarms)
         tileGrid {
             if !isCell || !model.controllers.isEmpty {
                 StatTile(label: "Controllers", value: model.controllers.count.formatted(), symbol: "server.rack",
@@ -68,7 +110,7 @@ enum SiteSectionViews {
                 StatTile(label: "Cameras", value: model.cameras.count.formatted(), symbol: "video",
                     route: .siteList(.cameras, organizationKey: model.sessionKey), identifier: "statTile.cameras")
             }
-            StatTile(label: "Active alarms", value: model.alarms.count.formatted(), symbol: "bell.badge", tint: model.alarms.isEmpty ? nil : Color.statusError,
+            StatTile(label: "Active alarms", value: shownAlarms.count.formatted(), symbol: "bell.badge", tint: shownAlarms.isEmpty ? nil : Color.statusError,
                 route: .siteList(.alarms, organizationKey: model.sessionKey), identifier: "statTile.alarms")
             StatTile(label: "Incidents", value: model.incidents.count.formatted(), symbol: "exclamationmark.triangle",
                 route: .siteList(.incidents, organizationKey: model.sessionKey), identifier: "statTile.incidents")
@@ -132,7 +174,7 @@ enum SiteSectionViews {
         if !model.controllers.isEmpty {
             Section("Controllers") {
                 ForEach(SiteSections.top(model.controllers)) { controller in
-                    NavigationLink(value: PortalRoute.controller(controller)) { SiteRows.controller(controller) }
+                    NavigationLink(value: PortalRoute.controller(controller)) { SiteRows.controller(controller, isSiteTotal: controller.id == model.sourceControllerId) }
                 }
                 showAll(.controllers, model: model, count: model.controllers.count, isShown: SiteSections.hasMore(model.controllers))
             }
@@ -154,9 +196,10 @@ enum SiteSectionViews {
     @ViewBuilder
     static func alarms(_ model: SiteModel) -> some View {
         if !model.alarms.isEmpty {
+            let shown = AlarmLevelPreference.shared.activeFilter.visible(model.alarms)
             Section("Alarms") {
-                ForEach(SiteSections.top(model.alarms)) { alarm in SiteRows.alarmLink(alarm, controllers: model.controllers) }
-                showAll(.alarms, model: model, count: model.alarms.count, isShown: SiteSections.hasMore(model.alarms))
+                ActiveAlarmRows.rows(model.alarms, controllers: model.controllers, limit: SiteSections.shownCount)
+                showAll(.alarms, model: model, count: shown.count, isShown: SiteSections.hasMore(shown))
             }
         }
     }
@@ -196,5 +239,25 @@ enum SiteSectionViews {
                 showAll(.tickets, model: model, count: model.openTickets.count, isShown: SiteSections.hasMore(model.openTickets))
             }
         }
+    }
+}
+
+/// ControllerNoteLink is a controller's id in a note, which opens the controller. It is a tap target of its row and not a link, since
+/// the note's row can hold several of them.
+private struct ControllerNoteLink: View {
+    @Environment(\.openRoute) private var openRoute
+    let controllerId: String
+    let model: SiteModel
+
+    var body: some View {
+        Text(controllerId)
+            .foregroundStyle(.tint)
+            .frame(minHeight: 44)
+            .rowTapTarget {
+                let controller = model.controllers.first { $0.id == controllerId }
+                    ?? ControllerSummary(id: controllerId, siteId: model.selectedSiteId, organizationId: model.selectedSite?.organizationId)
+                openRoute(.controller(controller))
+            }
+            .accessibilityIdentifier("controllerLink.\(controllerId)")
     }
 }

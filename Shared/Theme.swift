@@ -17,6 +17,8 @@ extension Color {
     static let statusSuccess = Color("StatusSuccess")
     static let statusWarning = Color("StatusWarning")
     static let statusError = Color("StatusError")
+    /// A critical alarm: darker than an error, and dark enough for white words in both appearances.
+    static let statusCritical = Color("StatusCritical")
     static let statusInfo = Color("StatusInfo")
 }
 

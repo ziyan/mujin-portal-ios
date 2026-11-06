@@ -37,7 +37,7 @@ struct VirtualControllerSnapshotsView: View {
         }
         .navigationTitle("Snapshots")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .toolbar {
             if virtual.canModify {
                 ToolbarItem(placement: .topBarTrailing) {
