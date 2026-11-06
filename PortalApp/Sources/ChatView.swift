@@ -128,7 +128,11 @@ struct ChatView: View {
             if appModel.isDemo, DemoOptions.screen == "chat-composer" { drafts.stageDemo() }
             if appModel.isDemo, SpeechDemo.stagesListening(DemoOptions.screen, isThread: isThread) { dictation.stageListening(captionText: DemoSpeech.firstCaption) }
             if appModel.isDemo, SpeechDemo.stagesWords(DemoOptions.screen) { draft = DemoSpeech.dictatedWords }
-            if appModel.isDemo, let messageId = SpeechDemo.messageToPlay(DemoOptions.screen, isThread: isThread) { session.readAloud.stageDemo(messageId: messageId) }
+            if appModel.isDemo, let messageId = SpeechDemo.messageToPlay(DemoOptions.screen, isThread: isThread) {
+                // The chat or conversation under a thread stops any reading as it is covered, so the thread stages its own afterwards.
+                if isThread { try? await Task.sleep(for: .seconds(2)) }
+                session.readAloud.stageDemo(messageId: messageId)
+            }
             if appModel.isDemo, DemoOptions.screen == "thread-chat-working" { chatModel.stageDemoWorking(inThreadOf: "t06") }
             if appModel.isDemo, CallDemo.owns(DemoOptions.screen) { CallDemo.markPlayed() }
             if appModel.isDemo, DemoOptions.screen == "chat-reply" {
