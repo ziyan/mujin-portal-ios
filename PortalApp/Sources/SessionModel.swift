@@ -438,8 +438,9 @@ final class SessionModel {
             await connection.setMessageThreads(newCapabilities.offersMessageThreads)
             // Asked only of a server whose schema has the fields; an older one has neither feature.
             voiceAvailability = await connection.voiceAvailability(capabilities: newCapabilities)
-            await refreshCalls()
+            // The first screen needs none of what follows, so a slow network does not hold it back.
             phase = .loaded
+            await refreshCalls()
             await refreshWaiting()
             await loadPlaces()
         } catch {
