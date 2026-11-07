@@ -214,6 +214,7 @@ public enum Documents {
         documents += webAppDocuments
         documents += messageThreadDocuments
         documents += messageLinkDocuments
+        documents += sitePageDocuments
         return documents
     }
 }

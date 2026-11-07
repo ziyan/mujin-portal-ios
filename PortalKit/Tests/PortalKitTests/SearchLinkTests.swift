@@ -103,8 +103,7 @@ import Testing
         }
     }
 
-    @Test func aDocumentationPageOpensOnTheWeb() {
-        // The kind has a mapping of its own, and the app has no screen for it.
+    @Test func aDocumentationPageIsReadAsASitePage() {
         #expect(PortalLink(path: "/site/site01/page/page01") == .sitePage(id: "page01", siteId: "site01"))
     }
 
