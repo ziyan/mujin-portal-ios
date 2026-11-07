@@ -96,6 +96,53 @@
         }
       }
     },
+    "Show more (%lld of %lld rows)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show more (%1$lld of %2$lld rows)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "さらに表示（%2$lld 行中 %1$lld 行）"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示更多（%1$lld / %2$lld 行）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示更多（%1$lld / %2$lld 列）"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehr anzeigen (%1$lld von %2$lld Zeilen)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher plus (%1$lld sur %2$lld lignes)"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meer tonen (%1$lld van %2$lld rijen)"
+          }
+        }
+      }
+    },
     "Sign in to %@": {
       "extractionState": "manual",
       "localizations": {
