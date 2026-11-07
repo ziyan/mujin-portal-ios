@@ -244,10 +244,19 @@ public struct ControllerSettings: Decodable, Equatable, Sendable {
     /// The intervals the pickers offer, in seconds: five minutes, an hour, six hours, a day, a week.
     public static let intervalChoices: [Int64] = [300, 3_600, 21_600, 86_400, 604_800]
 
+    /// The intervals a backup may run at, which the server holds to: six hours, a day, a week.
+    public static let backupIntervalChoices: [Int64] = [21_600, 86_400, 604_800]
+
     /// The nearest offered interval, so a value the server holds that the pickers do not list still shows as chosen.
     public static func nearestChoice(to seconds: Int64?) -> Int64 {
         guard let seconds else { return intervalChoices[1] }
         return intervalChoices.min { abs($0 - seconds) < abs($1 - seconds) } ?? intervalChoices[1]
+    }
+
+    /// The same among the backup intervals, a day when none was chosen yet.
+    public static func nearestBackupChoice(to seconds: Int64?) -> Int64 {
+        guard let seconds, seconds > 0 else { return backupIntervalChoices[1] }
+        return backupIntervalChoices.min { abs($0 - seconds) < abs($1 - seconds) } ?? backupIntervalChoices[1]
     }
 }
 
