@@ -232,4 +232,50 @@ final class SitePagesTests: XCTestCase {
         XCTAssertEqual(pageTitle(app).label, "Pick station operating guide")
         XCTAssertFalse(DemoApp.element(app, "webBrowserClose").exists, "The page opened in the browser.\n\(app.debugDescription)")
     }
+
+    // MARK: - The open tree and a long table
+
+    func testTheArrowOpensThePagesInside() {
+        let app = DemoApp.launch(screen: "site-pages")
+        let row = DemoApp.element(app, "sitePageRow-page01")
+        XCTAssertTrue(row.waitForExistence(timeout: 90), "The tree never appeared.\n\(app.debugDescription)")
+        XCTAssertFalse(DemoApp.element(app, "sitePageRow-page03").exists, "The tree started open.\n\(app.debugDescription)")
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: window.frame.maxX - 38, dy: row.frame.midY)).tap()
+        XCTAssertTrue(DemoApp.element(app, "sitePageRow-page03").waitForExistence(timeout: 15), "The arrow showed no pages inside.\n\(app.debugDescription)")
+        XCTAssertFalse(DemoApp.element(app, "sitePageTitle").exists, "The arrow opened the page.\n\(app.debugDescription)")
+    }
+
+    func testAPageInsideAnOpenBranchOpens() {
+        let app = DemoApp.launch(screen: "site-pages-expanded")
+        let row = DemoApp.element(app, "sitePageRow-page04")
+        XCTAssertTrue(row.waitForExistence(timeout: 90), "The branch is not open.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.waitUntilHittable(row, timeout: 30), "The row cannot be tapped.\n\(app.debugDescription)")
+        row.tap()
+        XCTAssertEqual(pageTitle(app).label, "Gripper cleaning")
+    }
+
+    func testALongTableOpensQuicklyAndShowsTheRestOnATap() {
+        let app = DemoApp.launch(screen: "site-page-table")
+        XCTAssertEqual(pageTitle(app).label, "Fault code list")
+        XCTAssertTrue(text(app, "E-0001").waitForExistence(timeout: 30), "The table did not draw.\n\(app.debugDescription)")
+        let more = DemoApp.button(app, "markdownTableShowMoreButton")
+        // The words are one row, so the button exists long before it is on screen.
+        for _ in 0..<30 where !(more.exists && more.isHittable) { app.swipeUp() }
+        XCTAssertTrue(more.exists && more.isHittable, "The table offers no more rows.\n\(app.debugDescription)")
+        XCTAssertTrue(more.label.contains("100 of 800"), "The button says \(more.label).\n\(app.debugDescription)")
+        more.tap()
+        let deadline = Date().addingTimeInterval(30)
+        while !more.label.contains("200 of 800"), Date() < deadline { Thread.sleep(forTimeInterval: 0.25) }
+        XCTAssertTrue(more.label.contains("200 of 800"), "The tap added no rows.\n\(app.debugDescription)")
+    }
+
+    func testAHeadingThatRepeatsTheTitleIsShownOnce() {
+        let app = DemoApp.launch(screen: "site-page")
+        XCTAssertEqual(pageTitle(app).label, "Pick station operating guide")
+        XCTAssertTrue(text(app, "This guide is for the people").waitForExistence(timeout: 30), "The words did not draw.\n\(app.debugDescription)")
+        let title = DemoApp.element(app, "sitePageTitle")
+        let repeats = app.staticTexts.matching(NSPredicate(format: "label == %@", "Pick station operating guide")).allElementsBoundByIndex
+        XCTAssertTrue(repeats.allSatisfy { $0.frame.minY <= title.frame.maxY }, "The title is drawn again in the words.\n\(app.debugDescription)")
+    }
 }

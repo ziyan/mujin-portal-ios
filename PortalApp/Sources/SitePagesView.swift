@@ -57,6 +57,8 @@ struct SitePagesView: View {
     @State private var pages: [SitePage] = []
     @State private var site: SiteSummary?
     @State private var phase = LoadPhase.loading
+    /// The pages shown open in the tree. The demo opens the first branch to photograph it.
+    @State private var expandedIds: Set<String> = DemoOptions.screen == "site-pages-expanded" ? ["page01", "page03"] : []
     @State private var isMissing = false
     @State private var query = ""
     @State private var isCreating = false
@@ -173,10 +175,7 @@ struct SitePagesView: View {
                     }
                 } else {
                     Section {
-                        OutlineGroup(nodes, children: \.children) { node in
-                            NavigationLink(value: PortalRoute.sitePage(id: node.id, siteId: siteId)) { SitePageRowLabel(page: node.page) }
-                                .accessibilityIdentifier("sitePageRow-\(node.id)")
-                        }
+                        SitePageTreeRows(nodes: nodes, siteId: siteId, expandedIds: $expandedIds)
                     }
                 }
             }
@@ -341,9 +340,18 @@ struct SitePageView: View {
         }
     }
 
+    private static let historyRowScrollID = "sitePageHistoryRow"
+
+    /// The demo's table screen starts at the end of the page, where a long table offers the rest of its rows.
+    private func scrollToEndInDemo(_ proxy: ScrollViewProxy) async {
+        guard appModel.isDemo, DemoOptions.screen == "site-page-table-end" else { return }
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        proxy.scrollTo(Self.historyRowScrollID, anchor: .bottom)
+    }
+
     private func content(_ page: SitePage) -> some View {
-        let words = page.shownContent(revision: revision)
-        return List {
+        let words = SitePageRules.wordsBelowTitle(page.shownContent(revision: revision), title: page.shownTitle(revision: revision))
+        return ScrollViewReader { proxy in List {
             PortalRows {
                 Section { header(page) }
                 Section {
@@ -378,6 +386,7 @@ struct SitePageView: View {
                         NavigationLink(value: PortalRoute.sitePageHistory(siteId: siteId, page: page)) {
                             Label("History", systemImage: "clock.arrow.circlepath").foregroundStyle(.primary)
                         }
+                        .id(Self.historyRowScrollID)
                         .accessibilityIdentifier("sitePageHistoryRow")
                     }
                 }
@@ -390,6 +399,8 @@ struct SitePageView: View {
         }
         .portalList()
         .refreshable { await load() }
+        .task { await scrollToEndInDemo(proxy) }
+        }
     }
 
     private func header(_ page: SitePage) -> some View {
@@ -595,7 +606,9 @@ struct SitePageRevisionView: View {
                     if (revision.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text("This version has no content.").foregroundStyle(.secondary)
                     } else {
-                        RichBodyView(markdown: revision.content ?? "", connection: appModel.connection(for: session.account))
+                        RichBodyView(
+                            markdown: SitePageRules.wordsBelowTitle(revision.content ?? "", title: revision.title ?? ""),
+                            connection: appModel.connection(for: session.account))
                     }
                 }
                 if !isCurrent {
@@ -609,5 +622,44 @@ struct SitePageRevisionView: View {
         .navigationTitle("Version \(Int(revision.revisionNumber ?? 0))")
         .navigationBarTitleDisplayMode(.inline)
         .hidesTabBarWhenCompact()
+    }
+}
+
+/// SitePageTreeRows is pages with the pages inside them, which open under the page. Tapping a row opens the page; the arrow opens the
+/// pages inside it.
+private struct SitePageTreeRows: View {
+    let nodes: [SitePageNode]
+    let siteId: String
+    @Binding var expandedIds: Set<String>
+
+    var body: some View {
+        ForEach(nodes) { node in
+            if let children = node.children {
+                DisclosureGroup(isExpanded: isExpanded(node)) {
+                    SitePageTreeRows(nodes: children, siteId: siteId, expandedIds: $expandedIds)
+                } label: {
+                    row(node)
+                }
+            } else {
+                row(node)
+            }
+        }
+    }
+
+    private func row(_ node: SitePageNode) -> some View {
+        NavigationLink(value: PortalRoute.sitePage(id: node.id, siteId: siteId)) { SitePageRowLabel(page: node.page) }
+            .accessibilityIdentifier("sitePageRow-\(node.id)")
+    }
+
+    private func isExpanded(_ node: SitePageNode) -> Binding<Bool> {
+        Binding(
+            get: { expandedIds.contains(node.id) },
+            set: { isOpen in
+                if isOpen {
+                    expandedIds.insert(node.id)
+                } else {
+                    expandedIds.remove(node.id)
+                }
+            })
     }
 }

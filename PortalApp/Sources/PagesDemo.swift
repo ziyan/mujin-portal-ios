@@ -12,7 +12,7 @@ enum PagesDemo {
     static let screens: Set<String> = [
         "site-pages-row", "site-pages", "site-pages-readonly", "site-pages-empty", "site-pages-error", "site-pages-missing", "site-pages-search",
         "site-pages-new", "site-page", "site-page-readonly", "site-page-author", "site-page-nested", "site-page-draft", "site-page-missing",
-        "site-page-menu", "site-page-history", "site-page-revision", "site-page-edit",
+        "site-page-menu", "site-page-history", "site-page-revision", "site-page-edit", "site-pages-expanded", "site-page-table", "site-page-table-end",
     ]
 
     static func owns(_ screen: String?) -> Bool { screen.map { screens.contains($0) } ?? false }
@@ -31,10 +31,11 @@ enum PagesDemo {
         let tree = PortalRoute.sitePages(siteId: siteId)
         func page(_ id: String) -> PortalRoute { .sitePage(id: id, siteId: siteId) }
         switch screen {
-        case "site-pages", "site-pages-readonly", "site-pages-empty", "site-pages-error", "site-pages-missing", "site-pages-new": return [tree]
+        case "site-pages", "site-pages-readonly", "site-pages-empty", "site-pages-error", "site-pages-missing", "site-pages-new", "site-pages-expanded": return [tree]
         case "site-page", "site-page-readonly", "site-page-author", "site-page-menu", "site-page-edit": return [tree, page("page01")]
         case "site-page-nested": return [tree, page("page01"), page("page03"), page("page04")]
         case "site-page-draft": return [tree, page("page05")]
+        case "site-page-table", "site-page-table-end": return [tree, page("page07")]
         case "site-page-missing": return [page("page-gone")]
         case "site-page-history", "site-page-revision":
             guard let current = decodedPage(id: "page01") else { return [tree, page("page01")] }
@@ -128,6 +129,17 @@ enum PagesDemo {
         is worse than none.
         """
 
+    /// A page that is one long table, as a generated code list is: hundreds of rows of four columns.
+    private static let codeListWords: String = {
+        let faults = ["Belt stopped", "Gripper lost vacuum", "Light curtain open", "Tray not seen", "Box dropped", "Door open", "Drive overheated", "Scanner not read"]
+        let rows = (1...800).map { number in
+            let code = String(format: "E-%04d", number)
+            return "| \(code) | \(faults[number % faults.count]) | Station \(number % 12 + 1) | Read the alarm text, then clear the area before you start again |"
+        }
+        return (["Every code the stations can raise, and what to do first.", "", "| Code | What happened | Where | What to do |", "| --- | --- | --- | --- |"] + rows)
+            .joined(separator: "\n")
+    }()
+
     private static func initialState() -> State {
         func page(
             _ id: String, parent: String?, position: Int, title: String, icon: String?, isPublished: Bool = true, draftContent: String = "",
@@ -148,6 +160,7 @@ enum PagesDemo {
             page("page04", parent: "page03", position: 0, title: "Gripper cleaning", icon: "\u{1F9FD}", draftContent: cleaningWords, modifiedSecondsAgo: 400_000),
             page("page05", parent: nil, position: 2, title: "Shift handover notes", icon: nil, isPublished: false, draftContent: handoverWords, modifiedSecondsAgo: 1_800),
             page("page06", parent: nil, position: 3, title: "Reference sheet", icon: nil, draftContent: "Spare parts, contacts and the layout drawing live here.", modifiedSecondsAgo: 2_000_000),
+            page("page07", parent: nil, position: 4, title: "Fault code list", icon: nil, draftContent: codeListWords, modifiedSecondsAgo: 600_000),
         ]
         // The words of a published page are those of its revisions; the draft mirrors the last one.
         var revisions: [[String: Any]] = []

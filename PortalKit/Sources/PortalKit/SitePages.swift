@@ -257,6 +257,19 @@ public enum SitePageRules {
         return message.lowercased().contains(notFoundMessage)
     }
 
+    /// The words to show under a title. Many pages open with a heading that says the title again, which on the screen would read
+    /// twice in a row, so that one heading is left out. The page itself keeps it: only what is drawn changes.
+    public static func wordsBelowTitle(_ words: String, title: String) -> String {
+        let lines = words.components(separatedBy: "\n")
+        guard let headingIndex = lines.firstIndex(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return words }
+        let heading = lines[headingIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard heading.hasPrefix("# ") else { return words }
+        let headingWords = heading.dropFirst(2).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard headingWords.caseInsensitiveCompare(trimmedTitle(title)) == .orderedSame else { return words }
+        let remaining = lines[(headingIndex + 1)...].drop { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return remaining.joined(separator: "\n")
+    }
+
     /// The title as it is sent: without the spaces around it.
     public static func trimmedTitle(_ title: String) -> String {
         title.trimmingCharacters(in: .whitespacesAndNewlines)

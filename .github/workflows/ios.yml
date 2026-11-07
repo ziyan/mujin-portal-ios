@@ -344,6 +344,9 @@ jobs:
           shoot site-from-link site-from-link staff
           shoot site-staff-controllers site-staff-controllers staff
           shoot site-loading site-loading
+          shoot site-pages-expanded site-pages-expanded
+          shoot site-page-table site-page-table
+          shoot site-page-table-end site-page-table-end
           shoot site-pages-row site-pages-row
           shoot site-pages site-pages
           shoot site-pages-readonly site-pages-readonly
@@ -517,6 +520,9 @@ jobs:
           shoot release-dark release
           shoot voice-dark voice
           shoot site-loading-dark site-loading
+          shoot site-pages-expanded-dark site-pages-expanded
+          shoot site-page-table-dark site-page-table
+          shoot site-page-table-end-dark site-page-table-end
           shoot site-pages-row-dark site-pages-row
           shoot site-pages-dark site-pages
           shoot site-pages-readonly-dark site-pages-readonly
@@ -645,6 +651,14 @@ jobs:
           shoot read-aloud-thread-conversation-dark read-aloud-thread-conversation
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
+          shoot large-text-site-pages-row site-pages-row
+          shoot large-text-site-pages-expanded site-pages-expanded
+          shoot large-text-site-page site-page
+          shoot large-text-site-page-nested site-page-nested
+          shoot large-text-site-page-draft site-page-draft
+          shoot large-text-site-page-edit site-page-edit
+          shoot large-text-site-page-history site-page-history
+          shoot large-text-site-page-table-end site-page-table-end
           shoot large-text-welcome welcome
           shoot large-text-virtual-controller virtual-controller
           shoot large-text-controller controller

@@ -365,4 +365,16 @@ import Testing
         }
         #expect(try await connection.sitePageRevisions(pageId: "page01").map(\.id) == ["r3", "r2", "r1"])
     }
+
+    @Test func aHeadingThatRepeatsTheTitleIsNotShownTwice() {
+        #expect(SitePageRules.wordsBelowTitle("# Daily checks\n\nWalk the belt.", title: "Daily checks") == "Walk the belt.")
+        #expect(SitePageRules.wordsBelowTitle("\n#  daily CHECKS \nWalk the belt.", title: " Daily checks ") == "Walk the belt.")
+        #expect(SitePageRules.wordsBelowTitle("# Daily checks", title: "Daily checks").isEmpty)
+    }
+
+    @Test func otherOpeningsAreKept() {
+        for words in ["# Weekly checks\n\nWalk the belt.", "## Daily checks\n\nWalk the belt.", "Daily checks\n\nWalk the belt.", "Walk the belt.\n\n# Daily checks", ""] {
+            #expect(SitePageRules.wordsBelowTitle(words, title: "Daily checks") == words)
+        }
+    }
 }
