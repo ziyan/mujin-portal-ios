@@ -28,7 +28,6 @@ struct ConversationView: View {
     @State private var renameDraft = ""
     @State private var fullArtifact: ArtifactReference?
     @State private var isShowingArtifacts = false
-    @State private var isAddingPeople = false
     @State private var drafts = AttachmentDrafts()
     @State private var isOnScreen = false
     /// Whether the top of the thread is in view, where earlier messages load.
@@ -57,10 +56,12 @@ struct ConversationView: View {
             if !isThread {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button {
-                        isAddingPeople = true
-                    } label: {
-                        Label("Add people", systemImage: "person.badge.plus")
+                    if !isMainChat, session.capabilities.offersMainChatChoice {
+                        Button {
+                            Task { await makeMainChat() }
+                        } label: {
+                            Label("Make main chat", systemImage: "star")
+                        }
                     }
                     if !isMainChat {
                         Button {
@@ -87,9 +88,6 @@ struct ConversationView: View {
             Button("Cancel", role: .cancel) {}
         }
         .attachmentPickers(drafts)
-        .sheet(isPresented: $isAddingPeople) {
-            ComposeMessageView(onSent: { session.open(.chat(conversationId: $0)) }, reference: (conversationId, shownTitle))
-        }
         .sheet(isPresented: $isShowingArtifacts) {
             ArtifactListSheet(conversationId: conversationId, connection: appModel.connection(for: account)) { artifact in
                 isShowingArtifacts = false
@@ -181,6 +179,16 @@ struct ConversationView: View {
     }
 
     /// The main chat is named by the app, in the person's language, and cannot be renamed.
+    private func makeMainChat() async {
+        do {
+            try await appModel.connection(for: account).setMainConversation(id: conversationId)
+            model?.becameMain()
+            session.noteMainChat(conversationId: conversationId)
+        } catch {
+            appModel.handle(error, account: account)
+        }
+    }
+
     private var isMainChat: Bool { model?.isMain == true || session.knownMainConversationId == conversationId }
 
 

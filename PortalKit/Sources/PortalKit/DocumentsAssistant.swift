@@ -9,6 +9,12 @@ extension Documents {
         }
         """
 
+    public static let setMainConversation = """
+        mutation SetMainConversation($conversationId: String!) {
+          SetMainConversation(conversationId: $conversationId) { conversation { id isMain } }
+        }
+        """
+
     public static let renameConversation = """
         mutation RenameConversation($conversationId: String, $title: String) {
           RenameConversation(conversationId: $conversationId, title: $title) { conversation { id title isTitleCustom } }
@@ -31,5 +37,5 @@ extension Documents {
         }
         """
 
-    static var assistantDocuments: [String] { [countMessages, renameConversation, reactToMessage, listWaiting] }
+    static var assistantDocuments: [String] { [setMainConversation, countMessages, renameConversation, reactToMessage, listWaiting] }
 }

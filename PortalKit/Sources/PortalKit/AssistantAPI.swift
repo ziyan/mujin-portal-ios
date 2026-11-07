@@ -94,6 +94,11 @@ extension Connection {
     }
 
     @discardableResult
+    /// Makes a conversation with the assistant the person's main chat. The one before it becomes a side chat.
+    public func setMainConversation(id: String) async throws {
+        _ = try await execute(Documents.setMainConversation, variables: ["conversationId": .string(id)], as: JSONValue.self)
+    }
+
     public func renameConversation(id: String, title: String) async throws -> ConversationSummary? {
         struct Answer: Decodable, Sendable {
             struct Renamed: Decodable, Sendable { let conversation: ConversationSummary? }

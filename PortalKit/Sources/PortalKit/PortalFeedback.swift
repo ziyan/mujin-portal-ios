@@ -77,6 +77,9 @@ extension ServerCapabilities {
     /// Feedback about Portal itself: sending it and listing what the person sent. One release of the server brings both, and the
     /// ticket field that marks such a ticket, so the app asks for the field only here.
     public var offersPortalFeedback: Bool { offersMutation("SubmitPortalFeedback") && offersQuery("ListTickets") }
+
+    /// Whether the person can choose which conversation is their main chat.
+    public var offersMainChatChoice: Bool { offersMutation("SetMainConversation") }
 }
 
 extension Documents {

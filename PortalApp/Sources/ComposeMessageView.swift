@@ -69,7 +69,7 @@ struct ComposeMessageView: View {
                             picked.append(person)
                             query = ""
                         } label: {
-                            CandidateRow(person: person, showsOrganization: !session.isStaff, isSelected: nil)
+                            CandidateRow(person: person, showsOrganization: true, isSelected: nil)
                         }
                         .buttonStyle(.plain)
                         .listRowBackground(Color.portalCard)
