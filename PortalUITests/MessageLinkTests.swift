@@ -19,27 +19,38 @@ final class MessageLinkTests: XCTestCase {
     }
 
     /// Scrolls the chat, to the older messages first, until the element can be tapped. A row that is off screen is not in the
-    /// accessibility hierarchy at all, so there is no waiting for it before scrolling.
+    /// accessibility hierarchy at all, so there is no waiting for it before scrolling. Once the row is on screen, short drags
+    /// move it into the band every test taps in: the floating composer covers more of the bottom than a fixed margin allows
+    /// for, so a link just above it is still under it.
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         _ = element.waitForExistence(timeout: 20)
         var attempts = 0
-        while !isClearOfBars(element, in: app) && attempts < 16 {
-            if attempts < 8 { app.swipeDown() } else { app.swipeUp() }
+        while !isClearOfBars(element, in: app) && attempts < 20 {
+            if element.exists, element.frame.height > 0 {
+                let isAboveBand = element.frame.midY <= app.windows.firstMatch.frame.height * 0.4
+                drag(app, isUp: !isAboveBand)
+            } else if attempts < 8 {
+                app.swipeDown()
+            } else {
+                app.swipeUp()
+            }
             attempts += 1
         }
         XCTAssertTrue(isClearOfBars(element, in: app), "\(element) cannot be tapped.\n\(app.debugDescription)", file: file, line: line)
     }
 
-    /// Whether the element can be tapped and is not under the navigation bar or the composer, which draw over the messages
-    /// and still count it as hittable.
     private func isClearOfBars(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
         guard element.exists, element.isHittable else { return false }
-        let window = app.windows.firstMatch.frame
-        let frame = element.frame
-        return frame.minY > window.minY + 150 && frame.maxY < window.maxY - 110
+        return DemoApp.isInTapBand(element, in: app)
     }
 
-    /// A point on the first letters of the element's text, which is where the link of a one-link message starts.
+    /// A short drag that stops where it ends, so the row does not fly past the band.
+    private func drag(_ app: XCUIApplication, isUp: Bool) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isUp ? 0.6 : 0.4))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isUp ? 0.4 : 0.6))
+        start.press(forDuration: 0.05, thenDragTo: end)
+    }
+
     private func start(of element: XCUIElement) -> XCUICoordinate {
         element.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 20, dy: 0))
     }
