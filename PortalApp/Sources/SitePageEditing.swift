@@ -44,6 +44,15 @@ struct SitePageEditView: View {
                         TextField("Title", text: $draft.title)
                             .accessibilityIdentifier("sitePageTitleField")
                     }
+                    if page.canPublish {
+                        Section {
+                            Button("Publish") { Task { await submit(isPublishing: true) } }
+                                .disabled(!canSubmit)
+                                .accessibilityIdentifier("sitePagePublishButton")
+                        } footer: {
+                            Text("Publishing makes this the page readers see. Saving a draft keeps it to people who can edit pages.")
+                        }
+                    }
                     Section {
                         TextEditor(text: $draft.content)
                             .frame(minHeight: 280)
@@ -63,15 +72,6 @@ struct SitePageEditView: View {
                     }
                     if let problemText {
                         Section { Text(problemText).foregroundStyle(Color.statusError) }
-                    }
-                    if page.canPublish {
-                        Section {
-                            Button("Publish") { Task { await submit(isPublishing: true) } }
-                                .disabled(!canSubmit)
-                                .accessibilityIdentifier("sitePagePublishButton")
-                        } footer: {
-                            Text("Publishing makes this the page readers see. Saving a draft keeps it to people who can edit pages.")
-                        }
                     }
                 }
             }

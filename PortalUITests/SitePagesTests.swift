@@ -116,7 +116,7 @@ final class SitePagesTests: XCTestCase {
     func testAPageThatIsNotThereOffersTheWeb() {
         let app = DemoApp.launch(screen: "site-page-missing")
         XCTAssertTrue(DemoApp.element(app, "sitePageNotFound").waitForExistence(timeout: 90), "A missing page does not say so.\n\(app.debugDescription)")
-        let web = DemoApp.button(app, "sitePageOpenOnTheWeb")
+        let web = app.buttons["Open on the web"]
         XCTAssertTrue(web.waitForExistence(timeout: 15), "A missing page offers no way to open it on the web.\n\(app.debugDescription)")
         web.tap()
         let close = DemoApp.element(app, "webBrowserClose")
@@ -207,7 +207,8 @@ final class SitePagesTests: XCTestCase {
         _ = pageTitle(app)
         let history = DemoApp.button(app, "sitePageHistoryRow")
         XCTAssertTrue(reveal(history, in: app), "The page has no history row.\n\(app.debugDescription)")
-        DemoApp.scrollToElement(history, in: app)
+        for _ in 0..<10 where !history.isHittable { app.swipeUp() }
+        XCTAssertTrue(DemoApp.waitUntilHittable(history, timeout: 15), "The history row cannot be tapped.\n\(app.debugDescription)")
         history.tap()
         for revision in ["revision-page01-3", "revision-page01-2", "revision-page01-1"] {
             XCTAssertTrue(DemoApp.element(app, "sitePageRevisionRow-\(revision)").waitForExistence(timeout: 30), "The history lacks \(revision).\n\(app.debugDescription)")

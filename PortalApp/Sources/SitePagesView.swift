@@ -183,7 +183,7 @@ struct SitePagesView: View {
         }
         .portalList()
         .accessibilityIdentifier("sitePagesList")
-        .searchable(text: $query, prompt: "Search pages")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search pages")
         .refreshable { await load() }
     }
 
