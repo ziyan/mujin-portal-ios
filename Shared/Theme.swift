@@ -36,6 +36,16 @@ struct PortalRows<Content: View>: View {
     }
 }
 
+/// InlineLabelStyle is a small mark inside a row: the icon right beside its words, not in the row's icon column.
+struct InlineLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.icon
+            configuration.title
+        }
+    }
+}
+
 /// PortalRowLabelStyle puts every row icon in one centered column, so a wide
 /// symbol and a narrow one line up and the titles start at the same place.
 struct PortalRowLabelStyle: LabelStyle {

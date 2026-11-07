@@ -52,6 +52,7 @@ enum FeedbackDevice {
 struct PortalFeedbackLabel: View {
     var body: some View {
         Label("Portal feedback", systemImage: "text.bubble")
+            .labelStyle(InlineLabelStyle())
             .font(.caption.weight(.semibold))
             .foregroundStyle(Color.accentColor)
             .accessibilityIdentifier("portalFeedbackLabel")
