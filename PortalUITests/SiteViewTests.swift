@@ -99,6 +99,8 @@ final class SiteViewTests: XCTestCase {
 
     func testACellNamesOnlyWhatItLeavesOut() {
         let app = DemoApp.launch(screen: "exclusion-cell", arguments: Self.defaultLevels)
+        // The demo opens the site first, whose note says the same words, and the cell over it.
+        XCTAssertTrue(app.navigationBars["Pick cell A"].waitForExistence(timeout: 90), "The cell did not open.\n\(app.debugDescription)")
         XCTAssertTrue(text(app, "Excluded from this view:").waitForExistence(timeout: 90), "The cell does not say what it leaves out.\n\(app.debugDescription)")
         XCTAssertTrue(link(app, "controller04").exists, "The excluded controller is not named.\n\(app.debugDescription)")
         XCTAssertFalse(text(app, "Site totals and alarms come from:").exists, "A cell says where the site's totals come from.")
@@ -178,7 +180,7 @@ final class SiteViewTests: XCTestCase {
         XCTAssertTrue(warning.label.contains("2"), "The Warning chip does not count both warnings: \"\(warning.label)\".")
         XCTAssertTrue(DemoApp.element(app, "alarmLevel.critical").label.contains("1"), "The Critical chip does not count its alarm.")
         XCTAssertTrue(DemoApp.element(app, "alarmLevel.error").label.contains("1"), "The Error chip does not count an alarm in capitals.")
-        XCTAssertTrue(DemoApp.element(app, "alarmLevel.info").label.contains("1"), "The Info chip does not count its alarm.")
+        XCTAssertTrue(DemoApp.element(app, "alarmLevel.notice").label.contains("1"), "The Info chip does not count its alarm.")
         warning.tap()
         for _ in 0..<15 where !(tile.exists && tile.isHittable) { app.swipeDown() }
         XCTAssertTrue(waitForLabel(tile, containing: "5"), "Turning Warning on did not add its alarms to the count: \"\(tile.label)\".")
@@ -221,7 +223,8 @@ final class SiteViewTests: XCTestCase {
     /// A link in a chat does not say whose site it is. Opened by a Mujin user, the site of a customer still opens as itself.
     func testALinkOpensASiteOfAnotherOrganization() {
         let app = DemoApp.launch(screen: "site-from-link", persona: "staff")
-        let title = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Bakery line")).firstMatch
-        XCTAssertTrue(title.waitForExistence(timeout: 90), "The site did not open under its own name.\n\(app.debugDescription)")
+        // The list of sites behind it names the site too, so only the site's own page proves the link opened.
+        XCTAssertTrue(DemoApp.element(app, "sitePage").waitForExistence(timeout: 90), "The link did not open the site.\n\(app.debugDescription)")
+        XCTAssertTrue(app.navigationBars["Bakery line"].waitForExistence(timeout: 30), "The site did not open under its own name.\n\(app.debugDescription)")
     }
 }

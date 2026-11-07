@@ -42,6 +42,8 @@ final class NotificationsModel {
     let onError: @MainActor (Error) -> Void
     private(set) var phase = Phase.loading
     private(set) var items: [PortalNotification] = []
+    /// Whether what was already read is listed too, which only the person asks for.
+    var showsPast = false
     let cache: ResponseCache?
     let accountKey: String
 
@@ -52,7 +54,7 @@ final class NotificationsModel {
         self.onError = onError
     }
 
-    private var cacheKey: CacheKey { CacheKey(accountKey: accountKey, name: "notifications") }
+    private var cacheKey: CacheKey { CacheKey(accountKey: accountKey, name: showsPast ? "notifications-all" : "notifications-unread") }
 
     func load(force: Bool = false) async {
         if let cache, let held = cache.hit(cacheKey, as: [PortalNotification].self) {
@@ -61,7 +63,9 @@ final class NotificationsModel {
             if held.isFresh && !force { return }
         }
         do {
-            items = try await connection.notifications()
+            var rows = try await connection.notifications(status: "unread")
+            if showsPast { rows += try await connection.notifications(status: "read") }
+            items = rows
             cache?.store(items, for: cacheKey)
             phase = .loaded
         } catch {
@@ -70,14 +74,21 @@ final class NotificationsModel {
         }
     }
 
+    func togglePast() async {
+        showsPast.toggle()
+        await load()
+    }
+
     func markRead(_ item: PortalNotification) async {
         guard item.isUnread else { return }
         do {
             try await connection.markNotificationRead(id: item.id)
             // The row changes in place from the result, in the list and in the cache.
             let readAt = ISO8601DateFormatter().string(from: Date())
+            // What was read leaves a list of the unread at once.
+            let keepsRead = showsPast
             func marked(_ rows: inout [PortalNotification]) {
-                rows = rows.map { $0.id == item.id ? $0.markedRead(at: readAt) : $0 }
+                rows = keepsRead ? rows.map { $0.id == item.id ? $0.markedRead(at: readAt) : $0 } : rows.filter { $0.id != item.id }
             }
             marked(&items)
             cache?.update(cacheKey, as: [PortalNotification].self) { marked(&$0) }
@@ -90,7 +101,7 @@ final class NotificationsModel {
         do {
             try await connection.markAllNotificationsRead()
             let readAt = ISO8601DateFormatter().string(from: Date())
-            items = items.map { $0.markedRead(at: readAt) }
+            items = showsPast ? items.map { $0.markedRead(at: readAt) } : []
             let updated = items
             cache?.store(updated, for: cacheKey)
         } catch {
@@ -147,6 +158,7 @@ struct NotificationsView: View {
             let inbox = NotificationsModel(
                 connection: appModel.connection(for: session.account), cache: session.cache, accountKey: session.account.accountKey,
                 onError: { [appModel, session] error in appModel.handle(error, account: session.account) })
+            inbox.showsPast = DemoOptions.screen == "notifications-past"
             model = inbox
             await inbox.load()
         }
@@ -175,21 +187,34 @@ struct NotificationsView: View {
                     Label("Nothing new", systemImage: "bell")
                 } description: {
                     Text("Tickets, alarms and incidents that need you show up here.")
+                } actions: {
+                    pastButton(model)
                 }
             } else {
-                List(model.items) { item in
-                    Button {
-                        open(item, model: model)
-                    } label: {
-                        NotificationRow(item: item)
+                List {
+                    ForEach(model.items) { item in
+                        Button {
+                            open(item, model: model)
+                        } label: {
+                            NotificationRow(item: item)
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(Color.portalCard)
                     }
-                    .buttonStyle(.plain)
-.listRowBackground(Color.portalCard)
-}
-.portalList()
+                    pastButton(model)
+                        .listRowBackground(Color.portalCard)
+                }
+                .portalList()
                 .refreshable { await model.load(force: true) }
             }
         }
+    }
+
+    private func pastButton(_ model: NotificationsModel) -> some View {
+        Button(model.showsPast ? LocalizedStringKey("Hide past notifications") : LocalizedStringKey("Show past notifications")) {
+            Task { await model.togglePast() }
+        }
+        .accessibilityIdentifier("notificationsPastToggle")
     }
 
     private func open(_ item: PortalNotification, model: NotificationsModel) {

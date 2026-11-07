@@ -33,6 +33,11 @@ final class ConversationModel {
     /// Told when the server gives the conversation another title, such as the one it writes after the first answer.
     var onTitleChanged: (@MainActor (String) -> Void)?
     private(set) var isMain = false
+
+    /// The person made this conversation their main chat.
+    func becameMain() {
+        isMain = true
+    }
     /// Whether the live feed has dropped and not come back. The first connection of an opened conversation does not count.
     private(set) var isFeedLost = false
     private(set) var isLoadingEarlier = false

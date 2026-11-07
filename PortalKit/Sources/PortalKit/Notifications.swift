@@ -116,7 +116,8 @@ public struct PortalNotification: Codable, Equatable, Identifiable, Sendable {
         case "agent_goal_needs_you": return agentGoalTitle ?? ""
         case "chat_message":
             // "<author> in <chat>: <excerpt>"
-            let place = (chatName ?? "").isEmpty ? "" : " in \(chatName!)"
+            // A direct chat is named after the person, who is named already.
+            let place = (chatName ?? "").isEmpty || chatName == chatAuthorName ? "" : " in \(chatName!)"
             return "\(chatAuthorName ?? "")\(place): \(chatMessageExcerpt ?? "")".trimmingCharacters(in: .whitespaces)
         default: return ""
         }
@@ -249,12 +250,18 @@ extension Documents {
 
 extension Connection {
     /// The inbox, newest first.
-    public func notifications(first: Int = 100) async throws -> [PortalNotification] {
+    /// The inbox, newest first. `status` is `unread` or `read`, or nil for both.
+    public func notifications(first: Int = 100, status: String? = nil) async throws -> [PortalNotification] {
         struct Answer: Decodable, Sendable {
             struct List: Decodable, Sendable { let notifications: [PortalNotification]? }
             let ListNotifications: List?
         }
-        let rows = try await execute(Documents.listNotifications, variables: ["options": .object(["first": .number(Double(first))])], as: Answer.self)
+        var options: [String: JSONValue] = ["first": .number(Double(first))]
+        if let status {
+            let filter: [String: JSONValue] = ["operation": .string("equal"), "field": .array([.string("status")]), "value": .string(status)]
+            options["aggregations"] = .array([.object(["filter": .object(filter)])])
+        }
+        let rows = try await execute(Documents.listNotifications, variables: ["options": .object(options)], as: Answer.self)
             .ListNotifications?.notifications ?? []
         return rows.sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }
     }

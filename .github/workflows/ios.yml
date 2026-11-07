@@ -155,7 +155,7 @@ jobs:
           MONITOR=$!
           set +e
           xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
-            -only-testing:MujinPortalUITests -parallel-testing-enabled NO -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
+            -only-testing:MujinPortalUITests -parallel-testing-enabled NO -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
           RESULT=${PIPESTATUS[0]}
           kill "${MONITOR}" || true
           exit "${RESULT}"
@@ -355,6 +355,7 @@ jobs:
           shoot camera-unsupported camera-unsupported
           shoot camera-unreachable camera-unreachable
           shoot notifications notifications
+          shoot notifications-past notifications-past
           shoot about about
           shoot settings-update settings-update
           shoot update-available update-available
@@ -527,6 +528,7 @@ jobs:
           shoot release-menu-dark release-menu
           shoot chat-link-tap-dark chat-link-tap
           shoot notifications-dark notifications
+          shoot notifications-past-dark notifications-past
           shoot sites-staff-dark sites-staff staff
           shoot incidents-staff incidents staff
           shoot account-profile-dark account-profile

@@ -56,7 +56,7 @@ final class SessionModel {
     var feedbackRequest: FeedbackRequest?
     /// Set when a notification asks More to show the Automations screen.
     var automationsRequested = false
-    var isShowingNotifications = DemoOptions.screen == "notifications"
+    var isShowingNotifications = false
     /// Entries in the inbox not read yet.
     private(set) var unreadCount = 0
     /// Counts up whenever the server says a notification was created, so an open inbox reads again.
@@ -214,6 +214,11 @@ final class SessionModel {
     /// A chat was read to its end. The lists update from this, not from a new read, which a replica could answer with the old count.
     func noteChatRead(conversationId: String) {
         lastReadChat = ChatReadMark(conversationId: conversationId)
+        // The server marks the chat's notifications read with it. A replica answers a moment behind that.
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            await refreshUnreadCount()
+        }
     }
 
     /// The count a chat list worked out after clearing a row.
@@ -326,6 +331,9 @@ final class SessionModel {
         case .goal(let id):
             goalToOpen = id
             selectedSection = .more
+        case .ticket(let id):
+            ticketToOpen = id
+            selectedSection = tabSections.contains(.tickets) ? .tickets : .more
         case .automations:
             automationsRequested = true
             selectedSection = .more
@@ -393,6 +401,13 @@ final class SessionModel {
     var referenceHandoff = ReferenceHandoff()
     /// The id of the main chat once the list or an Ask button has seen it.
     private(set) var knownMainConversationId: String?
+    /// Counts the times the person chose another main chat, which the list reads again for.
+    private(set) var mainChatRevision = 0
+
+    func noteMainChat(conversationId: String) {
+        knownMainConversationId = conversationId
+        mainChatRevision += 1
+    }
 
     /// A new message the person asked for from a screen: its reference or its words are held here, and
     /// nothing exists on the server until the first send.

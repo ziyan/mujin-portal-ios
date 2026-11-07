@@ -223,6 +223,7 @@ struct TicketRow: View {
                 .lineLimit(2)
             if ticket.priority == "high" || ticket.priority == "urgent" {
                 Label(ticket.priority == "urgent" ? LocalizedStringKey("Urgent") : LocalizedStringKey("High priority"), systemImage: "exclamationmark.triangle.fill")
+                    .labelStyle(InlineLabelStyle())
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.statusWarning)
             }

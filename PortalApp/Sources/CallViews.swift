@@ -117,13 +117,14 @@ struct CallBanner: View {
 
 /// CallLineView is a call in the chat's history: who called, how long it lasted or how it ended, and the transcript when there is one.
 struct CallLineView: View {
+    @ScaledMetric(relativeTo: .body) private var iconColumnWidth = 26
     let call: ChatCall
     let currentUserId: String
     /// Reads the call's words and recordings, which the chat's history leaves out.
     let loadDetail: () async throws -> ChatCall
     let openRecording: (ChatCallRecording) -> Void
 
-    @State private var isShowingTranscript = DemoOptions.screen == "chat-call-transcript"
+    @State private var isShowingTranscript = false
     @State private var detail: ChatCall?
     @State private var isLoading = false
     @State private var didFailToLoad = false
@@ -157,6 +158,8 @@ struct CallLineView: View {
             HStack(spacing: 10) {
                 Image(systemName: isMissed ? "phone.down.fill" : "phone.fill")
                     .foregroundStyle(isMissed ? Color.statusError : Color.statusSuccess)
+                    // The two symbols differ in width, so a fixed column keeps the words of every row on one line.
+                    .frame(width: iconColumnWidth)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(callerText).font(.subheadline.weight(.semibold))
@@ -218,6 +221,9 @@ struct CallLineView: View {
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
+        .onAppear {
+            if DemoOptions.screen == "chat-call-transcript", call.transcriptStatus == .ready { isShowingTranscript = true }
+        }
         .task(id: isShowingTranscript) {
             if isShowingTranscript { await loadDetailIfNeeded() }
         }
