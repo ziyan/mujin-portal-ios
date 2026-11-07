@@ -129,13 +129,18 @@ private struct MarkdownTableView: View {
 
     @State private var shownRowCount = Self.rowsPerPart
 
+    /// The width of the row the table sits in, which a table narrower than it fills.
+    @State private var rowWidth: CGFloat = 0
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // A table that fits fills the width; one that does not scrolls sideways.
-            ViewThatFits(in: .horizontal) {
-                grid.frame(maxWidth: .infinity)
-                ScrollView(.horizontal, showsIndicators: false) { grid }
+            // The table fills the row, and scrolls sideways when it is wider. Asking first whether it fits drew a wide table on a
+            // wide screen as fitting and then wider than its row, which pushed the words around it off the screen.
+            ScrollView(.horizontal, showsIndicators: false) {
+                grid.frame(minWidth: rowWidth, idealWidth: rowWidth, maxWidth: .infinity, alignment: .leading)
             }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in rowWidth = width }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
             if shownRowCount < bodyRows.count {
