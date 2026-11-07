@@ -42,6 +42,9 @@ import Testing
         #expect(payload.action(forButton: PushCategory.approveAction, text: nil) == .resolveApproval(id: "a1", isApproved: true))
         #expect(payload.action(forButton: PushCategory.denyAction, text: nil) == .resolveApproval(id: "a1", isApproved: false))
         #expect(payload.route == .conversation(id: "c1"))
+        let reply = PushPayload(userInfo: Self.userInfo(["userId": "u1", "kind": "ticket_comment", "ticketId": "t1"]))
+        #expect(reply?.route == .ticket(id: "t1"))
+        #expect(PushPayload(userInfo: Self.userInfo(["userId": "u1", "kind": "ticket_comment"]))?.route == .notifications)
     }
 
     @Test func aMessagePushRepliesIntoItsConversation() throws {

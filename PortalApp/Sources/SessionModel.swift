@@ -331,6 +331,9 @@ final class SessionModel {
         case .goal(let id):
             goalToOpen = id
             selectedSection = .more
+        case .ticket(let id):
+            ticketToOpen = id
+            selectedSection = tabSections.contains(.tickets) ? .tickets : .more
         case .automations:
             automationsRequested = true
             selectedSection = .more
