@@ -99,6 +99,8 @@ final class SiteViewTests: XCTestCase {
 
     func testACellNamesOnlyWhatItLeavesOut() {
         let app = DemoApp.launch(screen: "exclusion-cell", arguments: Self.defaultLevels)
+        // The demo opens the site first, whose note says the same words, and the cell over it.
+        XCTAssertTrue(app.navigationBars["Pick cell A"].waitForExistence(timeout: 90), "The cell did not open.\n\(app.debugDescription)")
         XCTAssertTrue(text(app, "Excluded from this view:").waitForExistence(timeout: 90), "The cell does not say what it leaves out.\n\(app.debugDescription)")
         XCTAssertTrue(link(app, "controller04").exists, "The excluded controller is not named.\n\(app.debugDescription)")
         XCTAssertFalse(text(app, "Site totals and alarms come from:").exists, "A cell says where the site's totals come from.")
