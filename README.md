@@ -198,7 +198,7 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
 
 ## Site documentation pages
 
-A site's **Pages** row opens its documentation as a tree (`ListPages`, by `parentPageId` and `position`, the web's order). A page shows its
+A site's **Documentation** row opens its documentation as a tree (`ListPages`, by `parentPageId` and `position`, the web's order). A page shows its
 title and content through the same Markdown, attachment and link views as chat and tickets. Links to `/site/<siteId>/page` and
 `/site/<siteId>/page/<pageId>` open these screens from chats, search and notifications, with no organization: a site of another
 organization is read by its id. The screens follow the web's draft rules: a page never published shows its draft; a published page

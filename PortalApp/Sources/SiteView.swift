@@ -460,7 +460,7 @@ struct SiteView: View {
             }
             if session.capabilities.offersSitePages, let siteId = model.selectedSiteId {
                 NavigationLink(value: PortalRoute.sitePages(siteId: siteId)) {
-                    Label("Pages", systemImage: "doc.text").foregroundStyle(.primary)
+                    Label("Documentation", systemImage: "doc.text").foregroundStyle(.primary)
                 }
                 .id(Self.pagesRowScrollID)
                 .accessibilityIdentifier("sitePagesRow")

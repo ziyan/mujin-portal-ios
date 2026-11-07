@@ -99,7 +99,7 @@ final class SitePagesTests: XCTestCase {
 
     func testAFailedLoadOffersAnotherTry() {
         let app = DemoApp.launch(screen: "site-pages-error")
-        XCTAssertTrue(app.staticTexts["Could not load the pages"].waitForExistence(timeout: 90), "The failure is not shown.\n\(app.debugDescription)")
+        XCTAssertTrue(app.staticTexts["Could not load the documentation"].waitForExistence(timeout: 90), "The failure is not shown.\n\(app.debugDescription)")
         XCTAssertTrue(app.buttons["Try again"].exists, "There is no way to try again.\n\(app.debugDescription)")
         XCTAssertTrue(app.buttons["Open on the web"].exists, "There is no way to open the pages on the web.\n\(app.debugDescription)")
     }

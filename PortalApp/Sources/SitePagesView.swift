@@ -83,7 +83,7 @@ struct SitePagesView: View {
                 if pages.isEmpty { emptyView } else { listView }
             }
         }
-        .navigationTitle("Pages")
+        .navigationTitle("Documentation")
         .navigationSubtitle(site?.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .hidesTabBarWhenCompact()
@@ -134,7 +134,7 @@ struct SitePagesView: View {
     private func failedView(_ message: String) -> some View {
         if isMissing {
             ContentUnavailableView {
-                Label("Pages not found", systemImage: "doc.text.magnifyingglass")
+                Label("Documentation not found", systemImage: "doc.text.magnifyingglass")
             } description: {
                 Text("This site may have been removed, or you may not have access to it.")
             } actions: {
@@ -142,7 +142,7 @@ struct SitePagesView: View {
             }
         } else {
             ContentUnavailableView {
-                Label("Could not load the pages", systemImage: "wifi.exclamationmark")
+                Label("Could not load the documentation", systemImage: "wifi.exclamationmark")
             } description: {
                 Text(message)
             } actions: {
