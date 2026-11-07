@@ -196,6 +196,18 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
 - **Older servers.** Everything is gated on the query `ListSiteExcludedControllerIDs`, and the telemetry source also on the `Site`
   type having the field. Without them the app asks for none of the new fields and lists every alarm level, as before.
 
+## Site documentation pages
+
+A site's **Pages** row opens its documentation as a tree (`ListPages`, by `parentPageId` and `position`, the web's order). A page shows its
+title and content through the same Markdown, attachment and link views as chat and tickets. Links to `/site/<siteId>/page` and
+`/site/<siteId>/page/<pageId>` open these screens from chats, search and notifications, with no organization: a site of another
+organization is read by its id. The screens follow the web's draft rules: a page never published shows its draft; a published page
+shows its current revision (`GetPageRevision`), and a later draft waits for a publish. With `page:edit` on the page's
+`viewerCapabilities` a person can edit the title and content (`ModifyPage` keeps a draft) and add a page, and with `page:publish`
+publish (`PublishPage`). The history is read only. Moving, deleting and restoring stay on the web. The row, the screens and the editor
+show only when the server has the page operations and the `Page` fields `viewerCapabilities`, `isPublished`, `draftTitle`,
+`draftContent`, `currentRevisionId` and `parentPageId`.
+
 ## Feedback about Portal
 
 A person can tell the Portal team what is wrong with the app, or what could be better, and follow what happens to it. It is a ticket

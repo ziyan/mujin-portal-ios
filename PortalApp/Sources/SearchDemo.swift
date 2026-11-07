@@ -4,7 +4,7 @@ import PortalKit
 /// SearchDemo is the demo's global search: invented rows, and the screens the screenshots show (recents and suggestions, a
 /// controller id typed, a controller and one of its pages, a word that matches shortcuts, and a word that matches nothing).
 enum SearchDemo {
-    static let screens: Set<String> = ["search", "search-controller", "search-subpage", "search-shortcuts", "search-no-results"]
+    static let screens: Set<String> = ["search", "search-controller", "search-subpage", "search-shortcuts", "search-no-results", "site-pages-search"]
 
     static func owns(_ screen: String?) -> Bool { screen.map { screens.contains($0) || $0.hasPrefix(queryPrefix) } ?? false }
 
@@ -19,6 +19,7 @@ enum SearchDemo {
         case "search-subpage": "controller01 backups"
         case "search-shortcuts": "notifications"
         case "search-no-results": "zzqx"
+        case "site-pages-search": "operating guide"
         default: ""
         }
     }
@@ -103,6 +104,7 @@ enum SearchDemo {
             kind: "ticket", id: "4", title: "Planner restarts on controller01 every night", subtitle: "Open", path: "/ticket/4",
             organizationId: "organization02", organizationName: "Example Freight"),
         Row(kind: "release", id: "release01", title: "Release 4.2", subtitle: "Stable", path: "/release/release01"),
+        Row(kind: "page", id: "page01", title: "Pick station operating guide", subtitle: "Operating guides", path: "/site/site01/page/page01"),
         Row(kind: "incident", id: "incident01", title: "Person near the conveyor", subtitle: "controller01, Example Yard", path: "/incident/incident01"),
     ]
 

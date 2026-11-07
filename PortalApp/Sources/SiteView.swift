@@ -343,6 +343,7 @@ struct SiteView: View {
                     path.append(.alarm(alarm, controller: siteModel.controllers.first { $0.id == alarm.controllerId }))
                 }
                 if DemoOptions.screen == "site-members" { path.append(.siteList(.members, organizationKey: siteModel.sessionKey)) }
+                if let screen = DemoOptions.screen, PagesDemo.owns(screen) { path.append(contentsOf: PagesDemo.routes(for: screen)) }
                 if DemoOptions.screen == "site-back" {
                     // Choose the second site, push a list, and come back: the page must still show the second site.
                     siteModel.selectedSiteId = "site02"
@@ -400,21 +401,24 @@ struct SiteView: View {
                     Text("Sites you can see show up here.")
                 }
             } else {
-                List { PortalRows {
-                    SiteSectionViews.telemetry(model, showsViewAll: true)
-                    SiteSectionViews.viewNotes(model)
-                    cellsSection(model)
-                    SiteSectionViews.overview(model)
-                    resourcesSection(model)
-                    SiteSectionViews.cameras(model)
-                    SiteSectionViews.alarms(model)
-                    SiteSectionViews.incidents(model)
-                    SiteSectionViews.tickets(model)
-                } }
-.portalRootList()
-                .accessibilityIdentifier("sitePage")
-                .routePushing()
-                .refreshable { await model.loadDetails(force: true) }
+                ScrollViewReader { proxy in
+                    List { PortalRows {
+                        SiteSectionViews.telemetry(model, showsViewAll: true)
+                        SiteSectionViews.viewNotes(model)
+                        cellsSection(model)
+                        SiteSectionViews.overview(model)
+                        resourcesSection(model)
+                        SiteSectionViews.cameras(model)
+                        SiteSectionViews.alarms(model)
+                        SiteSectionViews.incidents(model)
+                        SiteSectionViews.tickets(model)
+                    } }
+                    .portalRootList()
+                    .accessibilityIdentifier("sitePage")
+                    .routePushing()
+                    .refreshable { await model.loadDetails(force: true) }
+                    .task { await scrollToPagesRowInDemo(proxy) }
+                }
             }
         }
     }
@@ -440,10 +444,26 @@ struct SiteView: View {
         }
     }
 
+    /// The demo's Pages row screen starts scrolled to the row, since the page is longer than the screen.
+    private func scrollToPagesRowInDemo(_ proxy: ScrollViewProxy) async {
+        guard appModel.isDemo, DemoOptions.screen == "site-pages-row" else { return }
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        proxy.scrollTo(Self.pagesRowScrollID, anchor: .center)
+    }
+
+    private static let pagesRowScrollID = "sitePagesRow"
+
     private func resourcesSection(_ model: SiteModel) -> some View {
         Section("Resources") {
             if session.capabilities.offersSiteChats, let siteId = model.selectedSiteId {
                 SiteChatRow(siteId: siteId, connection: model.connection)
+            }
+            if session.capabilities.offersSitePages, let siteId = model.selectedSiteId {
+                NavigationLink(value: PortalRoute.sitePages(siteId: siteId)) {
+                    Label("Pages", systemImage: "doc.text").foregroundStyle(.primary)
+                }
+                .id(Self.pagesRowScrollID)
+                .accessibilityIdentifier("sitePagesRow")
             }
             NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.sessionKey)) {
                 LabeledContent("Controllers") { Text(model.controllers.count.formatted()).monospacedDigit() }
