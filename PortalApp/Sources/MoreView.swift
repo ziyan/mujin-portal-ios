@@ -197,6 +197,7 @@ struct MoreView: View {
             }
             }
         }
+        .pushesRoutes { route in path.append(route) }
     }
 
     /// The row of a screen that can also be a tab. A screen on the tab bar is not listed again.

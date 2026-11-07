@@ -146,11 +146,12 @@ struct LinkedPageSheet: View {
     }
 
     @State private var phase = Phase.loading
+    @State private var path = NavigationPath()
 
     private var link: PortalLink { opened.link }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 switch phase {
                 case .loading:
@@ -182,6 +183,7 @@ struct LinkedPageSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.accessibilityIdentifier("linkedPageClose") }
             }
         }
+        .pushesRoutes { route in path.append(route) }
         .task(id: opened) {
             // The task runs again when the sheet comes back from under the browser; the page stays as the person left it.
             if case .loaded = phase { return }
