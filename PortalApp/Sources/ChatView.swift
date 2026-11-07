@@ -251,9 +251,7 @@ struct ChatView: View {
                         ApprovalCardView(card: card) { isApproved in Task { await model.decide(card, isApproved: isApproved) } }
                     }
                     if model.isAssistantWorkingHere && model.questions.isEmpty && model.approvals.isEmpty {
-                        Label("The assistant is working on your message", systemImage: "sparkles")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        TypingBubble()
                     }
                     typingLine(model)
                     Color.clear.frame(height: 1).id("bottom")
@@ -404,9 +402,6 @@ struct ChatView: View {
                 .foregroundStyle(.secondary)
         } else if model.isAssistantAnswering {
             TypingBubble()
-            Label("The assistant is answering", systemImage: "sparkles")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -643,6 +638,13 @@ private struct MessageRow: View {
                 .italic()
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)
+        } else if message.call != nil {
+            // A call happened in the chat; nobody said it. It sits in the middle, whoever started it.
+            VStack(spacing: 4) {
+                tappableBubble
+                if isMine, isLastOwn { receipt.frame(maxWidth: .infinity, alignment: .trailing) }
+            }
+            .frame(maxWidth: .infinity)
         } else {
         HStack(alignment: .top, spacing: 8) {
             // Others have a small round picture at the start of each run of their messages.
