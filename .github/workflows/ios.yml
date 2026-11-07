@@ -344,6 +344,23 @@ jobs:
           shoot site-from-link site-from-link staff
           shoot site-staff-controllers site-staff-controllers staff
           shoot site-loading site-loading
+          shoot site-pages-row site-pages-row
+          shoot site-pages site-pages
+          shoot site-pages-readonly site-pages-readonly
+          shoot site-pages-empty site-pages-empty
+          shoot site-pages-error site-pages-error
+          shoot site-pages-missing site-pages-missing
+          shoot site-pages-search site-pages-search
+          shoot site-pages-new site-pages-new
+          shoot site-page site-page
+          shoot site-page-readonly site-page-readonly
+          shoot site-page-nested site-page-nested
+          shoot site-page-draft site-page-draft
+          shoot site-page-missing site-page-missing
+          shoot site-page-menu site-page-menu
+          shoot site-page-edit site-page-edit
+          shoot site-page-history site-page-history
+          shoot site-page-revision site-page-revision
           shoot cameras cameras
           shoot cameras-failed cameras-failed
           shoot camera camera
@@ -500,6 +517,23 @@ jobs:
           shoot release-dark release
           shoot voice-dark voice
           shoot site-loading-dark site-loading
+          shoot site-pages-row-dark site-pages-row
+          shoot site-pages-dark site-pages
+          shoot site-pages-readonly-dark site-pages-readonly
+          shoot site-pages-empty-dark site-pages-empty
+          shoot site-pages-error-dark site-pages-error
+          shoot site-pages-missing-dark site-pages-missing
+          shoot site-pages-search-dark site-pages-search
+          shoot site-pages-new-dark site-pages-new
+          shoot site-page-dark site-page
+          shoot site-page-readonly-dark site-page-readonly
+          shoot site-page-nested-dark site-page-nested
+          shoot site-page-draft-dark site-page-draft
+          shoot site-page-missing-dark site-page-missing
+          shoot site-page-menu-dark site-page-menu
+          shoot site-page-edit-dark site-page-edit
+          shoot site-page-history-dark site-page-history
+          shoot site-page-revision-dark site-page-revision
           shoot cameras-dark cameras
           shoot cameras-failed-dark cameras-failed
           shoot camera-dark camera
