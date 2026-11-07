@@ -47,8 +47,11 @@ extension SessionModel {
             return .screen(.route(.site(id: id, organizationId: organizationId)))
         case .cell(let id, let siteId):
             return .screen(.route(.cell(id: id, siteId: siteId, organizationId: organizationId)))
-        case .sitePage:
-            return .web
+        case .sitePages(let siteId):
+            // The pages need no organization: the screens read the site, whoever it belongs to. A server without them opens the web.
+            return capabilities.offersSitePages ? .screen(.route(.sitePages(siteId: siteId))) : .web
+        case .sitePage(let id, let siteId):
+            return capabilities.offersSitePages ? .screen(.route(.sitePage(id: id, siteId: siteId))) : .web
         case .conversation(let id):
             return .conversation(id)
         case .chatMessage(let chatId, let messageId):

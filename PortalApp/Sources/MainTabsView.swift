@@ -344,9 +344,10 @@ private struct SectionContent: View {
 /// DestinationTab is a screen of More shown as a tab: the same screen, with the same screens it pushes.
 private struct DestinationTab: View {
     let root: MoreDestination
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             MoreDestinationView(destination: root, isTabRoot: true)
                 .portalDestinations()
                 .navigationDestination(for: MoreDestination.self) { destination in
@@ -354,6 +355,7 @@ private struct DestinationTab: View {
                         .hidesTabBarWhenCompact()
                 }
         }
+        .pushesRoutes { route in path.append(route) }
     }
 }
 

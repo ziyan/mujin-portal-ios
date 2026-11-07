@@ -336,9 +336,7 @@ struct UserDetailView: View {
                             .foregroundStyle(Color.secondary)
                     }
                     ForEach(siteRoles) { entry in
-                        NavigationLink {
-                            SiteView(organizationId: siteOrganizations[entry.siteId], siteId: entry.siteId, embedsNavigation: false)
-                        } label: {
+                        NavigationLink(value: PortalRoute.site(id: entry.siteId, organizationId: siteOrganizations[entry.siteId])) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(entry.siteName)
                                     .foregroundStyle(Color.primary)
@@ -368,9 +366,7 @@ struct UserDetailView: View {
                 if !tickets.isEmpty {
                     Section("Recent tickets") {
                         ForEach(tickets) { ticket in
-                            NavigationLink {
-                                TicketDetailView(ticketId: ticket.id)
-                            } label: {
+                            NavigationLink(value: PortalRoute.ticket(id: ticket.id)) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(ticket.title ?? "")
                                         .foregroundStyle(Color.primary)

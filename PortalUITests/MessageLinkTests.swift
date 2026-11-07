@@ -19,27 +19,49 @@ final class MessageLinkTests: XCTestCase {
     }
 
     /// Scrolls the chat, to the older messages first, until the element can be tapped. A row that is off screen is not in the
-    /// accessibility hierarchy at all, so there is no waiting for it before scrolling.
+    /// accessibility hierarchy at all, so there is no waiting for it before scrolling. Once the row is on screen, short drags
+    /// move it between the navigation bar and the floating composer, which covers the bottom of the chat: a link just above
+    /// the message field can still be under the composer's glass. The last messages of a chat cannot scroll any higher than
+    /// just above the composer, so the band ends at the composer, not at a fixed share of the window.
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         _ = element.waitForExistence(timeout: 20)
         var attempts = 0
-        while !isClearOfBars(element, in: app) && attempts < 16 {
-            if attempts < 8 { app.swipeDown() } else { app.swipeUp() }
+        while !isClearOfBars(element, in: app) && attempts < 20 {
+            if element.exists, element.frame.height > 0 {
+                let band = clearBand(in: app)
+                drag(app, isUp: element.frame.midY > band.lowerBound + (band.upperBound - band.lowerBound) / 2)
+            } else if attempts < 8 {
+                app.swipeDown()
+            } else {
+                app.swipeUp()
+            }
             attempts += 1
         }
         XCTAssertTrue(isClearOfBars(element, in: app), "\(element) cannot be tapped.\n\(app.debugDescription)", file: file, line: line)
     }
 
-    /// Whether the element can be tapped and is not under the navigation bar or the composer, which draw over the messages
-    /// and still count it as hittable.
-    private func isClearOfBars(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        guard element.exists, element.isHittable else { return false }
+    /// The part of the window, from top to bottom, that neither the navigation bar nor the composer covers.
+    private func clearBand(in app: XCUIApplication) -> ClosedRange<CGFloat> {
         let window = app.windows.firstMatch.frame
-        let frame = element.frame
-        return frame.minY > window.minY + 150 && frame.maxY < window.maxY - 110
+        let field = ["chatMessageField", "messageField"].map { app.textViews[$0] }.first { $0.exists }
+        let composerTop = field.map { $0.frame.minY - 24 } ?? window.maxY - 160
+        return (window.minY + 150)...max(window.minY + 151, composerTop)
     }
 
-    /// A point on the first letters of the element's text, which is where the link of a one-link message starts.
+    private func isClearOfBars(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        guard element.exists, element.isHittable else { return false }
+        let frame = element.frame
+        let band = clearBand(in: app)
+        return frame.height > 0 && frame.minY >= band.lowerBound && frame.maxY <= band.upperBound
+    }
+
+    /// A short drag that stops where it ends, so the row does not fly past the band.
+    private func drag(_ app: XCUIApplication, isUp: Bool) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isUp ? 0.6 : 0.4))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isUp ? 0.4 : 0.6))
+        start.press(forDuration: 0.05, thenDragTo: end)
+    }
+
     private func start(of element: XCUIElement) -> XCUICoordinate {
         element.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: 20, dy: 0))
     }

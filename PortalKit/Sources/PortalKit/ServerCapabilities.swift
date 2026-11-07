@@ -15,11 +15,15 @@ public struct ServerCapabilities: Equatable, Sendable {
     public let voiceSettingFieldNames: Set<String>
     /// The fields of the Site type, for a feature that needs a field and not only an operation.
     public let siteFieldNames: Set<String>
+    /// The fields of the Page type, for the documentation pages, which need fields as well as operations.
+    public let pageFieldNames: Set<String>
 
     public init(
         queryNames: Set<String> = [], mutationNames: Set<String> = [], subscriptionNames: Set<String> = [], sendMessageArgumentNames: Set<String> = [],
-        listMessageArgumentNames: Set<String> = [], voiceSettingFieldNames: Set<String> = [], siteFieldNames: Set<String> = []
+        listMessageArgumentNames: Set<String> = [], voiceSettingFieldNames: Set<String> = [], siteFieldNames: Set<String> = [],
+        pageFieldNames: Set<String> = []
     ) {
+        self.pageFieldNames = pageFieldNames
         self.siteFieldNames = siteFieldNames
         self.voiceSettingFieldNames = voiceSettingFieldNames
         self.listMessageArgumentNames = listMessageArgumentNames
@@ -78,6 +82,8 @@ public struct ServerCapabilities: Equatable, Sendable {
         let voiceSetting: RootType?
         /// The site type, asked for by name.
         let siteType: RootType?
+        /// The page type, asked for by name. Null on a server that has no such type.
+        let pageType: RootType?
     }
 
     init(_ introspection: Introspection) {
@@ -88,7 +94,7 @@ public struct ServerCapabilities: Equatable, Sendable {
             queryNames: names(introspection.__schema.queryType), mutationNames: names(introspection.__schema.mutationType),
             subscriptionNames: names(introspection.__schema.subscriptionType), sendMessageArgumentNames: Set(sendArguments.map(\.name)),
             listMessageArgumentNames: Set(listArguments.map(\.name)), voiceSettingFieldNames: names(introspection.voiceSetting),
-            siteFieldNames: names(introspection.siteType))
+            siteFieldNames: names(introspection.siteType), pageFieldNames: names(introspection.pageType))
     }
 }
 
@@ -103,6 +109,7 @@ extension Documents {
           }
           voiceSetting: __type(name: "AgentVoiceSetting") { fields { name } }
           siteType: __type(name: "Site") { fields { name } }
+          pageType: __type(name: "Page") { fields { name } }
         }
         """
 }

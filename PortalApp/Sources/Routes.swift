@@ -18,6 +18,14 @@ enum PortalRoute: Hashable {
     case site(id: String, organizationId: String?)
     /// One cell of a site: the site page narrowed to the cell's machines and cameras.
     case cell(id: String, siteId: String, organizationId: String?)
+    /// The documentation pages of a site, as a tree.
+    case sitePages(siteId: String)
+    /// One documentation page of a site.
+    case sitePage(id: String, siteId: String)
+    /// The published versions of a documentation page.
+    case sitePageHistory(siteId: String, page: SitePage)
+    /// One earlier version of a documentation page, to read.
+    case sitePageRevision(siteId: String, pageId: String, revision: SitePageRevision, isCurrent: Bool)
     case release(id: String)
     case releaseUsers(id: String, kind: ReleaseUsageKind)
     case releaseImage(id: String)
@@ -80,6 +88,14 @@ struct PortalRouteView: View {
             SiteView(organizationId: organizationId, siteId: id, embedsNavigation: false)
         case .cell(let id, let siteId, let organizationId):
             CellView(cellId: id, siteId: siteId, organizationId: organizationId)
+        case .sitePages(let siteId):
+            SitePagesView(siteId: siteId)
+        case .sitePage(let id, let siteId):
+            SitePageView(siteId: siteId, pageId: id)
+        case .sitePageHistory(let siteId, let page):
+            SitePageHistoryView(siteId: siteId, page: page)
+        case .sitePageRevision(let siteId, let pageId, let revision, let isCurrent):
+            SitePageRevisionView(siteId: siteId, pageId: pageId, revision: revision, isCurrent: isCurrent)
         case .release(let id):
             ReleaseDetailView(releaseId: id)
         case .releaseUsers(let id, let kind):

@@ -512,6 +512,10 @@ struct DemoTransport: HTTPTransport {
             let refusal = try JSONSerialization.data(withJSONObject: ["errors": [["message": FeedbackDemo.failureMessage]]])
             return (refusal, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
         }
+        if let message = PagesDemo.refusal(operation: operation, screen: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
+            let refusal = try JSONSerialization.data(withJSONObject: ["errors": [["message": message]]])
+            return (refusal, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
         let answer = respond(operation: operation, variables: variables)
         let payload = try JSONSerialization.data(withJSONObject: ["data": answer])
         return (payload, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
@@ -571,6 +575,7 @@ struct DemoTransport: HTTPTransport {
         if let answer = ThreadDemo.respondToCalls(operation: operation, variables: variables, stamp: { ISO8601DateFormatter().string(from: Date().addingTimeInterval(-$0)) }) { return answer }
         if let answer = CallDemo.respond(operation: operation, variables: variables) { return answer }
         if let answer = SearchDemo.respond(operation: operation, variables: variables) { return answer }
+        if let answer = PagesDemo.respond(operation: operation, variables: variables, screen: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) { return answer }
         if SiteViewDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]), let answer = siteViewAnswer(operation: operation, variables: variables) { return answer }
         let conversationId = variables["conversationId"] as? String ?? ""
         switch operation {
@@ -608,6 +613,12 @@ struct DemoTransport: HTTPTransport {
             let hasSiteViewRules = SiteViewDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
             if hasSiteViewRules { queryFields.append(["name": "listSiteExcludedControllerIDs", "args": [["name": "siteId"], ["name": "cellId"]]]) }
             if hasThreads { mutationFields.append(["name": "openChatMessage"]) }
+            // Documentation pages are shot against a server that has them.
+            let hasPages = PagesDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            if hasPages {
+                queryFields += ["listPages", "getPage", "getPageRevision", "listPageRevisions"].map { ["name": $0] }
+                mutationFields += ["createPage", "modifyPage", "publishPage"].map { ["name": $0] }
+            }
             var schemaAnswer: [String: Any] = [
                 "__schema": [
                     "queryType": ["fields": queryFields],
@@ -618,6 +629,10 @@ struct DemoTransport: HTTPTransport {
             let voiceSettingFields = hasSpeech ? SpeechDemo.voiceSettingFieldNames : ["speechVoice", "speechVoices", "defaultSpeechVoice", "previewText"]
             schemaAnswer["voiceSetting"] = ["fields": voiceSettingFields.map { ["name": $0] }]
             schemaAnswer["siteType"] = ["fields": (hasSiteViewRules ? ["id", "name", "telemetrySourceControllerId"] : ["id", "name"]).map { ["name": $0] }]
+            if hasPages {
+                let pageFields = ["id", "siteId", "parentPageId", "position", "currentRevisionId", "title", "icon", "isPublished", "draftTitle", "draftContent", "viewerCapabilities"]
+                schemaAnswer["pageType"] = ["fields": pageFields.map { ["name": $0] }]
+            }
             return schemaAnswer
         case "GetMainAgent":
             return ["GetMainAgent": ["id": "agent01", "name": "Assistant", "isMain": true]]

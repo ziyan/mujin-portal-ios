@@ -123,14 +123,36 @@ private struct MarkdownTableView: View {
     let columnAlignments: [MarkdownColumnAlignment]
     let bodyRows: [[String]]
 
+    /// The rows drawn at a time. The grid lays out every cell it holds at once, which a table of hundreds of rows would make the
+    /// screen wait for, so a long table starts with this many and adds as many again on a tap.
+    private static let rowsPerPart = 100
+
+    @State private var shownRowCount = Self.rowsPerPart
+
+    /// The width of the row the table sits in, which a table narrower than it fills.
+    @State private var rowWidth: CGFloat = 0
+
     var body: some View {
-        // A table that fits fills the width; one that does not scrolls sideways.
-        ViewThatFits(in: .horizontal) {
-            grid.frame(maxWidth: .infinity)
-            ScrollView(.horizontal, showsIndicators: false) { grid }
+        VStack(alignment: .leading, spacing: 8) {
+            // The table fills the row, and scrolls sideways when it is wider. Asking first whether it fits drew a wide table on a
+            // wide screen as fitting and then wider than its row, which pushed the words around it off the screen.
+            ScrollView(.horizontal, showsIndicators: false) {
+                grid.frame(minWidth: rowWidth, idealWidth: rowWidth, maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in rowWidth = width }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
+            if shownRowCount < bodyRows.count {
+                Button {
+                    shownRowCount += Self.rowsPerPart
+                } label: {
+                    Text("Show more (\(shownRowCount) of \(bodyRows.count) rows)")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("markdownTableShowMoreButton")
+            }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
     }
 
     private var grid: some View {
@@ -141,7 +163,7 @@ private struct MarkdownTableView: View {
                             .background { Rectangle().fill(Color(.tertiarySystemFill)) }
                     }
                 }
-                ForEach(Array(bodyRows.enumerated()), id: \.offset) { rowIndex, row in
+                ForEach(Array(bodyRows.prefix(shownRowCount).enumerated()), id: \.offset) { rowIndex, row in
                     Divider()
                     GridRow {
                         ForEach(Array(row.enumerated()), id: \.offset) { column, cell in

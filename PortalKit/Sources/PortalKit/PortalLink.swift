@@ -21,8 +21,10 @@ public enum PortalLink: Equatable, Hashable, Sendable {
     case site(id: String)
     /// `/site/<siteId>/cell/<id>`
     case cell(id: String, siteId: String)
-    /// `/site/<siteId>/page/<id>`: a documentation page of a site. The app has no screen for it, so it opens on the web.
+    /// `/site/<siteId>/page/<id>`: a documentation page of a site.
     case sitePage(id: String, siteId: String)
+    /// `/site/<siteId>/page`: the tree of a site's documentation pages.
+    case sitePages(siteId: String)
     /// `/surveillance/<cameraId>`
     case camera(id: String)
     /// `/organization/<id>`
@@ -113,6 +115,10 @@ public enum PortalLink: Equatable, Hashable, Sendable {
             self = .release(id: identifier)
         case "site":
             guard Self.isIdentifier(identifier) else { return nil }
+            if segments.count == 3, segments[2].lowercased() == "page" {
+                self = .sitePages(siteId: identifier)
+                return
+            }
             if segments.count >= 4, Self.isIdentifier(segments[3]) {
                 switch segments[2].lowercased() {
                 case "cell":
@@ -177,6 +183,7 @@ public enum PortalLink: Equatable, Hashable, Sendable {
         case .site(let id): "/site/\(id)"
         case .cell(let id, let siteId): "/site/\(siteId)/cell/\(id)"
         case .sitePage(let id, let siteId): "/site/\(siteId)/page/\(id)"
+        case .sitePages(let siteId): "/site/\(siteId)/page"
         case .camera(let id): "/surveillance/\(id)"
         case .organization(let id): "/organization/\(id)"
         case .organizationPage(let page, let organizationId): "/organization/\(organizationId)/\(page.rawValue)"
