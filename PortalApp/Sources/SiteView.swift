@@ -1075,12 +1075,14 @@ enum SiteRows {
                 if let detail = controller.detail { Text(detail).font(.footnote).foregroundStyle(.secondary) }
                 if controller.isExcludedFromSiteViews == true {
                     Label("Excluded from site views", systemImage: "eye.slash")
+                        .labelStyle(InlineLabelStyle())
                         .font(.footnote)
                         .foregroundStyle(Color.statusWarning)
                         .accessibilityIdentifier("excludedBadge")
                 }
                 if isSiteTotal {
                     Label("Site total", systemImage: "sum")
+                        .labelStyle(InlineLabelStyle())
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("siteTotalBadge")

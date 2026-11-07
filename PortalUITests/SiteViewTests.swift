@@ -180,7 +180,7 @@ final class SiteViewTests: XCTestCase {
         XCTAssertTrue(warning.label.contains("2"), "The Warning chip does not count both warnings: \"\(warning.label)\".")
         XCTAssertTrue(DemoApp.element(app, "alarmLevel.critical").label.contains("1"), "The Critical chip does not count its alarm.")
         XCTAssertTrue(DemoApp.element(app, "alarmLevel.error").label.contains("1"), "The Error chip does not count an alarm in capitals.")
-        XCTAssertTrue(DemoApp.element(app, "alarmLevel.info").label.contains("1"), "The Info chip does not count its alarm.")
+        XCTAssertTrue(DemoApp.element(app, "alarmLevel.notice").label.contains("1"), "The Info chip does not count its alarm.")
         warning.tap()
         for _ in 0..<15 where !(tile.exists && tile.isHittable) { app.swipeDown() }
         XCTAssertTrue(waitForLabel(tile, containing: "5"), "Turning Warning on did not add its alarms to the count: \"\(tile.label)\".")

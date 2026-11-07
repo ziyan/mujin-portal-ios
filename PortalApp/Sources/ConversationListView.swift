@@ -20,7 +20,7 @@ struct ConversationListView: View {
     var body: some View {
         NavigationSplitView(preferredCompactColumn: Binding(
             get: { selection.isDetailOnTop ? .detail : .sidebar },
-            set: { selection.isDetailOnTop = $0 == .detail })
+            set: { selection.setDetailOnTop($0 == .detail) })
         ) {
             Group {
                 if let model {
@@ -117,6 +117,9 @@ struct ConversationListView: View {
                     }
                 }
             })
+        }
+        .onChange(of: session.mainChatRevision) { _, _ in
+            Task { await model?.load(force: true) }
         }
         .onChange(of: session.lastReadChat) { _, mark in
             guard let mark, let model else { return }

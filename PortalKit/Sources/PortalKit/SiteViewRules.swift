@@ -19,7 +19,7 @@ public enum AlarmLevel: String, CaseIterable, Identifiable, Sendable {
     case critical
     case error
     case warning
-    case info
+    case notice
 
     public var id: String { rawValue }
 
@@ -32,7 +32,7 @@ public enum AlarmLevel: String, CaseIterable, Identifiable, Sendable {
         case "critical", "fatal": self = .critical
         case "error", "alarm": self = .error
         case "warning", "warn": self = .warning
-        case "info", "information", "notice": self = .info
+        case "notice", "info", "information": self = .notice
         default: return nil
         }
     }

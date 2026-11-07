@@ -331,6 +331,9 @@ final class SessionModel {
         case .goal(let id):
             goalToOpen = id
             selectedSection = .more
+        case .ticket(let id):
+            ticketToOpen = id
+            selectedSection = tabSections.contains(.tickets) ? .tickets : .more
         case .automations:
             automationsRequested = true
             selectedSection = .more
@@ -398,6 +401,13 @@ final class SessionModel {
     var referenceHandoff = ReferenceHandoff()
     /// The id of the main chat once the list or an Ask button has seen it.
     private(set) var knownMainConversationId: String?
+    /// Counts the times the person chose another main chat, which the list reads again for.
+    private(set) var mainChatRevision = 0
+
+    func noteMainChat(conversationId: String) {
+        knownMainConversationId = conversationId
+        mainChatRevision += 1
+    }
 
     /// A new message the person asked for from a screen: its reference or its words are held here, and
     /// nothing exists on the server until the first send.

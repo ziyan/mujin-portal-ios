@@ -606,6 +606,7 @@ struct DemoTransport: HTTPTransport {
                 ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"], ["name": "openSiteChat"],
             ]
             if hasCalls { mutationFields += [["name": "startChatCall"], ["name": "joinChatCallMedia"]] }
+            mutationFields.append(["name": "setMainConversation"])
             // Feedback about Portal is shot against a server that has it; every other screen is not.
             if FeedbackDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) { mutationFields.append(["name": "submitPortalFeedback"]) }
             // Leaving a controller out of site views, the site's telemetry source and the alarm levels come with one server release.
@@ -1255,6 +1256,8 @@ struct DemoTransport: HTTPTransport {
                 for (key, rows) in data.approvals { data.approvals[key] = rows.filter { ($0["id"] as? String) != (variables["approvalId"] as? String) } }
             }
             return ["ResolveToolApproval": NSNull()]
+        case "SetMainConversation":
+            return ["SetMainConversation": ["conversation": ["id": conversationId, "isMain": true]]]
         case "ArchiveConversation":
             state.withData { data in data.conversations.removeAll { ($0["id"] as? String) == conversationId } }
             return ["ArchiveConversation": ["conversation": ["id": conversationId, "archivedAt": ISO8601DateFormatter().string(from: Date())]]]

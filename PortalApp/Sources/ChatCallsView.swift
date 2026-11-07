@@ -66,6 +66,7 @@ struct ChatCallsView: View {
 
 /// ChatCallRow is one past call: who called, how it ended, and when.
 private struct ChatCallRow: View {
+    @ScaledMetric(relativeTo: .body) private var iconColumnWidth = 26
     let call: ChatCall
     let currentUserId: String
 
@@ -92,6 +93,7 @@ private struct ChatCallRow: View {
         HStack(spacing: 12) {
             Image(systemName: isMissed ? "phone.down.fill" : "phone.fill")
                 .foregroundStyle(isMissed ? Color.statusError : Color.statusSuccess)
+                .frame(width: iconColumnWidth)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(callerText).font(.body.weight(.semibold))

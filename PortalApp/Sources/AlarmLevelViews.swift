@@ -31,7 +31,30 @@ extension AlarmLevel {
         case .critical: "Critical"
         case .error: "Error"
         case .warning: "Warning"
-        case .info: "Info"
+        case .notice: "Notice"
+        }
+    }
+
+    /// Each level has a fill of its own, so no two look alike in a list.
+    var fillColor: Color {
+        switch self {
+        case .critical: Color.statusCritical
+        case .error: Color.statusError
+        case .warning: Color.statusAmber
+        case .notice: Color.statusInfo
+        }
+    }
+
+    /// Words on that fill: dark on amber, which white cannot be read on.
+    var wordColor: Color { self == .warning ? Color.black : Color.white }
+
+    /// The level of an alarm's rank, where lower is worse.
+    init(severityRank: Int) {
+        switch severityRank {
+        case 0: self = .critical
+        case 1: self = .error
+        case 2: self = .warning
+        default: self = .notice
         }
     }
 }
@@ -57,7 +80,7 @@ struct AlarmLevelBar: View {
     private func chip(_ level: AlarmLevel, count: Int) -> some View {
         let isOn = preference.filter.selectedLevels.contains(level)
         let isCriticalOn = isOn && level == .critical
-        let wordColor = isCriticalOn ? Color.white : Color.onAccent
+        let wordColor = level.wordColor
         return HStack(spacing: 6) {
             Text(level.title)
             Text(count.formatted()).monospacedDigit().foregroundStyle(isOn ? wordColor.opacity(0.85) : Color.secondary)
@@ -66,7 +89,7 @@ struct AlarmLevelBar: View {
         .foregroundStyle(isOn ? wordColor : Color.primary)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(isOn ? AnyShapeStyle(isCriticalOn ? Color.statusCritical : Color.accentColor) : AnyShapeStyle(Color(.tertiarySystemFill)), in: Capsule())
+        .background(isOn ? AnyShapeStyle(level.fillColor) : AnyShapeStyle(Color(.tertiarySystemFill)), in: Capsule())
         .frame(minHeight: 44)
         .rowTapTarget { preference.filter.toggle(level) }
         .accessibilityElement(children: .combine)
@@ -81,33 +104,32 @@ struct AlarmSeverityIcon: View {
     let severityRank: Int
 
     var body: some View {
-        switch severityRank {
-        case 0:
+        switch AlarmLevel(severityRank: severityRank) {
+        case .critical:
             Image(systemName: "xmark.octagon.fill").symbolRenderingMode(.palette).foregroundStyle(Color.white, Color.statusCritical)
-        case 1:
+        case .error:
             Image(systemName: "exclamationmark.octagon.fill").foregroundStyle(Color.statusError)
-        default:
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.statusWarning)
+        case .warning:
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color.statusAmber)
+        case .notice:
+            Image(systemName: "info.circle.fill").foregroundStyle(Color.statusInfo)
         }
     }
 }
 
-/// AlarmSeverityText is an alarm's level in words: white on the critical color for Critical, the status color for the others.
+/// AlarmSeverityText is an alarm's level in words, on the same fill as its filter chip.
 struct AlarmSeverityText: View {
     let text: String
     let severityRank: Int
 
     var body: some View {
-        if severityRank == 0 {
-            Text(text)
-                .fontWeight(.bold)
-                .foregroundStyle(Color.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 2)
-                .background(Color.statusCritical, in: Capsule())
-        } else {
-            Text(text).foregroundStyle(severityRank == 1 ? Color.statusError : Color.statusWarning)
-        }
+        let level = AlarmLevel(severityRank: severityRank)
+        Text(text)
+            .fontWeight(level == .critical ? .bold : .medium)
+            .foregroundStyle(level.wordColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(level.fillColor, in: Capsule())
     }
 }
 

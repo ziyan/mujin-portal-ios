@@ -16,7 +16,7 @@ struct ChatsView: View {
     var body: some View {
         NavigationSplitView(preferredCompactColumn: Binding(
             get: { selection.isDetailOnTop ? .detail : .sidebar },
-            set: { selection.isDetailOnTop = $0 == .detail })
+            set: { selection.setDetailOnTop($0 == .detail) })
         ) {
             Group {
                 if !session.capabilities.offersChats {
