@@ -20,15 +20,16 @@ final class MessageLinkTests: XCTestCase {
 
     /// Scrolls the chat, to the older messages first, until the element can be tapped. A row that is off screen is not in the
     /// accessibility hierarchy at all, so there is no waiting for it before scrolling. Once the row is on screen, short drags
-    /// move it into the band every test taps in: the floating composer covers more of the bottom than a fixed margin allows
-    /// for, so a link just above it is still under it.
+    /// move it between the navigation bar and the floating composer, which covers the bottom of the chat: a link just above
+    /// the message field can still be under the composer's glass. The last messages of a chat cannot scroll any higher than
+    /// just above the composer, so the band ends at the composer, not at a fixed share of the window.
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         _ = element.waitForExistence(timeout: 20)
         var attempts = 0
         while !isClearOfBars(element, in: app) && attempts < 20 {
             if element.exists, element.frame.height > 0 {
-                let isAboveBand = element.frame.midY <= app.windows.firstMatch.frame.height * 0.4
-                drag(app, isUp: !isAboveBand)
+                let band = clearBand(in: app)
+                drag(app, isUp: element.frame.midY > band.lowerBound + (band.upperBound - band.lowerBound) / 2)
             } else if attempts < 8 {
                 app.swipeDown()
             } else {
@@ -39,9 +40,19 @@ final class MessageLinkTests: XCTestCase {
         XCTAssertTrue(isClearOfBars(element, in: app), "\(element) cannot be tapped.\n\(app.debugDescription)", file: file, line: line)
     }
 
+    /// The part of the window, from top to bottom, that neither the navigation bar nor the composer covers.
+    private func clearBand(in app: XCUIApplication) -> ClosedRange<CGFloat> {
+        let window = app.windows.firstMatch.frame
+        let field = ["chatMessageField", "messageField"].map { app.textViews[$0] }.first { $0.exists }
+        let composerTop = field.map { $0.frame.minY - 24 } ?? window.maxY - 160
+        return (window.minY + 150)...max(window.minY + 151, composerTop)
+    }
+
     private func isClearOfBars(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
         guard element.exists, element.isHittable else { return false }
-        return DemoApp.isInTapBand(element, in: app)
+        let frame = element.frame
+        let band = clearBand(in: app)
+        return frame.height > 0 && frame.minY >= band.lowerBound && frame.maxY <= band.upperBound
     }
 
     /// A short drag that stops where it ends, so the row does not fly past the band.
