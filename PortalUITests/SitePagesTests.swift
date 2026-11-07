@@ -259,7 +259,8 @@ final class SitePagesTests: XCTestCase {
         let app = DemoApp.launch(screen: "site-page-table")
         XCTAssertEqual(pageTitle(app).label, "Fault code list")
         XCTAssertTrue(text(app, "E-0001").waitForExistence(timeout: 30), "The table did not draw.\n\(app.debugDescription)")
-        let more = DemoApp.button(app, "markdownTableShowMoreButton")
+        // The page's words carry one identifier, which the system gives every element inside them, so the button is found by its words.
+        let more = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Show more (")).firstMatch
         // The words are one row, so the button exists long before it is on screen.
         for _ in 0..<30 where !(more.exists && more.isHittable) { app.swipeUp() }
         XCTAssertTrue(more.exists && more.isHittable, "The table offers no more rows.\n\(app.debugDescription)")
