@@ -56,7 +56,7 @@ final class SessionModel {
     var feedbackRequest: FeedbackRequest?
     /// Set when a notification asks More to show the Automations screen.
     var automationsRequested = false
-    var isShowingNotifications = DemoOptions.screen == "notifications" || DemoOptions.screen == "notifications-past"
+    var isShowingNotifications = false
     /// Entries in the inbox not read yet.
     private(set) var unreadCount = 0
     /// Counts up whenever the server says a notification was created, so an open inbox reads again.

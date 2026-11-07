@@ -124,7 +124,7 @@ struct CallLineView: View {
     let loadDetail: () async throws -> ChatCall
     let openRecording: (ChatCallRecording) -> Void
 
-    @State private var isShowingTranscript = DemoOptions.screen == "chat-call-transcript"
+    @State private var isShowingTranscript = false
     @State private var detail: ChatCall?
     @State private var isLoading = false
     @State private var didFailToLoad = false
@@ -221,6 +221,9 @@ struct CallLineView: View {
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
+        .onAppear {
+            if DemoOptions.screen == "chat-call-transcript", call.transcriptStatus == .ready { isShowingTranscript = true }
+        }
         .task(id: isShowingTranscript) {
             if isShowingTranscript { await loadDetailIfNeeded() }
         }
