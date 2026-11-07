@@ -85,8 +85,10 @@ final class NotificationsModel {
             try await connection.markNotificationRead(id: item.id)
             // The row changes in place from the result, in the list and in the cache.
             let readAt = ISO8601DateFormatter().string(from: Date())
+            // What was read leaves a list of the unread at once.
+            let keepsRead = showsPast
             func marked(_ rows: inout [PortalNotification]) {
-                rows = rows.map { $0.id == item.id ? $0.markedRead(at: readAt) : $0 }
+                rows = keepsRead ? rows.map { $0.id == item.id ? $0.markedRead(at: readAt) : $0 } : rows.filter { $0.id != item.id }
             }
             marked(&items)
             cache?.update(cacheKey, as: [PortalNotification].self) { marked(&$0) }
@@ -99,7 +101,7 @@ final class NotificationsModel {
         do {
             try await connection.markAllNotificationsRead()
             let readAt = ISO8601DateFormatter().string(from: Date())
-            items = items.map { $0.markedRead(at: readAt) }
+            items = showsPast ? items.map { $0.markedRead(at: readAt) } : []
             let updated = items
             cache?.store(updated, for: cacheKey)
         } catch {
