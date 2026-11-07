@@ -144,8 +144,18 @@ struct MainTabsView: View {
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("link-") {
                 appModel.linkRequest = ControllerLinkRequest(code: screen == "link-confirm" ? DemoServer.linkCode : nil)
             }
+            // Once the first tab has settled: choosing a tab closes what is over it, as it does for a person.
             if appModel.isDemo, DemoOptions.screen == "site-from-link" {
-                appModel.openedLink = OpenedLink(link: .site(id: "site03"))
+                Task { [appModel = self.appModel] in
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    appModel.openedLink = OpenedLink(link: .site(id: "site03"))
+                }
+            }
+            if appModel.isDemo, DemoOptions.screen == "notifications" || DemoOptions.screen == "notifications-past" {
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    newSession.isShowingNotifications = true
+                }
             }
             if appModel.isDemo, DemoOptions.screen == "ask" || DemoOptions.screen == "ask-site" || DemoOptions.screen == "conversation-reply" || DemoOptions.screen == "conversation-composer" || DemoOptions.screen == "main-chat" {
                 if DemoOptions.screen == "ask-site" {
