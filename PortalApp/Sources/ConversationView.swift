@@ -260,8 +260,8 @@ struct ConversationView: View {
                                     shownEntries.filter { Self.isReply(in: $0, root: rootId) }.count))
                         }
                     }
-                    // From the send until the first words or a tool row: typing dots in the assistant's bubble.
-                    if model.isRunning, model.isAwaitingFirstWords {
+                    // The one sign of a turn at work: typing dots below everything, until the answer is done.
+                    if model.isShowingTypingDots {
                         TypingBubble().id("typing")
                     }
                     if !model.isThread {
@@ -400,10 +400,11 @@ private struct TranscriptRow: View {
         }
     }
 
-    /// The count of replies under a message, or that the assistant is answering in its thread.
+    /// The count of replies under a message, or that the assistant is answering in its thread. A turn whose answer this screen shows
+    /// has the typing dots at the end of the history, so the message does not say it again.
     @ViewBuilder
     private func threadControl(for id: String) -> some View {
-        let isWorking = model.isRunning && model.transcript.workingThreadRootMessageId == id
+        let isWorking = model.isRunning && !model.isRunningHere && model.transcript.workingThreadRootMessageId == id
         let summary = model.transcript.threadSummary(for: id)
         if let onOpenThread, summary?.isCountShown == true || isWorking {
             ThreadReplyControl(summary: summary, isWorking: isWorking) { onOpenThread(id) }
@@ -626,14 +627,8 @@ private struct ToolGroupRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 4)
         } label: {
+            // No spinner here: the typing dots alone say the turn is at work.
             HStack(spacing: 8) {
-                if tools.contains(where: \.isRunning) {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Image(systemName: "checkmark.circle")
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                }
                 Text("What it did")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -737,7 +732,7 @@ private struct BackgroundWorkBanner: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ProgressView().controlSize(.small)
+            TypingDots(dotSize: 6)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Working in the background")
                     .font(.footnote.weight(.semibold))

@@ -121,6 +121,17 @@ final class ThreadTests: XCTestCase {
 
     // MARK: a conversation with the assistant
 
+    /// A turn at work shows one thing while it works: the typing dots below what it has said, and no spinner on its steps.
+    func testATurnAtWorkShowsOnlyTheTypingDots() {
+        let app = DemoApp.launch(screen: "conversation:conversation-working")
+        XCTAssertTrue(
+            app.staticTexts["I'll read this week's pick rates for both cells first."].waitForExistence(timeout: 60),
+            "The assistant's progress line is not shown.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.element(app, "typingBubble").waitForExistence(timeout: 30), "The typing dots are not shown.\n\(app.debugDescription)")
+        XCTAssertEqual(app.activityIndicators.count, 0, "Something else shows the turn at work.\n\(app.debugDescription)")
+        XCTAssertFalse(app.staticTexts["Working on an answer…"].exists, "The message also says the assistant is working.")
+    }
+
     func testTheMainHistoryOfAConversationShowsEveryMessageAndCountsRepliesOnTheirRoot() {
         let app = DemoApp.launch(screen: "thread-conversation")
         XCTAssertTrue(message(app, Self.assistantMainText).waitForExistence(timeout: 60), "The conversation did not open.\n\(app.debugDescription)")

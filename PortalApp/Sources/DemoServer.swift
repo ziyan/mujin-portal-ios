@@ -195,6 +195,19 @@ final class DemoState: @unchecked Sendable {
             return ["id": id, "role": "tool", "toolCallId": callId, "toolName": name, "content": content, "metadata": metadata, "createdAt": stamp(secondsAgo)]
         }
         func call(_ id: String, _ name: String, _ arguments: String) -> [String: Any] { ["id": id, "function": ["name": name, "arguments": arguments]] }
+        // A turn at work between two of its steps: it said what it is doing, one step is done and the next is still running.
+        if DemoOptions.screen == "conversation:conversation-working" {
+            data.conversations.append(conversation("conversation-working", "Pick rates this week", "Comparing the two cells.", 20, running: true))
+            data.messages["conversation-working"] = [
+                ["id": "m70", "role": "user", "content": "Compare the pick rates of the two cells on site01 this week.", "createdAt": stamp(40)],
+                [
+                    "id": "m71", "role": "assistant", "content": "I'll read this week's pick rates for both cells first.", "createdAt": stamp(36),
+                    "toolCalls": [call("call70", "controllers", "{\"action\":\"telemetry\",\"cell\":\"cell01\"}")],
+                ],
+                toolMessage("m72", "call70", "controllers", "pick rate: 412 per hour", note: "Read the pick rates of Pick cell A", durationMS: 1_400, 34),
+                ["id": "m73", "role": "assistant", "content": "", "createdAt": stamp(30), "toolCalls": [call("call71", "controllers", "{\"action\":\"telemetry\",\"cell\":\"cell02\"}")]],
+            ]
+        }
         func ticket(_ id: String, _ sequence: Int, _ title: String, _ status: String, _ priority: String, requester: String, organization: String, secondsAgo: TimeInterval) -> [String: Any] {
             [
                 "id": id, "sequence": sequence, "title": title, "status": status, "priority": priority, "siteId": "site01", "organizationId": organization,

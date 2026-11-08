@@ -355,8 +355,8 @@ private struct ConversationRow: View {
             Circle().fill(Color.accentColor).frame(width: 10, height: 10)
                 .accessibilityLabel(Text("\(conversation.chat?.unreadCount ?? 0) unread"))
         } else if conversation.isRunning || conversation.hasRunningBackgroundWork == true {
-            ProgressView()
-                .controlSize(.small)
+            TypingDots(dotSize: 5)
+                .accessibilityElement()
                 .accessibilityLabel("Working")
         }
     }

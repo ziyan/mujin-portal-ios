@@ -1,8 +1,8 @@
 import PortalKit
 import SwiftUI
 
-/// ThreadReplyControl sits under the root of a thread that has two or more replies and says how many, in plain accent text, or that
-/// the assistant is answering there. Tapping it opens the thread alone. It is a full-size tap target.
+/// ThreadReplyControl sits under the root of a thread that has two or more replies and says how many, in plain accent text, or shows
+/// the typing dots while the assistant answers there. Tapping it opens the thread alone. It is a full-size tap target.
 struct ThreadReplyControl: View {
     let summary: ThreadSummary?
     let isWorking: Bool
@@ -12,8 +12,7 @@ struct ThreadReplyControl: View {
         Button(action: onOpen) {
             HStack(spacing: 6) {
                 if isWorking {
-                    ProgressView().controlSize(.small)
-                    Text("Working on an answer…").font(.footnote).foregroundStyle(.secondary)
+                    TypingDots(dotSize: 6)
                 } else if let summary {
                     Text(ThreadText.replyCount(summary.replyCount)).font(.footnote)
                 }
@@ -23,6 +22,7 @@ struct ThreadReplyControl: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(Color.accentColor)
+        .accessibilityLabel(isWorking ? Text("Working on an answer…") : summary.map { Text(ThreadText.replyCount($0.replyCount)) } ?? Text(""))
         .accessibilityHint(Text("Open the thread"))
         .accessibilityIdentifier("threadReplyControl")
     }

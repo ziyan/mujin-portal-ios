@@ -508,33 +508,45 @@ extension View {
 /// brighten in turn on a 1.2 second beat. It is the size of a short assistant message, so the answer takes its place
 /// without a jump. The web chat box shows the same dots.
 struct TypingBubble: View {
-    @Environment(\.accessibilityReduceMotion) private var isReducingMotion
-    private static let beat = 1.2
-
     var body: some View {
         HStack(spacing: 0) {
-            TimelineView(.animation(paused: isReducingMotion)) { context in
-                let time = context.date.timeIntervalSinceReferenceDate
-                HStack(spacing: 5) {
-                    ForEach(0..<3, id: \.self) { index in
-                        // Each dot peaks a sixth of a beat after the one before it.
-                        let phase = (time / Self.beat - Double(index) / 6).truncatingRemainder(dividingBy: 1)
-                        let level = (1 - cos(2 * Double.pi * (phase < 0 ? phase + 1 : phase))) / 2
-                        Circle()
-                            .fill(Color.secondary)
-                            .frame(width: 8, height: 8)
-                            .opacity(0.4 + 0.6 * level)
-                            .offset(y: -3 * level)
-                    }
-                }
+            TypingDots()
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
                 .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
             Spacer(minLength: 56)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Thinking\u{2026}"))
+        .accessibilityIdentifier("typingBubble")
+    }
+}
+
+/// TypingDots is the one way the app shows the assistant at work: three dots rising in turn. The typing bubble holds them where
+/// the answer will appear; a line that points at work happening elsewhere (a thread, the background) holds them smaller.
+struct TypingDots: View {
+    var dotSize: CGFloat = 8
+    @Environment(\.accessibilityReduceMotion) private var isReducingMotion
+    private static let beat = 1.2
+
+    var body: some View {
+        TimelineView(.animation(paused: isReducingMotion)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            HStack(spacing: dotSize * 5 / 8) {
+                ForEach(0..<3, id: \.self) { index in
+                    // Each dot peaks a sixth of a beat after the one before it.
+                    let phase = (time / Self.beat - Double(index) / 6).truncatingRemainder(dividingBy: 1)
+                    let level = isReducingMotion ? 0 : (1 - cos(2 * Double.pi * (phase < 0 ? phase + 1 : phase))) / 2
+                    Circle()
+                        .fill(Color.secondary)
+                        .frame(width: dotSize, height: dotSize)
+                        .opacity(0.4 + 0.6 * level)
+                        .offset(y: -dotSize * 3 / 8 * level)
+                }
+            }
+            .padding(.vertical, dotSize * 3 / 8)
+        }
+        .accessibilityHidden(true)
     }
 }
 

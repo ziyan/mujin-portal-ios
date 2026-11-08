@@ -220,6 +220,7 @@ jobs:
           shoot list-started list-started
           shoot title-event title-event
           shoot approval conversation:conversation02
+          shoot working conversation:conversation-working
           shoot answer conversation:conversation01
           shoot share share
           shoot share-ticket share-ticket
@@ -495,6 +496,7 @@ jobs:
           shoot chat-composer-dark chat-composer
           shoot side-chat-links-dark side-chat-links
           shoot dark conversation:conversation02
+          shoot working-dark conversation:conversation-working
           shoot answer-dark conversation:conversation01
           shoot message-actions-dark message-actions
           shoot chat-message-actions-dark chat-message-actions

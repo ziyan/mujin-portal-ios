@@ -95,14 +95,19 @@ final class ConversationModel {
     /// Whether the run at work answers where this screen looks: in this thread, or in no thread on the main history.
     var isRunningHere: Bool { transcript.isRunningInView }
 
-    /// A turn is running and nothing of the answer has shown yet: the last thing in the transcript is the person's own message.
-    var isAwaitingFirstWords: Bool {
-        guard isRunningHere, let last = transcript.entries.last(where: { entry in
+    /// Whether the typing dots stand for the assistant: from the send until the turn ends, wherever this screen shows its answer, except
+    /// while its words are streaming into a bubble and while a question or an approval waits on the person.
+    var isShowingTypingDots: Bool {
+        guard isRunningHere else { return false }
+        guard let last = transcript.entries.last(where: { entry in
             if case .note = entry { return false }
             return true
-        }) else { return false }
-        if case .user = last { return true }
-        return false
+        }) else { return true }
+        switch last {
+        case .assistant(_, _, let isStreaming): return !isStreaming
+        case .question, .approval: return false
+        default: return true
+        }
     }
 
     /// The open question that typed text would answer.
