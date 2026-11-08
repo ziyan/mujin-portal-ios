@@ -21,6 +21,9 @@ struct ThreadReplyControl: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // The control can be tapped across 44 points but takes only the height of its words, so it sits as close to the message
+        // above as to the one below.
+        .padding(.vertical, -12)
         .foregroundStyle(Color.accentColor)
         .accessibilityLabel(isWorking ? Text("Working on an answer…") : summary.map { Text(ThreadText.replyCount($0.replyCount)) } ?? Text(""))
         .accessibilityHint(Text("Open the thread"))
@@ -71,6 +74,8 @@ struct ThreadCommentLine: View {
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .contentShape(Rectangle())
+        // Tappable across 44 points, but it takes only the height of its words above the message.
+        .padding(.vertical, -12)
         .accessibilityHint(Text("Open the thread"))
         .accessibilityIdentifier("threadCommentLine")
     }

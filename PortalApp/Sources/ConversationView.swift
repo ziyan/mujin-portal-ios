@@ -27,6 +27,7 @@ struct ConversationView: View {
     @State private var isRenaming = false
     @State private var renameDraft = ""
     @State private var fullArtifact: ArtifactReference?
+    @AppStorage(AssistantDisplay.showWorkingNotesKey) private var showWorkingNotes = false
     @State private var isShowingArtifacts = false
     @State private var drafts = AttachmentDrafts()
     @State private var isOnScreen = false
@@ -239,14 +240,15 @@ struct ConversationView: View {
                         }
                         .padding(.top, 48)
                     }
-                    let shownEntries = model.transcript.displayEntries.filter(Self.isShown)
+                    let shownEntries = model.transcript.displayEntries.filter { Self.isShown($0, showWorkingNotes: showWorkingNotes) }
                     let threadKeys = Self.threadKeys(of: shownEntries, in: model.transcript)
                     ForEach(Array(shownEntries.enumerated()), id: \.element.id) { index, entry in
                         TranscriptRow(
                             entry: entry, model: model,
                             openArtifact: { fullArtifact = $0 },
                             onOpenThread: threadOpener(model),
-                            commentLine: commentLine(for: entry, previous: index > 0 ? shownEntries[index - 1] : nil, entries: shownEntries, model: model)
+                            commentLine: commentLine(
+                                for: entry, previous: shownEntries[..<index].last { Self.messageId(of: $0) != nil }, entries: shownEntries, model: model)
                         )
                         .threadBar(
                             isShown: model.canOpenThreads && threadKeys[index] != nil,
@@ -322,8 +324,8 @@ struct ConversationView: View {
         }
     }
 
-    /// The line above the first reply of a run in the main history: which message it comments on. Not shown right after the root or
-    /// after another reply of the same thread.
+    /// The line above the first reply of a run in the main history: which message it comments on. Not shown when the message above
+    /// it, passing over any step rows between them, is the root or another reply of the same thread.
     private func commentLine(for entry: TranscriptEntry, previous: TranscriptEntry?, entries: [TranscriptEntry], model: ConversationModel) -> CommentLine? {
         guard model.canOpenThreads, let id = Self.messageId(of: entry), let root = model.transcript.replyThreadRoot(of: id) else { return nil }
         if let previousId = Self.messageId(of: previous), previousId == root || model.transcript.replyThreadRoot(of: previousId) == root { return nil }
@@ -355,10 +357,16 @@ struct ConversationView: View {
     }
 
     /// Bookkeeping notes are not drawn, so they leave no gap either.
-    private static func isShown(_ entry: TranscriptEntry) -> Bool {
-        if case .note(_, let note) = entry, case .backgroundNotice = note { return true }
-        if case .note = entry { return false }
-        return true
+    /// Whether a row of the transcript is drawn. The "What it did" rows only when the person turned them on in the assistant settings.
+    private static func isShown(_ entry: TranscriptEntry, showWorkingNotes: Bool) -> Bool {
+        switch entry {
+        case .note(_, let note):
+            if case .backgroundNotice = note { return true }
+            return false
+        case .tool(let activity): return showWorkingNotes || activity.isThinkingHarder
+        case .toolGroup: return showWorkingNotes
+        default: return true
+        }
     }
 
     private static func isStreamingOrCard(_ entry: TranscriptEntry) -> Bool {

@@ -144,12 +144,22 @@ enum ThreadDemo {
         [
             ["id": "a01", "role": "user", "content": "How did the dock doors do this week?", "createdAt": stamp(8_800)],
             [
-                "id": "a02", "role": "assistant", "createdAt": stamp(8_700), "threadReplyCount": 2, "threadLastReplyAt": stamp(2_400),
+                "id": "a02", "role": "assistant", "createdAt": stamp(8_700), "threadReplyCount": 3, "threadLastReplyAt": stamp(2_400),
                 "content": "Door 4 had the most faults this week: nine sensor faults, mostly on Tuesday. Doors 1 to 3 had none.",
             ],
             [
                 "id": "a03", "role": "user", "content": "Which of those were real faults?", "createdAt": stamp(2_500), "threadRootMessageId": "a02",
                 "replyToMessageId": "a02", "replyToExcerpt": "Door 4 had the most faults this week", "replyToAuthorName": "Assistant",
+            ],
+            // A progress line and a step before the answer: with the step rows hidden, the answer follows the progress line.
+            [
+                "id": "a03b", "role": "assistant", "createdAt": stamp(2_480), "threadRootMessageId": "a02",
+                "content": "I'll compare the fault times with the sensor log first.",
+                "toolCalls": [["id": "call-a03", "function": ["name": "controllers", "arguments": "{\"action\":\"logs\"}"]] as [String: Any]],
+            ],
+            [
+                "id": "a03c", "role": "tool", "toolCallId": "call-a03", "toolName": "controllers", "content": "9 entries", "createdAt": stamp(2_450),
+                "threadRootMessageId": "a02", "metadata": ["toolNote": "Read the sensor log of door 4", "durationMS": 900] as [String: Any],
             ],
             [
                 "id": "a04", "role": "assistant", "createdAt": stamp(2_400), "threadRootMessageId": "a02",

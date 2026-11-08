@@ -136,14 +136,19 @@ final class ThreadTests: XCTestCase {
     func testTheMainHistoryOfAConversationShowsEveryMessageAndCountsRepliesOnTheirRoot() {
         let app = DemoApp.launch(screen: "thread-conversation")
         XCTAssertTrue(message(app, Self.assistantMainText).waitForExistence(timeout: 60), "The conversation did not open.\n\(app.debugDescription)")
-        XCTAssertTrue(replyControl(app, containing: "2 replies").exists, "The answer with a thread does not say how many replies it has.\n\(app.debugDescription)")
+        XCTAssertTrue(replyControl(app, containing: "3 replies").exists, "The answer with a thread does not say how many replies it has.\n\(app.debugDescription)")
         XCTAssertTrue(message(app, Self.assistantReplyText).exists, "A reply is missing from the main history.\n\(app.debugDescription)")
+        // The step rows are off by default, and a reply that follows its own thread does not say what it comments on.
+        XCTAssertFalse(app.staticTexts["What it did"].exists, "A step row is shown with tool call details off.\n\(app.debugDescription)")
+        XCTAssertFalse(
+            app.buttons.matching(identifier: "threadCommentLine").firstMatch.exists,
+            "A reply right under its thread says what it comments on.\n\(app.debugDescription)")
     }
 
     func testATapOnTheCountOpensTheConversationThreadAndBackReturns() {
         let app = DemoApp.launch(screen: "thread-conversation")
         XCTAssertTrue(message(app, Self.assistantMainText).waitForExistence(timeout: 60), "The conversation did not open.\n\(app.debugDescription)")
-        assertOpensThread(app, replies: "2 replies", shows: Self.assistantReplyText, leavesOut: Self.assistantMainText)
+        assertOpensThread(app, replies: "3 replies", shows: Self.assistantReplyText, leavesOut: Self.assistantMainText)
         XCTAssertTrue(message(app, Self.assistantRootText).exists, "The thread does not start with the answer it hangs from.\n\(app.debugDescription)")
         DemoApp.goBack(app)
         XCTAssertTrue(message(app, Self.assistantMainText).waitForExistence(timeout: 30), "Back did not return to the conversation.\n\(app.debugDescription)")

@@ -70786,6 +70786,100 @@
           }
         }
       }
+    },
+    "Show tool call details": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show tool call details"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ツール呼び出しの詳細を表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示工具调用详情"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示工具呼叫詳情"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details zu Werkzeugaufrufen anzeigen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afficher le détail des appels d'outils"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details van toolaanroepen tonen"
+          }
+        }
+      }
+    },
+    "Shows a \"What it did\" row under each answer with a short note for every step the assistant took.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows a \"What it did\" row under each answer with a short note for every step the assistant took."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "各回答の下に「実行した内容」の行を表示し、アシスタントが行った各ステップの短いメモを示します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在每个回答下方显示“执行的操作”一行，列出助手每一步的简短说明。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在每個回答下方顯示「執行的操作」一列，列出助理每一步的簡短說明。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigt unter jeder Antwort eine Zeile „Was es getan hat“ mit einer kurzen Notiz zu jedem Schritt des Assistenten."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Affiche sous chaque réponse une ligne « Ce qui a été fait » avec une courte note pour chaque étape de l'assistant."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toont onder elk antwoord een regel 'Wat het deed' met een korte notitie voor elke stap van de assistent."
+          }
+        }
+      }
     }
   }
 }
