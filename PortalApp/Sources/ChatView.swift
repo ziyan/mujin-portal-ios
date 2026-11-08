@@ -692,9 +692,10 @@ private struct MessageRow: View {
         }
     }
 
-    /// The assistant is answering in the thread of this message, which the main history says under the message.
+    /// The assistant is answering in the thread of this message while this screen does not show its typing dots, so the message
+    /// carries them instead. The main history lists every reply and shows the dots itself, so one turn never shows two.
     private var isAssistantWorkingInThread: Bool {
-        model.isOwnTurnRunning && model.workingThreadRootMessageId == message.id
+        model.isOwnTurnRunning && !model.isAssistantWorkingHere && model.workingThreadRootMessageId == message.id
     }
 
     private var authorLine: some View {

@@ -103,12 +103,13 @@ final class ThreadTests: XCTestCase {
         XCTAssertTrue(message(app, "I can look at it after lunch").exists, "The reply is missing from the main history.\n\(app.debugDescription)")
     }
 
-    func testTheAssistantAtWorkIsShownOnTheMessageItIsAnswering() {
+    func testTheAssistantAtWorkInAThreadShowsOneSetOfDots() {
         let app = DemoApp.launch(screen: "thread-chat-working")
         XCTAssertTrue(message(app, Self.chatMainText).waitForExistence(timeout: 60), "The chat did not open.\n\(app.debugDescription)")
-        XCTAssertTrue(
-            replyControl(app, containing: "Working on an answer").waitForExistence(timeout: 30),
-            "The message does not say the assistant is answering.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.element(app, "typingBubble").waitForExistence(timeout: 30), "The typing dots are not shown.\n\(app.debugDescription)")
+        XCTAssertFalse(
+            replyControl(app, containing: "Working on an answer").exists,
+            "The message shows a second set of dots for the same turn.\n\(app.debugDescription)")
     }
 
     func testANotificationAboutAReplyOpensTheThread() {
