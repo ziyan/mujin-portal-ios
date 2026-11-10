@@ -359,10 +359,10 @@ struct ChatView: View {
     /// Who the call is with, large over the chat: the other person, or in a group whoever is speaking, else the chat itself.
     private func callStage(_ model: ChatModel, _ call: ChatCallSession) -> some View {
         let others = call.participants.filter { !$0.isSelf && !$0.isRinging }
-        let focus = others.count == 1 ? others.first : others.first { $0.isSpeaking }
+        let focus = others.count == 1 ? others.first : others.first(where: { $0.isSpeaking })
         return CallStage(
             name: focus?.name ?? model.title, status: call.statusText,
-            isSpeaking: focus?.isSpeaking ?? others.contains { $0.isSpeaking }, isMuted: call.isMuted,
+            isSpeaking: focus?.isSpeaking ?? others.contains(where: { $0.isSpeaking }), isMuted: call.isMuted,
             onMute: { callCenter.setMuted(!call.isMuted) },
             leaveSymbol: "phone.down.fill", leaveLabel: "Leave call", onLeave: { callCenter.hangUp() },
             onAvatarTap: { callCenter.show() }, avatarTapLabel: "Return to the call"
