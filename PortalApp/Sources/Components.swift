@@ -218,25 +218,46 @@ extension View {
     }
 
     /// The bar of a screen whose bottom is a composer: the title is a glass
-    /// pill in the middle, the bar itself see-through so messages run under
-    /// it with the system's soft edge, and on a phone the tab bar gives way.
+    /// pill, the bar itself see-through so messages run under it with the
+    /// system's soft edge, and on a phone the tab bar gives way.
     func conversationBar(title: String, onTitleTap: (() -> Void)? = nil) -> some View {
         navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
             .hidesTabBarWhenCompact()
             .scrollEdgeEffectStyle(.hard, for: .top)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    if let onTitleTap {
-                        Button(action: onTitleTap) { titlePill(title) }
-                            .buttonStyle(.plain)
-                            .accessibilityHint(Text("Shows who is in this chat"))
-                    } else {
-                        titlePill(title)
-                    }
-                }
+            .modifier(ConversationTitlePill(title: title, onTitleTap: onTitleTap))
+    }
+}
+
+/// ConversationTitlePill puts a conversation's title in its bar: in the middle on a phone, and at the leading
+/// edge on a wide screen, where the floating tab bar takes the middle of the top row whenever the bar shares it
+/// (in landscape, or with the list of conversations hidden).
+private struct ConversationTitlePill: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    let title: String
+    let onTitleTap: (() -> Void)?
+
+    /// maximumWideWidth keeps a long title clear of the floating tab bar.
+    private let maximumWideWidth: CGFloat = 300
+
+    func body(content: Content) -> some View {
+        let isWide = horizontalSizeClass == .regular
+        content.toolbar {
+            ToolbarItem(placement: isWide ? .topBarLeading : .principal) {
+                pill.frame(maxWidth: isWide ? maximumWideWidth : nil, alignment: .leading)
             }
+        }
+    }
+
+    @ViewBuilder private var pill: some View {
+        if let onTitleTap {
+            Button(action: onTitleTap) { titlePill(title) }
+                .buttonStyle(.plain)
+                .accessibilityHint(Text("Shows who is in this chat"))
+        } else {
+            titlePill(title)
+        }
     }
 }
 

@@ -17,7 +17,16 @@ struct AppRoot: View {
             }
         } else {
             RootView()
+                .onAppear(perform: turnForDemo)
         }
+    }
+
+    /// Turns the iPad to landscape when a demo run asks, so its screens can be photographed that way too.
+    private func turnForDemo() {
+        guard DemoOptions.isLandscape,
+              let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first
+        else { return }
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight))
     }
 }
 

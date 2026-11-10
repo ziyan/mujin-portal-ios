@@ -484,6 +484,12 @@ enum DemoOptions {
     /// The raw screen name, such as `conversation:conversation02` or `section:tickets`.
     static var screen: String? { environment["PORTAL_DEMO_SCREEN"] }
 
+    /// Whether a demo run turns the iPad to landscape, from `PORTAL_DEMO_LAYOUT` naming `landscape`.
+    static var isLandscape: Bool { environment["PORTAL_DEMO_LAYOUT"]?.contains("landscape") == true }
+
+    /// Whether a demo run hides the list beside a conversation, from `PORTAL_DEMO_LAYOUT` naming `list-hidden`.
+    static var isListHidden: Bool { environment["PORTAL_DEMO_LAYOUT"]?.contains("list-hidden") == true }
+
     /// The update a demo run offers, from `PORTAL_DEMO_UPDATE` as `<version>:<build>`, or on its own screens.
     static var update: AppUpdate? {
         if let text = environment["PORTAL_DEMO_UPDATE"] {

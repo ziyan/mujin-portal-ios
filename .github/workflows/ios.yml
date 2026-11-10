@@ -211,7 +211,8 @@ jobs:
           xcrun simctl bootstatus "${DEVICE}" -b
           xcrun simctl install "${DEVICE}" build/MujinPortal.app
           shoot() {
-            SIMCTL_CHILD_PORTAL_DEMO_SCREEN="$2" SIMCTL_CHILD_PORTAL_DEMO_PERSONA="${3:-}" xcrun simctl launch "${DEVICE}" com.ziyan.mujinportal -demo
+            SIMCTL_CHILD_PORTAL_DEMO_SCREEN="$2" SIMCTL_CHILD_PORTAL_DEMO_PERSONA="${3:-}" SIMCTL_CHILD_PORTAL_DEMO_LAYOUT="${4:-}" \
+              xcrun simctl launch "${DEVICE}" com.ziyan.mujinportal -demo
             sleep 6
             xcrun simctl io "${DEVICE}" screenshot "screenshots/${FAMILY}-$1.png"
             xcrun simctl terminate "${DEVICE}" com.ziyan.mujinportal
@@ -786,6 +787,16 @@ jobs:
           shoot large-text-read-aloud-conversation-playing read-aloud-conversation-playing
           shoot large-text-read-aloud-thread-chat read-aloud-thread-chat
           shoot large-text-read-aloud-thread-conversation read-aloud-thread-conversation
+          if [ "${FAMILY}" = ipad ]; then
+            # Where the floating tab bar shares the top row with a conversation's bar. Last, since a
+            # landscape run can leave the simulator turned for the shots after it.
+            xcrun simctl ui "${DEVICE}" content_size large
+            shoot chat-list-hidden chat:chatconv01 "" list-hidden
+            shoot answer-list-hidden conversation:conversation01 "" list-hidden
+            shoot chat-landscape chat:chatconv01 "" landscape
+            shoot answer-landscape conversation:conversation01 "" landscape
+            shoot thread-chat-open-landscape thread-chat-open "" landscape
+          fi
 
       - name: Keep the screenshots
         if: always()

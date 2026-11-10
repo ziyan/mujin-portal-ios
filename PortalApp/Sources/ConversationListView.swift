@@ -13,12 +13,13 @@ struct ConversationListView: View {
     /// Conversations opened as chats with people, which a notification can do before the list has their row.
     @State private var chatConversationIds: Set<String> = []
     @State private var searchText = ""
+    @State private var columnVisibility: NavigationSplitViewVisibility = DemoOptions.isListHidden ? .detailOnly : .automatic
     @State private var isComposing = false
     /// A thread a notification asked for, which the conversation it is in opens on.
     @State private var requestedThread: ThreadToOpen?
 
     var body: some View {
-        NavigationSplitView(preferredCompactColumn: Binding(
+        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: Binding(
             get: { selection.isDetailOnTop ? .detail : .sidebar },
             set: { selection.setDetailOnTop($0 == .detail) })
         ) {

@@ -11,10 +11,11 @@ struct ChatsView: View {
     @State private var model: ChatListModel?
     @State private var selection = SplitSelection()
     @State private var searchText = ""
+    @State private var columnVisibility: NavigationSplitViewVisibility = DemoOptions.isListHidden ? .detailOnly : .automatic
     @State private var newChatMode: NewChatMode?
 
     var body: some View {
-        NavigationSplitView(preferredCompactColumn: Binding(
+        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: Binding(
             get: { selection.isDetailOnTop ? .detail : .sidebar },
             set: { selection.setDetailOnTop($0 == .detail) })
         ) {
