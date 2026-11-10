@@ -70,7 +70,7 @@ enum SearchDemo {
         shortcut("page.controllers", "Controllers", "Pages", "/controller", "controllers"),
         shortcut("page.tickets", "Tickets", "Pages", "/ticket", "tickets"),
         shortcut("page.incidents", "Incidents", "Pages", "/incident", "incidents"),
-        shortcut("page.assistant", "Assistant chats", "Assistant", "/agent", "assistant"),
+        shortcut("page.assistant", "Assistant chats", "Assistant", "/chat", "assistant"),
         shortcut("settings.notifications", "Notification preferences", "Account", "/settings/notifications", "notifications"),
         shortcut("settings.hub", "Settings", "Account", "/settings", "settings"),
         shortcut("page.help", "Help", "Pages", "/help", "help"),
@@ -80,7 +80,7 @@ enum SearchDemo {
     private static let rows: [Row] = [
         shortcut("page.notificationInbox", "Notification inbox", "Pages", "/notification", "notifications", "notifications bell unread mentions inbox"),
         shortcut("page.help", "Help", "Pages", "/help", "help", "help documentation guides"),
-        shortcut("assistant.dreams", "Dreams", "Assistant", "/agent/knowledge?view=dreams", "knowledge", "dreaming memory consolidation"),
+        shortcut("assistant.dreams", "Dreams", "Assistant", "/settings/memory?view=dreams", "knowledge", "dreaming memory consolidation"),
         shortcut("settings.notifications", "Notification preferences", "Account", "/settings/notifications", "notifications", "notifications email push alerts mute digest"),
         shortcut("settings.alarms", "Alarm subscriptions", "Account", "/settings/alarms", "alarms", "alarm notifications alarm alerts controller alarms"),
         shortcut("settings.incidents", "Incident subscriptions", "Account", "/settings/incidents", "incidents", "incident notifications incident alerts"),
@@ -95,8 +95,8 @@ enum SearchDemo {
         Row(kind: "site", id: "site01", title: "Example Yard", subtitle: "Example Logistics", path: "/site/site01"),
         Row(kind: "camera", id: "camera01", title: "Dock door 2", subtitle: "Example Yard", path: "/surveillance/camera01"),
         Row(kind: "person", id: "user03", title: "Robin Demo", subtitle: "Example Logistics", path: "/user/user03"),
-        Row(kind: "groupChat", id: "chatconv02", title: "Pick station team", subtitle: "3 people", path: "/agent/chatconv02"),
-        Row(kind: "conversation", id: "conversation02", title: "Restart the planner on controller1", subtitle: "", path: "/agent/conversation02"),
+        Row(kind: "groupChat", id: "chatconv02", title: "Pick station team", subtitle: "3 people", path: "/chat/chatconv02"),
+        Row(kind: "conversation", id: "conversation02", title: "Restart the planner on controller1", subtitle: "", path: "/chat/conversation02"),
         Row(
             kind: "ticket", id: "1", title: "Gripper drops boxes at pick station 3", subtitle: "Open, high priority", path: "/ticket/1",
             keywords: "controller1"),

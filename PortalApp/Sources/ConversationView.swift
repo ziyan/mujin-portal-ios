@@ -478,7 +478,7 @@ private struct TranscriptRow: View {
         onOpenThread == nil ? nil : model.transcript.threadToOpen(forMessage: id)
     }
 
-    /// Copies the address of a message: `/agent/<conversationId>#message-<messageId>` on the account's server. Nil until it is stored.
+    /// Copies the address of a message: `/chat/<conversationId>#message-<messageId>` on the account's server. Nil until it is stored.
     private func copyLinkAction(for id: String) -> (() -> Void)? {
         guard !id.hasPrefix("pending:"), let server = appModel.activeAccount?.server else { return nil }
         let address = MessagePermalink.assistantMessage(server: server, conversationId: model.conversationId, messageId: id).absoluteString

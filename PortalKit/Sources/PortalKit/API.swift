@@ -145,7 +145,7 @@ extension Connection {
             viewingObject["kind"] = .string(viewing.kind)
             viewingObject["id"] = .string(viewing.id)
         }
-        if let page = PageContext.path(viewing?.page ?? "/agent/\(conversationId)") {
+        if let page = PageContext.path(viewing?.page ?? PortalLink.conversation(id: conversationId).path) {
             viewingObject["page"] = .string(page)
             if let title = PageContext.title(viewing?.label ?? pageTitle) { viewingObject["pageTitle"] = .string(title) }
         }

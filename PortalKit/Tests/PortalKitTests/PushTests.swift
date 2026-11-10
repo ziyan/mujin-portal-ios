@@ -205,7 +205,7 @@ import Testing
         let connection = Connection(account: makeAccount(), transport: transport)
         _ = try await connection.sendMessage(conversationId: "c1", text: "Hi", pageTitle: "Weekly status")
         let viewing = sentVariables(try #require(transport.requests.last))["viewing"] as? [String: Any]
-        #expect(viewing?["page"] as? String == "/agent/c1")
+        #expect(viewing?["page"] as? String == "/chat/c1")
         #expect(viewing?["pageTitle"] as? String == "Weekly status")
         #expect(viewing?["kind"] == nil)
     }

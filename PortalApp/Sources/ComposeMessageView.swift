@@ -151,7 +151,7 @@ struct ComposeMessageView: View {
         var text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         // The context travels as a link to the conversation, which shows as a card in the chat.
-        if let reference, !picked.isEmpty { text += "\n\n" + session.account.server.description + "/agent/" + reference.id }
+        if let reference, !picked.isEmpty { text += "\n\n" + PortalLink.conversation(id: reference.id).url(server: session.account.server).absoluteString }
         isSending = true
         defer { isSending = false }
         let connection = appModel.connection(for: session.account)

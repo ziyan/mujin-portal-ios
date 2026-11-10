@@ -360,7 +360,10 @@ import Testing
         #expect(link("https://portal.example.test/site/site01") == .site(id: "site01"))
         #expect(link("https://portal.example.test/site/site01/cell/cell01") == .cell(id: "cell01", siteId: "site01"))
         #expect(link("https://portal.example.test/surveillance/camera01") == .camera(id: "camera01"))
+        #expect(link("https://portal.example.test/chat/conversation01") == .conversation(id: "conversation01"))
         #expect(link("https://portal.example.test/agent/conversation01") == .conversation(id: "conversation01"))
+        #expect(link("https://portal.example.test/chat/conversation01#message-m7") == .conversation(id: "conversation01"))
+        #expect(link("https://portal.example.test/chat/run/run01") == nil)
         #expect(link("https://portal.example.test/user/user02") == .user(id: "user02"))
         #expect(link("https://portal.example.test/incident/incident01") == .incident(id: "incident01"))
     }

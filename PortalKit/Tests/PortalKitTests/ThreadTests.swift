@@ -423,13 +423,14 @@ import Testing
         #expect(url.absoluteString == "https://portal.example.test/chat/chat01/m7")
         #expect(PortalLink(url: url, server: server) == .chatMessage(chatId: "chat01", messageId: "m7"))
         #expect(PortalLink(path: "/chat/chat01/m7") == .chatMessage(chatId: "chat01", messageId: "m7"))
-        #expect(PortalLink(path: "/chat/chat01") == nil)
+        // One segment after `/chat` is a conversation; two are a message of a chat.
+        #expect(PortalLink(path: "/chat/chat01") == .conversation(id: "chat01"))
         #expect(PortalLink.chatMessage(chatId: "chat01", messageId: "m7").path == "/chat/chat01/m7")
     }
 
     @Test func anAssistantMessageLinkCarriesAFragment() {
         let url = MessagePermalink.assistantMessage(server: server, conversationId: "conv01", messageId: "m7")
-        #expect(url.absoluteString == "https://portal.example.test/agent/conv01#message-m7")
+        #expect(url.absoluteString == "https://portal.example.test/chat/conv01#message-m7")
         #expect(PortalLink(url: url, server: server) == .conversation(id: "conv01"))
     }
 

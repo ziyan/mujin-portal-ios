@@ -7,9 +7,9 @@ public enum MessagePermalink {
         PortalLink.chatMessage(chatId: chatId, messageId: messageId).url(server: server)
     }
 
-    /// A message of a conversation with the assistant: `/agent/<conversationId>#message-<messageId>`.
+    /// A message of a conversation with the assistant: `/chat/<conversationId>#message-<messageId>`.
     public static func assistantMessage(server: ServerAddress, conversationId: String, messageId: String) -> URL {
-        let page = server.endpoint("/agent/\(conversationId)")
+        let page = server.endpoint(PortalLink.conversation(id: conversationId).path)
         guard var components = URLComponents(url: page, resolvingAgainstBaseURL: false) else { return page }
         components.fragment = "message-\(messageId)"
         return components.url ?? page

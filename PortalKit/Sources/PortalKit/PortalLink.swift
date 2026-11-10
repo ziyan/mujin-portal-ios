@@ -150,6 +150,7 @@ public enum PortalLink: Equatable, Hashable, Sendable {
             guard segments.count == 2, Self.isIdentifier(identifier) else { return nil }
             self = .user(id: identifier)
         case "agent":
+            // Where conversations and the assistant's pages were before `/chat`; links written then still open them.
             if segments.count == 2, let screen = PortalScreen(path: "/agent/" + identifier.lowercased()) {
                 self = .screen(screen)
             } else if segments.count == 2, Self.isIdentifier(identifier), identifier.lowercased() != "oversight" {
@@ -161,8 +162,16 @@ public enum PortalLink: Equatable, Hashable, Sendable {
             guard segments.count == 2, Self.isIdentifier(identifier) else { return nil }
             self = .incident(id: identifier)
         case "chat":
-            guard segments.count == 3, Self.isIdentifier(identifier), Self.isIdentifier(segments[2]) else { return nil }
-            self = .chatMessage(chatId: identifier, messageId: segments[2])
+            // `/chat/<conversationId>` is a conversation and `/chat/<chatId>/<messageId>` a message of a chat. A run
+            // (`/chat/run/<runId>`) has no screen in the app and opens on the web.
+            guard Self.isIdentifier(identifier), identifier.lowercased() != "run" else { return nil }
+            if segments.count == 2 {
+                self = .conversation(id: identifier)
+            } else if segments.count == 3, Self.isIdentifier(segments[2]) {
+                self = .chatMessage(chatId: identifier, messageId: segments[2])
+            } else {
+                return nil
+            }
         case "settings":
             guard segments.count == 2, let screen = PortalScreen(path: "/settings/" + identifier.lowercased()) else { return nil }
             self = .screen(screen)
@@ -188,7 +197,7 @@ public enum PortalLink: Equatable, Hashable, Sendable {
         case .organization(let id): "/organization/\(id)"
         case .organizationPage(let page, let organizationId): "/organization/\(organizationId)/\(page.rawValue)"
         case .user(let id): "/user/\(id)"
-        case .conversation(let id): "/agent/\(id)"
+        case .conversation(let id): "/chat/\(id)"
         case .incident(let id): "/incident/\(id)"
         case .chatMessage(let chatId, let messageId): "/chat/\(chatId)/\(messageId)"
         case .screen(let screen): screen.path
@@ -230,14 +239,14 @@ public enum PortalScreen: String, CaseIterable, Hashable, Sendable {
     case surveillance = "/surveillance"
     case incidents = "/incident"
     case notificationInbox = "/notification"
-    case assistant = "/agent"
-    case goals = "/agent/goals"
-    case ideas = "/agent/ideas"
-    case knowledge = "/agent/knowledge"
+    case assistant = "/chat"
+    case goals = "/settings/goals"
+    case ideas = "/settings/ideas"
+    case knowledge = "/settings/memory"
     /// A view of the memory page on the web, and a screen of its own in the app.
-    case dreams = "/agent/knowledge?view=dreams"
-    case automations = "/agent/automations"
-    case assistantSettings = "/agent/settings"
+    case dreams = "/settings/memory?view=dreams"
+    case automations = "/settings/automations"
+    case assistantSettings = "/settings/assistant"
     case settings = "/settings"
     case notificationSettings = "/settings/notifications"
     case incidentAlerts = "/settings/incidents"
@@ -256,9 +265,21 @@ public enum PortalScreen: String, CaseIterable, Hashable, Sendable {
 
     public init?(path: String) {
         // The web app writes `authorizedApps` and `controllerUsage`; the comparison ignores case.
-        guard let screen = Self.allCases.first(where: { $0.rawValue == path.lowercased() }) else { return nil }
+        let lowercased = path.lowercased()
+        guard let screen = Self.allCases.first(where: { $0.rawValue == lowercased }) ?? Self.earlierPaths[lowercased] else { return nil }
         self = screen
     }
+
+    /// Where the assistant's pages were before they moved to `/chat` and into Settings. Links written then still open them.
+    private static let earlierPaths: [String: PortalScreen] = [
+        "/agent": .assistant,
+        "/agent/goals": .goals,
+        "/agent/ideas": .ideas,
+        "/agent/knowledge": .knowledge,
+        "/agent/knowledge?view=dreams": .dreams,
+        "/agent/automations": .automations,
+        "/agent/settings": .assistantSettings,
+    ]
 
     /// The path as the web app writes it.
     public var path: String {
