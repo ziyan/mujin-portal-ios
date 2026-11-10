@@ -84,7 +84,6 @@ final class VoiceCallController {
     private var mutedSince: Date?
     private var segmenter = UtteranceSegmenter()
     private var utteranceSequence = 0
-    private var speechVoice: String?
 
     init(model: ConversationModel, connection: Connection, socketFactory: @escaping VoiceSocketFactory) {
         self.model = model
@@ -103,7 +102,6 @@ final class VoiceCallController {
         phase = .connecting
         notice = nil
         model.onAssistantText = { [weak self] id, text, isFinal in self?.assistantText(id: id, text: text, isFinal: isFinal) }
-        speechVoice = (try? await connection.voiceSetting())?.effectiveVoice
         await openSocket()
     }
 
@@ -467,7 +465,8 @@ final class VoiceCallController {
 
     private func speakOnOlderPath(_ piece: SpeechPiece) async {
         do {
-            let data = try await connection.synthesize(text: piece.text, voice: speechVoice)
+            // No voice named: the server reads the person's current choice for each piece, so a voice changed during the call is heard at once.
+            let data = try await connection.synthesize(text: piece.text, voice: nil)
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("spoken-\(UUID().uuidString).mp3")
             try data.write(to: url)
             defer { try? FileManager.default.removeItem(at: url) }
