@@ -60,7 +60,7 @@ import Testing
 
     @Test func theAddressesTheAppBuildsAreTheOnesTheAppOpensAsControllers() throws {
         let server = try ServerAddress("https://portal.example.test")
-        for url in [ControllerLinks.liveURL(controllerId: "controller01", server: server)!, ControllerLinks.cloudURL(controllerId: "controller01", server: server)!] {
+        for url in [ControllerLinks.liveURL(controllerId: "controller1", server: server)!, ControllerLinks.cloudURL(controllerId: "controller1", server: server)!] {
             #expect(LinkClassifier.classify(url, server: server) == .controller)
         }
     }
@@ -86,9 +86,9 @@ import Testing
 @Suite struct SiteOverviewTests {
     @Test func telemetryIsSummedOverTheMachinesThatAnswered() {
         let summaries = [
-            TelemetrySummary(controllerId: "controller01", totals: .init(pickOperationCount: 120, pickedPartCount: 100, humanInterventionCount: 2, directRobotThroughputPartsPerHour: 40.25)),
-            TelemetrySummary(controllerId: "controller02", totals: .init(pickOperationCount: 60, pickedPartCount: 50, humanInterventionCount: 1, directRobotThroughputPartsPerHour: 20)),
-            TelemetrySummary(controllerId: "controller03", isAvailable: false, totals: .init(pickedPartCount: 999)),
+            TelemetrySummary(controllerId: "controller1", totals: .init(pickOperationCount: 120, pickedPartCount: 100, humanInterventionCount: 2, directRobotThroughputPartsPerHour: 40.25)),
+            TelemetrySummary(controllerId: "controller2", totals: .init(pickOperationCount: 60, pickedPartCount: 50, humanInterventionCount: 1, directRobotThroughputPartsPerHour: 20)),
+            TelemetrySummary(controllerId: "controller3", isAvailable: false, totals: .init(pickedPartCount: 999)),
         ]
         let telemetry = SiteTelemetry(summaries: summaries, machinesTotal: 3)
         #expect(telemetry.pickedParts == 150)
@@ -122,11 +122,11 @@ import Testing
 
     @Test func telemetryAsksForTheSitesMachinesOnly() async throws {
         let (connection, transport) = scriptedConnection { _, _ in
-            ["ListControllerTelemetrySummaries": [["controllerId": "controller01", "isAvailable": true, "totals": ["pickedPartCount": 10, "pickOperationCount": 12, "humanInterventionCount": 1, "directRobotThroughputPartsPerHour": 5.0]]]]
+            ["ListControllerTelemetrySummaries": [["controllerId": "controller1", "isAvailable": true, "totals": ["pickedPartCount": 10, "pickOperationCount": 12, "humanInterventionCount": 1, "directRobotThroughputPartsPerHour": 5.0]]]]
         }
-        let telemetry = try await connection.siteTelemetry(controllerIds: ["controller01"])
+        let telemetry = try await connection.siteTelemetry(controllerIds: ["controller1"])
         #expect(telemetry.pickedParts == 10)
-        #expect((sentVariables(try #require(transport.requests.last))["controllerIds"] as? [String]) == ["controller01"])
+        #expect((sentVariables(try #require(transport.requests.last))["controllerIds"] as? [String]) == ["controller1"])
         #expect(try await connection.siteTelemetry(controllerIds: []) == SiteTelemetry())
     }
 
@@ -174,7 +174,7 @@ import Testing
 
     @Test func aCellKnowsItsMachines() async throws {
         let (connection, _) = scriptedConnection { _, _ in
-            ["ListCells": ["cells": [["id": "cell01", "name": "Cell A", "controllerIds": ["controller01"], "virtualControllerIds": ["virtual01"]], ["id": "cell02", "isArchived": true]]]]
+            ["ListCells": ["cells": [["id": "cell01", "name": "Cell A", "controllerIds": ["controller1"], "virtualControllerIds": ["virtual01"]], ["id": "cell02", "isArchived": true]]]]
         }
         let cells = try await connection.cells(siteId: "site01")
         #expect(cells.map(\.id) == ["cell01"])
@@ -189,13 +189,13 @@ import Testing
             [
                 "ListSiteOrchestrators": [
                     [
-                        "controllerId": "controller01", "isAvailable": true,
+                        "controllerId": "controller1", "isAvailable": true,
                         "orchestrators": ["activeRunModeName": "Normal", "orchestrators": [
                             ["orchestratorId": "o1", "orchestratorType": "productioncycle", "runStatus": "Idle", "hasError": false, "state": ["productionCycleStatus": "Running"]],
                             ["orchestratorId": "o2", "orchestratorType": "packing", "runStatus": "Working", "hasError": true, "statusMessage": "Gripper fault"],
                         ]],
                     ],
-                    ["controllerId": "controller02", "isAvailable": false],
+                    ["controllerId": "controller2", "isAvailable": false],
                 ]
             ]
         }
@@ -263,12 +263,12 @@ import Testing
         let (connection, _) = scriptedConnection { _, _ in
             [
                 "ListSiteActiveAlarms": [
-                    ["controllerId": "controller01", "isAvailable": true, "alarms": ["alarms": [["logEntryId": "entry01", "alarmLevel": "error", "alarmMessage": "Low pressure", "alarmStatus": "active"]]]]
+                    ["controllerId": "controller1", "isAvailable": true, "alarms": ["alarms": [["logEntryId": "entry01", "alarmLevel": "error", "alarmMessage": "Low pressure", "alarmStatus": "active"]]]]
                 ]
             ]
         }
         let result = try await connection.siteAlarms(siteId: "site01")
-        #expect(result.alarms.first?.controllerId == "controller01" && result.alarms.first?.logEntryId == "entry01")
+        #expect(result.alarms.first?.controllerId == "controller1" && result.alarms.first?.logEntryId == "entry01")
     }
 
     @Test func alarmDetailBuildsPrettyMetadataJSON() async throws {
@@ -280,7 +280,7 @@ import Testing
                 ]
             ]
         }
-        let detail = try await connection.alarmDetail(controllerId: "controller01", logEntryId: "entry01")
+        let detail = try await connection.alarmDetail(controllerId: "controller1", logEntryId: "entry01")
         #expect(detail?.originEntries.first?.value == "gripper_1")
         let json = try #require(detail?.metadataJSON)
         #expect(json.contains("\"code\" : \"E1\"") && json.contains("\"isRecoverable\" : true") && json.contains("\n"))
@@ -298,9 +298,9 @@ import Testing
     }
 
     @Test func anAlarmNotificationNamesItsControllerAndSite() {
-        let both = PortalNotification(id: "n1", kind: "alarm", controllerId: "controller01", siteName: "site01", alarmMessage: "Low pressure")
-        let controllerOnly = PortalNotification(id: "n2", kind: "alarm", controllerId: "controller01")
-        #expect(both.detail == "controller01 \u{00B7} site01" && controllerOnly.detail == "controller01")
+        let both = PortalNotification(id: "n1", kind: "alarm", controllerId: "controller1", siteName: "site01", alarmMessage: "Low pressure")
+        let controllerOnly = PortalNotification(id: "n2", kind: "alarm", controllerId: "controller1")
+        #expect(both.detail == "controller1 \u{00B7} site01" && controllerOnly.detail == "controller1")
     }
 
     @Test func membersAreNamedFromTheOrganizationsUsersAndSortedByName() async throws {

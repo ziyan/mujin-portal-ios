@@ -87,31 +87,31 @@ private func fragment(baseTime: UInt64, count: Int = 3, duration: UInt32 = 3000,
 
 @Suite struct CameraRoutesTests {
     @Test func theRoutesAreTheProxysAndEscapeTheirSegments() {
-        #expect(CameraRoutes.livePath(controllerId: "controller01", cameraId: "nvr camera/1", channel: 2) == "/api/v1/unifiprotect/controller01/livestream/nvr%20camera%2F1?channel=2")
+        #expect(CameraRoutes.livePath(controllerId: "controller1", cameraId: "nvr camera/1", channel: 2) == "/api/v1/unifiprotect/controller1/livestream/nvr%20camera%2F1?channel=2")
         #expect(
-            CameraRoutes.playbackPath(controllerId: "controller01", cameraId: "nvrcamera01", channel: 0, startMS: 1000.4, endMS: 2000.6)
-                == "/api/v1/unifiprotect/controller01/playback/nvrcamera01?channel=0&start=1000&end=2001")
-        #expect(CameraRoutes.bootstrapPath(controllerId: "controller01") == "/api/v1/unifiprotect/controller01/bootstrap")
+            CameraRoutes.playbackPath(controllerId: "controller1", cameraId: "nvrcamera01", channel: 0, startMS: 1000.4, endMS: 2000.6)
+                == "/api/v1/unifiprotect/controller1/playback/nvrcamera01?channel=0&start=1000&end=2001")
+        #expect(CameraRoutes.bootstrapPath(controllerId: "controller1") == "/api/v1/unifiprotect/controller1/bootstrap")
     }
 
     @Test func aLiveSnapshotHasNoMomentAndARecordedOneNamesTheChannel() {
-        #expect(CameraRoutes.snapshotPath(controllerId: "controller01", cameraId: "nvrcamera01") == "/api/v1/unifiprotect/controller01/snapshot/nvrcamera01")
-        #expect(CameraRoutes.snapshotPath(controllerId: "controller01", cameraId: "nvrcamera01", cacheBust: 7) == "/api/v1/unifiprotect/controller01/snapshot/nvrcamera01?t=7")
+        #expect(CameraRoutes.snapshotPath(controllerId: "controller1", cameraId: "nvrcamera01") == "/api/v1/unifiprotect/controller1/snapshot/nvrcamera01")
+        #expect(CameraRoutes.snapshotPath(controllerId: "controller1", cameraId: "nvrcamera01", cacheBust: 7) == "/api/v1/unifiprotect/controller1/snapshot/nvrcamera01?t=7")
         #expect(
-            CameraRoutes.snapshotPath(controllerId: "controller01", cameraId: "nvrcamera01", atMS: 1234.5, channel: 2, cacheBust: 9)
-                == "/api/v1/unifiprotect/controller01/snapshot/nvrcamera01?ts=1235&channel=2&t=9")
+            CameraRoutes.snapshotPath(controllerId: "controller1", cameraId: "nvrcamera01", atMS: 1234.5, channel: 2, cacheBust: 9)
+                == "/api/v1/unifiprotect/controller1/snapshot/nvrcamera01?ts=1235&channel=2&t=9")
     }
 
     @Test func anExportNamesTheCameraChannelAndWindow() {
         #expect(
-            CameraRoutes.exportPath(controllerId: "controller01", cameraId: "nvrcamera01", channel: 1, startMS: 1000, endMS: 61_000, isDownload: true)
-                == "/api/v1/unifiprotect/controller01/video/export?camera=nvrcamera01&channel=1&start=1000&end=61000&download=true")
+            CameraRoutes.exportPath(controllerId: "controller1", cameraId: "nvrcamera01", channel: 1, startMS: 1000, endMS: 61_000, isDownload: true)
+                == "/api/v1/unifiprotect/controller1/video/export?camera=nvrcamera01&channel=1&start=1000&end=61000&download=true")
     }
 
     @Test func aSocketDialsWssForHttps() throws {
         let server = try ServerAddress("https://portal.example.test")
-        let url = CameraRoutes.socketURL(server: server, path: CameraRoutes.livePath(controllerId: "controller01", cameraId: "nvrcamera01", channel: 0))
-        #expect(url.absoluteString == "wss://portal.example.test/api/v1/unifiprotect/controller01/livestream/nvrcamera01?channel=0")
+        let url = CameraRoutes.socketURL(server: server, path: CameraRoutes.livePath(controllerId: "controller1", cameraId: "nvrcamera01", channel: 0))
+        #expect(url.absoluteString == "wss://portal.example.test/api/v1/unifiprotect/controller1/livestream/nvrcamera01?channel=0")
     }
 
     @Test func aLongSelectionIsCutIntoClipsTheExportAllows() {

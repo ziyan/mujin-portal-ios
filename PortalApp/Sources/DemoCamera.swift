@@ -239,7 +239,7 @@ enum DemoCameras {
 
     private static func camera(_ id: String, _ origin: String, _ name: String, isOnline: Bool, site: String = "site01", organization: String = "organization01") -> [String: Any] {
         [
-            "id": id, "organizationId": organization, "siteId": site, "controllerId": "controller01", "originCameraId": origin, "name": name, "kind": "dome",
+            "id": id, "organizationId": organization, "siteId": site, "controllerId": "controller1", "originCameraId": origin, "name": name, "kind": "dome",
             "status": isOnline ? "online" : "offline", "timeZone": timeZone, "isControllerConnected": true, "channels": channels(),
         ]
     }

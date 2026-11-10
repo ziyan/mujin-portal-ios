@@ -139,7 +139,7 @@ public struct BrowserTarget: Equatable, Sendable {
     public let title: String
     public let subtitle: String
 
-    /// `controller01 · Live` for `<id>-live.<host>`, `· Cloud`, `· Virtual`; nil for any other address.
+    /// `controller1 · Live` for `<id>-live.<host>`, `· Cloud`, `· Virtual`; nil for any other address.
     public init?(url: URL, serverHost: String) {
         guard let host = url.host?.lowercased(), ControllerLinks.isControllerHost(host, serverHost: serverHost) else { return nil }
         let label = String(host.dropLast(serverHost.count + 1))

@@ -12,9 +12,9 @@ enum DemoCells {
     }
 
     static let all: [Cell] = [
-        Cell(id: "cell01", name: "Pick cell A", controllerIds: ["controller01", "controller03"], virtualControllerIds: ["virtual01"],
+        Cell(id: "cell01", name: "Pick cell A", controllerIds: ["controller1", "controller3"], virtualControllerIds: ["virtual01"],
              cameraIds: ["camera01", "camera02", "camera03", "camera04"], ticketCount: 2),
-        Cell(id: "cell02", name: "Packing line", controllerIds: ["controller02"], virtualControllerIds: [], cameraIds: [], ticketCount: 0),
+        Cell(id: "cell02", name: "Packing line", controllerIds: ["controller2"], virtualControllerIds: [], cameraIds: [], ticketCount: 0),
         // A cell nothing is assigned to yet, for the empty state.
         Cell(id: "cell03", name: "Spare cell", controllerIds: [], virtualControllerIds: [], cameraIds: [], ticketCount: 0),
     ]

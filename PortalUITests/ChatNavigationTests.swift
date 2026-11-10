@@ -58,7 +58,7 @@ final class ChatNavigationTests: XCTestCase {
     /// Search shows a page in a sheet, which closes as the chat opens: the chat must be what is left on screen.
     func testAskingFromASearchResultOpensTheMainChat() {
         let app = DemoApp.launch(screen: "search-controller", persona: "staff")
-        let result = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "controller01")).firstMatch
+        let result = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "controller1")).firstMatch
         XCTAssertTrue(result.waitForExistence(timeout: 60), "The search result is not listed.\n\(app.debugDescription)")
         result.tap()
         let ask = app.buttons["Ask about this"].firstMatch

@@ -208,7 +208,7 @@ final class AppModel {
                 body { margin: 0; background: #101418; color: #d7dee6; font-family: -apple-system, sans-serif; }
                 .bar { background: #1d3c8a; padding: 10px 14px; font-size: 13px; }
                 .win { margin: 24px; border: 1px solid #2c3540; border-radius: 8px; padding: 16px; background: #181e25; }
-                </style></head><body><div class="bar">controller01 (stub screen for the demo)</div>
+                </style></head><body><div class="bar">controller1 (stub screen for the demo)</div>
                 <div class="win"><b>Planner</b><br>Running</div><div class="win"><b>Robot bridge</b><br>Connected</div></body></html>
                 """)
         } else {

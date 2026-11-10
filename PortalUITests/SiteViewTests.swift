@@ -58,9 +58,9 @@ final class SiteViewTests: XCTestCase {
     func testASiteNamesWhereItsTotalsComeFromAndWhatItLeavesOut() {
         let app = DemoApp.launch(screen: "exclusion-site", arguments: Self.defaultLevels)
         XCTAssertTrue(text(app, "Site totals and alarms come from:").waitForExistence(timeout: 90), "The site does not say where its totals come from.\n\(app.debugDescription)")
-        XCTAssertTrue(link(app, "controller05").exists, "The source is not named as a link.\n\(app.debugDescription)")
+        XCTAssertTrue(link(app, "controller5").exists, "The source is not named as a link.\n\(app.debugDescription)")
         XCTAssertTrue(text(app, "Excluded from this view:").exists, "The site does not say what it leaves out.\n\(app.debugDescription)")
-        XCTAssertTrue(link(app, "controller04").exists, "The excluded controller is not named as a link.\n\(app.debugDescription)")
+        XCTAssertTrue(link(app, "controller4").exists, "The excluded controller is not named as a link.\n\(app.debugDescription)")
     }
 
     func testASiteWithASourceReadsItsFiguresFromTheSourceAlone() {
@@ -82,7 +82,7 @@ final class SiteViewTests: XCTestCase {
 
     func testTheNoteOpensTheExcludedController() {
         let app = DemoApp.launch(screen: "exclusion-site", arguments: Self.defaultLevels)
-        let excluded = link(app, "controller04")
+        let excluded = link(app, "controller4")
         XCTAssertTrue(excluded.waitForExistence(timeout: 90), "The excluded controller is not named.\n\(app.debugDescription)")
         excluded.tap()
         XCTAssertTrue(DemoApp.element(app, "excludedBadge").waitForExistence(timeout: 30), "The controller page does not say it is excluded.\n\(app.debugDescription)")
@@ -90,7 +90,7 @@ final class SiteViewTests: XCTestCase {
 
     func testTheControllersListKeepsTheExcludedControllerWithABadgeAndMarksTheSource() {
         let app = DemoApp.launch(screen: "exclusion-controllers", arguments: Self.defaultLevels)
-        XCTAssertTrue(text(app, "controller04").waitForExistence(timeout: 90), "The excluded controller is not in the list.\n\(app.debugDescription)")
+        XCTAssertTrue(text(app, "controller4").waitForExistence(timeout: 90), "The excluded controller is not in the list.\n\(app.debugDescription)")
         XCTAssertTrue(text(app, "Excluded from site views").exists, "The excluded controller has no badge.\n\(app.debugDescription)")
         XCTAssertTrue(text(app, "Site total").exists, "The source is not marked.\n\(app.debugDescription)")
     }
@@ -102,7 +102,7 @@ final class SiteViewTests: XCTestCase {
         // The demo opens the site first, whose note says the same words, and the cell over it.
         XCTAssertTrue(app.navigationBars["Pick cell A"].waitForExistence(timeout: 90), "The cell did not open.\n\(app.debugDescription)")
         XCTAssertTrue(text(app, "Excluded from this view:").waitForExistence(timeout: 90), "The cell does not say what it leaves out.\n\(app.debugDescription)")
-        XCTAssertTrue(link(app, "controller04").exists, "The excluded controller is not named.\n\(app.debugDescription)")
+        XCTAssertTrue(link(app, "controller4").exists, "The excluded controller is not named.\n\(app.debugDescription)")
         XCTAssertFalse(text(app, "Site totals and alarms come from:").exists, "A cell says where the site's totals come from.")
         let tile = pickedPartsTile(app)
         // 1,000 + 300 of the two that count in this cell.
@@ -137,7 +137,7 @@ final class SiteViewTests: XCTestCase {
 
     func testAControllerCanBeLeftOut() {
         let app = DemoApp.launch(screen: "exclusion-controller-included", arguments: Self.defaultLevels)
-        XCTAssertTrue(app.navigationBars["controller01"].waitForExistence(timeout: 90), "The controller page did not open.\n\(app.debugDescription)")
+        XCTAssertTrue(app.navigationBars["controller1"].waitForExistence(timeout: 90), "The controller page did not open.\n\(app.debugDescription)")
         XCTAssertFalse(DemoApp.element(app, "excludedBadge").exists, "A controller that counts says it is excluded.")
         let toggle = app.switches["excludeFromSiteViewsToggle"]
         reveal(toggle, in: app)
@@ -152,7 +152,7 @@ final class SiteViewTests: XCTestCase {
 
     func testAPersonWhoCannotEditTheControllerHasNoToggle() {
         let app = DemoApp.launch(screen: "exclusion-controller-readonly", arguments: Self.defaultLevels)
-        XCTAssertTrue(app.navigationBars["controller02"].waitForExistence(timeout: 90), "The controller page did not open.\n\(app.debugDescription)")
+        XCTAssertTrue(app.navigationBars["controller2"].waitForExistence(timeout: 90), "The controller page did not open.\n\(app.debugDescription)")
         for _ in 0..<6 { app.swipeUp() }
         XCTAssertFalse(app.switches["excludeFromSiteViewsToggle"].exists, "A person who cannot edit the controller is offered the toggle.\n\(app.debugDescription)")
     }

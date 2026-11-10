@@ -111,11 +111,11 @@ final class MessageLinkTests: XCTestCase {
     }
 
     func testChatControllerPath() {
-        checkPortalLink(screen: "chat-links", text: "controller01")
+        checkPortalLink(screen: "chat-links", text: "controller1")
     }
 
     func testChatControllerPathInList() {
-        checkPortalLink(screen: "chat-links", text: "controller02")
+        checkPortalLink(screen: "chat-links", text: "controller2")
     }
 
     func testChatSitePath() {
@@ -191,7 +191,7 @@ final class MessageLinkTests: XCTestCase {
     }
 
     func testConversationControllerPath() {
-        checkPortalLink(screen: "conversation-links", text: "controller03")
+        checkPortalLink(screen: "conversation-links", text: "controller3")
     }
 
     func testConversationMemoryCitation() {

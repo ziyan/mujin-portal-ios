@@ -16,8 +16,8 @@ enum SiteViewDemo {
 
     static func owns(_ screen: String?) -> Bool { screen.map { exclusionScreens.contains($0) || alarmLevelScreens.contains($0) } ?? false }
 
-    static let excludedControllerId = "controller04"
-    static let sourceControllerId = "controller05"
+    static let excludedControllerId = "controller4"
+    static let sourceControllerId = "controller5"
     static let initiallyExcludedControllerIds: Set<String> = [excludedControllerId]
 
     /// The tab a screen opens on.
@@ -25,8 +25,8 @@ enum SiteViewDemo {
 
     /// The cells of the demo site, with the controllers each holds.
     static let cells: [(id: String, name: String, controllerIds: [String])] = [
-        ("cell01", "Pick cell A", ["controller01", "controller03", "controller04"]),
-        ("cell02", "Packing line", ["controller02", "controller05"]),
+        ("cell01", "Pick cell A", ["controller1", "controller3", "controller4"]),
+        ("cell02", "Packing line", ["controller2", "controller5"]),
         ("cell03", "Spare cell", []),
     ]
 
@@ -37,7 +37,7 @@ enum SiteViewDemo {
 
     /// The summary of each controller for the last 24 hours: the site's telemetry source holds the whole site's, and the simulation
     /// controller's are large so that counting it would be plain to see.
-    static let pickedParts: [String: Int] = ["controller01": 1_000, "controller02": 200, "controller03": 300, "controller04": 5_000, "controller05": 2_000]
+    static let pickedParts: [String: Int] = ["controller1": 1_000, "controller2": 200, "controller3": 300, "controller4": 5_000, "controller5": 2_000]
 
     static func telemetrySummaries(requested: [String]?) -> [[String: Any]] {
         pickedParts.keys.sorted().filter { requested == nil || requested!.contains($0) }.map { id in
@@ -71,9 +71,9 @@ enum SiteViewDemo {
         }
         let editing = ["controller:connect", "controller:write", "controller:edit", "backup:delete"]
         return [
-            row("controller01", "Pick station controller", capabilities: editing),
-            row("controller02", "Packing line controller", capabilities: ["controller:connect"]),
-            row("controller03", "Palletizer controller", capabilities: editing),
+            row("controller1", "Pick station controller", capabilities: editing),
+            row("controller2", "Packing line controller", capabilities: ["controller:connect"]),
+            row("controller3", "Palletizer controller", capabilities: editing),
             row(excludedControllerId, "Simulation controller", capabilities: editing),
             row(sourceControllerId, "Warehouse execution controller", capabilities: editing),
         ]
@@ -82,7 +82,7 @@ enum SiteViewDemo {
     /// The alarms of the level screens: every level, one in capitals, and one of a level nobody knows.
     static func levelAlarms(screen: String?, stamp: (TimeInterval) -> String) -> [[String: Any]] {
         func alarm(_ id: String, _ level: String, _ message: String, _ secondsAgo: TimeInterval) -> [String: Any] {
-            ["logEntryId": id, "alarmLevel": level, "alarmMessage": message, "alarmStatus": "active", "occurredAt": stamp(secondsAgo), "originLabel": "controller01"]
+            ["logEntryId": id, "alarmLevel": level, "alarmMessage": message, "alarmStatus": "active", "occurredAt": stamp(secondsAgo), "originLabel": "controller1"]
         }
         if screen == "alarm-levels-warnings" {
             return [alarm("alarmEntry11", "warning", "Conveyor 2 is running slowly", 3_000), alarm("alarmEntry12", "WARNING", "Label stock is low", 5_000)]
@@ -101,9 +101,9 @@ enum SiteViewDemo {
     static func controllerId(for screen: String?) -> String? {
         switch screen {
         case "exclusion-controller": excludedControllerId
-        case "exclusion-controller-readonly": "controller02"
+        case "exclusion-controller-readonly": "controller2"
         // The last is on a server without the feature: the controller page still shows its own alarms.
-        case "exclusion-controller-included", "alarm-levels-controller", "controller-own-alarms": "controller01"
+        case "exclusion-controller-included", "alarm-levels-controller", "controller-own-alarms": "controller1"
         default: nil
         }
     }

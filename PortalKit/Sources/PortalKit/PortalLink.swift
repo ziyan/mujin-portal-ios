@@ -69,7 +69,7 @@ public enum PortalLink: Equatable, Hashable, Sendable {
         self.init(segments: Self.segments(ofEncodedPath: text))
     }
 
-    /// Reads the path of a page below an entity, which is what the server's search offers for "controller01 backups". Nil when
+    /// Reads the path of a page below an entity, which is what the server's search offers for "controller1 backups". Nil when
     /// the app has no screen for that very page: unlike a link, such a row names one page, so it must not open the entity instead.
     public init?(subpagePath path: String) {
         var text = path

@@ -8,7 +8,7 @@ import Testing
     /// One row of every kind the server sends, with the path it gives that kind.
     static let kinds: [(GlobalSearchResultKind, String, PortalLink?)] = [
         (.shortcut, "/settings/tokens", .screen(.tokens)),
-        (.controller, "/controller/controller01", .controller(id: "controller01")),
+        (.controller, "/controller/controller1", .controller(id: "controller1")),
         (.virtualController, "/virtualcontroller/virtual01", .virtualController(id: "virtual01")),
         (.site, "/site/site01", .site(id: "site01")),
         (.cell, "/site/site01/cell/cell01", .cell(id: "cell01", siteId: "site01")),

@@ -23,21 +23,21 @@ import Testing
                             "path": "/settings/notifications", "iconName": "notifications", "organizationId": NSNull(), "organizationName": NSNull(),
                         ],
                         [
-                            "resultKind": "controller", "id": "controller01", "title": "controller01", "subtitle": "Example Yard",
-                            "path": "/controller/controller01", "iconName": NSNull(), "organizationId": "organization02", "organizationName": "Example Freight",
+                            "resultKind": "controller", "id": "controller1", "title": "controller1", "subtitle": "Example Yard",
+                            "path": "/controller/controller1", "iconName": NSNull(), "organizationId": "organization02", "organizationName": "Example Freight",
                         ],
                     ]
                 ]
             ]
         }
-        let rows = try await connection.globalSearch(query: "  controller01 ")
-        #expect(rows.map(\.id) == ["settings.notifications", "controller01"])
+        let rows = try await connection.globalSearch(query: "  controller1 ")
+        #expect(rows.map(\.id) == ["settings.notifications", "controller1"])
         #expect(rows[0].iconName == "notifications")
         #expect(rows[0].foreignOrganizationName == nil)
         #expect(rows[1].foreignOrganizationName == "Example Freight")
         #expect(rows[1].organizationId == "organization02")
         let variables = sentVariables(try #require(transport.requests.last))
-        #expect(variables["query"] as? String == "controller01")
+        #expect(variables["query"] as? String == "controller1")
         #expect((variables["limit"] as? NSNumber)?.intValue == 30)
     }
 
@@ -66,7 +66,7 @@ import Testing
 
     @Test func resultsAreGroupedInTheServersOrder() {
         let rows = [
-            result(.ticket, "12"), result(.controller, "controller01"), result(.shortcut, "settings.tokens"), result(.ticket, "13"),
+            result(.ticket, "12"), result(.controller, "controller1"), result(.shortcut, "settings.tokens"), result(.ticket, "13"),
             result(.directChat, "chatconv01"), result(.groupChat, "chatconv02"), result(.shortcut, "settings.vpn"),
         ]
         let sections = GlobalSearchRules.sections(rows)
@@ -137,8 +137,8 @@ import Testing
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = GlobalSearchRecents(defaults: defaults)
         store.remember(result(.ticket, "12", title: "Gripper drops boxes", path: "/ticket/12"), accountKey: "server-one|user01")
-        store.remember(result(.controller, "controller01", path: "/controller/controller01"), accountKey: "server-one|user01")
-        #expect(store.load(accountKey: "server-one|user01").map(\.id) == ["controller01", "12"])
+        store.remember(result(.controller, "controller1", path: "/controller/controller1"), accountKey: "server-one|user01")
+        #expect(store.load(accountKey: "server-one|user01").map(\.id) == ["controller1", "12"])
         #expect(store.load(accountKey: "server-two|user01").isEmpty)
         defaults.set(Data("not json".utf8), forKey: "globalSearchRecents|server-three|user01")
         #expect(store.load(accountKey: "server-three|user01").isEmpty)

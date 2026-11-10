@@ -307,10 +307,10 @@ import Testing
     @Test func aMessageKeepsTheScreenItWasAskedAbout() {
         let transcript = load([
             ConversationMessage(
-                id: "m1", role: "user", content: .string("Why is this red?"), viewingKind: "controller", viewingId: "controller01",
-                viewingLabel: "controller01")
+                id: "m1", role: "user", content: .string("Why is this red?"), viewingKind: "controller", viewingId: "controller1",
+                viewingLabel: "controller1")
         ])
-        #expect(transcript.entries == [.user(id: "m1", text: "Why is this red?", viewing: Viewing(kind: "controller", id: "controller01", label: "controller01"))])
+        #expect(transcript.entries == [.user(id: "m1", text: "Why is this red?", viewing: Viewing(kind: "controller", id: "controller1", label: "controller1"))])
     }
 
     // MARK: typed answers
