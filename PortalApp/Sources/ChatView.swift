@@ -361,7 +361,7 @@ struct ChatView: View {
         let others = call.participants.filter { !$0.isSelf && !$0.isRinging }
         let focus = others.count == 1 ? others.first : others.first(where: { $0.isSpeaking })
         return CallStage(
-            name: focus?.name ?? model.title, status: call.statusText,
+            name: focus?.name ?? model.title, status: call.statusText, isRecording: call.isTranscriptionOn,
             isSpeaking: focus?.isSpeaking ?? others.contains(where: { $0.isSpeaking }), isMuted: call.isMuted,
             onMute: { callCenter.setMuted(!call.isMuted) },
             leaveSymbol: "phone.down.fill", leaveLabel: "Leave call", onLeave: { callCenter.hangUp() },

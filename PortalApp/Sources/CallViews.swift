@@ -21,7 +21,10 @@ struct CallBar: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(call.chatTitle).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
-                        Text(call.statusText).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            Text(call.statusText).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            if call.isTranscriptionOn { RecordingMark() }
+                        }
                     }
                     Spacer(minLength: 4)
                 }
@@ -60,6 +63,18 @@ struct CallBar: View {
         .glassEffect(.regular, in: .rect(cornerRadius: 24, style: .continuous))
         .padding(.horizontal, 12)
         .padding(.bottom, 4)
+    }
+}
+
+/// RecordingMark is the red dot and the word that say a call is being recorded, beside its time wherever the call is put away.
+struct RecordingMark: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle().fill(Color.statusError).frame(width: 7, height: 7)
+            Text("Recording").font(.caption.weight(.semibold)).foregroundStyle(Color.statusError)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("This call is being recorded and transcribed."))
     }
 }
 

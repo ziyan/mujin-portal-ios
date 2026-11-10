@@ -66,8 +66,6 @@ final class ChatCallSession: Identifiable {
     private(set) var routeSymbol = "iphone"
     private(set) var errorText: String?
     private(set) var connectedAt: Date?
-    /// The notice of who turned transcription on is shown until the person dismisses it.
-    private(set) var dismissedNoticeKey: String?
 
     /// Told when the call is over, whoever ended it.
     var onEnded: ((ChatCallSession) -> Void)?
@@ -230,16 +228,10 @@ final class ChatCallSession: Identifiable {
         }
     }
 
-    /// Who turned transcription on, while the call is being transcribed and the person has not dismissed the notice.
-    var transcriptionNotice: String? {
-        guard let call, call.isTranscriptionOn == true, noticeKey != dismissedNoticeKey else { return nil }
-        let turnedOnBy = call.transcriptionTurnedOnByUserId == userId ? String(localized: "You") : (call.transcriptionTurnedOnByName ?? String(localized: "Someone"))
-        return String(localized: "\(turnedOnBy) started recording and transcribing this call.")
+    /// Said for as long as the call is recorded and transcribed, which calls are unless someone stops it. It cannot be dismissed.
+    var recordingNotice: String? {
+        isTranscriptionOn ? String(localized: "This call is being recorded and transcribed.") : nil
     }
-
-    private var noticeKey: String { "\(callId ?? "")|\(call?.transcriptionTurnedOnByUserId ?? "")" }
-
-    func dismissTranscriptionNotice() { dismissedNoticeKey = noticeKey }
 
     var isTranscriptionOn: Bool { call?.isTranscriptionOn == true }
 

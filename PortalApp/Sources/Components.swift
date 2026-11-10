@@ -221,7 +221,8 @@ extension View {
     /// pill, the bar itself see-through so messages run under it with the
     /// system's soft edge, and on a phone the tab bar gives way.
     func conversationBar(title: String, onTitleTap: (() -> Void)? = nil, isCallStageShown: Bool = false) -> some View {
-        navigationTitle(title)
+        // During a call the stage names who it is with; the bar shows no title of its own.
+        navigationTitle(isCallStageShown ? "" : title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
             .hidesTabBarWhenCompact()
@@ -237,7 +238,7 @@ private struct ConversationTitlePill: ViewModifier {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let title: String
     let onTitleTap: (() -> Void)?
-    /// On a phone a call's stage takes the middle of the bar, where the title would be.
+    /// A call's stage names who the call is with, so the pill steps aside while it shows.
     let isCallStageShown: Bool
 
     /// maximumWideWidth keeps a long title clear of the floating tab bar.
@@ -246,7 +247,7 @@ private struct ConversationTitlePill: ViewModifier {
     func body(content: Content) -> some View {
         let isWide = horizontalSizeClass == .regular
         content.toolbar {
-            if isWide || !isCallStageShown {
+            if !isCallStageShown {
                 ToolbarItem(placement: isWide ? .topBarLeading : .principal) {
                     pill.frame(maxWidth: isWide ? maximumWideWidth : nil, alignment: .leading)
                 }

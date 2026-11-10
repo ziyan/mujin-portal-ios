@@ -38,8 +38,8 @@ enum CallDemo {
         if screen == "chat-in-call" {
             return ChatCall(
                 id: "call02", chatId: "chat03", startedByUserId: "user02", startedByUserName: "Sam Sample", chatDisplayName: "Sam Sample",
-                startedAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-95)), isTranscriptionOn: false,
-                transcriptionTurnedOnByUserId: nil, transcriptionTurnedOnByName: nil, transcriptState: "off",
+                startedAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-95)), isTranscriptionOn: true,
+                transcriptionTurnedOnByUserId: "user02", transcriptionTurnedOnByName: "Sam Sample", transcriptState: "recording",
                 members: [
                     ChatCallMember(userId: "user01", userName: "Alex Example", ringState: "none", isInCall: true, isMuted: false, isVideoOn: false),
                     ChatCallMember(userId: "user02", userName: "Sam Sample", ringState: "answered", isInCall: true, isMuted: false, isVideoOn: false),
@@ -75,7 +75,7 @@ enum CallDemo {
         }
         return ChatCall(
             id: "call01", chatId: "chat02", startedByUserId: "user03", startedByUserName: "Robin Demo", chatDisplayName: "Pick station team",
-            startedAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-754)), isTranscriptionOn: screen == "call-transcription",
+            startedAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-754)), isTranscriptionOn: screen == "call-transcription" || screen == "call-minimized",
             transcriptionTurnedOnByUserId: screen == "call-transcription" ? "user03" : nil, transcriptionTurnedOnByName: screen == "call-transcription" ? "Robin Demo" : nil,
             transcriptState: screen == "call-transcription" ? "recording" : "off", members: members)
     }

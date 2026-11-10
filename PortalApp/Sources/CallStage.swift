@@ -12,6 +12,8 @@ struct CallStage<Avatar: View>: View {
     let name: String
     /// What the call is doing, under the name: how long it has run, or connecting, or a problem.
     let status: String
+    /// Whether the call is being recorded, said beside its status with a red dot.
+    var isRecording = false
     let isSpeaking: Bool
     let isMuted: Bool
     /// Nil while there is nothing to mute yet, such as while connecting.
@@ -36,8 +38,8 @@ struct CallStage<Avatar: View>: View {
             // A third of the chat's column on a phone, a little less on a wide screen, and never so large it hides the conversation.
             let avatarSize = min(proxy.size.width * (isWide ? 0.3 : 0.4), isWide ? 220 : 180)
             // On a phone the picture takes the middle of the bar, where the title was. On a wide screen the floating tab bar may share
-            // the bar's row, so the picture starts below it.
-            let avatarTop = isWide ? contentTop + 12 : barTop + (barHeight - Self.controlSize) / 2
+            // the bar's row, so the picture starts below it, with room for the ring it wears while someone speaks.
+            let avatarTop = isWide ? contentTop + 32 : barTop + (barHeight - Self.controlSize) / 2
             ZStack(alignment: .top) {
                 stage(size: avatarSize)
                     .padding(.top, avatarTop)
@@ -52,36 +54,49 @@ struct CallStage<Avatar: View>: View {
     }
 
     private func stage(size: CGFloat) -> some View {
-        Button {
-            onAvatarTap?()
-        } label: {
-            avatar(size)
-                .frame(width: size, height: size)
-                // The picture is solid: the messages scroll behind it, not through it.
-                .background(Color(.systemBackground))
-                .clipShape(Circle())
-                .overlay(Circle().strokeBorder(Color.accentColor.opacity(isSpeaking ? 0.9 : 0), lineWidth: 4))
-                .padding(4)
-                .background(Circle().fill(Color.accentColor.opacity(isSpeaking ? 0.25 : 0)).scaleEffect(isSpeaking ? 1.08 : 1))
-                .animation(.easeInOut(duration: 0.35), value: isSpeaking)
-                .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
+        picture(size: size)
+            .overlay(alignment: .bottom) {
+                nameCapsule
+                    .alignmentGuide(.bottom) { dimensions in dimensions[VerticalAlignment.center] }
+            }
+            // The name capsule hangs half below the picture.
+            .padding(.bottom, 24)
+    }
+
+    /// The picture, a button only when a tap does something: a disabled button would draw it dimmed.
+    @ViewBuilder private func picture(size: CGFloat) -> some View {
+        if let onAvatarTap {
+            Button(action: onAvatarTap) { framedAvatar(size: size) }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(avatarTapLabel))
+        } else {
+            framedAvatar(size: size)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(name))
         }
-        .buttonStyle(.plain)
-        .disabled(onAvatarTap == nil)
-        .accessibilityLabel(onAvatarTap == nil ? Text(name) : Text(avatarTapLabel))
-        .overlay(alignment: .bottom) {
-            nameCapsule
-                .alignmentGuide(.bottom) { dimensions in dimensions[VerticalAlignment.center] }
-        }
-        // The name capsule hangs half below the picture.
-        .padding(.bottom, 24)
+    }
+
+    private func framedAvatar(size: CGFloat) -> some View {
+        avatar(size)
+            .frame(width: size, height: size)
+            // The picture is solid: the messages scroll behind it, not through it.
+            .background(Color(.systemBackground))
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(Color.accentColor.opacity(isSpeaking ? 0.9 : 0), lineWidth: 4))
+            .padding(4)
+            .background(Circle().fill(Color.accentColor.opacity(isSpeaking ? 0.25 : 0)).scaleEffect(isSpeaking ? 1.08 : 1))
+            .animation(.easeInOut(duration: 0.35), value: isSpeaking)
+            .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
     }
 
     private var nameCapsule: some View {
         VStack(spacing: 0) {
             Text(name).font(.subheadline.weight(.semibold)).lineLimit(1)
-            if !status.isEmpty {
-                Text(status).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
+            if !status.isEmpty || isRecording {
+                HStack(spacing: 6) {
+                    if !status.isEmpty { Text(status).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1) }
+                    if isRecording { RecordingMark() }
+                }
             }
         }
         // The capsule keeps to two short lines over the picture: its text stops growing at the largest ordinary size.
