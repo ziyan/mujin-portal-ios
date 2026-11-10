@@ -36,15 +36,62 @@ struct ConversationView: View {
 
     private var isThread: Bool { threadRootMessageId != nil }
 
+    /// Whether a call with the assistant is going or being set up: the conversation shows it on its stage.
+    private var isCallStaged: Bool {
+        guard let voice else { return false }
+        return voice.isActive || voice.phase != .idle
+    }
+
+    /// Starts a call. A call and dictation both want the microphone, and a call wins.
+    private func startCall() {
+        guard let voice else { return }
+        dictation.abort()
+        session.readAloud.stop()
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        Task { await voice.start() }
+    }
+
+    /// The assistant large over the conversation while the call goes, with what the call is doing under its name, and leave and
+    /// mute at the top right. A tap on the picture cuts a playing answer short where that is possible.
+    private func assistantCallStage(_ voice: VoiceCallController, isThinking: Bool) -> some View {
+        CallStage(
+            name: String(localized: "Assistant"), status: Self.callStatus(voice, isThinking: isThinking),
+            isSpeaking: voice.phase == .speaking, isMuted: voice.isMuted,
+            onMute: voice.isActive ? { voice.toggleMute() } : nil,
+            leaveSymbol: voice.isActive ? "phone.down.fill" : "xmark", leaveLabel: voice.isActive ? "End the call" : "Close",
+            onLeave: { voice.end() },
+            onAvatarTap: voice.canCutIn ? { voice.cutAnswer() } : nil, avatarTapLabel: "Stop the answer"
+        ) { size in
+            AssistantCallAvatar(size: size)
+        }
+        .sensoryFeedback(trigger: voice.phase) { _, new in new == .listening ? .impact(weight: .light) : nil }
+    }
+
+    /// Only the state, or a problem.
+    private static func callStatus(_ voice: VoiceCallController, isThinking: Bool) -> String {
+        switch voice.phase {
+        case .idle: ""
+        case .connecting: String(localized: "Connecting\u{2026}")
+        case .failed(let message): message
+        case .speaking: String(localized: "Speaking")
+        case .listening:
+            if let notice = voice.notice { notice }
+            else if voice.isMuted { String(localized: "Muted") }
+            else if isThinking { String(localized: "Thinking") }
+            else { String(localized: "Listening") }
+        }
+    }
+
     var body: some View {
         Group {
             if let model {
                 content(model)
+                    .overlay { if let voice, isCallStaged { assistantCallStage(voice, isThinking: model.isRunning) } }
             } else {
                 ProgressView()
             }
         }
-        .conversationBar(title: isThread ? "\(String(localized: "Thread")) \u{00B7} \(shownTitle)" : shownTitle)
+        .conversationBar(title: isThread ? "\(String(localized: "Thread")) \u{00B7} \(shownTitle)" : shownTitle, isCallStageShown: isCallStaged)
         .navigationDestination(item: $openedThreadRootId) { rootId in
             ConversationView(account: account, conversationId: conversationId, title: title, threadRootMessageId: rootId)
         }
@@ -54,7 +101,14 @@ struct ConversationView: View {
             requestedThreadRootMessageId.wrappedValue = nil
         }
         .toolbar {
-            if !isThread {
+            if !isThread, !isCallStaged {
+            // The call sits beside the conversation's menu, in the same capsule.
+            if voice != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { startCall() } label: { Label("Call the assistant", systemImage: "phone") }
+                        .accessibilityIdentifier("assistantCallButton")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if !isMainChat, session.capabilities.offersMainChatChoice {
@@ -914,16 +968,6 @@ private struct ComposerBar: View {
         return DictationControl(isListening: dictation.isListening, isEnabled: dictation.phase != .finishing) { toggleDictation() }
     }
 
-    /// Starts a call. A call and dictation both want the microphone, and a call wins.
-    private var startCall: (() -> Void)? {
-        guard let voice else { return nil }
-        return {
-            dictation.abort()
-            session.readAloud.stop()
-            Task { await voice.start() }
-        }
-    }
-
     private func toggleDictation() {
         if appModel.callCenter.isInCall || voice?.isActive == true {
             dictation.report(String(localized: "You cannot dictate during a call."))
@@ -960,11 +1004,9 @@ private struct ComposerBar: View {
                 }
                 .padding(.horizontal, 12)
             }
-            // While a call is on, its bar takes the composer's place and the keyboard stays down.
+            // While a call is on, the conversation's stage shows it and the composer and keyboard stay down.
             if let voice, voice.isActive || voice.phase != .idle {
-                VoiceCallBar(voice: voice, isThinking: model.isRunning)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 8)
+                EmptyView()
             } else {
             AttachmentStrip(drafts: drafts)
                 .padding(.horizontal, 16)
@@ -974,7 +1016,7 @@ private struct ComposerBar: View {
             ComposerCard(
                 placeholder: placeholder, text: $draft, drafts: drafts,
                 canSend: canSend,
-                onVoice: startCall,
+                onVoice: nil,
                 onStop: model.isRunning ? { Task { await model.cancelRun() } } : nil, dictation: dictationControl,
                 onEscape: {
                     guard draft.isEmpty, model.replyTarget != nil else { return false }
@@ -1066,91 +1108,6 @@ private struct SpeakFirstChoicesView: View {
                 .padding(.vertical, -10)
                 .padding(.trailing, -10)
             }
-        }
-    }
-}
-
-/// VoiceCallBar is the call in progress: what is heard, whether the answer is
-/// being read, and the buttons to mute and end it.
-private struct VoiceCallBar: View {
-    let voice: VoiceCallController
-    let isThinking: Bool
-
-    var body: some View {
-        HStack(spacing: 12) {
-            levelMeter
-            Text(state)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if voice.isActive {
-                Button {
-                    voice.toggleMute()
-                } label: {
-                    Image(systemName: voice.isMuted ? "mic.slash.fill" : "mic.fill")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(voice.isMuted ? Color.white : Color.accentColor)
-                        .frame(width: 44, height: 44)
-                        .background(voice.isMuted ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color(.tertiarySystemFill)), in: .circle)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(voice.isMuted ? "Unmute" : "Mute")
-            }
-            Button {
-                voice.end()
-            } label: {
-                Image(systemName: voice.isActive ? "phone.down.fill" : "xmark")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(voice.isActive ? Color.statusError : Color.secondary, in: .circle)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(voice.isActive ? "End the call" : "Close")
-        }
-        .padding(.leading, 16)
-        .padding(.trailing, 8)
-        .padding(.vertical, 8)
-        .background(Color.portalCard.opacity(0.92), in: .rect(cornerRadius: 30, style: .continuous))
-        .glassEffect(.regular, in: .rect(cornerRadius: 30, style: .continuous))
-        .accessibilityElement(children: .contain)
-        .sensoryFeedback(trigger: voice.phase) { _, new in new == .listening ? .impact(weight: .light) : nil }
-    }
-
-    /// How loud the microphone is; a tap cuts a playing answer short where that is possible, and does nothing otherwise.
-    private var levelMeter: some View {
-        Button {
-            voice.cutAnswer()
-        } label: {
-            ZStack {
-                Circle().fill(Color(.tertiarySystemFill))
-                Circle()
-                    .fill(Color.accentColor.opacity(0.35))
-                    .scaleEffect(voice.isMuted ? 0.3 : 0.35 + 0.65 * CGFloat(voice.inputLevel))
-                    .animation(.easeOut(duration: 0.1), value: voice.inputLevel)
-                Image(systemName: voice.phase == .speaking ? "speaker.wave.2.fill" : "waveform")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(voice.isMuted ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
-            }
-            .frame(width: 44, height: 44)
-        }
-        .buttonStyle(.plain)
-        .disabled(!voice.canCutIn)
-        .accessibilityLabel(voice.canCutIn ? Text("Stop the answer") : Text(state))
-    }
-
-    /// Only the state, or a problem.
-    private var state: LocalizedStringKey {
-        switch voice.phase {
-        case .idle: ""
-        case .connecting: "Connecting\u{2026}"
-        case .failed(let message): LocalizedStringKey(message)
-        case .speaking: "Speaking"
-        case .listening:
-            if let notice = voice.notice { LocalizedStringKey(notice) }
-            else if voice.isMuted { "Muted" }
-            else if isThinking { "Thinking" }
-            else { "Listening" }
         }
     }
 }

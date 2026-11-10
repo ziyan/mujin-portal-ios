@@ -115,6 +115,9 @@ struct MainTabsView: View {
             if appModel.isDemo, let screen = DemoOptions.screen, CallDemo.owns(screen), screen.hasPrefix("call-"), screen != "call-picker" {
                 appModel.callCenter.showDemo(CallDemo.session(for: screen), isScreenShown: screen != "call-minimized")
             }
+            if appModel.isDemo, DemoOptions.screen == "chat-in-call" {
+                appModel.callCenter.showDemo(CallDemo.session(for: "chat-in-call"), isScreenShown: false)
+            }
             // A notification about a reply in a thread, as if it had launched the app: the chat opens on that thread.
             if appModel.isDemo, DemoOptions.screen == "thread-push" {
                 newSession.open(.chatThread(conversationId: ThreadDemo.chatConversationId, threadRootMessageId: ThreadDemo.chatThreadRootMessageId))
@@ -262,7 +265,7 @@ struct MainTabsView: View {
             if !sections.contains(session.selectedSection) { session.selectedSection = .more }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            if let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded {
+            if let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded, appModel.callCenter.chatIdOnScreen != call.chatId {
                 CallBar(center: appModel.callCenter, call: call)
             }
         }

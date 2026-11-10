@@ -5,7 +5,7 @@ import PortalKit
 /// it, and the call screens the screenshots show. The simulator has no camera, so video tiles are placeholders.
 enum CallDemo {
     static let screens: Set<String> = [
-        "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner", "chat-call-transcript", "call-voice", "call-video", "call-transcription",
+        "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner", "chat-call-transcript", "chat-in-call", "call-voice", "call-video", "call-transcription",
         "call-minimized", "call-reconnecting", "call-picker", "call-ring-more", "call-ringing", "call-two", "call-three", "call-five", "call-twelve",
     ]
 
@@ -19,7 +19,7 @@ enum CallDemo {
     /// The chat a screen opens.
     static func conversationId(for screen: String?) -> String? {
         switch screen {
-        case "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner", "chat-call-transcript": "chatconv03"
+        case "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner", "chat-call-transcript", "chat-in-call": "chatconv03"
         case "call-picker": "chatconv02"
         default: nil
         }
@@ -34,6 +34,17 @@ enum CallDemo {
     // MARK: the call
 
     nonisolated static func call(for screen: String) -> ChatCall {
+        // A call in the direct chat with Sam, put away so the chat shows it on its stage.
+        if screen == "chat-in-call" {
+            return ChatCall(
+                id: "call02", chatId: "chat03", startedByUserId: "user02", startedByUserName: "Sam Sample", chatDisplayName: "Sam Sample",
+                startedAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-95)), isTranscriptionOn: false,
+                transcriptionTurnedOnByUserId: nil, transcriptionTurnedOnByName: nil, transcriptState: "off",
+                members: [
+                    ChatCallMember(userId: "user01", userName: "Alex Example", ringState: "none", isInCall: true, isMuted: false, isVideoOn: false),
+                    ChatCallMember(userId: "user02", userName: "Sam Sample", ringState: "answered", isInCall: true, isMuted: false, isVideoOn: false),
+                ])
+        }
         let isVideo = isVideoScreen(screen)
         var members = [ChatCallMember(userId: "user01", userName: "Alex Example", ringState: "none", isInCall: true, isMuted: false, isVideoOn: isVideo)]
         func joined(_ id: String, _ name: String, muted: Bool = false, video: Bool? = nil) -> ChatCallMember {
@@ -71,7 +82,10 @@ enum CallDemo {
 
     @MainActor
     static func session(for screen: String) -> ChatCallSession {
-        ChatCallSession.demo(
+        if screen == "chat-in-call" {
+            return ChatCallSession.demo(call: call(for: screen), chatTitle: "Sam Sample", isCameraOn: false, elapsed: 95, speaking: ["user02"])
+        }
+        return ChatCallSession.demo(
             call: call(for: screen), chatTitle: "Pick station team", isCameraOn: isVideoScreen(screen), elapsed: 754,
             speaking: ["user03"], isReconnecting: screen == "call-reconnecting")
     }

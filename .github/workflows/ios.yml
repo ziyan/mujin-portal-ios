@@ -466,6 +466,7 @@ jobs:
           shoot chat-voice-composer chat-voice-composer
           shoot chat-voice-recording chat-voice-recording
           shoot chat-call-banner chat-call-banner
+          shoot chat-in-call chat-in-call
           shoot chat-call-transcript chat-call-transcript
           shoot call-voice call-voice
           shoot call-video call-video
@@ -616,6 +617,7 @@ jobs:
           shoot chat-voice-composer-dark chat-voice-composer
           shoot chat-voice-recording-dark chat-voice-recording
           shoot chat-call-banner-dark chat-call-banner
+          shoot chat-in-call-dark chat-in-call
           shoot chat-call-transcript-dark chat-call-transcript
           shoot call-voice-dark call-voice
           shoot call-video-dark call-video
@@ -748,6 +750,8 @@ jobs:
           shoot large-text-chat-voice-composer chat-voice-composer
           shoot large-text-chat-voice-recording chat-voice-recording
           shoot large-text-chat-call-banner chat-call-banner
+          shoot large-text-chat-in-call chat-in-call
+          shoot large-text-voice voice
           shoot large-text-chat-call-transcript chat-call-transcript
           shoot large-text-call-reconnecting call-reconnecting
           shoot large-text-update-available update-available
@@ -796,6 +800,8 @@ jobs:
             shoot chat-landscape chat:chatconv01 "" landscape
             shoot answer-landscape conversation:conversation01 "" landscape
             shoot thread-chat-open-landscape thread-chat-open "" landscape
+            shoot chat-in-call-landscape chat-in-call "" landscape
+            shoot voice-landscape voice "" landscape
           fi
 
       - name: Keep the screenshots

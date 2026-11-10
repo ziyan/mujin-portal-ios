@@ -220,13 +220,13 @@ extension View {
     /// The bar of a screen whose bottom is a composer: the title is a glass
     /// pill, the bar itself see-through so messages run under it with the
     /// system's soft edge, and on a phone the tab bar gives way.
-    func conversationBar(title: String, onTitleTap: (() -> Void)? = nil) -> some View {
+    func conversationBar(title: String, onTitleTap: (() -> Void)? = nil, isCallStageShown: Bool = false) -> some View {
         navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
             .hidesTabBarWhenCompact()
             .scrollEdgeEffectStyle(.hard, for: .top)
-            .modifier(ConversationTitlePill(title: title, onTitleTap: onTitleTap))
+            .modifier(ConversationTitlePill(title: title, onTitleTap: onTitleTap, isCallStageShown: isCallStageShown))
     }
 }
 
@@ -237,6 +237,8 @@ private struct ConversationTitlePill: ViewModifier {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let title: String
     let onTitleTap: (() -> Void)?
+    /// On a phone a call's stage takes the middle of the bar, where the title would be.
+    let isCallStageShown: Bool
 
     /// maximumWideWidth keeps a long title clear of the floating tab bar.
     private let maximumWideWidth: CGFloat = 300
@@ -244,8 +246,10 @@ private struct ConversationTitlePill: ViewModifier {
     func body(content: Content) -> some View {
         let isWide = horizontalSizeClass == .regular
         content.toolbar {
-            ToolbarItem(placement: isWide ? .topBarLeading : .principal) {
-                pill.frame(maxWidth: isWide ? maximumWideWidth : nil, alignment: .leading)
+            if isWide || !isCallStageShown {
+                ToolbarItem(placement: isWide ? .topBarLeading : .principal) {
+                    pill.frame(maxWidth: isWide ? maximumWideWidth : nil, alignment: .leading)
+                }
             }
         }
     }

@@ -43,13 +43,15 @@ struct ChatView: View {
         Group {
             if let model {
                 content(model)
+                    .overlay { if let call = stagedCall(model) { callStage(model, call) } }
             } else {
                 ProgressView()
             }
         }
         .conversationBar(
             title: isThread ? "\(String(localized: "Thread")) \u{00B7} \(model?.title ?? String(localized: "Chat"))" : (model?.title ?? String(localized: "Chat")),
-            onTitleTap: isThread || model?.room == nil ? nil : { isShowingInfo = true }
+            onTitleTap: isThread || model?.room == nil ? nil : { isShowingInfo = true },
+            isCallStageShown: model.map { stagedCall($0) != nil } ?? false
         )
         .navigationDestination(item: $openedThreadRootId) { rootId in
             ChatView(account: account, conversationId: conversationId, chatId: model?.chatId ?? chatId, threadRootMessageId: rootId)
@@ -76,7 +78,7 @@ struct ChatView: View {
                     }
                 }
             }
-            if !isThread, let model, model.room != nil {
+            if !isThread, let model, model.room != nil, stagedCall(model) == nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         // A group's administrators add to it; either person adds to a direct chat, which becomes a group; others see no such row.
@@ -144,10 +146,16 @@ struct ChatView: View {
         .onAppear {
             isOnScreen = true
             model?.start()
+            if !isThread { callCenter.chatIdOnScreen = model?.chatId ?? chatId }
         }
         .onDisappear {
             isOnScreen = false
             model?.stop()
+            // Another chat may already have taken the place.
+            if !isThread, callCenter.chatIdOnScreen == (model?.chatId ?? chatId) { callCenter.chatIdOnScreen = nil }
+        }
+        .onChange(of: model?.chatId) { _, loadedChatId in
+            if !isThread, isOnScreen, let loadedChatId { callCenter.chatIdOnScreen = loadedChatId }
         }
         // The feed stays open only while the chat is seen, which is how the server knows to send no notification for it.
         .onCoveredChange { isCovered in
@@ -342,9 +350,37 @@ struct ChatView: View {
         callCenter.begin(entry: .join(callId: call.id), chatId: chatId, chatTitle: model.title, isVideoOn: false, account: account, connection: model.connection)
     }
 
+    /// The call in this chat that the person is on, while its screen is put away: the chat shows it on its stage.
+    private func stagedCall(_ model: ChatModel) -> ChatCallSession? {
+        guard !isThread, let call = callCenter.session, !call.isEnded, !callCenter.isScreenShown, let chatId = model.chatId, call.chatId == chatId else { return nil }
+        return call
+    }
+
+    /// Who the call is with, large over the chat: the other person, or in a group whoever is speaking, else the chat itself.
+    private func callStage(_ model: ChatModel, _ call: ChatCallSession) -> some View {
+        let others = call.participants.filter { !$0.isSelf && !$0.isRinging }
+        let focus = others.count == 1 ? others.first : others.first { $0.isSpeaking }
+        return CallStage(
+            name: focus?.name ?? model.title, status: call.statusText,
+            isSpeaking: focus?.isSpeaking ?? others.contains { $0.isSpeaking }, isMuted: call.isMuted,
+            onMute: { callCenter.setMuted(!call.isMuted) },
+            leaveSymbol: "phone.down.fill", leaveLabel: "Leave call", onLeave: { callCenter.hangUp() },
+            onAvatarTap: { callCenter.show() }, avatarTapLabel: "Return to the call"
+        ) { size in
+            if let focus {
+                UserAvatar(userId: focus.userId, name: focus.name, size: size)
+            } else if let room = model.room {
+                ChatAvatar(room: room, size: size)
+            } else {
+                PersonAvatar(name: model.title, size: size)
+            }
+        }
+    }
+
     @ViewBuilder
     private func callBanner(_ model: ChatModel) -> some View {
-        if session.capabilities.offersChatCalls, let call = session.callBook.goingCall(inChat: model.chatId) {
+        // The stage shows the call this person is on; the banner is for a call they have not joined.
+        if session.capabilities.offersChatCalls, stagedCall(model) == nil, let call = session.callBook.goingCall(inChat: model.chatId) {
             CallBanner(
                 call: call, isOnThisCall: callCenter.session?.callId == call.id && callCenter.isInCall, onJoin: { joinCall(model, call) },
                 onReturn: { callCenter.show() })
