@@ -69,7 +69,7 @@ struct CallStage<Avatar: View>: View {
 
     /// How far the name capsule hangs below the picture: half of two short lines of text and their padding.
     private static var nameCapsuleOverhang: CGFloat { 28 }
-    private static let space = "callStage"
+    private static var space: String { "callStage" }
     /// Where the name capsule ends, measured: its height follows the text size and the line under the name.
     @State private var capsuleBottom: CGFloat?
 
