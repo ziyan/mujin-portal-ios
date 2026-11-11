@@ -282,6 +282,8 @@ struct ChatView: View {
             .onChange(of: model.timeline.messages.last?.id) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
+            // The call's stage taking or giving back room at the top keeps the newest message in view above the composer.
+            .onChange(of: callStageBottom) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
             .overlay(alignment: .top) {
                 if model.isFeedLost {
                     Label("Reconnecting", systemImage: "arrow.triangle.2.circlepath")
