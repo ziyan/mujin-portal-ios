@@ -266,8 +266,11 @@ struct ConversationView: View {
             }
         case .loaded:
             transcript(model)
-                // At rest the messages start below the call's stage; scrolled up, they fade out behind it.
-                .contentMargins(.top, isCallStaged ? max(callStageBottom - contentTop, 0) : 0, for: .scrollContent)
+                // At rest the messages start below the call's stage; scrolled up, they fade out behind it. Reserved as a safe area
+                // rather than a content margin: a margin pushed a short conversation, which sits at the bottom, down under the composer.
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if isCallStaged { Color.clear.frame(height: max(callStageBottom - contentTop, 0)) }
+                }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     ComposerBar(model: model, voice: voice, dictation: dictation, drafts: drafts, draft: $draft)
                 }

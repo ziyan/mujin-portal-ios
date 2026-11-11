@@ -191,8 +191,11 @@ struct ChatView: View {
         case .loaded:
             messages(model)
                 .safeAreaInset(edge: .top, spacing: 0) { if !isThread { callBanner(model) } }
-                // At rest the messages start below the call's stage; scrolled up, they fade out behind it.
-                .contentMargins(.top, stagedCall(model) != nil ? max(callStageBottom - contentTop, 0) : 0, for: .scrollContent)
+                // At rest the messages start below the call's stage; scrolled up, they fade out behind it. Reserved as a safe area
+                // rather than a content margin: a margin pushed a short chat, which sits at the bottom, down under the composer.
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if stagedCall(model) != nil { Color.clear.frame(height: max(callStageBottom - contentTop, 0)) }
+                }
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer(model) }
         }
     }
