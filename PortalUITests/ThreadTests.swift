@@ -156,9 +156,11 @@ final class ThreadTests: XCTestCase {
 
     func testAReplyInAConversationThreadIsAnsweredInTheThread() {
         let app = DemoApp.launch(screen: "thread-conversation-open")
-        XCTAssertTrue(message(app, Self.assistantReplyText).waitForExistence(timeout: 60), "The thread did not open.\n\(app.debugDescription)")
+        // The thread opens on top of the conversation as the app starts; the first queries may meet an app too busy to answer.
+        XCTAssertTrue(DemoApp.waitUntilExists(threadTitle(app), timeout: 60), "The thread did not open.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.waitUntilExists(message(app, Self.assistantReplyText), timeout: 30), "The thread does not show its reply.\n\(app.debugDescription)")
         let field = DemoApp.element(app, "messageField")
-        XCTAssertTrue(field.waitForExistence(timeout: 30), "The thread has no composer.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.waitUntilExists(field, timeout: 30), "The thread has no composer.\n\(app.debugDescription)")
         field.tap()
         field.typeText("Is it urgent")
         DemoApp.button(app, "sendButton").tap()

@@ -38,6 +38,8 @@ struct ChatView: View {
 
     private var callCenter: CallCenter { appModel.callCenter }
     private var isThread: Bool { threadRootMessageId != nil }
+    /// How far the call's stage reaches into the chat, so the messages start below it.
+    @State private var callStageHeight: CGFloat = 0
 
     var body: some View {
         Group {
@@ -187,6 +189,7 @@ struct ChatView: View {
         case .loaded:
             messages(model)
                 .safeAreaInset(edge: .top, spacing: 0) { if !isThread { callBanner(model) } }
+                .safeAreaInset(edge: .top, spacing: 0) { if stagedCall(model) != nil { Color.clear.frame(height: callStageHeight) } }
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer(model) }
         }
     }
@@ -365,7 +368,7 @@ struct ChatView: View {
             isSpeaking: focus?.isSpeaking ?? others.contains(where: { $0.isSpeaking }), isMuted: call.isMuted,
             onMute: { callCenter.setMuted(!call.isMuted) },
             leaveSymbol: "phone.down.fill", leaveLabel: "Leave call", onLeave: { callCenter.hangUp() },
-            onAvatarTap: { callCenter.show() }, avatarTapLabel: "Return to the call"
+            onCoveredHeight: { callStageHeight = $0 }, onAvatarTap: { callCenter.show() }, avatarTapLabel: "Return to the call"
         ) { size in
             if let focus {
                 UserAvatar(userId: focus.userId, name: focus.name, size: size)

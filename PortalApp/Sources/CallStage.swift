@@ -21,6 +21,8 @@ struct CallStage<Avatar: View>: View {
     let leaveSymbol: String
     let leaveLabel: LocalizedStringKey
     let onLeave: () -> Void
+    /// Told how far below the top of the conversation's content the stage reaches, so the messages can start below it.
+    var onCoveredHeight: ((CGFloat) -> Void)?
     /// A tap on the picture, such as to bring back the full call screen; nil leaves the picture still.
     var onAvatarTap: (() -> Void)?
     var avatarTapLabel: LocalizedStringKey = ""
@@ -35,12 +37,22 @@ struct CallStage<Avatar: View>: View {
             let contentTop = max(proxy.safeAreaInsets.top, barTop)
             let barHeight = max(contentTop - barTop, Self.controlSize)
             let isWide = horizontalSizeClass == .regular
-            // A third of the chat's column on a phone, a little less on a wide screen, and never so large it hides the conversation.
-            let avatarSize = min(proxy.size.width * (isWide ? 0.3 : 0.4), isWide ? 220 : 180)
+            // About a third of the chat's column on a phone, less on a wide screen, and never so large it hides the conversation.
+            let avatarSize = min(proxy.size.width * (isWide ? 0.22 : 0.3), isWide ? 180 : 130)
             // On a phone the picture takes the middle of the bar, where the title was. On a wide screen the floating tab bar may share
             // the bar's row, so the picture starts below it, with room for the ring it wears while someone speaks.
             let avatarTop = isWide ? contentTop + 32 : barTop + (barHeight - Self.controlSize) / 2
+            // The bottom of the name capsule: the picture with its ring, then half the capsule hanging below it.
+            let stageBottom = avatarTop + avatarSize + 8 + Self.nameCapsuleOverhang
             ZStack(alignment: .top) {
+                // Messages scrolled up under the stage fade out behind it rather than showing through around the picture.
+                LinearGradient(
+                    stops: [.init(color: Color.portalPage, location: 0), .init(color: Color.portalPage, location: 0.8), .init(color: Color.portalPage.opacity(0), location: 1)],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .frame(height: stageBottom + 12)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
                 stage(size: avatarSize)
                     .padding(.top, avatarTop)
                     .frame(maxWidth: .infinity)
@@ -49,9 +61,13 @@ struct CallStage<Avatar: View>: View {
                     .padding(.trailing, 16)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
+            .onChange(of: max(stageBottom - contentTop, 0), initial: true) { _, covered in onCoveredHeight?(covered) }
         }
         .ignoresSafeArea(.container, edges: .top)
     }
+
+    /// How far the name capsule hangs below the picture: half of two short lines of text and their padding.
+    private static var nameCapsuleOverhang: CGFloat { 28 }
 
     private func stage(size: CGFloat) -> some View {
         picture(size: size)
@@ -60,7 +76,7 @@ struct CallStage<Avatar: View>: View {
                     .alignmentGuide(.bottom) { dimensions in dimensions[VerticalAlignment.center] }
             }
             // The name capsule hangs half below the picture.
-            .padding(.bottom, 24)
+            .padding(.bottom, Self.nameCapsuleOverhang)
     }
 
     /// The picture, a button only when a tap does something: a disabled button would draw it dimmed.

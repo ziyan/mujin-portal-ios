@@ -246,13 +246,20 @@ private struct ConversationTitlePill: ViewModifier {
 
     func body(content: Content) -> some View {
         let isWide = horizontalSizeClass == .regular
-        content.toolbar {
-            if !isCallStageShown {
-                ToolbarItem(placement: isWide ? .topBarLeading : .principal) {
-                    pill.frame(maxWidth: isWide ? maximumWideWidth : nil, alignment: .leading)
+        content
+            // On a wide screen the pill stands at the leading edge, so the bar's own title in the middle would say it twice.
+            .toolbar(removing: isWide ? .title : nil)
+            .toolbar {
+                if !isCallStageShown {
+                    ToolbarItem(placement: isWide ? .topBarLeading : .principal) {
+                        // As wide as the title, up to the limit: a leading item is otherwise squeezed into a round button.
+                        pill.frame(maxWidth: isWide ? maximumWideWidth : nil, alignment: .leading)
+                            .fixedSize(horizontal: isWide, vertical: false)
+                    }
+                    // The pill is its own glass; the bar's shared glass around it would draw a second shape.
+                    .sharedBackgroundVisibility(.hidden)
                 }
             }
-        }
     }
 
     @ViewBuilder private var pill: some View {

@@ -35,6 +35,8 @@ struct ConversationView: View {
     @State private var isTopInView = false
 
     private var isThread: Bool { threadRootMessageId != nil }
+    /// How far the call's stage reaches into the conversation, so the messages start below it.
+    @State private var callStageHeight: CGFloat = 0
 
     /// Whether a call with the assistant is going or being set up: the conversation shows it on its stage.
     private var isCallStaged: Bool {
@@ -59,7 +61,7 @@ struct ConversationView: View {
             isSpeaking: voice.phase == .speaking, isMuted: voice.isMuted,
             onMute: voice.isActive ? { voice.toggleMute() } : nil,
             leaveSymbol: voice.isActive ? "phone.down.fill" : "xmark", leaveLabel: voice.isActive ? "End the call" : "Close",
-            onLeave: { voice.end() },
+            onLeave: { voice.end() }, onCoveredHeight: { callStageHeight = $0 },
             onAvatarTap: voice.canCutIn ? { voice.cutAnswer() } : nil, avatarTapLabel: "Stop the answer"
         ) { size in
             AssistantCallAvatar(size: size)
@@ -262,6 +264,7 @@ struct ConversationView: View {
             }
         case .loaded:
             transcript(model)
+                .safeAreaInset(edge: .top, spacing: 0) { if isCallStaged { Color.clear.frame(height: callStageHeight) } }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     ComposerBar(model: model, voice: voice, dictation: dictation, drafts: drafts, draft: $draft)
                 }

@@ -800,8 +800,8 @@ jobs:
             shoot chat-landscape chat:chatconv01 "" landscape
             shoot answer-landscape conversation:conversation01 "" landscape
             shoot thread-chat-open-landscape thread-chat-open "" landscape
-            shoot chat-in-call-landscape chat-in-call "" landscape
-            shoot voice-landscape voice "" landscape
+            shoot chat-in-call-list-hidden chat-in-call "" list-hidden
+            shoot voice-list-hidden voice "" list-hidden
           fi
 
       - name: Keep the screenshots

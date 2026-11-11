@@ -53,6 +53,13 @@ enum DemoApp {
         return false
     }
 
+    /// Whether the element appears within the timeout. Unlike `waitForExistence`, a query whose snapshot times out while the app
+    /// is still busy launching is asked again rather than failing the test.
+    static func waitUntilExists(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"), object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
+
     /// Whether the system reports the element hittable within the timeout. A predicate keeps a snapshot that fails while the
     /// page is still moving from failing the test: it is evaluated again until the timeout.
     static func waitUntilHittable(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
