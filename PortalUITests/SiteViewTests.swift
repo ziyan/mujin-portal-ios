@@ -48,9 +48,20 @@ final class SiteViewTests: XCTestCase {
         element.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
     }
 
-    private func waitForValue(_ element: XCUIElement, _ value: String) -> Bool {
+    private func waitForValue(_ element: XCUIElement, _ value: String, timeout: TimeInterval = 20) -> Bool {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: element)
-        return XCTWaiter().wait(for: [expectation], timeout: 20) == .completed
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    /// Flips the switch until it shows `value`. A tap that lands while the page is still settling after scrolling does not flip it, so
+    /// the tap is made again, from a still switch, rather than the test failing on the first one.
+    private func toggle(_ element: XCUIElement, to value: String) -> Bool {
+        for _ in 0..<3 {
+            _ = DemoApp.waitUntilStill(element, timeout: 10)
+            toggleRightEdge(element)
+            if waitForValue(element, value, timeout: 8) { return true }
+        }
+        return waitForValue(element, value, timeout: 1)
     }
 
     // MARK: - A site
@@ -131,8 +142,7 @@ final class SiteViewTests: XCTestCase {
         let help = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Its alarms, orchestrators, mobile robots and telemetry stop counting")).firstMatch
         XCTAssertTrue(help.exists, "The help text is missing.\n\(app.debugDescription)")
         XCTAssertTrue(help.label.hasSuffix("Its own pages keep working."), "The help text is cut: \"\(help.label)\".")
-        toggleRightEdge(toggle)
-        XCTAssertTrue(waitForValue(toggle, "0"), "The toggle did not turn off.\n\(app.debugDescription)")
+        XCTAssertTrue(self.toggle(toggle, to: "0"), "The toggle did not turn off.\n\(app.debugDescription)")
     }
 
     func testAControllerCanBeLeftOut() {
@@ -142,8 +152,7 @@ final class SiteViewTests: XCTestCase {
         let toggle = app.switches["excludeFromSiteViewsToggle"]
         reveal(toggle, in: app)
         XCTAssertEqual(toggle.value as? String, "0", "The toggle does not show the controller counts.")
-        toggleRightEdge(toggle)
-        XCTAssertTrue(waitForValue(toggle, "1"), "The toggle did not turn on.\n\(app.debugDescription)")
+        XCTAssertTrue(self.toggle(toggle, to: "1"), "The toggle did not turn on.\n\(app.debugDescription)")
         // The page says so at its top too.
         app.swipeDown()
         for _ in 0..<10 where !DemoApp.element(app, "excludedBadge").exists { app.swipeDown() }

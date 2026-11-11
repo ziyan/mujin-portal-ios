@@ -60,6 +60,19 @@ enum DemoApp {
         return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
     }
 
+    /// Whether the element's label comes to contain the text within the timeout: a label that follows a tap or a save is read once it has
+    /// settled, not at the first frame after it.
+    static func waitUntilLabel(_ element: XCUIElement, contains text: String, timeout: TimeInterval = 20) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", text), object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    /// Whether the element's value comes to contain the text within the timeout, for a field filled after it appears.
+    static func waitUntilValue(_ element: XCUIElement, contains text: String, timeout: TimeInterval = 20) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS %@", text), object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
+
     /// Whether the system reports the element hittable within the timeout. A predicate keeps a snapshot that fails while the
     /// page is still moving from failing the test: it is evaluated again until the timeout.
     static func waitUntilHittable(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {

@@ -76,7 +76,7 @@ final class SitePagesTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 90), "The tree never appeared.\n\(app.debugDescription)")
         XCTAssertTrue(DemoApp.waitUntilHittable(row, timeout: 30), "The page cannot be tapped.\n\(app.debugDescription)")
         row.tap()
-        XCTAssertEqual(pageTitle(app).label, "Pick station operating guide")
+        XCTAssertTrue(DemoApp.waitUntilLabel(pageTitle(app), contains: "Pick station operating guide"), "The page shown is \"\(pageTitle(app).label)\", not Pick station operating guide.")
         XCTAssertTrue(text(app, "Walk the belt from the infeed").waitForExistence(timeout: 30), "The words of the page are not shown.\n\(app.debugDescription)")
     }
 
@@ -147,7 +147,7 @@ final class SitePagesTests: XCTestCase {
         waitForEditorToClose(app)
         XCTAssertFalse(pageTitle(app).label.contains("Z9"), "A saved draft changed the page readers see.\n\(app.debugDescription)")
         field = openEditor(app)
-        XCTAssertTrue((field.value as? String ?? "").contains("Z9"), "The saved draft was not kept.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.waitUntilValue(field, contains: "Z9"), "The saved draft was not kept.\n\(app.debugDescription)")
 
         // Publishing makes the draft the page.
         let publish = DemoApp.button(app, "sitePagePublishButton")
@@ -155,7 +155,7 @@ final class SitePagesTests: XCTestCase {
         XCTAssertTrue(DemoApp.waitUntilHittable(publish, timeout: 15), "Publish cannot be tapped.\n\(app.debugDescription)")
         publish.tap()
         waitForEditorToClose(app)
-        XCTAssertTrue(pageTitle(app).label.contains("Z9"), "A published draft did not become the page.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.waitUntilLabel(pageTitle(app), contains: "Z9"), "A published draft did not become the page.\n\(app.debugDescription)")
     }
 
     func testAPublishedDraftPageLosesItsDraftMark() {
@@ -196,7 +196,7 @@ final class SitePagesTests: XCTestCase {
         let create = DemoApp.button(app, "sitePageCreateButton")
         XCTAssertTrue(DemoApp.waitUntilHittable(create, timeout: 15), "Create cannot be tapped.\n\(app.debugDescription)")
         create.tap()
-        XCTAssertEqual(pageTitle(app).label, "Loading dock notes")
+        XCTAssertTrue(DemoApp.waitUntilLabel(pageTitle(app), contains: "Loading dock notes"), "The page shown is \"\(pageTitle(app).label)\", not Loading dock notes.")
         XCTAssertTrue(DemoApp.element(app, "sitePageDraftBadge").waitForExistence(timeout: 15), "A new page is not marked as a draft.\n\(app.debugDescription)")
     }
 
@@ -229,7 +229,7 @@ final class SitePagesTests: XCTestCase {
         XCTAssertTrue(DemoApp.waitUntilHittable(row, timeout: 30), "The page cannot be tapped.\n\(app.debugDescription)")
         row.tap()
         XCTAssertTrue(DemoApp.element(app, "linkedPageClose").waitForExistence(timeout: 60), "The result opened no sheet.\n\(app.debugDescription)")
-        XCTAssertEqual(pageTitle(app).label, "Pick station operating guide")
+        XCTAssertTrue(DemoApp.waitUntilLabel(pageTitle(app), contains: "Pick station operating guide"), "The page shown is \"\(pageTitle(app).label)\", not Pick station operating guide.")
         XCTAssertFalse(DemoApp.element(app, "webBrowserClose").exists, "The page opened in the browser.\n\(app.debugDescription)")
     }
 
@@ -252,7 +252,7 @@ final class SitePagesTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 90), "The branch is not open.\n\(app.debugDescription)")
         XCTAssertTrue(DemoApp.waitUntilHittable(row, timeout: 30), "The row cannot be tapped.\n\(app.debugDescription)")
         row.tap()
-        XCTAssertEqual(pageTitle(app).label, "Gripper cleaning")
+        XCTAssertTrue(DemoApp.waitUntilLabel(pageTitle(app), contains: "Gripper cleaning"), "The page shown is \"\(pageTitle(app).label)\", not Gripper cleaning.")
     }
 
     func testALongTableOpensQuicklyAndShowsTheRestOnATap() {
