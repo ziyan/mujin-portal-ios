@@ -3,7 +3,7 @@ name: iOS
 # Nobody working on the app needs a Mac: the PortalKit tests run on Linux, and
 # the app is built on GitHub's macOS runners, which are free for a public
 # repository. TestFlight is a manual run (workflow_dispatch) of the TestFlight job,
-# and every build it uploads goes on to the public group.
+# and every build it uploads goes on to the public group once the UI tests pass.
 on:
   push:
     branches: [main]
@@ -876,11 +876,13 @@ jobs:
   # by hand: Actions, iOS, Run workflow, upload on. Signing is automatic: the
   # development certificate kept in the secrets signs the archive, and the App
   # Store Connect key, with the Admin role, lets Xcode fetch the profiles and
-  # the distribution certificate it needs.
+  # the distribution certificate it needs. It does not wait for the UI tests,
+  # which take over an hour: the build reaches internal testers early, and the
+  # public group only once those tests pass.
   testflight:
     name: TestFlight
     if: github.event_name == 'workflow_dispatch' && inputs.upload
-    needs: [kit, app, ui-tests]
+    needs: [kit, app]
     runs-on: macos-26
     env:
       KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -956,11 +958,12 @@ jobs:
           security delete-keychain "${RUNNER_TEMP}/signing.keychain-db" 2>/dev/null || true
           rm -rf "${RUNNER_TEMP}/keys" Configuration/Identity.xcconfig
 
-  # Every build that reaches TestFlight goes to the public group too. It waits on
-  # Apple's processing, so it runs on a cheap runner and not on the Mac.
+  # Every build that reaches TestFlight goes to the public group too, once the UI
+  # tests have passed. It waits on Apple's processing, so it runs on a cheap
+  # runner and not on the Mac.
   public-testflight:
     name: Public TestFlight
-    needs: testflight
+    needs: [testflight, ui-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: write
