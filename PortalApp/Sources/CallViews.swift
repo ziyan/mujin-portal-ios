@@ -71,7 +71,7 @@ struct RecordingMark: View {
     var body: some View {
         HStack(spacing: 4) {
             Circle().fill(Color.statusError).frame(width: 7, height: 7)
-            Text("Recording").font(.caption.weight(.semibold)).foregroundStyle(Color.statusError)
+            Text("Recording").font(.caption.weight(.semibold)).foregroundStyle(Color.statusError).lineLimit(1).fixedSize()
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("This call is being recorded and transcribed."))

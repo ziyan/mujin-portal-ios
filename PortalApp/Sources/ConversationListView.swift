@@ -44,6 +44,9 @@ struct ConversationListView: View {
                     .accessibilityIdentifier("newConversationButton")
                 }
             }
+            // The floating tab bar has the one sidebar button; the split view's own beside it would be a second. The list
+            // still slides in from the leading edge.
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             if let shownConversationId = selection.detailId {
                 NavigationStack {

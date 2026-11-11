@@ -189,7 +189,8 @@ struct ChatView: View {
         case .loaded:
             messages(model)
                 .safeAreaInset(edge: .top, spacing: 0) { if !isThread { callBanner(model) } }
-                .safeAreaInset(edge: .top, spacing: 0) { if stagedCall(model) != nil { Color.clear.frame(height: callStageHeight) } }
+                // The messages start below the call's stage, and do not scroll under it.
+                .padding(.top, stagedCall(model) != nil ? callStageHeight : 0)
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer(model) }
         }
     }

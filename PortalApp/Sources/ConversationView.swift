@@ -264,7 +264,8 @@ struct ConversationView: View {
             }
         case .loaded:
             transcript(model)
-                .safeAreaInset(edge: .top, spacing: 0) { if isCallStaged { Color.clear.frame(height: callStageHeight) } }
+                // The messages start below the call's stage, and do not scroll under it.
+                .padding(.top, isCallStaged ? callStageHeight : 0)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     ComposerBar(model: model, voice: voice, dictation: dictation, drafts: drafts, draft: $draft)
                 }

@@ -38,12 +38,12 @@ struct CallStage<Avatar: View>: View {
             let barHeight = max(contentTop - barTop, Self.controlSize)
             let isWide = horizontalSizeClass == .regular
             // About a third of the chat's column on a phone, less on a wide screen, and never so large it hides the conversation.
-            let avatarSize = min(proxy.size.width * (isWide ? 0.22 : 0.3), isWide ? 180 : 130)
+            let avatarSize = min(proxy.size.width * (isWide ? 0.2 : 0.26), isWide ? 160 : 110)
             // On a phone the picture takes the middle of the bar, where the title was. On a wide screen the floating tab bar may share
             // the bar's row, so the picture starts below it, with room for the ring it wears while someone speaks.
             let avatarTop = isWide ? contentTop + 32 : barTop + (barHeight - Self.controlSize) / 2
-            // The bottom of the name capsule: the picture with its ring, then half the capsule hanging below it.
-            let stageBottom = avatarTop + avatarSize + 8 + Self.nameCapsuleOverhang
+            // The bottom of the name capsule as last measured, else an estimate until it is.
+            let stageBottom = capsuleBottom ?? avatarTop + avatarSize + 8 + Self.nameCapsuleOverhang
             ZStack(alignment: .top) {
                 // Messages scrolled up under the stage fade out behind it rather than showing through around the picture.
                 LinearGradient(
@@ -61,13 +61,17 @@ struct CallStage<Avatar: View>: View {
                     .padding(.trailing, 16)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .onChange(of: max(stageBottom - contentTop, 0), initial: true) { _, covered in onCoveredHeight?(covered) }
+            .coordinateSpace(.named(Self.space))
+            .onChange(of: max(stageBottom + 8 - contentTop, 0), initial: true) { _, covered in onCoveredHeight?(covered) }
         }
         .ignoresSafeArea(.container, edges: .top)
     }
 
     /// How far the name capsule hangs below the picture: half of two short lines of text and their padding.
     private static var nameCapsuleOverhang: CGFloat { 28 }
+    private static let space = "callStage"
+    /// Where the name capsule ends, measured: its height follows the text size and the line under the name.
+    @State private var capsuleBottom: CGFloat?
 
     private func stage(size: CGFloat) -> some View {
         picture(size: size)
@@ -109,10 +113,12 @@ struct CallStage<Avatar: View>: View {
         VStack(spacing: 0) {
             Text(name).font(.subheadline.weight(.semibold)).lineLimit(1)
             if !status.isEmpty || isRecording {
+                // One line: the capsule grows wider rather than breaking "Recording".
                 HStack(spacing: 6) {
                     if !status.isEmpty { Text(status).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1) }
                     if isRecording { RecordingMark() }
                 }
+                .fixedSize()
             }
         }
         // The capsule keeps to two short lines over the picture: its text stops growing at the largest ordinary size.
@@ -121,6 +127,7 @@ struct CallStage<Avatar: View>: View {
         .padding(.vertical, 6)
         .glassEffect(.regular, in: .capsule)
         .accessibilityElement(children: .combine)
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).maxY } action: { capsuleBottom = $0 }
     }
 
     private var controls: some View {

@@ -797,11 +797,23 @@ jobs:
             xcrun simctl ui "${DEVICE}" content_size large
             shoot chat-list-hidden chat:chatconv01 "" list-hidden
             shoot answer-list-hidden conversation:conversation01 "" list-hidden
-            shoot chat-landscape chat:chatconv01 "" landscape
-            shoot answer-landscape conversation:conversation01 "" landscape
-            shoot thread-chat-open-landscape thread-chat-open "" landscape
             shoot chat-in-call-list-hidden chat-in-call "" list-hidden
             shoot voice-list-hidden voice "" list-hidden
+            # The app cannot turn a resizable iPad window itself, so the Simulator is turned, from its Device menu's
+            # Rotate Right shortcut. The last shots, since the simulator stays turned.
+            open -a Simulator --args -CurrentDeviceUDID "${DEVICE}" || true
+            sleep 20
+            if osascript -e 'tell application "Simulator" to activate' -e 'delay 2' \
+                -e 'tell application "System Events" to key code 124 using {command down}'; then
+              sleep 5
+              shoot chat-landscape chat:chatconv01 "" landscape
+              shoot answer-landscape conversation:conversation01 "" landscape
+              shoot thread-chat-open-landscape thread-chat-open "" landscape
+              shoot chat-in-call-landscape chat-in-call "" landscape
+              shoot voice-landscape voice "" landscape
+            else
+              echo "::warning::The simulator could not be turned; no landscape shots."
+            fi
           fi
 
       - name: Keep the screenshots
