@@ -21,8 +21,8 @@ struct CallStage<Avatar: View>: View {
     let leaveSymbol: String
     let leaveLabel: LocalizedStringKey
     let onLeave: () -> Void
-    /// Told how far below the top of the conversation's content the stage reaches, so the messages can start below it.
-    var onCoveredHeight: ((CGFloat) -> Void)?
+    /// Told where the stage ends on screen (in the global coordinate space), so the messages can start below it.
+    var onStageBottom: ((CGFloat) -> Void)?
     /// A tap on the picture, such as to bring back the full call screen; nil leaves the picture still.
     var onAvatarTap: (() -> Void)?
     var avatarTapLabel: LocalizedStringKey = ""
@@ -44,16 +44,22 @@ struct CallStage<Avatar: View>: View {
             let avatarTop = isWide ? contentTop + 32 : barTop + (barHeight - Self.controlSize) / 2
             // The bottom of the name capsule as last measured, else an estimate until it is.
             let stageBottom = capsuleBottom ?? avatarTop + avatarSize + 8 + Self.nameCapsuleOverhang
+            // The capsule may be as wide as the room between the back button and the call's controls.
+            let nameWidth = max(proxy.size.width - 2 * (16 + Self.controlSize + 12), avatarSize)
             ZStack(alignment: .top) {
-                // Messages scrolled up under the stage fade out behind it rather than showing through around the picture.
+                // Messages scrolled up under the stage fade into the chat's own background behind it, with no edge.
                 LinearGradient(
-                    stops: [.init(color: Color.portalPage, location: 0), .init(color: Color.portalPage, location: 0.8), .init(color: Color.portalPage.opacity(0), location: 1)],
+                    stops: [
+                        .init(color: Color.portalPage, location: 0),
+                        .init(color: Color.portalPage, location: stageBottom / (stageBottom + Self.fadeHeight)),
+                        .init(color: Color.portalPage.opacity(0), location: 1),
+                    ],
                     startPoint: .top, endPoint: .bottom
                 )
-                .frame(height: stageBottom + 12)
+                .frame(height: stageBottom + Self.fadeHeight)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-                stage(size: avatarSize)
+                stage(size: avatarSize, nameWidth: nameWidth)
                     .padding(.top, avatarTop)
                     .frame(maxWidth: .infinity)
                 controls
@@ -61,22 +67,24 @@ struct CallStage<Avatar: View>: View {
                     .padding(.trailing, 16)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .coordinateSpace(.named(Self.space))
-            .onChange(of: max(stageBottom + 8 - contentTop, 0), initial: true) { _, covered in onCoveredHeight?(covered) }
+            .onChange(of: stageBottom, initial: true) { _, bottom in onStageBottom?(bottom + 8) }
         }
         .ignoresSafeArea(.container, edges: .top)
     }
 
     /// How far the name capsule hangs below the picture: half of two short lines of text and their padding.
     private static var nameCapsuleOverhang: CGFloat { 28 }
-    private static var space: String { "callStage" }
+    /// How far below the name capsule the fade into the chat's background runs.
+    private static var fadeHeight: CGFloat { 36 }
     /// Where the name capsule ends, measured: its height follows the text size and the line under the name.
     @State private var capsuleBottom: CGFloat?
 
-    private func stage(size: CGFloat) -> some View {
+    private func stage(size: CGFloat, nameWidth: CGFloat) -> some View {
         picture(size: size)
             .overlay(alignment: .bottom) {
+                // Offered the room beside the picture, not only the picture's own width, so a name shows whole when it fits.
                 nameCapsule
+                    .frame(width: nameWidth)
                     .alignmentGuide(.bottom) { dimensions in dimensions[VerticalAlignment.center] }
             }
             // The name capsule hangs half below the picture.
@@ -127,7 +135,7 @@ struct CallStage<Avatar: View>: View {
         .padding(.vertical, 6)
         .glassEffect(.regular, in: .capsule)
         .accessibilityElement(children: .combine)
-        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).maxY } action: { capsuleBottom = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { capsuleBottom = $0 }
     }
 
     private var controls: some View {

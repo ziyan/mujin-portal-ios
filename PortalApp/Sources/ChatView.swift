@@ -38,13 +38,15 @@ struct ChatView: View {
 
     private var callCenter: CallCenter { appModel.callCenter }
     private var isThread: Bool { threadRootMessageId != nil }
-    /// How far the call's stage reaches into the chat, so the messages start below it.
-    @State private var callStageHeight: CGFloat = 0
+    /// Where the call's stage ends on screen, and where the chat's content begins, so the messages start below the stage.
+    @State private var callStageBottom: CGFloat = 0
+    @State private var contentTop: CGFloat = 0
 
     var body: some View {
         Group {
             if let model {
                 content(model)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { contentTop = $0 }
                     .overlay { if let call = stagedCall(model) { callStage(model, call) } }
             } else {
                 ProgressView()
@@ -189,8 +191,8 @@ struct ChatView: View {
         case .loaded:
             messages(model)
                 .safeAreaInset(edge: .top, spacing: 0) { if !isThread { callBanner(model) } }
-                // The messages start below the call's stage, and do not scroll under it.
-                .padding(.top, stagedCall(model) != nil ? callStageHeight : 0)
+                // At rest the messages start below the call's stage; scrolled up, they fade out behind it.
+                .contentMargins(.top, stagedCall(model) != nil ? max(callStageBottom - contentTop, 0) : 0, for: .scrollContent)
                 .safeAreaInset(edge: .bottom, spacing: 0) { composer(model) }
         }
     }
@@ -369,7 +371,7 @@ struct ChatView: View {
             isSpeaking: focus?.isSpeaking ?? others.contains(where: { $0.isSpeaking }), isMuted: call.isMuted,
             onMute: { callCenter.setMuted(!call.isMuted) },
             leaveSymbol: "phone.down.fill", leaveLabel: "Leave call", onLeave: { callCenter.hangUp() },
-            onCoveredHeight: { callStageHeight = $0 }, onAvatarTap: { callCenter.show() }, avatarTapLabel: "Return to the call"
+            onStageBottom: { callStageBottom = $0 }, onAvatarTap: { callCenter.show() }, avatarTapLabel: "Return to the call"
         ) { size in
             if let focus {
                 UserAvatar(userId: focus.userId, name: focus.name, size: size)

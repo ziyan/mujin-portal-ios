@@ -39,6 +39,8 @@ struct WaveformView: View {
 /// VoiceMessageBubble is a voice message in a chat: play or pause, the waveform that also seeks, the time left, and a control
 /// that shows the words the server heard in it.
 struct VoiceMessageBubble: View {
+    /// The play button's circle grows with the text, and its symbol is sized from the circle so it always sits inside it.
+    @ScaledMetric(relativeTo: .body) private var playDiameter: CGFloat = 36
     let messageId: String
     let voice: VoiceMessage
     let isMine: Bool
@@ -119,9 +121,9 @@ struct VoiceMessageBubble: View {
                 player.toggle(messageId: messageId, attachmentId: attachmentId, duration: duration, connection: connection, isDemo: isDemo)
             } label: {
                 Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                    .font(.body.weight(.semibold))
+                    .font(.system(size: playDiameter * 0.42, weight: .semibold))
                     .foregroundStyle(Color.onAccent)
-                    .frame(width: 36, height: 36)
+                    .frame(width: playDiameter, height: playDiameter)
                     .background(Color.accentColor, in: .circle)
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(.rect)

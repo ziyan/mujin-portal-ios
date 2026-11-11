@@ -35,8 +35,9 @@ struct ConversationView: View {
     @State private var isTopInView = false
 
     private var isThread: Bool { threadRootMessageId != nil }
-    /// How far the call's stage reaches into the conversation, so the messages start below it.
-    @State private var callStageHeight: CGFloat = 0
+    /// Where the call's stage ends on screen, and where the conversation's content begins, so the messages start below the stage.
+    @State private var callStageBottom: CGFloat = 0
+    @State private var contentTop: CGFloat = 0
 
     /// Whether a call with the assistant is going or being set up: the conversation shows it on its stage.
     private var isCallStaged: Bool {
@@ -61,7 +62,7 @@ struct ConversationView: View {
             isSpeaking: voice.phase == .speaking, isMuted: voice.isMuted,
             onMute: voice.isActive ? { voice.toggleMute() } : nil,
             leaveSymbol: voice.isActive ? "phone.down.fill" : "xmark", leaveLabel: voice.isActive ? "End the call" : "Close",
-            onLeave: { voice.end() }, onCoveredHeight: { callStageHeight = $0 },
+            onLeave: { voice.end() }, onStageBottom: { callStageBottom = $0 },
             onAvatarTap: voice.canCutIn ? { voice.cutAnswer() } : nil, avatarTapLabel: "Stop the answer"
         ) { size in
             AssistantCallAvatar(size: size)
@@ -88,6 +89,7 @@ struct ConversationView: View {
         Group {
             if let model {
                 content(model)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { contentTop = $0 }
                     .overlay { if let voice, isCallStaged { assistantCallStage(voice, isThinking: model.isRunning) } }
             } else {
                 ProgressView()
@@ -264,8 +266,8 @@ struct ConversationView: View {
             }
         case .loaded:
             transcript(model)
-                // The messages start below the call's stage, and do not scroll under it.
-                .padding(.top, isCallStaged ? callStageHeight : 0)
+                // At rest the messages start below the call's stage; scrolled up, they fade out behind it.
+                .contentMargins(.top, isCallStaged ? max(callStageBottom - contentTop, 0) : 0, for: .scrollContent)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     ComposerBar(model: model, voice: voice, dictation: dictation, drafts: drafts, draft: $draft)
                 }
