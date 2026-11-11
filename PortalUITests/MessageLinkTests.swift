@@ -74,8 +74,13 @@ final class MessageLinkTests: XCTestCase {
     private func checkWebLink(screen: String, text: String, address: String, holdSeconds: Double? = nil, file: StaticString = #filePath, line: UInt = #line) {
         let app = DemoApp.launch(screen: screen)
         let link = messageText(app, text)
-        reveal(link, in: app, file: file, line: line)
-        if let holdSeconds { start(of: link).press(forDuration: holdSeconds) } else { start(of: link).tap() }
+        // A tap that lands while the list is still settling opens nothing, so it is made again, from a still link, until a page opens.
+        for _ in 0..<3 {
+            reveal(link, in: app, file: file, line: line)
+            _ = DemoApp.waitUntilStill(link, timeout: 10)
+            if let holdSeconds { start(of: link).press(forDuration: holdSeconds) } else { start(of: link).tap() }
+            if isShown(app, "safariPageAddress") { break }
+        }
         XCTAssertTrue(isShown(app, "safariPageAddress"), "Tapping the link \"\(text)\" opened nothing. The link is at \(link.frame) in a window of \(app.windows.firstMatch.frame).\n\(app.debugDescription)", file: file, line: line)
         XCTAssertEqual(DemoApp.element(app, "safariPageAddress").label, address, file: file, line: line)
         DemoApp.element(app, "safariPageDone").tap()

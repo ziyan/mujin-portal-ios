@@ -181,11 +181,13 @@ final class SpeechTests: XCTestCase {
 
     func testTheActionTurnsIntoStopReadingWhileTheMessageIsRead() {
         let app = DemoApp.launch(screen: "read-aloud-conversation-playing")
-        XCTAssertTrue(DemoApp.element(app, "readAloudBar").waitForExistence(timeout: 90), "The message is not shown as being read.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.waitUntilExists(DemoApp.element(app, "readAloudBar"), timeout: 90), "The message is not shown as being read.\n\(app.debugDescription)")
         // The conversation opens at its end; the held message is found by its words, scrolling to it.
         let action = hold(message(app, "The checklist is at"), in: app)
         XCTAssertTrue(action.waitForExistence(timeout: 30), "The actions of the message being read have no Read aloud row.\n\(app.debugDescription)")
-        XCTAssertTrue(action.label.contains("Stop reading"), "The row does not offer to stop: \"\(action.label)\".")
+        // The row's words follow the reading as the menu opens; read them once they have settled rather than at the first frame.
+        let offersStop = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "Stop reading"), object: action)
+        XCTAssertEqual(XCTWaiter().wait(for: [offersStop], timeout: 10), .completed, "The row does not offer to stop: \"\(action.label)\".")
         action.tap()
         XCTAssertTrue(waitUntilGone(DemoApp.element(app, "readAloudBar")), "Stop reading did not end the reading.\n\(app.debugDescription)")
     }
@@ -193,7 +195,8 @@ final class SpeechTests: XCTestCase {
     func testAMessageOfAThreadCanBeReadAloud() {
         let app = DemoApp.launch(screen: "dictate-thread-chat")
         let held = message(app, Self.threadMessage)
-        XCTAssertTrue(held.waitForExistence(timeout: 90), "The thread did not open.\n\(app.debugDescription)")
+        // The thread opens as the app starts; a first query that meets an app too busy to answer is asked again.
+        XCTAssertTrue(DemoApp.waitUntilExists(held, timeout: 90), "The thread did not open.\n\(app.debugDescription)")
         let action = hold(held, in: app)
         XCTAssertTrue(action.waitForExistence(timeout: 30), "The actions of a message in a thread have no Read aloud.\n\(app.debugDescription)")
         action.tap()
