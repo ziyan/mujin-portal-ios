@@ -349,8 +349,14 @@ struct ConversationView: View {
             .onChange(of: model.transcript.entries.last) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
-            // The call's stage taking or giving back room at the top keeps the newest message in view above the composer.
-            .onChange(of: callStageBottom) { _, _ in proxy.scrollTo("bottom", anchor: .bottom) }
+            // The call's stage taking or giving back room at the top keeps the newest message in view above the composer. The
+            // scroll waits for the layout that applies the new margin: made at once, it scrolls to where the end was before.
+            .onChange(of: callStageBottom) { _, _ in
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(100))
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
             .overlay(alignment: .top) {
                 if model.isFeedLost {
                     Label("Reconnecting", systemImage: "arrow.triangle.2.circlepath")
