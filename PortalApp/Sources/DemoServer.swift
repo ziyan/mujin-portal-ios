@@ -298,9 +298,6 @@ final class DemoState: @unchecked Sendable {
                 said("l10", "assistant", "Mujin AI", "[Ticket by path](/ticket/1)", 310, role: "assistant"),
             ])
         }
-        if ChatHistoryDemo.owns(DemoOptions.screen) {
-            data.messages["chatconv01"] = ChatHistoryDemo.messages(stamp: stamp) + (data.messages["chatconv01"] ?? [])
-        }
         data.archived = [
             [
                 "id": "conversation-archived01", "conversationKind": "assistant", "title": "Old dock door question", "summary": NSNull(),
@@ -528,10 +525,6 @@ struct DemoTransport: HTTPTransport {
             ["ListControllerTelemetrySummaries", "ListCells", "ListSiteVirtualControllers", "ListSiteOrchestrators"].contains(operation)
         {
             try await Task.sleep(nanoseconds: 3_600_000_000_000)
-        }
-        // An earlier page of the long history takes a moment, so the list can be looked at before and after it goes in.
-        if operation == "ListConversationMessages", ChatHistoryDemo.owns(DemoOptions.screen), (variables["beforeMessageId"] as? String)?.isEmpty == false {
-            try await Task.sleep(for: .seconds(ChatHistoryDemo.earlierPageDelaySeconds))
         }
         // A real server takes a moment, and a screen can open before the list it belongs to has arrived.
         if operation == "ListConversations", let delay = ProcessInfo.processInfo.environment["PORTAL_DEMO_LIST_DELAY_SECONDS"].flatMap(UInt64.init) {
@@ -784,8 +777,6 @@ struct DemoTransport: HTTPTransport {
                             ["urlHash": "hash03", "linkKind": "external", "url": "https://example.test/docs/suction", "title": "Suction cup checklist", "description": "Steps to check hoses, seals and pressure before a shift.", "siteName": "example.test"],
                             ["urlHash": "hash04", "linkKind": "ticket", "resourceId": "ticket01", "title": "Gripper drops boxes at pick station 3", "description": "Ticket #1", "statusText": "open", "path": "/ticket/1"],
                         ]]
-                    case _ where ChatHistoryDemo.preview(messageId: id) != nil:
-                        return ChatHistoryDemo.preview(messageId: id)
                     case "c3":
                         return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash02", "linkKind": "external", "url": "https://example.test/docs/suction", "title": "Suction cup checklist", "description": "Steps to check hoses, seals and pressure before a shift.", "siteName": "example.test"]]]
                     default: return nil
@@ -805,11 +796,7 @@ struct DemoTransport: HTTPTransport {
         case "SetChatTyping", "EditChatMessage", "DeleteChatMessage", "RemoveMessageLinkPreviews":
             return [operation: NSNull()]
         case "ListConversationMessages":
-            let rows = ThreadDemo.messages(state.withData { $0.messages[conversationId] ?? [] }, variables: variables)
-            if ChatHistoryDemo.owns(DemoOptions.screen), conversationId == ChatHistoryDemo.conversationId {
-                return ["ListConversationMessages": ChatHistoryDemo.page(rows, variables: variables)]
-            }
-            return ["ListConversationMessages": rows]
+            return ["ListConversationMessages": ThreadDemo.messages(state.withData { $0.messages[conversationId] ?? [] }, variables: variables)]
         case "ListSites":
             let all: [[String: Any]] = [
                 ["id": "site01", "name": "site01", "organizationId": "organization01", "isArchived": false, "viewerCapabilities": ["virtual_controller:create"]],
@@ -1499,7 +1486,6 @@ final class DemoSocket: FeedSocket, @unchecked Sendable {
         case .subscribe(_, _, let variables):
             inner.withValue { $0.conversationId = variables["conversationId"]?.stringValue ?? "" }
             state.withData { $0.sockets.append(self) }
-            if ChatHistoryDemo.isLive(DemoOptions.screen), conversationId == ChatHistoryDemo.conversationId { ChatHistoryDemo.playLive(state: state) }
             // The title-event screen: a conversation is open when the server renames it, and the title changes at once.
             if DemoOptions.screen == "title-event", conversationId == "conversation01" {
                 let demoState = state
