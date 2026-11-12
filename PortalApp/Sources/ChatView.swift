@@ -515,8 +515,6 @@ struct ChatView: View {
                         .padding(.horizontal, 20)
                 }
                 if model.editTarget == nil {
-                    AttachmentStrip(drafts: drafts)
-                        .padding(.horizontal, 16)
                     if let attachError = drafts.errorText {
                         Text(attachError).font(.footnote).foregroundStyle(Color.statusError).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
                     }
@@ -543,6 +541,9 @@ struct ChatView: View {
                         model.replyTarget = nil
                         return true
                     },
+                    // A voice message is recorded instead of typed.
+                    menuItems: canUseVoice(model)
+                        ? [ComposerMenuItem(title: "Voice message", systemImage: "mic.fill", identifier: "voiceModeButton") { isVoiceModePreferred = true }] : [],
                     onSend: {
                         // What is still being said belongs to the message that was sent, not to the next one.
                         dictation.abort()
@@ -550,20 +551,7 @@ struct ChatView: View {
                         draft = ""
                         Task { if await !model.send(text, attachments: drafts) { draft = text } }
                     }
-                ) {
-                    if canUseVoice(model) {
-                        Button { isVoiceModePreferred = true } label: {
-                            Image(systemName: "mic.fill")
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 36, height: 36)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(.rect)
-                        }
-                        .accessibilityLabel("Record a voice message")
-                        .accessibilityIdentifier("voiceModeButton")
-                    }
-                }
+                )
                 }
                 }
                 .onChange(of: draft) { _, text in
