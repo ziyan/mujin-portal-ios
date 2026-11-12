@@ -29,6 +29,7 @@ struct ConversationView: View {
     @State private var fullArtifact: ArtifactReference?
     @AppStorage(AssistantDisplay.showWorkingNotesKey) private var showWorkingNotes = false
     @State private var isShowingArtifacts = false
+    @State private var isShowingBackgroundCommands = false
     @State private var drafts = AttachmentDrafts()
     @State private var isOnScreen = false
     /// Whether the top of the thread is in view, where earlier messages load.
@@ -105,6 +106,19 @@ struct ConversationView: View {
             requestedThreadRootMessageId.wrappedValue = nil
         }
         .toolbar {
+            // The header shows a terminal while this view, the main history or this thread, has a command running, with how many.
+            if let count = model?.runningBackgroundCommandCount, count > 0 {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { isShowingBackgroundCommands = true } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "apple.terminal")
+                            Text(verbatim: "\(count)").font(.subheadline.monospacedDigit())
+                        }
+                    }
+                    .accessibilityLabel(Text("Background commands, \(count) running"))
+                    .accessibilityIdentifier("backgroundCommandsButton")
+                }
+            }
             if !isThread, !isCallStaged {
             // The call sits beside the conversation's menu, in the same capsule.
             if voice != nil {
@@ -147,6 +161,9 @@ struct ConversationView: View {
             Button("Cancel", role: .cancel) {}
         }
         .attachmentPickers(drafts)
+        .sheet(isPresented: $isShowingBackgroundCommands) {
+            if let model { BackgroundCommandsSheet(model: model, currentUserId: account.userId) }
+        }
         .sheet(isPresented: $isShowingArtifacts) {
             ArtifactListSheet(conversationId: conversationId, connection: appModel.connection(for: account)) { artifact in
                 isShowingArtifacts = false
@@ -176,6 +193,7 @@ struct ConversationView: View {
                 offersMessageThreads: session.capabilities.offersMessageThreads,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             conversationModel.onTitleChanged = { onTitleChanged?($0) }
+            conversationModel.offersBackgroundCommands = session.capabilities.offersBackgroundCommands
             model = conversationModel
             takeReference()
             voice?.end()
