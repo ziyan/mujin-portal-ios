@@ -138,6 +138,7 @@ struct ChatView: View {
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             chatModel.offersStructuredMentions = session.capabilities.offersStructuredMentions
             chatModel.offersInternalNotes = session.capabilities.offersInternalNotes
+            chatModel.offersChatReferences = session.capabilities.offersChatReferences
             chatModel.onRead = { [session] id in session.noteChatRead(conversationId: id) }
             model = chatModel
             chatModel.start()
@@ -502,6 +503,7 @@ struct ChatView: View {
                     .padding(.horizontal, 12)
                 }
                 mentionList(model)
+                referenceList(model)
                 if let editing = model.editTarget {
                     banner(icon: "pencil", title: String(localized: "Editing your message"), detail: editing.text) {
                         model.editTarget = nil
@@ -557,6 +559,7 @@ struct ChatView: View {
                 }
                 .onChange(of: draft) { _, text in
                     if !text.isEmpty && model.editTarget == nil { model.noteTyping() }
+                    model.searchReferences(for: text)
                 }
                 // The voice message bar takes the composer's place, with no microphone button to stop dictating.
                 .onChange(of: isVoiceModePreferred) { _, _ in dictation.abort() }
@@ -618,6 +621,37 @@ struct ChatView: View {
                 ) { model.isInternalNoteChosen.toggle() })
         }
         return items
+    }
+
+    /// The list that opens above the composer when the draft ends with a #: the tickets, controllers, virtual controllers, sites and
+    /// cells the person can see, the chat's own suggestions for a bare #. A pick puts a ticket in as its number and the rest as links.
+    @ViewBuilder
+    private func referenceList(_ model: ChatModel) -> some View {
+        if !model.referenceCandidates.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(model.referenceCandidates) { candidate in
+                    Button {
+                        draft = ChatReferences.inserting(candidate, into: draft)
+                        model.clearReferenceCandidates()
+                    } label: {
+                        HStack(spacing: 10) {
+                            ReferenceChip(reference: ChatReference(referenceKind: candidate.referenceKind, writtenText: nil, isAccessible: true, label: candidate.label))
+                            if let detail = candidate.detailText, !detail.isEmpty {
+                                Text(detail).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("referenceCandidate")
+                }
+            }
+            .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.horizontal, 12)
+        }
     }
 
     /// The list that opens above the composer when the draft ends with an @:
@@ -748,7 +782,13 @@ private struct MessageRow: View {
                 }
                 if showsQuote { quote }
                 tappableBubble
-                ForEach(model.previews[message.id] ?? []) { card in
+                if !openableReferences.isEmpty {
+                    ReferenceChipRow(references: openableReferences) { path in
+                        if let link = PortalLink(path: path) { appModel.openedLink = OpenedLink(link: link) }
+                    }
+                }
+                // A link already shown as a reference chip gets no card of its own.
+                ForEach((model.previews[message.id] ?? []).filter { card in !openableReferences.contains { $0.path == card.path && card.path != nil } }) { card in
                     LinkPreviewCardView(card: card, connection: model.connection)
                         .frame(maxWidth: 320)
                 }
@@ -826,6 +866,11 @@ private struct MessageRow: View {
                 Text("A message from before you joined").font(.caption).italic().foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// The tickets, controllers, virtual controllers, sites and cells the message names that the reader may open, once each.
+    private var openableReferences: [ChatReference] {
+        message.isDeleted ? [] : message.references.filter(\.canOpen)
     }
 
     private var bubbleFill: AnyShapeStyle {

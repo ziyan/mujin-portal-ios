@@ -163,3 +163,20 @@ extension Connection {
         return try await execute(Documents.searchChatReferences, variables: variables, as: Answer.self).SearchChatReferences ?? []
     }
 }
+
+extension ChatReferences {
+    /// What follows a # at the end of the draft, at the start of a word: "" for a bare #, nil when the draft does not end in one.
+    public static func pickerQuery(in draft: String) -> String? {
+        guard let hash = draft.lastIndex(of: "#") else { return nil }
+        if hash > draft.startIndex, !draft[draft.index(before: hash)].isWhitespace { return nil }
+        let query = draft[draft.index(after: hash)...]
+        guard !query.contains(where: \.isWhitespace) else { return nil }
+        return String(query)
+    }
+
+    /// The draft with the trailing #query replaced by what the picker puts in, and a space after it.
+    public static func inserting(_ candidate: ChatReferenceCandidate, into draft: String) -> String {
+        guard let hash = draft.lastIndex(of: "#") else { return draft + candidate.insertedText + " " }
+        return String(draft[..<hash]) + candidate.insertedText + " "
+    }
+}

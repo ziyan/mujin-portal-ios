@@ -41,6 +41,15 @@ import Testing
                 == "[Cell 1](/site/site1/cell/cell1)")
     }
 
+    @Test func thePickerOpensOnAHashThatStartsAWord() {
+        #expect(ChatReferences.pickerQuery(in: "Look at #") == "")
+        #expect(ChatReferences.pickerQuery(in: "#12") == "12")
+        #expect(ChatReferences.pickerQuery(in: "Look at #12 now") == nil)
+        #expect(ChatReferences.pickerQuery(in: "a#12") == nil)
+        let candidate = ChatReferenceCandidate(referenceKind: "ticket", targetId: "t1", path: "/ticket/123", label: "Gripper drops boxes")
+        #expect(ChatReferences.inserting(candidate, into: "Look at #12") == "Look at #123 ")
+    }
+
     @Test func anEmptyQueryAsksForTheChatsSuggestions() async throws {
         let (connection, transport) = scriptedConnection { _, _ in ["SearchChatReferences": []] }
         _ = try await connection.searchChatReferences(query: "", chatId: "chat1")

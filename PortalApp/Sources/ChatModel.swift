@@ -179,6 +179,33 @@ final class ChatModel {
     }
 
     /// The people and agents the @ list offers for what the draft ends with, or none when it is closed.
+    /// Whether the server has references, which the # picker finds. Set by the screen from the server's capabilities.
+    var offersChatReferences = false
+    /// What the # picker offers for the draft as typed now.
+    private(set) var referenceCandidates: [ChatReferenceCandidate] = []
+    private var referenceSearch: Task<Void, Never>?
+
+    /// Looks up what the # at the end of the draft could name, a moment after the typing stops; nothing when the draft has no #.
+    func searchReferences(for draft: String) {
+        referenceSearch?.cancel()
+        guard offersChatReferences, canWrite, let query = ChatReferences.pickerQuery(in: draft) else {
+            referenceCandidates = []
+            return
+        }
+        referenceSearch = Task { [connection, chatId] in
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            guard !Task.isCancelled else { return }
+            let found = (try? await connection.searchChatReferences(query: query, chatId: chatId)) ?? []
+            guard !Task.isCancelled else { return }
+            referenceCandidates = found
+        }
+    }
+
+    func clearReferenceCandidates() {
+        referenceSearch?.cancel()
+        referenceCandidates = []
+    }
+
     func mentionSuggestions(for draft: String) -> [MentionCandidate] {
         guard canWrite, let query = Mentions.query(in: draft) else { return [] }
         return Mentions.candidates(agents: agents, members: reachablePeople, query: query, excludingUserId: currentUserId)
