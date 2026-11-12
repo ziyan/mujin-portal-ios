@@ -1,6 +1,10 @@
 import Foundation
 import Testing
 
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+
 @testable import PortalKit
 
 /// Archived chats are a list of their own, asked for only of a server that lists by isForegroundOnly. The chat list never asks for them.
