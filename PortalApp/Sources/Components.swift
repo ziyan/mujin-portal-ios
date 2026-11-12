@@ -33,6 +33,8 @@ struct ComposerCard<Accessory: View>: View {
 
     /// More for the [+] menu than attaching files: talking, and the screen's own choices.
     var menuItems: [ComposerMenuItem] = []
+    /// Whether the next send is an internal note: the box turns amber and the card shows Staff only beside [+].
+    var isInternalNote = false
 
     @State private var isFocused = false
     /// The round buttons grow with the text, held where their symbols stay inside them.
@@ -65,6 +67,7 @@ struct ComposerCard<Accessory: View>: View {
             HStack(spacing: 4) {
                 plusMenu
                 accessory
+                if isInternalNote, isExpanded { StaffOnlyChip() }
             }
             field
             trailingButtons
@@ -77,7 +80,7 @@ struct ComposerCard<Accessory: View>: View {
                 .contentShape(.rect(cornerRadius: Self.cornerRadius, style: .continuous))
                 .onTapGesture { isFocused = true }
         }
-        .background(Color.portalCard.opacity(0.92), in: .rect(cornerRadius: Self.cornerRadius, style: .continuous))
+        .background(isInternalNote ? AnyShapeStyle(Color.statusWarning.opacity(0.16)) : AnyShapeStyle(Color.portalCard.opacity(0.92)), in: .rect(cornerRadius: Self.cornerRadius, style: .continuous))
         .glassEffect(.regular, in: .rect(cornerRadius: Self.cornerRadius, style: .continuous))
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
@@ -174,6 +177,32 @@ struct ComposerCard<Accessory: View>: View {
         }
         // Past a point the buttons stop growing with the text.
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+    }
+}
+
+/// StaffOnlyChip says, in the composer's card beside [+], that what is sent is an internal note only Mujin staff read.
+struct StaffOnlyChip: View {
+    var body: some View {
+        Label("Staff only", systemImage: "lock.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.statusWarning)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.statusWarning.opacity(0.16), in: Capsule())
+            .lineLimit(1)
+            .fixedSize()
+            .accessibilityIdentifier("staffOnlyChip")
+    }
+}
+
+/// InternalNoteLabel marks an internal note in a chat: a lock and the word Internal.
+struct InternalNoteLabel: View {
+    var body: some View {
+        Label("Internal", systemImage: "lock.fill")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Color.statusWarning)
+            .labelStyle(.titleAndIcon)
+            .accessibilityIdentifier("internalNoteLabel")
     }
 }
 
@@ -304,12 +333,12 @@ extension ComposerCard {
         placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,
         isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", dictation: DictationControl? = nil,
         fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton", onEscape: (() -> Bool)? = nil,
-        menuItems: [ComposerMenuItem] = [], onSend: @escaping () -> Void, @ViewBuilder accessory: () -> Accessory
+        isInternalNote: Bool = false, menuItems: [ComposerMenuItem] = [], onSend: @escaping () -> Void, @ViewBuilder accessory: () -> Accessory
     ) {
         self.init(
             placeholder: placeholder, text: text, drafts: drafts, isEnabled: isEnabled, canSend: canSend, isSending: isSending, sendSymbol: sendSymbol,
             sendLabel: sendLabel, onVoice: nil, onStop: nil, dictation: dictation, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
-            onSend: onSend, accessory: accessory, menuItems: menuItems)
+            onSend: onSend, accessory: accessory, menuItems: menuItems, isInternalNote: isInternalNote)
     }
 }
 
@@ -318,12 +347,12 @@ extension ComposerCard where Accessory == EmptyView {
         placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,
         isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", onVoice: (() -> Void)? = nil,
         onStop: (() -> Void)? = nil, dictation: DictationControl? = nil, fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton",
-        onEscape: (() -> Bool)? = nil, menuItems: [ComposerMenuItem] = [], onSend: @escaping () -> Void
+        onEscape: (() -> Bool)? = nil, isInternalNote: Bool = false, menuItems: [ComposerMenuItem] = [], onSend: @escaping () -> Void
     ) {
         self.init(
             placeholder: placeholder, text: text, drafts: drafts, isEnabled: isEnabled, canSend: canSend, isSending: isSending, sendSymbol: sendSymbol,
             sendLabel: sendLabel, onVoice: onVoice, onStop: onStop, dictation: dictation, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
-            onSend: onSend, accessory: { EmptyView() }, menuItems: menuItems)
+            onSend: onSend, accessory: { EmptyView() }, menuItems: menuItems, isInternalNote: isInternalNote)
     }
 }
 
@@ -484,6 +513,10 @@ struct UserAvatar: View {
     var modifiedAt: String?
     var size: CGFloat = 28
     var isAssistant = false
+    /// Whether the person is Mujin staff, which puts the staff mark on the avatar's corner.
+    var isStaff = false
+    /// The surface the avatar sits on, which the staff mark's ring takes.
+    var surfaceColor = Color.portalCard
 
     @State private var loaded: UIImage?
 
@@ -498,6 +531,9 @@ struct UserAvatar: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
+        .overlay(alignment: .bottomTrailing) {
+            if isStaff { StaffMark(avatarSize: size, ringColor: surfaceColor) }
+        }
         .accessibilityHidden(true)
     }
 }

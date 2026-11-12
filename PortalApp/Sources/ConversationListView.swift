@@ -15,6 +15,7 @@ struct ConversationListView: View {
     @State private var searchText = ""
     @State private var columnVisibility: NavigationSplitViewVisibility = DemoOptions.isListHidden ? .detailOnly : .automatic
     @State private var isComposing = false
+    @State private var isShowingArchived = DemoOptions.screen == "archived-chats"
     /// A thread a notification asked for, which the conversation it is in opens on.
     @State private var requestedThread: ThreadToOpen?
 
@@ -34,6 +35,17 @@ struct ConversationListView: View {
             .notificationsBell()
             .searchable(text: $searchText, prompt: "Search")
             .toolbar {
+                // The archived chats are a list of their own, on a server that can list them apart.
+                if session.capabilities.offersForegroundOnlyLists {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            isShowingArchived = true
+                        } label: {
+                            Label("Archived", systemImage: "archivebox")
+                        }
+                        .accessibilityIdentifier("archivedChatsButton")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         isComposing = true
@@ -47,6 +59,16 @@ struct ConversationListView: View {
             // The floating tab bar has the one sidebar button; the split view's own beside it would be a second. The list
             // still slides in from the leading edge.
             .toolbar(removing: .sidebarToggle)
+            .sheet(isPresented: $isShowingArchived) {
+                ArchivedConversationsView(
+                    account: account, connection: appModel.connection(for: account),
+                    onOpen: { conversation in
+                        if conversation.conversationKind == "chat" { chatConversationIds.insert(conversation.id) }
+                        selection.open(conversation.id)
+                    },
+                    onRestored: { Task { await model?.load(force: true) } },
+                    onError: { [appModel, account] error in appModel.handle(error, account: account) })
+            }
         } detail: {
             if let shownConversationId = selection.detailId {
                 NavigationStack {
@@ -300,7 +322,7 @@ private struct WaitingRow: View {
     }
 }
 
-private struct ConversationRow: View {
+struct ConversationRow: View {
     let conversation: ConversationSummary
     let waitingCount: Int
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize

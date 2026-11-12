@@ -36,6 +36,8 @@ final class DemoState: @unchecked Sendable {
         var questions: [String: [[String: Any]]] = [:]
         var approvals: [String: [[String: Any]]] = [:]
         var chats: [[String: Any]] = []
+        /// Conversations and chats the person archived, which only the archived list shows.
+        var archived: [[String: Any]] = []
         var tickets: [[String: Any]] = []
         var comments: [String: [[String: Any]]] = [:]
         var sockets: [DemoSocket] = []
@@ -273,7 +275,7 @@ final class DemoState: @unchecked Sendable {
                 "reactions": [["id": "rc3", "messageId": "c3", "reactorKind": "user", "reactorUserId": "user01", "emoji": "\u{1F44D}", "isAcknowledgment": false]],
             ]),
             said("c4", "user01", "Alex Example", "@Mujin AI summarize the pressure readings from the ticket", 1_000, extra: ["isAddressingAssistant": true]),
-            said("c5", "assistant", "Mujin AI", "Suction pressure dipped below 40 kPa four times in two hours, each time just before a drop.", 950, role: "assistant", extra: ["authorUserId": NSNull(), "onBehalfOfUserId": "user01", "onBehalfOfUserName": "Alex Example", "replyToMessageId": "c4", "replyToExcerpt": "@Mujin AI summarize the pressure readings", "replyToAuthorName": "Alex Example"]),
+            said("c5", "assistant", "Mujin AI", "Suction pressure dipped below 40 kPa four times in two hours, each time just before a drop.", 950, role: "assistant", extra: ["authorUserId": NSNull(), "onBehalfOfUserId": "user01", "onBehalfOfUserName": "Alex Example", "replyToMessageId": "c4", "replyToExcerpt": "@Mujin AI summarize the pressure readings", "replyToAuthorName": "Alex Example", "isOnBehalfOfMujinUser": DemoOptions.isStaff]),
             said("c6", "user02", "Sam Sample", "", 900, extra: ["deletedAt": stamp(880)]),
             said("c7", "user02", "Sam Sample", "That matches what I saw. I will schedule a hose replacement.", 700, extra: ["editedAt": stamp(650)]),
             said("c8", "user01", "Alex Example", "Thanks, please do.", 620),
@@ -299,6 +301,18 @@ final class DemoState: @unchecked Sendable {
         if ChatHistoryDemo.owns(DemoOptions.screen) {
             data.messages["chatconv01"] = ChatHistoryDemo.messages(stamp: stamp) + (data.messages["chatconv01"] ?? [])
         }
+        data.archived = [
+            [
+                "id": "conversation-archived01", "conversationKind": "assistant", "title": "Old dock door question", "summary": NSNull(),
+                "lastMessageAt": stamp(900_000), "activeRunId": NSNull(), "archivedAt": stamp(800_000), "createdAt": stamp(910_000),
+                "modifiedAt": stamp(800_000), "isTitleCustom": false, "agentId": "agent01", "lastMessageExcerpt": "Door 4 closes slowly after the cold snap.",
+            ],
+            [
+                "id": "conversation-archived02", "conversationKind": "assistant", "title": "Label printer settings", "summary": NSNull(),
+                "lastMessageAt": stamp(1_400_000), "activeRunId": NSNull(), "archivedAt": stamp(1_300_000), "createdAt": stamp(1_410_000),
+                "modifiedAt": stamp(1_300_000), "isTitleCustom": false, "agentId": "agent01", "lastMessageExcerpt": "Use 203 dpi for the packing line labels.",
+            ],
+        ]
         data.messages["chatconv02"] = [
             said("d1", "user03", "Robin Demo", "Shift change at 14:00.", 7_200),
             said("d2", "user04", "Jordan Placeholder", "I can take the pick station.", 7_100),
@@ -540,6 +554,12 @@ struct DemoTransport: HTTPTransport {
             let refusal = try JSONSerialization.data(withJSONObject: ["errors": [["message": message]]])
             return (refusal, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
         }
+        // The archived list, which the chat list never asks for: the argument is written into the query, not passed as a variable.
+        if operation == "ListConversations", query.contains("archivedOnly: true") {
+            let rows = state.withData { $0.archived }
+            let payload = try JSONSerialization.data(withJSONObject: ["data": ["ListConversations": ["conversations": rows, "meta": ["totalCount": rows.count]]]])
+            return (payload, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
         let answer = respond(operation: operation, variables: variables)
         let payload = try JSONSerialization.data(withJSONObject: ["data": answer])
         return (payload, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
@@ -624,6 +644,8 @@ struct DemoTransport: HTTPTransport {
                 ["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"],
                 ["name": "globalSearch"],
                 ["name": "listConversationMessages", "args": hasThreads ? [["name": "threadRootMessageId"]] : []],
+                // Lists the foreground conversations alone, and the archived ones apart.
+                ["name": "listConversations", "args": [["name": "isForegroundOnly"], ["name": "archivedOnly"]]],
             ]
             if hasCallHistory { queryFields.append(["name": "listChatCalls"]) }
             var mutationFields: [[String: Any]] = [
@@ -652,6 +674,7 @@ struct DemoTransport: HTTPTransport {
             ]
             let voiceSettingFields = hasSpeech ? SpeechDemo.voiceSettingFieldNames : ["speechVoice", "speechVoices", "defaultSpeechVoice", "previewText"]
             schemaAnswer["voiceSetting"] = ["fields": voiceSettingFields.map { ["name": $0] }]
+            schemaAnswer["messageType"] = ["fields": [["name": "isOnBehalfOfMujinUser"]]]
             schemaAnswer["siteType"] = ["fields": (hasSiteViewRules ? ["id", "name", "telemetrySourceControllerId"] : ["id", "name"]).map { ["name": $0] }]
             if hasPages {
                 let pageFields = ["id", "siteId", "parentPageId", "position", "currentRevisionId", "title", "icon", "isPublished", "draftTitle", "draftContent", "viewerCapabilities"]
@@ -1289,8 +1312,21 @@ struct DemoTransport: HTTPTransport {
         case "SetMainConversation":
             return ["SetMainConversation": ["conversation": ["id": conversationId, "isMain": true]]]
         case "ArchiveConversation":
-            state.withData { data in data.conversations.removeAll { ($0["id"] as? String) == conversationId } }
-            return ["ArchiveConversation": ["conversation": ["id": conversationId, "archivedAt": ISO8601DateFormatter().string(from: Date())]]]
+            let isArchiving = variables["archived"] as? Bool ?? true
+            let archivedAt: Any = isArchiving ? ISO8601DateFormatter().string(from: Date()) : NSNull()
+            state.withData { data in
+                // Archiving moves the row to the archived list, and restoring moves it back.
+                if isArchiving, let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
+                    var row = data.conversations.remove(at: index)
+                    row["archivedAt"] = archivedAt
+                    data.archived.insert(row, at: 0)
+                } else if !isArchiving, let index = data.archived.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
+                    var row = data.archived.remove(at: index)
+                    row["archivedAt"] = archivedAt
+                    data.conversations.insert(row, at: 0)
+                }
+            }
+            return ["ArchiveConversation": ["conversation": ["id": conversationId, "archivedAt": archivedAt]]]
         case "ListGoals":
             let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
             return [

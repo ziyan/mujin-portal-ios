@@ -7,6 +7,8 @@ final class ThreadTests: XCTestCase {
     private static let chatRootText = "The dock door 4 sensor has been flickering since this morning."
     private static let chatReplyText = "I saw it too. The cable looks loose at the frame."
     private static let chatMainText = "Shift change moves to 14:00 on Friday."
+    private static let chatLonelyText = "Thanks, I will check door 4 after lunch."
+    private static let chatMentionText = "which doors reported the most sensor changes today?"
     private static let assistantRootText = "Door 4 had the most faults this week"
     private static let assistantReplyText = "Two of the nine were real faults."
     private static let assistantMainText = "Remind me to check the door 4 wiring on Friday."
@@ -59,6 +61,46 @@ final class ThreadTests: XCTestCase {
         XCTAssertTrue(threadTitle(app).waitForExistence(timeout: 30), "The thread did not open.\n\(app.debugDescription)")
         XCTAssertTrue(message(app, Self.chatRootText).waitForExistence(timeout: 30), "The thread does not start with its root.\n\(app.debugDescription)")
         XCTAssertFalse(message(app, Self.chatMainText).exists, "The thread shows a message of the main history.\n\(app.debugDescription)")
+    }
+
+    /// A message of the main history with no replies yet opens as its own thread: the message, and a composer that replies in it.
+    func testATapOnAMessageWithNoRepliesOpensItsThread() {
+        let app = DemoApp.launch(screen: "thread-chat")
+        let lonely = message(app, Self.chatLonelyText)
+        XCTAssertTrue(DemoApp.waitUntilExists(lonely, timeout: 60), "The chat did not open.\n\(app.debugDescription)")
+        DemoApp.scrollToElement(lonely, in: app)
+        lonely.tap()
+        assertThreadOpenToReply(app)
+        XCTAssertFalse(message(app, Self.chatMainText).exists, "The thread shows another message of the main history.\n\(app.debugDescription)")
+    }
+
+    /// A tap on the words of a thread's root, not its count of replies, opens the thread.
+    func testATapOnTheWordsOfAThreadsRootOpensItsThread() {
+        let app = DemoApp.launch(screen: "thread-chat")
+        let root = message(app, Self.chatRootText)
+        XCTAssertTrue(DemoApp.waitUntilExists(root, timeout: 60), "The chat did not open.\n\(app.debugDescription)")
+        DemoApp.scrollToElement(root, in: app)
+        root.tap()
+        assertThreadOpenToReply(app)
+        XCTAssertTrue(message(app, Self.chatReplyText).waitForExistence(timeout: 30), "The thread does not show its replies.\n\(app.debugDescription)")
+    }
+
+    /// A tap on the @mention at the start of a message opens its thread, as a tap on its other words does.
+    func testATapOnAMentionOpensTheMessagesThread() {
+        let app = DemoApp.launch(screen: "thread-chat")
+        let mentioning = message(app, Self.chatMentionText)
+        XCTAssertTrue(DemoApp.waitUntilExists(mentioning, timeout: 60), "The chat did not open.\n\(app.debugDescription)")
+        DemoApp.scrollToElement(mentioning, in: app)
+        // The mention is the first words of the message.
+        mentioning.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).tap()
+        assertThreadOpenToReply(app)
+    }
+
+    private func assertThreadOpenToReply(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(DemoApp.waitUntilExists(threadTitle(app), timeout: 30), "The thread did not open.\n\(app.debugDescription)", file: file, line: line)
+        let field = DemoApp.element(app, "chatMessageField")
+        XCTAssertTrue(DemoApp.waitUntilExists(field, timeout: 30), "The thread has no composer.\n\(app.debugDescription)", file: file, line: line)
+        XCTAssertTrue(DemoApp.waitUntilLabel(field, contains: "Reply in thread", timeout: 10), "The composer does not reply in the thread: \"\(field.label)\".", file: file, line: line)
     }
 
     func testAReplyInTheMainHistoryHasABarAndSaysWhatItCommentsOn() {

@@ -98,11 +98,9 @@ public enum ThreadRouting {
     public static let continueWindow: TimeInterval = 30 * 60
 
     /// The thread the main history's composer offers to continue: the most recently active thread of the chat that the person took part
-    /// in (wrote its root or a reply in it) and that had a reply in the last 30 minutes, leaving out the ones the person dismissed.
-    /// Worked out from the messages the screen has loaded; the server keeps nothing for it.
-    public static func threadToContinue(
-        _ messages: [ChatMessage], currentUserId: String, now: Date = Date(), dismissedRootIds: Set<String> = []
-    ) -> ChatMessage? {
+    /// in (wrote its root or a reply in it) and that had a reply in the last 30 minutes. Worked out from the messages the screen has
+    /// loaded; the server keeps nothing for it.
+    public static func threadToContinue(_ messages: [ChatMessage], currentUserId: String, now: Date = Date()) -> ChatMessage? {
         var participated = Set<String>()
         for message in messages where message.authorUserId == currentUserId && !message.isDeleted {
             if let root = normalized(message.threadRootMessageId) { participated.insert(root) } else { participated.insert(message.id) }
@@ -110,7 +108,6 @@ public enum ThreadRouting {
         return messages
             .filter { root in
                 normalized(root.threadRootMessageId) == nil && !root.isDeleted && root.threadReplyCount > 0 && participated.contains(root.id)
-                    && !dismissedRootIds.contains(root.id)
             }
             .compactMap { root -> (ChatMessage, Date)? in
                 guard let last = PortalDate.parse(root.threadLastReplyAt), now.timeIntervalSince(last) <= continueWindow else { return nil }

@@ -22,7 +22,6 @@ struct ChatView: View {
     @State private var model: ChatModel?
     @State private var openedThreadRootId: String?
     /// The threads the person waved away from the hint that offers to continue one, while this screen is open.
-    @State private var dismissedContinueRootIds: Set<String> = []
     /// The message a link pointed at, marked for a moment.
     @State private var highlightedMessageId: String?
     /// Whether the list shows its last message. Only then does it follow what arrives at the end.
@@ -140,6 +139,8 @@ struct ChatView: View {
                 offersMessageThreads: session.capabilities.offersMessageThreads,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             chatModel.offersStructuredMentions = session.capabilities.offersStructuredMentions
+            chatModel.offersInternalNotes = session.capabilities.offersInternalNotes
+            chatModel.offersChatReferences = session.capabilities.offersChatReferences
             chatModel.onRead = { [session] id in session.noteChatRead(conversationId: id) }
             model = chatModel
             chatModel.start()
@@ -499,13 +500,10 @@ struct ChatView: View {
                     .padding(.vertical, 12)
             } else {
                 if model.canOpenThreads, model.replyTarget == nil, model.editTarget == nil,
-                    let root = ThreadRouting.threadToContinue(
-                        model.timeline.messages, currentUserId: model.currentUserId, dismissedRootIds: dismissedContinueRootIds)
+                    let root = ThreadRouting.threadToContinue(model.timeline.messages, currentUserId: model.currentUserId)
                 {
                     ContinueThreadHint(excerpt: ThreadRouting.excerpt(root.text)) {
                         openedThreadRootId = root.id
-                    } onDismiss: {
-                        dismissedContinueRootIds.insert(root.id)
                     }
                     .padding(.horizontal, 12)
                 }
@@ -519,6 +517,7 @@ struct ChatView: View {
                     .padding(.horizontal, 12)
                 }
                 mentionList(model)
+                referenceList(model)
                 if let editing = model.editTarget {
                     banner(icon: "pencil", title: String(localized: "Editing your message"), detail: editing.text) {
                         model.editTarget = nil
@@ -560,8 +559,8 @@ struct ChatView: View {
                         return true
                     },
                     // A voice message is recorded instead of typed.
-                    menuItems: canUseVoice(model)
-                        ? [ComposerMenuItem(title: "Voice message", systemImage: "mic.fill", identifier: "voiceModeButton") { isVoiceModePreferred = true }] : [],
+                    isInternalNote: model.isInternalNote,
+                    menuItems: composerMenuItems(model),
                     onSend: {
                         // What is still being said belongs to the message that was sent, not to the next one.
                         dictation.abort()
@@ -574,6 +573,7 @@ struct ChatView: View {
                 }
                 .onChange(of: draft) { _, text in
                     if !text.isEmpty && model.editTarget == nil { model.noteTyping() }
+                    model.searchReferences(for: text)
                 }
                 // The voice message bar takes the composer's place, with no microphone button to stop dictating.
                 .onChange(of: isVoiceModePreferred) { _, _ in dictation.abort() }
@@ -611,12 +611,61 @@ struct ChatView: View {
 
     /// What a send will do. In a chat with threads, a message in the main history starts a thread and one in a thread replies in it.
     private func fieldPrompt(_ model: ChatModel) -> LocalizedStringKey {
+        if model.isInternalNote { return LocalizedStringKey("Internal note, staff only") }
         if isThread { return LocalizedStringKey("Reply in thread") }
         guard model.offersMessageThreads else {
             if !dynamicTypeSize.isAccessibilitySize, let agent = model.agents.first?.name { return LocalizedStringKey("Message, or @\(agent) to ask") }
             return LocalizedStringKey("Message")
         }
         return LocalizedStringKey("New thread")
+    }
+
+    /// The composer's [+] choices beyond attaching: a voice message, and for staff the internal-note lock, held on where the thread or the
+    /// message replied to is internal.
+    private func composerMenuItems(_ model: ChatModel) -> [ComposerMenuItem] {
+        var items: [ComposerMenuItem] = []
+        if canUseVoice(model) {
+            items.append(ComposerMenuItem(title: "Voice message", systemImage: "mic.fill", identifier: "voiceModeButton") { isVoiceModePreferred = true })
+        }
+        if model.canPostInternal {
+            items.append(
+                ComposerMenuItem(
+                    title: "Internal note", systemImage: "lock", identifier: "internalNoteToggle", isOn: model.isInternalNote,
+                    isDisabled: model.isInternalNoteForced
+                ) { model.isInternalNoteChosen.toggle() })
+        }
+        return items
+    }
+
+    /// The list that opens above the composer when the draft ends with a #: the tickets, controllers, virtual controllers, sites and
+    /// cells the person can see, the chat's own suggestions for a bare #. A pick puts a ticket in as its number and the rest as links.
+    @ViewBuilder
+    private func referenceList(_ model: ChatModel) -> some View {
+        if !model.referenceCandidates.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(model.referenceCandidates) { candidate in
+                    Button {
+                        draft = ChatReferences.inserting(candidate, into: draft)
+                        model.clearReferenceCandidates()
+                    } label: {
+                        HStack(spacing: 10) {
+                            MessageReferenceChip(reference: ChatReference(referenceKind: candidate.referenceKind, writtenText: nil, isAccessible: true, label: candidate.label))
+                            if let detail = candidate.detailText, !detail.isEmpty {
+                                Text(detail).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("referenceCandidate")
+                }
+            }
+            .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.horizontal, 12)
+        }
     }
 
     /// The list that opens above the composer when the draft ends with an @:
@@ -632,12 +681,10 @@ struct ChatView: View {
                         model.pick(candidate)
                     } label: {
                         HStack(spacing: 10) {
-                            UserAvatar(userId: candidate.kind == .user ? candidate.id : nil, name: candidate.name, size: 32, isAssistant: candidate.kind == .agent)
+                            let isStaff = candidate.kind == .user && model.member(candidate.id)?.isMujinUser == true
+                            UserAvatar(userId: candidate.kind == .user ? candidate.id : nil, name: candidate.name, size: 32, isAssistant: candidate.kind == .agent, isStaff: isStaff)
                             VStack(alignment: .leading, spacing: 1) {
-                                HStack(spacing: 6) {
-                                    Text(candidate.name).foregroundStyle(.primary)
-                                    if candidate.kind == .user, model.member(candidate.id)?.isMujinUser == true { StaffBadge() }
-                                }
+                                Text(candidate.name).foregroundStyle(.primary).readsAsStaff(isStaff)
                                 Text(candidate.detail ?? (candidate.kind == .agent ? String(localized: "Assistant") : String(localized: "Person")))
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
@@ -735,7 +782,9 @@ private struct MessageRow: View {
             // Others have a small round picture at the start of each run of their messages.
             if !isMine {
                 if startsRun {
-                    UserAvatar(userId: message.authorUserId, name: message.authorName ?? model.member(message.authorUserId)?.shownName ?? "", size: 28, isAssistant: message.isAssistant)
+                    UserAvatar(
+                        userId: message.authorUserId, name: message.authorName ?? model.member(message.authorUserId)?.shownName ?? "", size: 28,
+                        isAssistant: message.isAssistant, isStaff: isAuthorStaff, surfaceColor: .portalPage)
                 } else {
                     Color.clear.frame(width: 28, height: 1)
                 }
@@ -747,7 +796,13 @@ private struct MessageRow: View {
                 }
                 if showsQuote { quote }
                 tappableBubble
-                ForEach(model.previews[message.id] ?? []) { card in
+                if !openableReferences.isEmpty {
+                    ReferenceChipRow(references: openableReferences) { path in
+                        if let link = PortalLink(path: path) { appModel.openedLink = OpenedLink(link: link) }
+                    }
+                }
+                // A link already shown as a reference chip gets no card of its own.
+                ForEach((model.previews[message.id] ?? []).filter { card in !openableReferences.contains { $0.path == card.path && card.path != nil } }) { card in
                     LinkPreviewCardView(card: card, connection: model.connection)
                         .frame(maxWidth: 320)
                 }
@@ -790,6 +845,7 @@ private struct MessageRow: View {
             Text(message.isAssistant ? ((message.authorName ?? "").isEmpty ? String(localized: "Assistant") : message.authorName!) : (message.authorName ?? member?.shownName ?? String(localized: "Someone")))
                 .font(.caption.weight(.semibold))
                 .portalNameLine()
+                .readsAsStaff(isAuthorStaff)
             if message.isAssistant, let name = message.onBehalfOfUserName, !name.isEmpty {
                 Text("for \(name)").font(.caption).foregroundStyle(.secondary).portalNameLine()
             }
@@ -799,10 +855,14 @@ private struct MessageRow: View {
             {
                 Text(organization).font(.caption).foregroundStyle(.secondary).portalNameLine()
             }
-            if member?.isMujinUser == true {
-                StaffBadge()
-            }
         }
+    }
+
+    /// Whether the author is Mujin staff, which their avatar's corner shows. An assistant answer carries the mark when the person
+    /// it was given for is.
+    private var isAuthorStaff: Bool {
+        if message.isAssistant { return message.isOnBehalfOfMujinUser }
+        return (message.isAuthorMujinUser ?? model.member(message.authorUserId)?.isMujinUser) == true
     }
 
     /// A quote of the message right above, or of one the reader can see in the transcript, adds nothing.
@@ -825,6 +885,16 @@ private struct MessageRow: View {
                 Text("A message from before you joined").font(.caption).italic().foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// The tickets, controllers, virtual controllers, sites and cells the message names that the reader may open, once each.
+    private var openableReferences: [ChatReference] {
+        message.isDeleted ? [] : message.references.filter(\.canOpen)
+    }
+
+    private var bubbleFill: AnyShapeStyle {
+        if message.isInternal { return AnyShapeStyle(Color.statusWarning.opacity(0.16)) }
+        return isMine ? AnyShapeStyle(Color.accentColor.opacity(0.2)) : AnyShapeStyle(Color(.secondarySystemBackground))
     }
 
     @ViewBuilder
@@ -869,10 +939,16 @@ private struct MessageRow: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(
-                isMine ? AnyShapeStyle(Color.accentColor.opacity(0.2)) : AnyShapeStyle(Color(.secondarySystemBackground)),
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-            )
+            .background(bubbleFill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            // An internal note is amber and outlined, so a person's own note does not look like what customers read.
+            .overlay {
+                if message.isInternal {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.statusWarning, lineWidth: 1)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if message.isInternal { InternalNoteLabel().padding(6) }
+            }
             .foregroundStyle(.primary)
             }
             }
@@ -1095,12 +1171,14 @@ private struct MemberRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-        if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: member.userId, name: member.shownName, size: 32) }
+        let isStaff = member.isMujinUser == true
+        if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: member.userId, name: member.shownName, size: 32, isStaff: isStaff) }
         VStack(alignment: .leading, spacing: 2) {
             let nameLayout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 6))
             nameLayout {
-                Text(isViewer ? String(localized: "You") : member.shownName).portalNameLine()
-                if member.isMujinUser == true {
+                // With no avatar shown, the mark follows the name.
+                Text(isViewer ? String(localized: "You") : member.shownName).portalNameLine().readsAsStaff(isStaff && !dynamicTypeSize.isAccessibilitySize)
+                if isStaff, dynamicTypeSize.isAccessibilitySize {
                     StaffBadge()
                 }
                 if member.isAdmin == true {

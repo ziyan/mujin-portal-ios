@@ -174,6 +174,24 @@ extension Connection {
         _ = try await execute(
             Documents.archiveConversation, variables: ["conversationId": .string(id), "archived": .bool(true)], as: JSONValue.self)
     }
+
+    /// Takes a conversation or chat out of the archive, back into the list.
+    public func restoreConversation(id: String) async throws {
+        _ = try await execute(
+            Documents.archiveConversation, variables: ["conversationId": .string(id), "archived": .bool(false)], as: JSONValue.self)
+    }
+
+    /// The person's archived conversations and chats, newest first. Only a server that lists by isForegroundOnly is asked; any
+    /// other has no list of them to give.
+    public func archivedConversations(userId: String) async throws -> [ConversationSummary] {
+        guard hasForegroundOnlyLists else { return [] }
+        struct Answer: Decodable, Sendable {
+            struct List: Decodable, Sendable { let conversations: [ConversationSummary]? }
+            let ListConversations: List
+        }
+        let answer = try await execute(Documents.listArchivedConversations, variables: ["userId": .string(userId)], as: Answer.self)
+        return ConversationOrdering.ordered(answer.ListConversations.conversations ?? [])
+    }
 }
 
 /// InterruptedAnswer is what the person heard of an answer before they talked over it.

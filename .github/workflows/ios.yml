@@ -288,6 +288,7 @@ jobs:
             xcrun simctl terminate "${DEVICE}" com.ziyan.mujinportal
           }
           shoot list list
+          shoot archived-chats archived-chats
           shoot list-started list-started
           shoot title-event title-event
           shoot approval conversation:conversation02
@@ -581,6 +582,7 @@ jobs:
           shoot artifact-document-full-dark artifact-document-full
           shoot automations-activity-dark automations-activity
           shoot list-dark list
+          shoot archived-chats-dark archived-chats
           shoot ticket-dark ticket
           shoot attachment-viewer-dark attachment-viewer
           shoot tickets-dark tickets

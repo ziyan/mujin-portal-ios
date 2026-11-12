@@ -313,9 +313,13 @@ struct CallPeoplePicker: View {
                                     Image(systemName: selected.contains(person.userId) ? "checkmark.circle.fill" : "circle")
                                         .foregroundStyle(selected.contains(person.userId) ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                                         .accessibilityHidden(true)
-                                    if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: person.userId, name: person.shownName, size: 32) }
+                                    let isStaff = person.isMujinUser == true
+                                    if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: person.userId, name: person.shownName, size: 32, isStaff: isStaff) }
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(person.shownName).foregroundStyle(.primary).portalNameLine()
+                                        HStack(spacing: 6) {
+                                            Text(person.shownName).foregroundStyle(.primary).portalNameLine().readsAsStaff(isStaff && !dynamicTypeSize.isAccessibilitySize)
+                                            if isStaff, dynamicTypeSize.isAccessibilitySize { StaffBadge() }
+                                        }
                                         if let organization = person.organizationName, !organization.isEmpty {
                                             Text(organization).font(.footnote).foregroundStyle(.secondary).portalNameLine()
                                         }

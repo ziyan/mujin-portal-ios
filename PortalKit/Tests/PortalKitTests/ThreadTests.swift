@@ -59,8 +59,6 @@ import Testing
             chatMessage("r4", author: "user01", replyCount: 1, lastReplyAt: "2026-03-01T11:00:00Z"),
         ]
         #expect(ThreadRouting.threadToContinue(messages, currentUserId: "user01", now: now)?.id == "r2")
-        #expect(ThreadRouting.threadToContinue(messages, currentUserId: "user01", now: now, dismissedRootIds: ["r2"])?.id == "r1")
-        #expect(ThreadRouting.threadToContinue(messages, currentUserId: "user01", now: now, dismissedRootIds: ["r1", "r2"]) == nil)
         #expect(ThreadRouting.threadToContinue(messages, currentUserId: "user09", now: now) == nil)
     }
 
