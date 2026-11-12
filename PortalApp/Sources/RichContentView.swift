@@ -55,7 +55,8 @@ enum RichContentPage {
             html, body { margin: 0; padding: 0; background: transparent; color: -apple-system-label; font: -apple-system-body; overflow: hidden; }
             #content { padding: 2px 0; overflow-wrap: anywhere; }
             #content.diagram { padding: 8px; text-align: center; }
-            #content.formula { text-align: center; overflow-x: auto; }
+            #content.formula { display: inline-block; white-space: nowrap; }
+            #content.formula .katex-display { margin: 0.4em 0; }
             #content.diagram { display: inline-block; text-align: left; }
             #content.formula svg, #content.paragraph svg { max-width: 100%; height: auto; }
             code { font: -apple-system-footnote; font-family: ui-monospace, Menlo, monospace; }
@@ -270,7 +271,13 @@ struct RichDrawing<Fallback: View>: View {
     @State private var width: CGFloat = 0
     @State private var picture: UIImage?
 
-    private var isDiagram: Bool { if case .diagram = content { true } else { false } }
+    /// Whether the drawing keeps its natural size, as a diagram and a formula on its own line do: never shrunk below the text.
+    private var isNaturalSize: Bool {
+        switch content {
+        case .diagram, .formula: true
+        case .paragraph: false
+        }
+    }
     /// Whether the drawing has come near the screen. A long chat makes its web views one at a time as they come into view, not all
     /// at once when it opens.
     @State private var hasComeIntoView = false
@@ -282,8 +289,8 @@ struct RichDrawing<Fallback: View>: View {
             if hasFailed {
                 fallback()
             } else if let shown = picture ?? (width > 0 ? RichDrawingCache.pictures.object(forKey: key) : nil) {
-                if isDiagram {
-                    // A diagram keeps its natural size: one wider than the block scrolls sideways, a narrower one is centered.
+                if isNaturalSize {
+                    // A diagram or formula keeps its natural size: one wider than the block scrolls sideways, a narrower one is centered.
                     ScrollView(.horizontal, showsIndicators: shown.size.width > width) {
                         Image(uiImage: shown)
                             .frame(width: shown.size.width, height: shown.size.height)
@@ -304,13 +311,13 @@ struct RichDrawing<Fallback: View>: View {
                         .accessibilityIdentifier(identifier)
                 }
             } else if width > 0, hasComeIntoView {
-                // A diagram's web view is as wide as the diagram, so it draws, and is pictured, whole.
+                // A diagram's or formula's web view is as wide as what it draws, so it is drawn, and pictured, whole.
                 ScrollView(.horizontal, showsIndicators: false) {
                     RichContentWebView(content: content, height: $height, naturalWidth: $naturalWidth, hasFailed: $hasFailed) { image in
                         RichDrawingCache.pictures.setObject(image, forKey: key)
                         picture = image
                     }
-                    .frame(width: isDiagram && naturalWidth > 0 ? naturalWidth : width, height: max(height, 24))
+                    .frame(width: isNaturalSize && naturalWidth > 0 ? naturalWidth : width, height: max(height, 24))
                 }
                 .scrollDisabled(true)
                 .frame(height: max(height, 24))
