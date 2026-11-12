@@ -1068,6 +1068,12 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListTicketComments": state.withData { data -> [[String: Any]] in
                     var rows = data.comments[ticketId] ?? []
+                    if DemoOptions.screen == "ticket-formula" && ticketId == "ticket01" {
+                        rows.append([
+                            "id": "comment04", "authorUserId": "user02", "isInternal": false, "createdAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-1_800)),
+                            "body": #"The pressure falls by $\Delta p = p_{\text{idle}} - p_{\text{grip}}$ before each drop. With the new hose:\#n\#n$$\Delta p \approx 9\ \text{kPa} < 12\ \text{kPa}$$\#n\#nwhich is inside the limit."#,
+                        ])
+                    }
                     if showsInternal && ticketId == "ticket01" {
                         rows.append(["id": "comment03", "authorUserId": "user02", "isInternal": true, "createdAt": ISO8601DateFormatter().string(from: Date().addingTimeInterval(-3_600)), "body": "Hose looks fine on the photo. Asking the line owner for the pressure log."])
                     }

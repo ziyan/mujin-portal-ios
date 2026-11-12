@@ -158,7 +158,7 @@ jobs:
           MONITOR=$!
           set +e
           xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
-            -only-testing:MujinPortalUITests -skip-testing:MujinPortalUITests/ChatRenderingTests -skip-testing:MujinPortalUITests/ChatRenderingPerformanceTests -parallel-testing-enabled NO -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
+            -only-testing:MujinPortalUITests -skip-testing:MujinPortalUITests/ChatRenderingTests -skip-testing:MujinPortalUITests/ChatRenderingPerformanceTests -skip-testing:MujinPortalUITests/RichMarkdownDocumentTests -parallel-testing-enabled NO -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
           RESULT=${PIPESTATUS[0]}
           kill "${MONITOR}" || true
           exit "${RESULT}"
@@ -210,7 +210,7 @@ jobs:
           mkdir -p rendering-screenshots
           TEST_RUNNER_RENDERING_SHOTS_DIRECTORY="${PWD}/rendering-screenshots" xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal \
             -destination "id=${DEVICE}" -derivedDataPath build -only-testing:MujinPortalUITests/ChatRenderingTests \
-            -only-testing:MujinPortalUITests/ChatRenderingPerformanceTests \
+            -only-testing:MujinPortalUITests/ChatRenderingPerformanceTests -only-testing:MujinPortalUITests/RichMarkdownDocumentTests \
             -resultBundlePath rendering.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee rendering.log | grep -E 'error:|Test Case .* (passed|failed)|measured \[|rendering-performance|\*\* TEST'
 
       - name: Keep the pictures
@@ -405,6 +405,9 @@ jobs:
           shoot site-pages-expanded site-pages-expanded
           shoot site-page-table site-page-table
           shoot site-page-table-end site-page-table-end
+          shoot site-page-rich site-page-rich
+          shoot site-page-table-zoom site-page-table-zoom
+          shoot ticket-formula ticket-formula
           shoot site-pages-row site-pages-row
           shoot site-pages site-pages
           shoot site-pages-readonly site-pages-readonly
@@ -583,6 +586,8 @@ jobs:
           shoot site-pages-expanded-dark site-pages-expanded
           shoot site-page-table-dark site-page-table
           shoot site-page-table-end-dark site-page-table-end
+          shoot site-page-rich-dark site-page-rich
+          shoot site-page-table-zoom-dark site-page-table-zoom
           shoot site-pages-row-dark site-pages-row
           shoot site-pages-dark site-pages
           shoot site-pages-readonly-dark site-pages-readonly
