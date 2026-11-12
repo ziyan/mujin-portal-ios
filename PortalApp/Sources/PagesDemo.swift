@@ -13,6 +13,7 @@ enum PagesDemo {
         "site-pages-row", "site-pages", "site-pages-readonly", "site-pages-empty", "site-pages-error", "site-pages-missing", "site-pages-search",
         "site-pages-new", "site-page", "site-page-readonly", "site-page-author", "site-page-nested", "site-page-draft", "site-page-missing",
         "site-page-menu", "site-page-history", "site-page-revision", "site-page-edit", "site-pages-expanded", "site-page-table", "site-page-table-end",
+        "site-page-rich", "site-page-table-zoom",
     ]
 
     static func owns(_ screen: String?) -> Bool { screen.map { screens.contains($0) } ?? false }
@@ -36,6 +37,7 @@ enum PagesDemo {
         case "site-page-nested": return [tree, page("page01"), page("page03"), page("page04")]
         case "site-page-draft": return [tree, page("page05")]
         case "site-page-table", "site-page-table-end": return [tree, page("page07")]
+        case "site-page-rich", "site-page-table-zoom": return [tree, page("page08")]
         case "site-page-missing": return [page("page-gone")]
         case "site-page-history", "site-page-revision":
             guard let current = decodedPage(id: "page01") else { return [tree, page("page01")] }
@@ -161,6 +163,7 @@ enum PagesDemo {
             page("page05", parent: nil, position: 2, title: "Shift handover notes", icon: nil, isPublished: false, draftContent: handoverWords, modifiedSecondsAgo: 1_800),
             page("page06", parent: nil, position: 3, title: "Reference sheet", icon: nil, draftContent: "Spare parts, contacts and the layout drawing live here.", modifiedSecondsAgo: 2_000_000),
             page("page07", parent: nil, position: 4, title: "Fault code list", icon: nil, draftContent: codeListWords, modifiedSecondsAgo: 600_000),
+            page("page08", parent: nil, position: 5, title: "Belt tuning notes", icon: nil, draftContent: tuningWords, modifiedSecondsAgo: 300_000),
         ]
         // The words of a published page are those of its revisions; the draft mirrors the last one.
         var revisions: [[String: Any]] = []
@@ -190,6 +193,40 @@ enum PagesDemo {
         }
         return State(pages: pages, revisions: revisions)
     }
+
+    /// A page with formulas, a diagram and a table wider than a phone, as an engineer's notes are.
+    private static let tuningWords = #"""
+        # Belt tuning notes
+
+        How the belt speed and the pick rate fit together at the pick stations, with the numbers each station is tuned against.
+
+        ## The pick rate
+
+        A station picks $r = \frac{n}{t}$ boxes per minute, where $n$ is the boxes picked and $t$ the minutes the belt ran. Each pick takes one cycle:
+
+        $$T_{\text{cycle}} = T_{\text{reach}} + T_{\text{grip}} + T_{\text{place}}$$
+
+        so a station picks at most $r_{\max} = 60 / T_{\text{cycle}}$ boxes a minute. Spare pads cost $5 and $10 a pair.
+
+        ## How a box moves
+
+        ```mermaid
+        flowchart LR
+            Infeed --> Scan --> Pick --> Place --> Outfeed
+            Scan -->|not read| Reject
+        ```
+
+        ## The numbers per station
+
+        | Station | Belt speed (m/s) | Picks per minute | Cycle time (s) | Vacuum (kPa) | Dropped per hour | Notes |
+        | :-- | --: | --: | --: | --: | :-: | :-- |
+        | Station 1 | 0.42 | 24 | 2.5 | 66 | 1 | Tuned last week |
+        | Station 2 | 0.40 | 23 | 2.6 | 64 | 2 | New pads fitted |
+        | Station 3 | 0.45 | 21 | 2.8 | 58 | 4 | Watch the vacuum |
+        | Station 4 | 0.38 | 25 | 2.4 | 68 | 0 | Small boxes only |
+
+        Code stays as it is typed: `$HOME` is not a formula.
+        """#
 
     private static let safetyWords = """
         # Safety rules
