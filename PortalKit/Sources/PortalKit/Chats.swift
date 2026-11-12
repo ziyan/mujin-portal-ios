@@ -56,13 +56,17 @@ public struct ChatRoom: Codable, Equatable, Identifiable, Sendable {
     public let lastMessageExcerpt: String?
     public let lastMessageAuthorName: String?
     public let members: [ChatMember]?
+    /// Whether the reader may write an internal note here: staff, in a chat a customer reads. Asked for only from a server that has them.
+    public let canPostInternal: Bool?
 
     public init(
         id: String, organizationId: String? = nil, chatKind: String? = nil, name: String? = nil, displayName: String? = nil,
         isMemoryFilingEnabled: Bool? = nil, lastMessageAt: String? = nil, readerConversationId: String? = nil,
         readerNotificationLevel: String? = nil, isReaderAdmin: Bool? = nil, isReaderMember: Bool? = nil, readerUnreadMessageCount: Int64? = nil,
-        readerLastReadMessageId: String? = nil, lastMessageExcerpt: String? = nil, lastMessageAuthorName: String? = nil, members: [ChatMember]? = nil
+        readerLastReadMessageId: String? = nil, lastMessageExcerpt: String? = nil, lastMessageAuthorName: String? = nil, members: [ChatMember]? = nil,
+        canPostInternal: Bool? = nil
     ) {
+        self.canPostInternal = canPostInternal
         self.id = id
         self.organizationId = organizationId
         self.chatKind = chatKind
@@ -346,8 +350,14 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
     /// How many replies this message's thread holds and when the last came; zero and nil when it has none.
     public internal(set) var threadReplyCount: Int
     public internal(set) var threadLastReplyAt: String?
+    /// A note only Mujin staff read.
+    public let isInternal: Bool
+    /// Whether the author is Mujin staff, when the server says so; nil when it does not.
+    public let isAuthorMujinUser: Bool?
 
     public init(_ message: ConversationMessage) {
+        isInternal = message.isInternal ?? false
+        isAuthorMujinUser = message.isAuthorMujinUser
         threadRootMessageId = ThreadRouting.normalized(message.threadRootMessageId)
         threadReplyCount = max(0, message.threadReplyCount ?? 0)
         threadLastReplyAt = message.threadLastReplyAt
@@ -786,7 +796,7 @@ extension Connection {
     /// Says something to the room. The run id is empty unless the message
     /// addressed the assistant. No `viewing` or `voice` goes out in a chat.
     public func sendChatMessage(
-        conversationId: String, text: String, replyToMessageId: String? = nil, mentions: [ChatMention] = []
+        conversationId: String, text: String, replyToMessageId: String? = nil, mentions: [ChatMention] = [], isInternal: Bool = false
     ) async throws -> (runId: String, message: ConversationMessage?) {
         struct Answer: Decodable, Sendable {
             struct Sent: Decodable, Sendable {
@@ -808,6 +818,11 @@ extension Connection {
                         "length": .number(Double(mention.length)),
                     ])
                 })
+        }
+        if isInternal {
+            // Only called with an internal note when the server has them.
+            document = Documents.withInternalArgument(document)
+            variables["isInternal"] = .bool(true)
         }
         let sent = try await execute(document, variables: variables, as: Answer.self).SendMessage
         return (sent.runId ?? "", sent.message)

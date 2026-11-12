@@ -58,6 +58,22 @@ import Testing
         #expect(checked >= 4)
     }
 
+    /// Internal notes: every document that asks for a message's or a chat's fields is valid with the internal-note fields added, on top
+    /// of the thread fields, and SendMessage with its isInternal argument.
+    @Test func theInternalNoteFieldsAreValidWhereTheyAreAdded() throws {
+        var checked = 0
+        for document in Documents.all where document.contains("linkPreviewsRemovedAt") || document.contains("lastMessageAuthorName") {
+            let problems = try DocumentValidator(schema: Self.schema).problems(in: Documents.withInternalNotes(Documents.withThreads(document)))
+            #expect(problems.isEmpty, "\(document.prefix(60)): \(problems)")
+            checked += 1
+        }
+        #expect(checked >= 4)
+        for document in [Documents.sendChatMessage, Documents.sendChatMessageWithMentions] {
+            let problems = try DocumentValidator(schema: Self.schema).problems(in: Documents.withInternalArgument(document))
+            #expect(problems.isEmpty, "\(problems)")
+        }
+    }
+
     /// Dictation and reading aloud are built against the contract the server plans: the two availability fields are checked as soon as
     /// the vendored schema has them, and not before. The app asks for them only of a server whose schema has them.
     @Test func theVoiceAvailabilityDocumentIsValidOnceTheSchemaHasTheFields() throws {

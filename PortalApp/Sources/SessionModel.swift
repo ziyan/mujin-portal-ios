@@ -463,6 +463,7 @@ final class SessionModel {
             await connection.setChatMedia(hasVoice: newCapabilities.offersVoiceMessages, hasCalls: newCapabilities.offersChatCalls)
             // A server with message threads takes their fields and arguments; an older one refuses them.
             await connection.setMessageThreads(newCapabilities.offersMessageThreads)
+            await connection.setInternalNotes(newCapabilities.offersInternalNotes)
             // Asked only of a server whose schema has the fields; an older one has neither feature.
             voiceAvailability = await connection.voiceAvailability(capabilities: newCapabilities)
             // The first screen needs none of what follows, so a slow network does not hold it back.

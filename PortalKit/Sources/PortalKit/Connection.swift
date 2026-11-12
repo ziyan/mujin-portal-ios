@@ -38,10 +38,18 @@ public actor Connection {
         hasMessageThreads = hasThreads
     }
 
+    /// Whether this server's messages and chats carry the internal-note fields, which an older server refuses. Set from its capabilities.
+    public private(set) var hasInternalNotes = false
+
+    public func setInternalNotes(_ hasNotes: Bool) {
+        hasInternalNotes = hasNotes
+    }
+
     /// The document as this server takes it.
     public func prepared(_ document: String) -> String {
         let withMedia = Documents.withChatMedia(document, hasVoice: hasVoiceMessages, hasCalls: hasChatCalls)
-        return hasMessageThreads ? Documents.withThreads(withMedia) : withMedia
+        let withThreads = hasMessageThreads ? Documents.withThreads(withMedia) : withMedia
+        return hasInternalNotes ? Documents.withInternalNotes(withThreads) : withThreads
     }
 
     /// How long before a token runs out it is renewed. Access tokens last

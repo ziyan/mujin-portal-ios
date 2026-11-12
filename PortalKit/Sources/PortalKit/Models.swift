@@ -139,6 +139,10 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
     /// On a message that has a thread: how many replies it holds and when the last came.
     public let threadReplyCount: Int?
     public let threadLastReplyAt: String?
+    /// A note only Mujin staff read. Asked for only from a server that has internal notes.
+    public let isInternal: Bool?
+    /// Whether the author is Mujin staff, so a client need not look the author up among the members.
+    public let isAuthorMujinUser: Bool?
 
     public init(
         id: String, role: String, content: JSONValue? = nil, toolCalls: JSONValue? = nil, toolCallId: String? = nil,
@@ -149,8 +153,10 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
         replyToMessageId: String? = nil, replyToExcerpt: String? = nil, replyToAuthorName: String? = nil,
         isAddressingAssistant: Bool? = nil, editedAt: String? = nil, deletedAt: String? = nil, linkPreviewsRemovedAt: String? = nil,
         voiceMessage: VoiceMessage? = nil, call: ChatCall? = nil, threadRootMessageId: String? = nil, threadReplyCount: Int? = nil,
-        threadLastReplyAt: String? = nil
+        threadLastReplyAt: String? = nil, isInternal: Bool? = nil, isAuthorMujinUser: Bool? = nil
     ) {
+        self.isInternal = isInternal
+        self.isAuthorMujinUser = isAuthorMujinUser
         self.threadRootMessageId = threadRootMessageId
         self.threadReplyCount = threadReplyCount
         self.threadLastReplyAt = threadLastReplyAt
