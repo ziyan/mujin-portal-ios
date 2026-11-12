@@ -22,7 +22,6 @@ struct ChatView: View {
     @State private var model: ChatModel?
     @State private var openedThreadRootId: String?
     /// The threads the person waved away from the hint that offers to continue one, while this screen is open.
-    @State private var dismissedContinueRootIds: Set<String> = []
     /// The message a link pointed at, marked for a moment.
     @State private var highlightedMessageId: String?
     @State private var isOnScreen = false
@@ -483,13 +482,10 @@ struct ChatView: View {
                     .padding(.vertical, 12)
             } else {
                 if model.canOpenThreads, model.replyTarget == nil, model.editTarget == nil,
-                    let root = ThreadRouting.threadToContinue(
-                        model.timeline.messages, currentUserId: model.currentUserId, dismissedRootIds: dismissedContinueRootIds)
+                    let root = ThreadRouting.threadToContinue(model.timeline.messages, currentUserId: model.currentUserId)
                 {
                     ContinueThreadHint(excerpt: ThreadRouting.excerpt(root.text)) {
                         openedThreadRootId = root.id
-                    } onDismiss: {
-                        dismissedContinueRootIds.insert(root.id)
                     }
                     .padding(.horizontal, 12)
                 }

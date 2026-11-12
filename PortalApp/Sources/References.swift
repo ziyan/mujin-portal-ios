@@ -135,11 +135,10 @@ struct SentQuote: View {
 }
 
 /// ContinueThreadHint offers, above the main history's composer, the thread the person was just talking in: what a send there would
-/// start is a new thread, so the hint is the way back into the one they meant. It can be waved away.
+/// start is a new thread, so the hint is the way back into the one they meant.
 struct ContinueThreadHint: View {
     let excerpt: String
     let onOpen: () -> Void
-    let onDismiss: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
@@ -156,7 +155,6 @@ struct ContinueThreadHint: View {
                 .font(.caption.weight(.semibold))
                 .buttonStyle(.borderless)
                 .accessibilityIdentifier("continueThreadButton")
-            RemoveButton(label: Text("Dismiss"), action: onDismiss)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
