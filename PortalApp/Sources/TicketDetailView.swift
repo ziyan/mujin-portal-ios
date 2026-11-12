@@ -247,8 +247,6 @@ struct TicketDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
             }
-            AttachmentStrip(drafts: drafts)
-                .padding(.horizontal, 20)
             ComposerCard(
                 placeholder: isInternal ? LocalizedStringKey("Internal note") : LocalizedStringKey("Reply"), text: $draft, drafts: drafts,
                 canSend: !model.isSending && !(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && drafts.items.isEmpty),
