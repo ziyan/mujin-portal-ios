@@ -16,11 +16,15 @@ struct LinkPreviewCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let imageData, let image = UIImage(data: imageData) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxHeight: 140)
+            // A card with a picture holds its height before the picture arrives, so the message above it does not move.
+            if hasPicture {
+                Color(.tertiarySystemFill)
+                    .frame(height: Self.pictureHeight)
+                    .overlay {
+                        if let imageData, let image = UIImage(data: imageData) {
+                            Image(uiImage: image).resizable().scaledToFill()
+                        }
+                    }
                     .clipped()
                     .accessibilityHidden(true)
             }
@@ -68,6 +72,11 @@ struct LinkPreviewCardView: View {
             imageData = try? await connection.fetch(path: path)
         }
     }
+
+    static let pictureHeight: CGFloat = 140
+
+    /// Whether the card has a picture, which comes from Portal's own copy.
+    private var hasPicture: Bool { !appModel.isDemo && card.imageUrl?.hasPrefix("/api/") == true }
 
     /// labelText is the small line above the title: the site an outside page
     /// came from, or for a Portal link what it is ("Ticket #12"), the same as
