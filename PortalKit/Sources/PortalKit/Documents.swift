@@ -188,6 +188,7 @@ public enum Documents {
         documents += knowledgeDocuments
         documents += dreamDocuments
         documents += artifactDocuments
+        documents += backgroundCommandDocuments
         documents += memoryFilingDocuments
         documents += siteOverviewDocuments
         documents += siteResourceDocuments
