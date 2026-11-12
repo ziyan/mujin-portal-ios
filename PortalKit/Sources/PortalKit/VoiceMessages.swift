@@ -38,13 +38,17 @@ public struct VoiceMessage: Codable, Equatable, Sendable {
         case text(String)
         case waiting
         case failed
+        /// No transcript was made, and none will be: transcription is off for the organization, or its cost was refused. Not a failure,
+        /// and nothing is shown for it.
+        case absent
     }
 
     public var transcriptStatus: TranscriptStatus {
         let words = (transcriptText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         switch transcriptState ?? "" {
         case "done": return words.isEmpty ? .failed : .text(words)
-        case "failed", "off": return .failed
+        case "failed": return .failed
+        case "off": return .absent
         default: return words.isEmpty ? .waiting : .text(words)
         }
     }

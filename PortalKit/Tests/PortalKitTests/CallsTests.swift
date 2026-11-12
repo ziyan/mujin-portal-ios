@@ -80,7 +80,8 @@ import Testing
         #expect(VoiceMessage(transcriptText: "Hello there", transcriptState: "done").transcriptStatus == .text("Hello there"))
         #expect(VoiceMessage(transcriptState: "failed").transcriptStatus == .failed)
         #expect(VoiceMessage(transcriptText: "  ", transcriptState: "done").transcriptStatus == .failed)
-        #expect(VoiceMessage(transcriptState: "off").transcriptStatus == .failed)
+        #expect(VoiceMessage(transcriptState: "off").transcriptStatus == .absent)
+        #expect(VoiceMessage(transcriptText: "", transcriptState: "off").transcriptStatus != .failed)
     }
 
     @Test func aMessageWithoutLevelsGetsAFlatLine() {
