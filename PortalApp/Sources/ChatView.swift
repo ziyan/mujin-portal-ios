@@ -606,13 +606,11 @@ struct ChatView: View {
     /// What a send will do. In a chat with threads, a message in the main history starts a thread and one in a thread replies in it.
     private func fieldPrompt(_ model: ChatModel) -> LocalizedStringKey {
         if isThread { return LocalizedStringKey("Reply in thread") }
-        let agent = dynamicTypeSize.isAccessibilitySize ? nil : model.agents.first?.name
         guard model.offersMessageThreads else {
-            if let agent { return LocalizedStringKey("Message, or @\(agent) to ask") }
+            if !dynamicTypeSize.isAccessibilitySize, let agent = model.agents.first?.name { return LocalizedStringKey("Message, or @\(agent) to ask") }
             return LocalizedStringKey("Message")
         }
-        if let agent { return LocalizedStringKey("New thread, or @\(agent)") }
-        return LocalizedStringKey("Start a new thread")
+        return LocalizedStringKey("New thread")
     }
 
     /// The list that opens above the composer when the draft ends with an @:
