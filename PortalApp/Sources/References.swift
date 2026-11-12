@@ -169,7 +169,46 @@ struct ContinueThreadHint: View {
     }
 }
 
-/// StaffBadge marks a Mujin user beside their name, wherever a name shows in a chat: the Mujin mark, read aloud as "Mujin staff".
+/// StaffMark marks a Mujin user at the bottom right of their avatar: the Mujin mark in a small circle, on a ring of the surface the
+/// avatar sits on so it reads apart from the picture. The name beside the avatar says "Mujin staff" aloud (`readsAsStaff`).
+struct StaffMark: View {
+    /// The avatar's size; the mark is 40% of it.
+    let avatarSize: CGFloat
+    let ringColor: Color
+
+    var body: some View {
+        let markSize = avatarSize * 0.4
+        let ringWidth = max(1.5, markSize * 0.14)
+        Image("MujinLogo")
+            .resizable()
+            .scaledToFit()
+            .padding(markSize * 0.18)
+            .frame(width: markSize, height: markSize)
+            .background(Color.portalCard, in: Circle())
+            .padding(ringWidth)
+            .background(ringColor, in: Circle())
+            .offset(x: ringWidth, y: ringWidth)
+            .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Adds "Mujin staff" to what is read aloud for a name whose avatar carries the staff mark.
+    @ViewBuilder
+    func readsAsStaff(_ isStaff: Bool) -> some View {
+        if isStaff {
+            accessibilityLabel { label in
+                label
+                Text("Mujin staff")
+            }
+        } else {
+            self
+        }
+    }
+}
+
+/// StaffBadge marks a Mujin user after their name where no avatar is shown, as in a list at the largest text sizes: the Mujin
+/// mark, read aloud as "Mujin staff".
 struct StaffBadge: View {
     @ScaledMetric(relativeTo: .caption) private var height: CGFloat = 13
 

@@ -367,12 +367,14 @@ struct CandidateRow: View {
                     .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                     .accessibilityHidden(true)
             }
-            if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: person.userId, name: person.shownName, size: 32) }
+            let isStaff = person.isMujinUser == true
+            if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: person.userId, name: person.shownName, size: 32, isStaff: isStaff) }
             VStack(alignment: .leading, spacing: 2) {
                 let nameLayout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 6))
                 nameLayout {
-                    Text(person.shownName).foregroundStyle(.primary).portalNameLine()
-                    if person.isMujinUser == true {
+                    // With no avatar shown, the mark follows the name.
+                    Text(person.shownName).foregroundStyle(.primary).portalNameLine().readsAsStaff(isStaff && !dynamicTypeSize.isAccessibilitySize)
+                    if isStaff, dynamicTypeSize.isAccessibilitySize {
                         StaffBadge()
                     }
                 }

@@ -667,12 +667,10 @@ struct ChatView: View {
                         model.pick(candidate)
                     } label: {
                         HStack(spacing: 10) {
-                            UserAvatar(userId: candidate.kind == .user ? candidate.id : nil, name: candidate.name, size: 32, isAssistant: candidate.kind == .agent)
+                            let isStaff = candidate.kind == .user && model.member(candidate.id)?.isMujinUser == true
+                            UserAvatar(userId: candidate.kind == .user ? candidate.id : nil, name: candidate.name, size: 32, isAssistant: candidate.kind == .agent, isStaff: isStaff)
                             VStack(alignment: .leading, spacing: 1) {
-                                HStack(spacing: 6) {
-                                    Text(candidate.name).foregroundStyle(.primary)
-                                    if candidate.kind == .user, model.member(candidate.id)?.isMujinUser == true { StaffBadge() }
-                                }
+                                Text(candidate.name).foregroundStyle(.primary).readsAsStaff(isStaff)
                                 Text(candidate.detail ?? (candidate.kind == .agent ? String(localized: "Assistant") : String(localized: "Person")))
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
@@ -770,7 +768,9 @@ private struct MessageRow: View {
             // Others have a small round picture at the start of each run of their messages.
             if !isMine {
                 if startsRun {
-                    UserAvatar(userId: message.authorUserId, name: message.authorName ?? model.member(message.authorUserId)?.shownName ?? "", size: 28, isAssistant: message.isAssistant)
+                    UserAvatar(
+                        userId: message.authorUserId, name: message.authorName ?? model.member(message.authorUserId)?.shownName ?? "", size: 28,
+                        isAssistant: message.isAssistant, isStaff: isAuthorStaff, surfaceColor: .portalPage)
                 } else {
                     Color.clear.frame(width: 28, height: 1)
                 }
@@ -831,6 +831,7 @@ private struct MessageRow: View {
             Text(message.isAssistant ? ((message.authorName ?? "").isEmpty ? String(localized: "Assistant") : message.authorName!) : (message.authorName ?? member?.shownName ?? String(localized: "Someone")))
                 .font(.caption.weight(.semibold))
                 .portalNameLine()
+                .readsAsStaff(isAuthorStaff)
             if message.isAssistant, let name = message.onBehalfOfUserName, !name.isEmpty {
                 Text("for \(name)").font(.caption).foregroundStyle(.secondary).portalNameLine()
             }
@@ -840,11 +841,11 @@ private struct MessageRow: View {
             {
                 Text(organization).font(.caption).foregroundStyle(.secondary).portalNameLine()
             }
-            if message.isAuthorMujinUser ?? member?.isMujinUser == true {
-                StaffBadge()
-            }
         }
     }
+
+    /// Whether the author is Mujin staff, which their avatar's corner shows.
+    private var isAuthorStaff: Bool { !message.isAssistant && (message.isAuthorMujinUser ?? model.member(message.authorUserId)?.isMujinUser) == true }
 
     /// A quote of the message right above, or of one the reader can see in the transcript, adds nothing.
     private var showsQuote: Bool {
@@ -1152,12 +1153,14 @@ private struct MemberRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-        if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: member.userId, name: member.shownName, size: 32) }
+        let isStaff = member.isMujinUser == true
+        if !dynamicTypeSize.isAccessibilitySize { UserAvatar(userId: member.userId, name: member.shownName, size: 32, isStaff: isStaff) }
         VStack(alignment: .leading, spacing: 2) {
             let nameLayout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 6))
             nameLayout {
-                Text(isViewer ? String(localized: "You") : member.shownName).portalNameLine()
-                if member.isMujinUser == true {
+                // With no avatar shown, the mark follows the name.
+                Text(isViewer ? String(localized: "You") : member.shownName).portalNameLine().readsAsStaff(isStaff && !dynamicTypeSize.isAccessibilitySize)
+                if isStaff, dynamicTypeSize.isAccessibilitySize {
                     StaffBadge()
                 }
                 if member.isAdmin == true {

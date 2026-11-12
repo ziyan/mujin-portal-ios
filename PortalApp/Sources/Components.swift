@@ -513,6 +513,10 @@ struct UserAvatar: View {
     var modifiedAt: String?
     var size: CGFloat = 28
     var isAssistant = false
+    /// Whether the person is Mujin staff, which puts the staff mark on the avatar's corner.
+    var isStaff = false
+    /// The surface the avatar sits on, which the staff mark's ring takes.
+    var surfaceColor = Color.portalCard
 
     @State private var loaded: UIImage?
 
@@ -527,6 +531,9 @@ struct UserAvatar: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
+        .overlay(alignment: .bottomTrailing) {
+            if isStaff, !isAssistant { StaffMark(avatarSize: size, ringColor: surfaceColor) }
+        }
         .accessibilityHidden(true)
     }
 }
