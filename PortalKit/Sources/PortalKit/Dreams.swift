@@ -86,30 +86,9 @@ extension Documents {
         }
         """
 
-    public static let listMemoryLinkProposals = """
-        query ListMemoryLinkProposals($limit: Int64) { ListMemoryLinkProposals(limit: $limit) { \(memoryLinkFields) } }
-        """
-
-    public static let acceptMemoryLinkProposal = """
-        mutation AcceptMemoryLinkProposal($fromMemoryPageId: String, $toMemoryPageId: String, $relation: String) {
-          AcceptMemoryLinkProposal(fromMemoryPageId: $fromMemoryPageId, toMemoryPageId: $toMemoryPageId, relation: $relation) {
-            fromMemoryPageId toMemoryPageId
-          }
-        }
-        """
-
-    public static let declineMemoryLinkProposal = """
-        mutation DeclineMemoryLinkProposal($fromMemoryPageId: String, $toMemoryPageId: String, $relation: String) {
-          DeclineMemoryLinkProposal(fromMemoryPageId: $fromMemoryPageId, toMemoryPageId: $toMemoryPageId, relation: $relation) {
-            fromMemoryPageId toMemoryPageId
-          }
-        }
-        """
-
     static var dreamDocuments: [String] {
         [
-            getAgentDreamSetting, setAgentDreamSetting, startMemoryDream, listMemoryDreams, listMemoryLinkProposals, acceptMemoryLinkProposal,
-            declineMemoryLinkProposal,
+            getAgentDreamSetting, setAgentDreamSetting, startMemoryDream, listMemoryDreams,
         ]
     }
 }
@@ -145,23 +124,6 @@ extension Connection {
         }
         return try await execute(Documents.listMemoryDreams, variables: ["options": .object(["first": .number(Double(first))])], as: Answer.self)
             .ListMemoryDreams?.memoryDreams ?? []
-    }
-
-    /// Links a dream proposed between pages the caller can read.
-    public func linkProposals(limit: Int = 50) async throws -> [MemoryLink] {
-        struct Answer: Decodable, Sendable { let ListMemoryLinkProposals: [MemoryLink]? }
-        return try await execute(Documents.listMemoryLinkProposals, variables: ["limit": .number(Double(limit))], as: Answer.self).ListMemoryLinkProposals ?? []
-    }
-
-    /// Accepts or declines a proposed link. A declined pair is never proposed again.
-    public func answerLinkProposal(_ link: MemoryLink, isAccepted: Bool) async throws {
-        let document = isAccepted ? Documents.acceptMemoryLinkProposal : Documents.declineMemoryLinkProposal
-        _ = try await execute(
-            document,
-            variables: [
-                "fromMemoryPageId": .string(link.fromMemoryPageId ?? ""), "toMemoryPageId": .string(link.toMemoryPageId ?? ""),
-                "relation": .string(link.relation ?? "related"),
-            ], as: JSONValue.self)
     }
 }
 

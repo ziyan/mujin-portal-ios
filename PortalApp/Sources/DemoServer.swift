@@ -1357,8 +1357,6 @@ struct DemoTransport: HTTPTransport {
                     "isDreaming": false, "hasBacklog": true, "canManageOrganization": true,
                 ]
             ]
-        case "ListMemoryLinkProposals":
-            return ["ListMemoryLinkProposals": [["fromMemoryPageId": "page02", "toMemoryPageId": "page03", "relation": "follows", "linkStatus": "proposed", "fromPageName": "Site01 docks", "toPageName": "Shift pattern"]]]
         case "ListMemoryDreams":
             return [
                 "ListMemoryDreams": [
