@@ -87,9 +87,36 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Say which Xcode
+        id: xcode
         run: |
           xcodebuild -version
+          echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "${GITHUB_OUTPUT}"
           swift --version
+
+      # The Swift packages, WebRTC's prebuilt framework among them, are fetched
+      # once for each Package.resolved and project.yml.
+      - name: Restore the Swift packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-${{ hashFiles('PortalKit/Package.resolved', 'project.yml') }}
+          restore-keys: swiftpm-
+
+      # The build folder of this commit, else of the newest commit built with
+      # the same Xcode. A file that changed since is rebuilt; the index is left out.
+      - name: Restore the build folder
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            build
+            build-ipad
+            PortalKit/.build
+            !build/Index.noindex
+            !build-ipad/Index.noindex
+          key: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-${{ github.sha }}
+          restore-keys: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-
 
       - name: Test PortalKit
         working-directory: PortalKit
@@ -106,12 +133,12 @@ jobs:
       - name: Build for an iPhone simulator
         run: |
           DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone [0-9]+ Pro \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
-          xcodebuild build -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build CODE_SIGNING_ALLOWED=NO -quiet
+          xcodebuild build -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build -clonedSourcePackagesDirPath SourcePackages COMPILER_INDEX_STORE_ENABLE=NO CODE_SIGNING_ALLOWED=NO -quiet
 
       - name: Build for an iPad simulator
         run: |
           DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPad Pro 13-inch' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
-          xcodebuild build -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build-ipad CODE_SIGNING_ALLOWED=NO -quiet
+          xcodebuild build -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build-ipad -clonedSourcePackagesDirPath SourcePackages COMPILER_INDEX_STORE_ENABLE=NO CODE_SIGNING_ALLOWED=NO -quiet
 
       - name: Keep the simulator build
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -135,11 +162,43 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
+      - name: Say which Xcode
+        id: xcode
+        run: |
+          xcodebuild -version
+          echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "${GITHUB_OUTPUT}"
+
+      # The Swift packages, WebRTC's prebuilt framework among them, are fetched
+      # once for each Package.resolved and project.yml.
+      - name: Restore the Swift packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-${{ hashFiles('PortalKit/Package.resolved', 'project.yml') }}
+          restore-keys: swiftpm-
+
+      # The build folder of this commit, else of the newest commit built with
+      # the same Xcode. A file that changed since is rebuilt; the index is left out.
+      - name: Restore the build folder
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            build
+            !build/Index.noindex
+          key: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-${{ github.sha }}
+          restore-keys: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-
+
+      # Three clones of the simulator run the test classes side by side. The
+      # device is booted once and shut down first, so each clone starts from a
+      # simulator that has finished its first boot.
       - name: Run the UI tests
         run: |
           DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone [0-9]+ Pro \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
           xcrun simctl boot "${DEVICE}"
           xcrun simctl bootstatus "${DEVICE}" -b
+          xcrun simctl shutdown "${DEVICE}"
           # When the app stops going idle, XCTest only says so. Keep a sample of
           # the process at that moment, which says where its main thread is.
           mkdir -p hang-samples
@@ -161,7 +220,8 @@ jobs:
           MONITOR=$!
           set +e
           xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
-            -only-testing:MujinPortalUITests -parallel-testing-enabled NO -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
+            -clonedSourcePackagesDirPath SourcePackages COMPILER_INDEX_STORE_ENABLE=NO \
+            -only-testing:MujinPortalUITests -parallel-testing-enabled YES -parallel-testing-worker-count 3 -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
           RESULT=${PIPESTATUS[0]}
           kill "${MONITOR}" || true
           exit "${RESULT}"
@@ -911,6 +971,18 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
+      # The Swift packages, WebRTC's prebuilt framework among them, are fetched
+      # once for each Package.resolved and project.yml. Only they are kept: the
+      # archive's build folder holds the signed app and its profile.
+      - name: Restore the Swift packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-${{ hashFiles('PortalKit/Package.resolved', 'project.yml') }}
+          restore-keys: swiftpm-
+
       - name: Put the App Store Connect key where Xcode reads it
         env:
           KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
@@ -946,6 +1018,7 @@ jobs:
           -scheme MujinPortal
           -destination 'generic/platform=iOS'
           -archivePath build/MujinPortal.xcarchive
+          -clonedSourcePackagesDirPath SourcePackages
           -allowProvisioningUpdates
           -authenticationKeyPath "${RUNNER_TEMP}/keys/AuthKey_${KEY_ID}.p8"
           -authenticationKeyID "${KEY_ID}"
