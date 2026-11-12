@@ -12,7 +12,7 @@ import UIKit
 /// Every name here is made up.
 @MainActor
 enum DemoServer {
-    static let server = try! ServerAddress("https://demo.example.test")
+    nonisolated static let server = try! ServerAddress("https://demo.example.test")
     /// The code on the link address the demo's scan screen pretends to read.
     static let linkCode = "ZGVtby1saW5rLWNvZGUtMDEyMzQ1Njc4OQ"
 
@@ -318,6 +318,7 @@ final class DemoState: @unchecked Sendable {
             data.chats.append(CallDemo.chatRow(stamp: stamp))
             data.messages["chatconv03"] = CallDemo.messages(screen: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] ?? "", stamp: stamp)
         }
+        if ChatRenderingDemo.isScreen(DemoOptions.screen) { ChatRenderingDemo.seed(&data, stamp: stamp) }
         if ThreadDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
             data.chats.append(ThreadDemo.chatRow(stamp: stamp))
             data.conversations.append(ThreadDemo.assistantRow(stamp: stamp))
@@ -510,6 +511,12 @@ struct DemoTransport: HTTPTransport {
             // An upload: the demo keeps nothing and names every file the same.
             return (Data(#"{"id":"upload-demo-01"}"#.utf8), HTTPURLResponse(url: request.url!, statusCode: 201, httpVersion: nil, headerFields: nil)!)
         }
+        // The files of the chat rendering fixture, as their own type.
+        if let path = request.url?.path, path.hasPrefix("/api/v1/attachment/"),
+            let asset = ChatRenderingDemo.asset(attachmentId: String(path.dropFirst("/api/v1/attachment/".count)))
+        {
+            return (asset.data, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": asset.contentType])!)
+        }
         if let path = request.url?.path, path.hasPrefix("/api/v1/user/") || path.hasPrefix("/api/v1/organization/") || path.hasPrefix("/api/v1/attachment/") {
             // Two demo people and one organization have a picture; everyone else gets a 404 and keeps their initials.
             let image = DemoPictures.jpeg(forPath: path)
@@ -629,7 +636,9 @@ struct DemoTransport: HTTPTransport {
             // The call screens are shot against a server that has voice messages and calls; the others against one that does not.
             let hasCalls = CallDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
             // The thread screens are shot against a server that reads one thread or the main history without replies.
-            let hasThreads = ThreadDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            // The rendering screens are shot against a server with everything a message can show.
+            let isRendering = ChatRenderingDemo.isScreen(DemoOptions.screen)
+            let hasThreads = ThreadDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) || isRendering
             // Dictation and reading aloud are shot against a server whose voice setting says whether each is set up.
             let hasSpeech = SpeechDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
             let hasCallHistory = ThreadDemo.isCallHistoryScreen(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
@@ -642,8 +651,10 @@ struct DemoTransport: HTTPTransport {
             ]
             if hasCallHistory { queryFields.append(["name": "listChatCalls"]) }
             var mutationFields: [[String: Any]] = [
-                ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"], ["name": "openSiteChat"],
+                ["name": "sendMessage", "args": (hasCalls || isRendering ? [["name": "voiceMessage"]] : []) + (isRendering ? [["name": "isInternal"]] : [])],
+                ["name": "registerPushDevice"], ["name": "startDirectChat"], ["name": "openSiteChat"],
             ]
+            if isRendering { queryFields.append(["name": "searchChatReferences"]) }
             if hasCalls { mutationFields += [["name": "startChatCall"], ["name": "joinChatCallMedia"]] }
             mutationFields.append(["name": "setMainConversation"])
             // Feedback about Portal is shot against a server that has it; every other screen is not.
@@ -763,6 +774,8 @@ struct DemoTransport: HTTPTransport {
                 return room
             }
             return ["AddChatMembers": ["chat": chat]]
+        case "ListMessageLinkPreviews" where ChatRenderingDemo.isScreen(DemoOptions.screen):
+            return ["ListMessageLinkPreviews": ChatRenderingDemo.linkPreviews(messageIds: variables["messageIds"] as? [String] ?? [])]
         case "ListMessageLinkPreviews":
             let ids = variables["messageIds"] as? [String] ?? []
             return [

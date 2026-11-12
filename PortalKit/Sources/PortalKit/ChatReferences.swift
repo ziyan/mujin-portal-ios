@@ -45,6 +45,12 @@ public struct ChatReference: Codable, Equatable, Hashable, Sendable {
     /// Whether the reader may open it: it is there and theirs to see.
     public var canOpen: Bool { isAccessible == true && !(path ?? "").isEmpty }
 
+    /// Whether it was written as a whole web address, which its link card shows instead of a chip.
+    public var isPastedLink: Bool {
+        let written = (writtenText ?? "").lowercased()
+        return written.hasPrefix("http://") || written.hasPrefix("https://")
+    }
+
     /// What the chip says: a ticket's number and title, else the name.
     public var chipText: String {
         if referenceKind == "ticket", let sequence = ticketSequence {

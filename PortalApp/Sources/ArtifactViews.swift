@@ -238,11 +238,11 @@ struct ArtifactCardView: View {
 
 
     private var pageSource: ArtifactWebView.Source {
-        appModel.isDemo ? ArtifactWebView.Source.html(DemoArtifact.html) : ArtifactWebView.Source.remote(artifactId: artifact.id)
+        appModel.isDemo ? ArtifactWebView.Source.html(ChatRenderingDemo.artifactText(artifactId: artifact.id) ?? DemoArtifact.html) : ArtifactWebView.Source.remote(artifactId: artifact.id)
     }
 
     private func loadMarkdown() async -> String? {
-        if appModel.isDemo { return DemoArtifact.markdown }
+        if appModel.isDemo { return ChatRenderingDemo.artifactText(artifactId: artifact.id) ?? DemoArtifact.markdown }
         return try? await connection.artifactText(id: artifact.id)
     }
 
@@ -333,11 +333,11 @@ struct ArtifactFullView: View {
 
 
     private var pageSource: ArtifactWebView.Source {
-        appModel.isDemo ? ArtifactWebView.Source.html(DemoArtifact.html) : ArtifactWebView.Source.remote(artifactId: artifact.id)
+        appModel.isDemo ? ArtifactWebView.Source.html(ChatRenderingDemo.artifactText(artifactId: artifact.id) ?? DemoArtifact.html) : ArtifactWebView.Source.remote(artifactId: artifact.id)
     }
 
     private func loadMarkdown() async -> String? {
-        if appModel.isDemo { return DemoArtifact.markdown }
+        if appModel.isDemo { return ChatRenderingDemo.artifactText(artifactId: artifact.id) ?? DemoArtifact.markdown }
         return try? await connection.artifactText(id: artifact.id)
     }
 
