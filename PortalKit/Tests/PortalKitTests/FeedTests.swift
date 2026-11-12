@@ -79,6 +79,26 @@ import Testing
         #expect(socket.sent.contains { $0.contains("conversationUpdated") })
     }
 
+    /// The frame the demo server sends when someone says something in a chat, as far as the chat's timeline.
+    @Test func aChatMessageReachesTheChatsTimelineThroughTheFeed() async {
+        let socket = Self.portalLikeSocket(extraFrames: [
+            eventFrame(
+                #"{"type":"chat_said","chat":{"type":"chat_said","chatId":"chat01","message":{"id":"live1","role":"user","content":"Live message 1 from the dock.","createdAt":"2026-03-01T10:00:00Z","isChatMessage":true,"authorUserId":"user02","authorName":"Sam Sample","authorOrganizationName":"Support","authorOrganizationId":"organization00"}}}"#)
+        ])
+        let updates = ConversationFeed.updates(connection: connection(), conversationId: "chatconv01", socketFactory: { _, _ in socket }, timing: Self.fastTiming())
+        let collected = await collect(updates) { update, _ in
+            if case .event = update { return true }
+            return false
+        }
+        guard case .event(let event)? = collected.last else {
+            Issue.record("no event arrived")
+            return
+        }
+        var timeline = ChatTimeline()
+        #expect(timeline.apply(event) == .received(messageId: "live1"))
+        #expect(timeline.messages.map(\.text) == ["Live message 1 from the dock."])
+    }
+
     @Test func closeCode4401RenewsTheTokenAndReconnectsAtOnce() async {
         let sockets = Guarded<[ScriptedSocket]>([
             ScriptedSocket(frames: [ackFrame(), .closed(code: 4401)]),

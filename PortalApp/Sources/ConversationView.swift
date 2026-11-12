@@ -346,11 +346,11 @@ struct ConversationView: View {
             }
             .scrollDismissesKeyboard(.immediately)
             .background(Color.portalPage)
-            // A short thread starts at the top; a long one opens, and follows, at the end. Read further up, the messages in view stay
-            // where they are while an answer is written below them; an earlier page going in above keeps the distance from the end.
+            // A short thread starts at the top; a long one opens, and follows, at the end. An earlier page going in above keeps the
+            // distance from the end, so the messages in view stay where they are.
             .defaultScrollAnchor(.top, for: .alignment)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
-            .defaultScrollAnchor(isAtEnd || model.isInsertingEarlier ? .bottom : .top, for: .sizeChanges)
+            .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .onScrollGeometryChange(for: Bool.self, of: ListEnd.isShown) { _, isShown in isAtEnd = isShown }
             // The end of the thread, which an answer being written changes, is followed from the end, and always after the person
             // says something. Reading the same messages again moves nothing.

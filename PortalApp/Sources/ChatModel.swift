@@ -90,9 +90,6 @@ final class ChatModel {
     /// Whether the live feed has dropped and not come back. The first connection of an opened chat does not count.
     private(set) var isFeedLost = false
     private(set) var isLoadingEarlier = false
-    /// Set while an earlier page goes in at the top of the list, which then keeps its distance from the end so the messages in
-    /// view stay where they are.
-    private(set) var isInsertingEarlier = false
     /// The agents the chat's organization may use, the main one first.
     private(set) var agents: [Agent] = []
     /// The people and agents the person picked from the @ list for the draft.
@@ -319,13 +316,8 @@ final class ChatModel {
             let page = try await connection.messages(
                 conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
             await loadPreviews(of: page)
-            isInsertingEarlier = true
-            defer { isInsertingEarlier = false }
-            // The list takes up the anchor for the insertion before the rows arrive, and keeps it for the layout that places them.
-            try? await Task.sleep(for: .milliseconds(30))
             window.prepend(page)
             timeline.load(window.messages)
-            try? await Task.sleep(for: .milliseconds(120))
         } catch {
             actionError = error.userMessage
             onError(error)

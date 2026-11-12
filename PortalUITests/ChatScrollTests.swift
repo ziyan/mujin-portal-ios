@@ -117,11 +117,14 @@ final class ChatScrollTests: XCTestCase {
         scrollUp(app)
         Thread.sleep(forTimeInterval: 0.6)
         guard let before = topMessage(app) else { return XCTFail("No message is in view.\n\(app.debugDescription)") }
-        let next = latestLiveNumber(app) + 1
-        let arriving = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Live message \(next)")).firstMatch
-        XCTAssertTrue(DemoApp.waitUntilExists(arriving, timeout: 20), "No new message arrived.\n\(app.debugDescription)")
+        // What arrives waits below, behind a button, rather than growing the list under the messages being read.
+        let waiting = DemoApp.element(app, "newMessagesButton")
+        XCTAssertTrue(DemoApp.waitUntilExists(waiting, timeout: 30), "No new message arrived.\n\(app.debugDescription)")
         Thread.sleep(forTimeInterval: 1)
         assertStill(before, app, while: "as a new message arrived below")
+        waiting.tap()
+        let latest = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Live message")).allElementsBoundByIndex.last
+        XCTAssertNotNil(latest, "The waiting messages did not show after the button.\n\(app.debugDescription)")
     }
 
     func testANewMessageAtTheEndIsFollowed() {
