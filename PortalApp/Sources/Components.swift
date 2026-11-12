@@ -41,10 +41,19 @@ struct ComposerCard<Accessory: View>: View {
     private static var cornerRadius: CGFloat { 24 }
     private static var inset: CGFloat { 8 }
 
+    /// How wide the words are while the composer is a pill, measured, so the pill knows when the words would need a second line.
+    @State private var pillFieldWidth: CGFloat = 0
+
     /// The card: words across its whole width with the buttons on a row beneath, while the person types, has something attached or has
     /// written more than one line. Otherwise one pill: [+], the words, the microphone and send in a row.
     private var isExpanded: Bool {
-        isFocused || !(drafts?.items.isEmpty ?? true) || text.contains("\n") || text.count > 28
+        isFocused || !(drafts?.items.isEmpty ?? true) || text.contains("\n") || wrapsInPill
+    }
+
+    /// Whether the words need a second line at the pill's width, in the text view's own font and at the current text size.
+    private var wrapsInPill: Bool {
+        guard !text.isEmpty, pillFieldWidth > 0 else { return false }
+        return ComposerMeasure.needsSecondLine(text, width: pillFieldWidth)
     }
 
     var body: some View {
@@ -95,6 +104,10 @@ struct ComposerCard<Accessory: View>: View {
             )
             .accessibilityLabel(Text(placeholder))
             .accessibilityIdentifier(fieldIdentifier)
+        }
+        // The width the words have in the pill: measured only while it is one, since the card's is wider.
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            if !isExpanded { pillFieldWidth = width }
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 8)
@@ -161,6 +174,16 @@ struct ComposerCard<Accessory: View>: View {
         }
         // Past a point the buttons stop growing with the text.
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+    }
+}
+
+/// ComposerMeasure tells whether words fit one line of the composer's text view, which sets them in the body font with no insets.
+enum ComposerMeasure {
+    static func needsSecondLine(_ text: String, width: CGFloat, font: UIFont = UIFont.preferredFont(forTextStyle: .body)) -> Bool {
+        let bounds = (text as NSString).boundingRect(
+            with: CGSize(width: max(width, 1), height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font], context: nil)
+        return bounds.height > font.lineHeight * 1.5
     }
 }
 
