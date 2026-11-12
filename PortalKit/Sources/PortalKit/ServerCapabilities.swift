@@ -15,6 +15,8 @@ public struct ServerCapabilities: Equatable, Sendable {
     public let listConversationArgumentNames: Set<String>
     /// The fields of the ConversationMessage type, for a message field that came after the operations.
     public let messageFieldNames: Set<String>
+    /// The fields of the ConversationQuestion type, which say whether interactions carry their thread.
+    public let questionFieldNames: Set<String>
     /// The fields of the voice setting the GetAgentVoiceSetting query returns.
     public let voiceSettingFieldNames: Set<String>
     /// The fields of the Site type, for a feature that needs a field and not only an operation.
@@ -25,8 +27,10 @@ public struct ServerCapabilities: Equatable, Sendable {
     public init(
         queryNames: Set<String> = [], mutationNames: Set<String> = [], subscriptionNames: Set<String> = [], sendMessageArgumentNames: Set<String> = [],
         listMessageArgumentNames: Set<String> = [], voiceSettingFieldNames: Set<String> = [], siteFieldNames: Set<String> = [],
-        pageFieldNames: Set<String> = [], listConversationArgumentNames: Set<String> = [], messageFieldNames: Set<String> = []
+        pageFieldNames: Set<String> = [], listConversationArgumentNames: Set<String> = [], messageFieldNames: Set<String> = [],
+        questionFieldNames: Set<String> = []
     ) {
+        self.questionFieldNames = questionFieldNames
         self.messageFieldNames = messageFieldNames
         self.listConversationArgumentNames = listConversationArgumentNames
         self.pageFieldNames = pageFieldNames
@@ -96,6 +100,8 @@ public struct ServerCapabilities: Equatable, Sendable {
         let pageType: RootType?
         /// The message type, asked for by name.
         let messageType: RootType?
+        /// The question type, asked for by name.
+        let questionType: RootType?
     }
 
     init(_ introspection: Introspection) {
@@ -108,7 +114,8 @@ public struct ServerCapabilities: Equatable, Sendable {
             subscriptionNames: names(introspection.__schema.subscriptionType), sendMessageArgumentNames: Set(sendArguments.map(\.name)),
             listMessageArgumentNames: Set(listArguments.map(\.name)), voiceSettingFieldNames: names(introspection.voiceSetting),
             siteFieldNames: names(introspection.siteType), pageFieldNames: names(introspection.pageType),
-            listConversationArgumentNames: Set(conversationListArguments.map(\.name)), messageFieldNames: names(introspection.messageType))
+            listConversationArgumentNames: Set(conversationListArguments.map(\.name)), messageFieldNames: names(introspection.messageType),
+            questionFieldNames: names(introspection.questionType))
     }
 }
 
@@ -125,6 +132,7 @@ extension Documents {
           siteType: __type(name: "Site") { fields { name } }
           pageType: __type(name: "Page") { fields { name } }
           messageType: __type(name: "ConversationMessage") { fields { name } }
+          questionType: __type(name: "ConversationQuestion") { fields { name } }
         }
         """
 }

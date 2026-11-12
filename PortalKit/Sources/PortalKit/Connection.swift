@@ -59,6 +59,13 @@ public actor Connection {
         hasOnBehalfOfStaff = hasField
     }
 
+    /// Whether this server's interactions say which thread they belong to. Set from its capabilities.
+    public private(set) var hasThreadTools = false
+
+    public func setThreadTools(_ hasTools: Bool) {
+        hasThreadTools = hasTools
+    }
+
     /// Whether this server can leave background runs out of a list of conversations. Set from its capabilities.
     public private(set) var hasForegroundOnlyLists = false
 
@@ -68,7 +75,8 @@ public actor Connection {
 
     /// The document as this server takes it.
     public func prepared(_ document: String) -> String {
-        let listed = hasForegroundOnlyLists ? Documents.withForegroundOnly(document) : document
+        let foreground = hasForegroundOnlyLists ? Documents.withForegroundOnly(document) : document
+        let listed = hasThreadTools ? Documents.withThreadTools(foreground) : foreground
         let document = hasOnBehalfOfStaff ? Documents.withOnBehalfOfStaff(listed) : listed
         let withMedia = Documents.withChatMedia(document, hasVoice: hasVoiceMessages, hasCalls: hasChatCalls)
         let withThreads = hasMessageThreads ? Documents.withThreads(withMedia) : withMedia

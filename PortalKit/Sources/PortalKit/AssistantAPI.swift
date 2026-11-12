@@ -15,6 +15,8 @@ public struct WaitingItem: Codable, Equatable, Identifiable, Sendable {
     public let toolRisk: String?
     public let askedAt: String?
     public let expiresAt: String?
+    /// The thread the question or approval waits in; nil for the main history.
+    public let threadRootMessageId: String?
 
     public var id: String { "\(waitingKind):\(interactionId)" }
     public var isApproval: Bool { waitingKind == "approval" }
@@ -23,8 +25,9 @@ public struct WaitingItem: Codable, Equatable, Identifiable, Sendable {
     public init(
         conversationId: String, organizationId: String? = nil, ownerUserId: String? = nil, conversationTitle: String? = nil,
         waitingKind: String, interactionId: String, promptText: String? = nil, toolName: String? = nil, toolRisk: String? = nil,
-        askedAt: String? = nil, expiresAt: String? = nil
+        askedAt: String? = nil, expiresAt: String? = nil, threadRootMessageId: String? = nil
     ) {
+        self.threadRootMessageId = threadRootMessageId
         self.conversationId = conversationId
         self.organizationId = organizationId
         self.ownerUserId = ownerUserId

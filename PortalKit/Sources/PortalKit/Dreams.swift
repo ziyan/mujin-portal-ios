@@ -145,13 +145,14 @@ extension Connection {
             let title: String?
             let artifactKind: String?
             let sizeBytes: Int64?
+            let threadRootMessageId: String?
         }
         struct Answer: Decodable, Sendable { let ListConversationArtifacts: [Row]? }
         let rows = try await execute(Documents.listConversationArtifacts, variables: ["conversationId": .string(conversationId)], as: Answer.self)
             .ListConversationArtifacts ?? []
         return rows.compactMap { row in
             guard let kind = row.artifactKind.flatMap(ArtifactReference.Kind.init(rawValue:)) else { return nil }
-            return ArtifactReference(id: row.id, title: row.title ?? "", kind: kind, sizeBytes: row.sizeBytes)
+            return ArtifactReference(id: row.id, title: row.title ?? "", kind: kind, sizeBytes: row.sizeBytes, threadRootMessageId: row.threadRootMessageId)
         }
     }
 }
