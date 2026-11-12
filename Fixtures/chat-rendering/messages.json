@@ -117,6 +117,13 @@
         {
           "selector": "td code",
           "count": 3
+        },
+        {
+          "columnAlignment": [
+            "left",
+            "right",
+            "center"
+          ]
         }
       ]
     },

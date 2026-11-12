@@ -261,6 +261,16 @@ final class ChatRenderingTests: XCTestCase {
             Check("th count 3: three header cells") { ["Station", "Rate", "State"].allSatisfy($0.hasLabel) },
             Check("tbody tr count 3: three rows") { ["Pick 1", "Pick 2", "Pack"].allSatisfy($0.hasLabel) },
             Check("td code count 3: the code cells show") { $0.hasLabel("slow") && $0.hasLabel("ok") },
+            Check("columnAlignment left, right, center: each column, header included, lines up as its Markdown says") { drawn in
+                guard let station = drawn.frame(ofLabel: "Station"), let pick = drawn.frame(ofLabel: "Pick 1"),
+                    let rate = drawn.frame(ofLabel: "Rate"), let first = drawn.frame(ofLabel: "412"), let second = drawn.frame(ofLabel: "398"),
+                    let state = drawn.frame(ofLabel: "State"), let slow = drawn.frame(ofLabel: "slow")
+                else { return false }
+                let isLeft = abs(station.minX - pick.minX) <= 1
+                let isRight = abs(rate.maxX - first.maxX) <= 1 && abs(first.maxX - second.maxX) <= 1
+                let isCentered = abs(state.midX - slow.midX) <= 1
+                return isLeft && isRight && isCentered
+            },
         ],
         "table-wide": [
             Check(".table-wrap count 1: one table, which scrolls sideways") { $0.count(identifier: "markdownTable") == 1 },

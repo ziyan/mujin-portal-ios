@@ -166,8 +166,8 @@ private struct MarkdownTableView: View {
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in rowWidth = width }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Self.frameColor, lineWidth: 1))
             .accessibilityIdentifier("markdownTable")
             if shownRowCount < bodyRows.count {
                 Button {
@@ -181,34 +181,45 @@ private struct MarkdownTableView: View {
         }
     }
 
+    // Translucent greys, as on the web, so the table suits the person's tinted bubble and the grey one in both themes.
+    private static let frameColor = Color.gray.opacity(0.28)
+    private static let headerColor = Color.gray.opacity(0.10)
+    private static let headerRuleColor = Color.gray.opacity(0.35)
+    private static let rowRuleColor = Color.gray.opacity(0.18)
+    private static let bandColor = Color.gray.opacity(0.05)
+
     private var grid: some View {
         Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
-                GridRow {
-                    ForEach(Array(headerCells.enumerated()), id: \.offset) { column, cell in
-                        cellView(cell, column: column, isHeader: true)
-                            .background { Rectangle().fill(Color(.tertiarySystemFill)) }
-                    }
+            GridRow {
+                ForEach(Array(headerCells.enumerated()), id: \.offset) { column, cell in
+                    cellView(cell, column: column, isHeader: true)
+                        .background { Rectangle().fill(Self.headerColor) }
                 }
-                ForEach(Array(bodyRows.prefix(shownRowCount).enumerated()), id: \.offset) { rowIndex, row in
-                    Divider()
-                    GridRow {
-                        ForEach(Array(row.enumerated()), id: \.offset) { column, cell in
-                            cellView(cell, column: column, isHeader: false)
-                                .background { Rectangle().fill(rowIndex % 2 == 1 ? Color(.quaternarySystemFill) : Color.clear) }
-                        }
+            }
+            // A firmer rule under the header, a fainter one between rows, and none after the last.
+            Rectangle().fill(Self.headerRuleColor).frame(height: 1)
+            ForEach(Array(bodyRows.prefix(shownRowCount).enumerated()), id: \.offset) { rowIndex, row in
+                if rowIndex > 0 { Rectangle().fill(Self.rowRuleColor).frame(height: 0.5) }
+                GridRow {
+                    ForEach(Array(row.enumerated()), id: \.offset) { column, cell in
+                        cellView(cell, column: column, isHeader: false)
+                            .background { Rectangle().fill(rowIndex % 2 == 1 ? Self.bandColor : Color.clear) }
                     }
                 }
             }
+        }
     }
 
+    /// One cell, aligned as its column says, header included. Digits are all one width, so a column of numbers lines up.
     private func cellView(_ text: String, column: Int, isHeader: Bool) -> some View {
         let alignment = column < columnAlignments.count ? columnAlignments[column] : .leading
         return Text(MarkdownView.inline(text))
-            .font(isHeader ? .callout.weight(.semibold) : .callout)
+            .font(isHeader ? .caption.weight(.semibold) : .callout)
+            .monospacedDigit()
             .fixedSize(horizontal: true, vertical: false)
             .multilineTextAlignment(alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
     }
 }

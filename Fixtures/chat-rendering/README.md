@@ -54,8 +54,10 @@ The placeholders are `ticketSequence`, `siteId`, `siteName`, `cellId`,
 server's own address), `staffName` and `customerName`.
 
 A check is one of: `selector` with `count`, `minimum` or `hasSize`;
-`textContains`; or `hasNoOverflow` (nothing in the message reaches past its
-right edge, apart from tables and code, which scroll inside themselves). The
+`textContains`; `hasNoOverflow` (nothing in the message reaches past its
+right edge, apart from tables and code, which scroll inside themselves); or
+`columnAlignment` (each column of the table, header included, lines up
+`left`, `right` or `center` as its Markdown says). The
 selectors name the web page's elements; the app's test reads each check as
 what a picture must show and asserts its native counterpart under the same
 name.
