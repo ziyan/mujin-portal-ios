@@ -17,7 +17,9 @@ final class ChatScrollTests: XCTestCase {
         let topY: CGFloat
     }
 
-    private static func isMessageLabel(_ label: String) -> Bool { label.hasPrefix("History message ") || label.hasPrefix("Live message ") }
+    private static func isMessageLabel(_ label: String) -> Bool {
+        ["History message ", "Live message ", "Question ", "Answer "].contains { label.hasPrefix($0) }
+    }
 
     /// The number a demo message starts with, as in "History message 42."
     private static func number(in label: String, after prefix: String) -> Int? {
@@ -142,5 +144,22 @@ final class ChatScrollTests: XCTestCase {
         let barBottomY = app.navigationBars.firstMatch.frame.maxY
         XCTAssertGreaterThanOrEqual(arriving.frame.minY, barBottomY, "The new message is above the screen.\n\(app.debugDescription)")
         XCTAssertLessThanOrEqual(arriving.frame.maxY, window.maxY, "The list at its end did not follow the new message.\n\(app.debugDescription)")
+    }
+
+    /// The assistant writes its answer below while the person reads further up: the messages in view stay where they are, and
+    /// the answer waits behind the button.
+    func testAnAnswerWrittenBelowLeavesTheMessagesInViewStill() {
+        let app = DemoApp.launch(screen: "conversation-stream")
+        let newestHistory = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Answer 25")).firstMatch
+        XCTAssertTrue(DemoApp.waitUntilExists(newestHistory, timeout: 90), "The conversation did not open.\n\(app.debugDescription)")
+        let writing = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "streamed word 8 ")).firstMatch
+        XCTAssertTrue(DemoApp.waitUntilExists(writing, timeout: 30), "No answer was being written.\n\(app.debugDescription)")
+        scrollUp(app)
+        scrollUp(app)
+        Thread.sleep(forTimeInterval: 0.6)
+        guard let before = topMessage(app) else { return XCTFail("No message is in view.\n\(app.debugDescription)") }
+        Thread.sleep(forTimeInterval: 4)
+        assertStill(before, app, while: "as the answer was written below")
+        XCTAssertTrue(DemoApp.element(app, "newMessagesButton").exists, "Nothing says the answer goes on below.\n\(app.debugDescription)")
     }
 }

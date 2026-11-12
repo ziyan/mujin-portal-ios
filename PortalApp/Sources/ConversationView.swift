@@ -35,6 +35,31 @@ struct ConversationView: View {
     @State private var isTopInView = false
     /// Whether the transcript shows its end. Only then does it follow an answer being written or a message that arrives.
     @State private var isAtEnd = true
+    /// What the transcript showed last when the person left its end. While they read further up, the transcript shows nothing past it,
+    /// and the answer being written stays as it was then, so nothing below the messages being read grows and moves them.
+    @State private var heldEnd: HeldEnd?
+    /// How tall the typing dots and work banners at the foot of the transcript are, kept while the end is held.
+    @State private var footHeight: CGFloat = 0
+
+    private struct HeldEnd {
+        let lastEntry: TranscriptEntry
+        let footHeight: CGFloat
+    }
+
+    /// The entries the transcript shows: all of them at its end, or while the end is held, those up to the last one shown then, which
+    /// keeps the words it had. An earlier page going in above still shows.
+    private func shownEntries(_ model: ConversationModel) -> [TranscriptEntry] {
+        let all = model.transcript.displayEntries.filter { Self.isShown($0, showWorkingNotes: showWorkingNotes) }
+        guard let heldEnd, let index = all.lastIndex(where: { $0.id == heldEnd.lastEntry.id }) else { return all }
+        return Array(all[..<index]) + [heldEnd.lastEntry]
+    }
+
+    /// Whether anything waits past the held end: a newer entry, or more words of the answer being written.
+    private func hasWaiting(_ model: ConversationModel) -> Bool {
+        guard heldEnd != nil else { return false }
+        let all = model.transcript.displayEntries.filter { Self.isShown($0, showWorkingNotes: showWorkingNotes) }
+        return all != shownEntries(model)
+    }
 
     private var isThread: Bool { threadRootMessageId != nil }
     /// Where the call's stage ends on screen, and where the conversation's content begins, so the messages start below the stage.
@@ -305,7 +330,7 @@ struct ConversationView: View {
                         }
                         .padding(.top, 48)
                     }
-                    let shownEntries = model.transcript.displayEntries.filter { Self.isShown($0, showWorkingNotes: showWorkingNotes) }
+                    let shownEntries = shownEntries(model)
                     let threadKeys = Self.threadKeys(of: shownEntries, in: model.transcript)
                     ForEach(Array(shownEntries.enumerated()), id: \.element.id) { index, entry in
                         TranscriptRow(
@@ -327,14 +352,21 @@ struct ConversationView: View {
                                     shownEntries.filter { Self.isReply(in: $0, root: rootId) }.count))
                         }
                     }
-                    // The one sign of a turn at work: typing dots below everything, until the answer is done.
-                    if model.isShowingTypingDots {
-                        TypingBubble().id("typing")
-                    }
-                    if !model.isThread {
-                        ForEach(model.backgroundWork) { work in
-                            BackgroundWorkBanner(work: work) { Task { await model.stopBackgroundWork(work) } }
+                    if let heldEnd {
+                        Color.clear.frame(height: heldEnd.footHeight)
+                    } else {
+                        VStack(alignment: .leading, spacing: 16) {
+                            // The one sign of a turn at work: typing dots below everything, until the answer is done.
+                            if model.isShowingTypingDots {
+                                TypingBubble().id("typing")
+                            }
+                            if !model.isThread {
+                                ForEach(model.backgroundWork) { work in
+                                    BackgroundWorkBanner(work: work) { Task { await model.stopBackgroundWork(work) } }
+                                }
+                            }
                         }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footHeight = $0 }
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
@@ -352,12 +384,40 @@ struct ConversationView: View {
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .onScrollGeometryChange(for: Bool.self, of: ListEnd.isShown) { _, isShown in isAtEnd = isShown }
+            .onChange(of: isAtEnd) { _, isShown in
+                if isShown {
+                    heldEnd = nil
+                } else if heldEnd == nil, let last = shownEntries(model).last {
+                    heldEnd = HeldEnd(lastEntry: last, footHeight: footHeight)
+                }
+            }
             // The end of the thread, which an answer being written changes, is followed from the end, and always after the person
-            // says something. Reading the same messages again moves nothing.
+            // says something, which also lets out what waited. Reading the same messages again moves nothing.
             .onChange(of: model.transcript.entries.last) { _, last in
                 let isOwn = if case .some(.user) = last { true } else { false }
                 guard isAtEnd || isOwn else { return }
+                heldEnd = nil
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+            }
+            .overlay(alignment: .bottom) {
+                if hasWaiting(model) {
+                    Button {
+                        heldEnd = nil
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(50))
+                            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+                        }
+                    } label: {
+                        Label("New messages", systemImage: "arrow.down")
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .padding(.bottom, 8)
+                    .accessibilityIdentifier("newMessagesButton")
+                }
             }
             // The call's stage taking or giving back room at the top keeps the newest message in view above the composer. The
             // scroll waits for the layout that applies the new margin: made at once, it scrolls to where the end was before.

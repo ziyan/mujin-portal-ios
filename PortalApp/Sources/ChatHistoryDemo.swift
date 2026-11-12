@@ -90,3 +90,53 @@ enum ChatHistoryDemo {
         ]
     }
 }
+
+/// TranscriptStreamDemo gives the assistant a long conversation whose next answer is written word by word a few seconds after the
+/// screen opens, so reading further up while it is written can be watched and tested. Its screen is `conversation-stream`.
+enum TranscriptStreamDemo {
+    static let conversationId = "conversation-stream"
+    static let turnCount = 25
+
+    static func owns(_ screen: String?) -> Bool { screen == "conversation-stream" }
+
+    static func conversationRow(stamp: (TimeInterval) -> String) -> [String: Any] {
+        [
+            "id": conversationId, "agentId": "agent01", "title": "Long dock review", "summary": "A long look at the dock doors.",
+            "lastMessageAt": stamp(60), "activeRunId": NSNull(), "archivedAt": NSNull(), "createdAt": stamp(90_000), "modifiedAt": stamp(60),
+            "isMain": false,
+        ]
+    }
+
+    /// Questions and answers, oldest first, each starting with its number, which the tests find it by.
+    static func messages(stamp: (TimeInterval) -> String) -> [[String: Any]] {
+        (1...turnCount).flatMap { number -> [[String: Any]] in
+            let secondsAgo = Double(turnCount + 1 - number) * 120
+            return [
+                ["id": "sq\(number)", "role": "user", "content": "Question \(number). How did dock door \(number % 4 + 1) do this shift?", "createdAt": stamp(secondsAgo + 60)],
+                [
+                    "id": "sa\(number)", "role": "assistant",
+                    "content": "Answer \(number). Door \(number % 4 + 1) opened on time all shift, with one slow close just before the break that the sensor log shows as a late signal.",
+                    "createdAt": stamp(secondsAgo),
+                ],
+            ]
+        }
+    }
+
+    /// The answer written while the screen is open: long enough to go on well past the screen's end.
+    static let streamedAnswer = (1...300).map { "streamed word \($0)" }.joined(separator: " ")
+
+    private static let isPlaying = DemoLocked(false)
+
+    /// Writes the next answer a few seconds after the conversation's feed opens.
+    static func play(state: DemoState) {
+        let isFirst = isPlaying.withValue { playing -> Bool in
+            defer { playing = true }
+            return !playing
+        }
+        guard isFirst else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            state.playAnswer(conversationId: conversationId, text: streamedAnswer)
+        }
+    }
+}

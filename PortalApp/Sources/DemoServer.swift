@@ -299,6 +299,10 @@ final class DemoState: @unchecked Sendable {
         if ChatHistoryDemo.owns(DemoOptions.screen) {
             data.messages["chatconv01"] = ChatHistoryDemo.messages(stamp: stamp) + (data.messages["chatconv01"] ?? [])
         }
+        if TranscriptStreamDemo.owns(DemoOptions.screen) {
+            data.conversations.insert(TranscriptStreamDemo.conversationRow(stamp: stamp), at: 0)
+            data.messages[TranscriptStreamDemo.conversationId] = TranscriptStreamDemo.messages(stamp: stamp)
+        }
         data.messages["chatconv02"] = [
             said("d1", "user03", "Robin Demo", "Shift change at 14:00.", 7_200),
             said("d2", "user04", "Jordan Placeholder", "I can take the pick station.", 7_100),
@@ -1455,6 +1459,7 @@ final class DemoSocket: FeedSocket, @unchecked Sendable {
             inner.withValue { $0.conversationId = variables["conversationId"]?.stringValue ?? "" }
             state.withData { $0.sockets.append(self) }
             if ChatHistoryDemo.isLive(DemoOptions.screen), conversationId == ChatHistoryDemo.conversationId { ChatHistoryDemo.playLive(state: state) }
+            if TranscriptStreamDemo.owns(DemoOptions.screen), conversationId == TranscriptStreamDemo.conversationId { TranscriptStreamDemo.play(state: state) }
             // The title-event screen: a conversation is open when the server renames it, and the title changes at once.
             if DemoOptions.screen == "title-event", conversationId == "conversation01" {
                 let demoState = state
