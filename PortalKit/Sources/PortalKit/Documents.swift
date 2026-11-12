@@ -180,6 +180,7 @@ public enum Documents {
         documents += siteViewRuleDocuments
         documents += siteDocuments
         documents += notificationDocuments
+        documents += [searchChatReferences]
         documents += chatDocuments
         documents += pushDocuments
         documents += presenceDocuments

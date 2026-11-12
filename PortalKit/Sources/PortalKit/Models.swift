@@ -143,6 +143,8 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
     public let isInternal: Bool?
     /// Whether the author is Mujin staff, so a client need not look the author up among the members.
     public let isAuthorMujinUser: Bool?
+    /// The tickets, controllers, virtual controllers, sites and cells the message names, as the reader may see them.
+    public let references: [ChatReference]?
 
     public init(
         id: String, role: String, content: JSONValue? = nil, toolCalls: JSONValue? = nil, toolCallId: String? = nil,
@@ -153,8 +155,9 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
         replyToMessageId: String? = nil, replyToExcerpt: String? = nil, replyToAuthorName: String? = nil,
         isAddressingAssistant: Bool? = nil, editedAt: String? = nil, deletedAt: String? = nil, linkPreviewsRemovedAt: String? = nil,
         voiceMessage: VoiceMessage? = nil, call: ChatCall? = nil, threadRootMessageId: String? = nil, threadReplyCount: Int? = nil,
-        threadLastReplyAt: String? = nil, isInternal: Bool? = nil, isAuthorMujinUser: Bool? = nil
+        threadLastReplyAt: String? = nil, isInternal: Bool? = nil, isAuthorMujinUser: Bool? = nil, references: [ChatReference]? = nil
     ) {
+        self.references = references
         self.isInternal = isInternal
         self.isAuthorMujinUser = isAuthorMujinUser
         self.threadRootMessageId = threadRootMessageId

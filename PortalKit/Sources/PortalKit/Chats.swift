@@ -354,8 +354,11 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
     public let isInternal: Bool
     /// Whether the author is Mujin staff, when the server says so; nil when it does not.
     public let isAuthorMujinUser: Bool?
+    /// What the message names, one per thing named, whichever way it was written.
+    public let references: [ChatReference]
 
     public init(_ message: ConversationMessage) {
+        references = ChatReferences.unique(message.references ?? [])
         isInternal = message.isInternal ?? false
         isAuthorMujinUser = message.isAuthorMujinUser
         threadRootMessageId = ThreadRouting.normalized(message.threadRootMessageId)

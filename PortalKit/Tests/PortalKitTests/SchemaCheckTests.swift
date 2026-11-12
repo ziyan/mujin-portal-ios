@@ -68,6 +68,10 @@ import Testing
             checked += 1
         }
         #expect(checked >= 4)
+        for document in Documents.all where document.contains("linkPreviewsRemovedAt") {
+            let problems = try DocumentValidator(schema: Self.schema).problems(in: Documents.withChatReferences(Documents.withInternalNotes(document)))
+            #expect(problems.isEmpty, "\(document.prefix(60)): \(problems)")
+        }
         for document in [Documents.sendChatMessage, Documents.sendChatMessageWithMentions] {
             let problems = try DocumentValidator(schema: Self.schema).problems(in: Documents.withInternalArgument(document))
             #expect(problems.isEmpty, "\(problems)")
