@@ -34,10 +34,8 @@ struct MarkdownView: View {
         switch block {
         case .paragraph(let text):
             if RichMath.hasFormula(text) {
-                // A paragraph that holds a formula is drawn with KaTeX; if it cannot be, the formula shows as its source.
-                RichDrawing(content: .paragraph(html: RichMath.html(of: text)), identifier: "mathParagraph") {
-                    Text(Self.chips(Self.inline(text), names: mentionNames, isOnAccent: isOnAccent))
-                }
+                // A paragraph that holds a formula stays text: each formula is drawn on its own and set in the words.
+                InlineMathText(text: text) { words in Self.chips(Self.inline(words), names: mentionNames, isOnAccent: isOnAccent) }
             } else {
                 Text(Self.chips(Self.inline(text), names: mentionNames, isOnAccent: isOnAccent))
             }

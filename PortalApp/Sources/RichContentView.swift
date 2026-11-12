@@ -344,3 +344,183 @@ struct CodeFrame<Body: View>: View {
         .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.gray.opacity(0.28), lineWidth: 1))
     }
 }
+
+/// InlineFormulaRenderer draws formulas that sit inside a line of words. One hidden web view, sandboxed as the drawings are, draws
+/// them one at a time with KaTeX and pictures each, cropped to the formula, with how far it reaches below the baseline. The pictures
+/// are kept, by formula, appearance and text size, and a paragraph puts them in its own text, so the words around them stay text.
+@MainActor
+@Observable
+final class InlineFormulaRenderer {
+    static let shared = InlineFormulaRenderer()
+
+    struct Picture {
+        let image: UIImage
+        /// How far the formula reaches below the baseline, in points.
+        let descent: CGFloat
+    }
+
+    /// Bumped each time a picture is ready, so the paragraphs waiting for it draw again.
+    private(set) var version = 0
+    @ObservationIgnored private var pictures: [String: Picture] = [:]
+    @ObservationIgnored private var failures: Set<String> = []
+    @ObservationIgnored private var queue: [(key: String, tex: String, isDark: Bool, fontSize: CGFloat)] = []
+    @ObservationIgnored private var isWorking = false
+    @ObservationIgnored private var webView: WKWebView?
+    @ObservationIgnored private var isPageReady = false
+
+    static func key(tex: String, isDark: Bool, fontSize: CGFloat) -> String { "\(isDark ? "dark" : "light")|\(Int(fontSize * 10))|\(tex)" }
+
+    func picture(tex: String, isDark: Bool, fontSize: CGFloat) -> Picture? {
+        pictures[Self.key(tex: tex, isDark: isDark, fontSize: fontSize)]
+    }
+
+    func hasFailed(tex: String, isDark: Bool, fontSize: CGFloat) -> Bool {
+        failures.contains(Self.key(tex: tex, isDark: isDark, fontSize: fontSize))
+    }
+
+    /// Asks for a formula's picture; the paragraph draws again when it is ready.
+    func request(tex: String, isDark: Bool, fontSize: CGFloat) {
+        let key = Self.key(tex: tex, isDark: isDark, fontSize: fontSize)
+        guard pictures[key] == nil, !failures.contains(key), !queue.contains(where: { $0.key == key }) else { return }
+        queue.append((key, tex, isDark, fontSize))
+        Task { await work() }
+    }
+
+    private func work() async {
+        guard !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
+        while !queue.isEmpty {
+            let next = queue.removeFirst()
+            guard let webView = await readyWebView() else {
+                failures.insert(next.key)
+                continue
+            }
+            webView.overrideUserInterfaceStyle = next.isDark ? .dark : .light
+            let measured = try? await webView.callAsyncJavaScript(
+                "return window.drawFormula(tex, size)", arguments: ["tex": next.tex, "size": Double(next.fontSize)], contentWorld: .page)
+            guard let box = measured as? [String: Any], let width = (box["width"] as? NSNumber)?.doubleValue,
+                let height = (box["height"] as? NSNumber)?.doubleValue, let baseline = (box["baseline"] as? NSNumber)?.doubleValue, width > 0, height > 0
+            else {
+                failures.insert(next.key)
+                version += 1
+                continue
+            }
+            let configuration = WKSnapshotConfiguration()
+            configuration.rect = CGRect(x: 0, y: 0, width: ceil(width), height: ceil(height))
+            configuration.afterScreenUpdates = true
+            if let image = try? await webView.takeSnapshot(configuration: configuration) {
+                pictures[next.key] = Picture(image: image, descent: max(0, CGFloat(height - baseline)))
+            } else {
+                failures.insert(next.key)
+            }
+            version += 1
+        }
+    }
+
+    /// The hidden web view, in the window so it draws, out of sight and out of reach.
+    private func readyWebView() async -> WKWebView? {
+        if let webView, isPageReady { return webView }
+        guard let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).flatMap(\.windows).first(where: \.isKeyWindow)
+        else { return nil }
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        configuration.setURLSchemeHandler(RichContentSchemeHandler(page: Self.page), forURLScheme: RichContentPage.scheme)
+        guard let list = try? await WKContentRuleListStore.default().compileContentRuleList(
+            forIdentifier: "rich-content", encodedContentRuleList: RichContentPage.contentRuleListJSON)
+        else { return nil }
+        configuration.userContentController.add(list)
+        let created = WKWebView(frame: CGRect(x: -4_000, y: 0, width: 1_200, height: 400), configuration: configuration)
+        created.isOpaque = false
+        created.backgroundColor = .clear
+        created.isUserInteractionEnabled = false
+        created.accessibilityElementsHidden = true
+        window.addSubview(created)
+        webView = created
+        created.load(URLRequest(url: RichContentPage.pageURL))
+        for _ in 0..<50 {
+            try? await Task.sleep(for: .milliseconds(100))
+            if (try? await created.evaluateJavaScript("typeof window.drawFormula === 'function' && typeof katex !== 'undefined'")) as? Bool == true {
+                isPageReady = true
+                return created
+            }
+        }
+        return nil
+    }
+
+    private static let page = """
+        <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' \(RichContentPage.scheme):; style-src 'unsafe-inline' \(RichContentPage.scheme):; font-src \(RichContentPage.scheme):">
+        <link rel="stylesheet" href="katex.min.css">
+        <style>
+        :root { color-scheme: light dark; }
+        html, body { margin: 0; padding: 0; background: transparent; color: -apple-system-label; }
+        #formula { position: absolute; left: 0; top: 0; white-space: nowrap; line-height: 1; }
+        #marker { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+        </style>
+        <script src="katex.min.js"></script>
+        </head><body><span id="formula"></span>
+        <script>
+        window.drawFormula = function (tex, size) {
+          var box = document.getElementById("formula");
+          box.style.fontSize = size + "px";
+          katex.render(tex, box, { displayMode: false, throwOnError: true, trust: false });
+          var marker = document.createElement("span");
+          marker.id = "marker";
+          box.appendChild(marker);
+          var rect = box.getBoundingClientRect();
+          var baseline = marker.getBoundingClientRect().bottom - rect.top;
+          return { width: rect.width, height: rect.height, baseline: baseline };
+        };
+        </script></body></html>
+        """
+}
+
+/// InlineMathText is a paragraph whose formulas sit in its words: the words stay text, with their links and selection, and each formula
+/// is its picture, on the baseline and sized to the text. A formula not drawn yet, or that cannot be, shows as its source in code.
+struct InlineMathText: View {
+    let text: String
+    /// The words as the paragraph shows them, with their links and mentions.
+    let words: (String) -> AttributedString
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 17
+    private let renderer = InlineFormulaRenderer.shared
+
+    var body: some View {
+        let pieces = RichMath.pieces(of: text)
+        let isDark = colorScheme == .dark
+        _ = renderer.version
+        let formulas = pieces.compactMap { piece -> String? in
+            if case .formula(let tex, _) = piece { return tex }
+            return nil
+        }
+        let isDrawn = formulas.allSatisfy { renderer.picture(tex: $0, isDark: isDark, fontSize: fontSize) != nil }
+        return pieces.reduce(Text(verbatim: "")) { line, piece in
+            switch piece {
+            case .text(let wordsText):
+                return line + Text(words(wordsText))
+            case .formula(let tex, _):
+                if let picture = renderer.picture(tex: tex, isDark: isDark, fontSize: fontSize) {
+                    return line + Text(Image(uiImage: picture.image)).baselineOffset(-picture.descent)
+                }
+                return line + Text(MarkdownView.inline("`\(tex)`"))
+            }
+        }
+        .accessibilityLabel(Text(spokenText(pieces)))
+        .accessibilityIdentifier(isDrawn ? "mathParagraph" : "mathParagraphPending")
+        .task(id: "\(isDark)|\(fontSize)|\(text)") {
+            for tex in formulas { renderer.request(tex: tex, isDark: isDark, fontSize: fontSize) }
+        }
+    }
+
+    /// What VoiceOver reads: the words, with each formula's source where it stands.
+    private func spokenText(_ pieces: [RichMath.Piece]) -> String {
+        pieces.map { piece in
+            switch piece {
+            case .text(let wordsText): String(words(wordsText).characters)
+            case .formula(let tex, _): tex
+            }
+        }.joined()
+    }
+}
