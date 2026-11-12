@@ -21,6 +21,8 @@ struct ChatView: View {
 
     @State private var model: ChatModel?
     @State private var openedThreadRootId: String?
+    /// The threads the person waved away from the hint that offers to continue one, while this screen is open.
+    @State private var dismissedContinueRootIds: Set<String> = []
     /// The message a link pointed at, marked for a moment.
     @State private var highlightedMessageId: String?
     @State private var isOnScreen = false
@@ -59,6 +61,12 @@ struct ChatView: View {
         )
         .navigationDestination(item: $openedThreadRootId) { rootId in
             ChatView(account: account, conversationId: conversationId, chatId: model?.chatId ?? chatId, threadRootMessageId: rootId)
+        }
+        // A message sent in the main history starts a thread, which opens so what the person says next goes in it.
+        .onChange(of: model?.threadStartedBySend) { _, rootId in
+            guard let rootId else { return }
+            openedThreadRootId = rootId
+            model?.threadStartedBySend = nil
         }
         .onChange(of: requestedThreadRootMessageId.wrappedValue, initial: true) { _, rootId in
             guard !isThread, let rootId else { return }
@@ -472,6 +480,17 @@ struct ChatView: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
             } else {
+                if model.canOpenThreads, model.replyTarget == nil, model.editTarget == nil,
+                    let root = ThreadRouting.threadToContinue(
+                        model.timeline.messages, currentUserId: model.currentUserId, dismissedRootIds: dismissedContinueRootIds)
+                {
+                    ContinueThreadHint(excerpt: ThreadRouting.excerpt(root.text)) {
+                        openedThreadRootId = root.id
+                    } onDismiss: {
+                        dismissedContinueRootIds.insert(root.id)
+                    }
+                    .padding(.horizontal, 12)
+                }
                 if let reply = model.replyTarget {
                     ReferencesBar(
                         reply: ReplyReference(
@@ -584,10 +603,16 @@ struct ChatView: View {
             && model.editTarget == nil && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && drafts.items.isEmpty
     }
 
+    /// What a send will do. In a chat with threads, a message in the main history starts a thread and one in a thread replies in it.
     private func fieldPrompt(_ model: ChatModel) -> LocalizedStringKey {
-        if isThread { return LocalizedStringKey("Reply in thread…") }
-        if !dynamicTypeSize.isAccessibilitySize, let agent = model.agents.first?.name { return LocalizedStringKey("Message, or @\(agent) to ask") }
-        return LocalizedStringKey("Message")
+        if isThread { return LocalizedStringKey("Reply in thread") }
+        let agent = dynamicTypeSize.isAccessibilitySize ? nil : model.agents.first?.name
+        guard model.offersMessageThreads else {
+            if let agent { return LocalizedStringKey("Message, or @\(agent) to ask") }
+            return LocalizedStringKey("Message")
+        }
+        if let agent { return LocalizedStringKey("New thread, or @\(agent)") }
+        return LocalizedStringKey("Start a new thread")
     }
 
     /// The list that opens above the composer when the draft ends with an @:
@@ -605,7 +630,10 @@ struct ChatView: View {
                         HStack(spacing: 10) {
                             UserAvatar(userId: candidate.kind == .user ? candidate.id : nil, name: candidate.name, size: 32, isAssistant: candidate.kind == .agent)
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(candidate.name).foregroundStyle(.primary)
+                                HStack(spacing: 6) {
+                                    Text(candidate.name).foregroundStyle(.primary)
+                                    if candidate.kind == .user, model.member(candidate.id)?.isMujinUser == true { StaffBadge() }
+                                }
                                 Text(candidate.detail ?? (candidate.kind == .agent ? String(localized: "Assistant") : String(localized: "Person")))
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
@@ -729,10 +757,10 @@ private struct MessageRow: View {
         }
     }
 
-    /// The thread a tap on this message opens: the one it is a reply in, else its own when it has replies.
+    /// The thread a tap on this message opens: the one it is a reply in, else its own, which a message with no replies starts.
     private var threadToOpen: String? {
         guard onOpenThread != nil else { return nil }
-        return ThreadRouting.threadToOpen(messageId: message.id, threadRootMessageId: message.threadRootMessageId, replyCount: message.threadReplyCount)
+        return ThreadRouting.chatThreadToOpen(messageId: message.id, threadRootMessageId: message.threadRootMessageId, isDeleted: message.isDeleted)
     }
 
     /// A tap on a message that belongs to a thread opens the thread; links and buttons inside it keep working.
@@ -768,11 +796,7 @@ private struct MessageRow: View {
                 Text(organization).font(.caption).foregroundStyle(.secondary).portalNameLine()
             }
             if member?.isMujinUser == true {
-                Text("Staff")
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 6)
-                    .background(Color(.tertiarySystemFill), in: Capsule())
-                    .foregroundStyle(.secondary)
+                StaffBadge()
             }
         }
     }
@@ -1073,11 +1097,7 @@ private struct MemberRow: View {
             nameLayout {
                 Text(isViewer ? String(localized: "You") : member.shownName).portalNameLine()
                 if member.isMujinUser == true {
-                    Text("Staff")
-                        .font(.caption2.weight(.semibold))
-                        .padding(.horizontal, 6)
-                        .background(Color(.tertiarySystemFill), in: Capsule())
-                        .foregroundStyle(.secondary)
+                    StaffBadge()
                 }
                 if member.isAdmin == true {
                     Text("Admin").font(.caption).foregroundStyle(.secondary)

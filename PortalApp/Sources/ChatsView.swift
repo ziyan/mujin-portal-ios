@@ -373,12 +373,7 @@ struct CandidateRow: View {
                 nameLayout {
                     Text(person.shownName).foregroundStyle(.primary).portalNameLine()
                     if person.isMujinUser == true {
-                        Text("Staff")
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
-                            .background(Color(.tertiarySystemFill), in: Capsule())
-                            .foregroundStyle(.secondary)
+                        StaffBadge()
                     }
                 }
                 if showsOrganization, let organization = person.organizationName, !organization.isEmpty {

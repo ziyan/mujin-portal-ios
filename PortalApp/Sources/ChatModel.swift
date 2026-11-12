@@ -138,6 +138,8 @@ final class ChatModel {
     var isThread: Bool { threadRootMessageId != nil }
     /// Whether this screen is the main history of a server with threads: a tap on a message of a thread opens it.
     var canOpenThreads: Bool { offersMessageThreads && !isThread }
+    /// The thread a message just sent in the main history started, for the screen to open; the screen clears it once it has.
+    var threadStartedBySend: String?
     /// Whether the assistant's turn at work is answering where this screen looks: in this thread, or in no thread on the main history.
     var isAssistantWorkingHere: Bool {
         ThreadRouting.isViewRunning(
@@ -372,6 +374,7 @@ final class ChatModel {
                 return true
             }
             let mentions = offersStructuredMentions ? Mentions.ranges(of: pickedMentions, in: trimmed) : []
+            let isNewThread = canOpenThreads && replyTarget == nil
             let sent = try await connection.sendChatMessage(
                 conversationId: conversationId, text: trimmed,
                 replyToMessageId: ThreadRouting.replyToMessageId(pickedMessageId: replyTarget?.id, viewThreadRootMessageId: threadRootMessageId),
@@ -380,6 +383,7 @@ final class ChatModel {
             pickedMentions = []
             if hasFiles { attachments?.removeUploaded() }
             if let message = sent.message { timeline.upsert(message) }
+            if isNewThread, let message = sent.message, ThreadRouting.normalized(message.threadRootMessageId) == nil { threadStartedBySend = message.id }
             if !sent.runId.isEmpty {
                 isOwnTurnRunning = true
                 // The assistant answers in a thread: the one the message is in, or a new one hanging from the message.

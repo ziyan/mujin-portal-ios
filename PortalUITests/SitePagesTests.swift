@@ -66,7 +66,7 @@ final class SitePagesTests: XCTestCase {
         let app = DemoApp.launch(screen: "site")
         XCTAssertTrue(DemoApp.element(app, "sitePage").waitForExistence(timeout: 90), "The site page never appeared.\n\(app.debugDescription)")
         // The chat row sits in the same section, so once it is there the section is drawn.
-        XCTAssertTrue(reveal(DemoApp.element(app, "siteChatRow"), in: app), "The Resources section never appeared.\n\(app.debugDescription)")
+        XCTAssertTrue(reveal(DemoApp.element(app, "siteChatRow"), in: app), "The Support section never appeared.\n\(app.debugDescription)")
         XCTAssertFalse(DemoApp.element(app, "sitePagesRow").exists, "A server without pages offered them.\n\(app.debugDescription)")
     }
 

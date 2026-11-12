@@ -133,3 +133,53 @@ struct SentQuote: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+/// ContinueThreadHint offers, above the main history's composer, the thread the person was just talking in: what a send there would
+/// start is a new thread, so the hint is the way back into the one they meant. It can be waved away.
+struct ContinueThreadHint: View {
+    let excerpt: String
+    let onOpen: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "bubble.left.and.text.bubble.right")
+                .font(.footnote)
+                .foregroundStyle(Color.portalSecondary)
+                .accessibilityHidden(true)
+            Text("Continue in thread: \(excerpt)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Reply in thread", action: onOpen)
+                .font(.caption.weight(.semibold))
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("continueThreadButton")
+            RemoveButton(label: Text("Dismiss"), action: onDismiss)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(alignment: .leading) {
+            Rectangle().fill(Color.accentColor).frame(width: 3)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityIdentifier("continueThreadHint")
+    }
+}
+
+/// StaffBadge marks a Mujin user beside their name, wherever a name shows in a chat: the Mujin mark, read aloud as "Mujin staff".
+struct StaffBadge: View {
+    @ScaledMetric(relativeTo: .caption) private var height: CGFloat = 13
+
+    var body: some View {
+        Image("MujinLogo")
+            .resizable()
+            .scaledToFit()
+            .frame(height: height)
+            .accessibilityElement()
+            .accessibilityLabel(Text("Mujin staff"))
+            .accessibilityIdentifier("staffBadge")
+    }
+}

@@ -973,7 +973,7 @@ private struct ComposerBar: View {
 
     private var placeholder: LocalizedStringKey {
         if model.activeQuestion != nil { return LocalizedStringKey("Your answer") }
-        return model.isThread ? LocalizedStringKey("Reply in thread…") : LocalizedStringKey("Message")
+        return model.isThread ? LocalizedStringKey("Reply in thread") : LocalizedStringKey("Message")
     }
 
     private var isDraftEmpty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }

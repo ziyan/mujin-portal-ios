@@ -408,11 +408,11 @@ struct SiteView: View {
                         SiteSectionViews.viewNotes(model)
                         cellsSection(model)
                         SiteSectionViews.overview(model)
+                        supportSection(model)
                         resourcesSection(model)
                         SiteSectionViews.cameras(model)
                         SiteSectionViews.alarms(model)
                         SiteSectionViews.incidents(model)
-                        SiteSectionViews.tickets(model)
                     } }
                     .portalRootList()
                     .accessibilityIdentifier("sitePage")
@@ -454,18 +454,29 @@ struct SiteView: View {
 
     private static let pagesRowScrollID = "sitePagesRow"
 
-    private func resourcesSection(_ model: SiteModel) -> some View {
-        Section("Resources") {
-            if session.capabilities.offersSiteChats, let siteId = model.selectedSiteId {
-                SiteChatRow(siteId: siteId, connection: model.connection)
+    /// Where people get help with the site: its tickets, its documentation and its chat. The chat is reached here and from Chats' list,
+    /// never by Chats opening it by itself.
+    private func supportSection(_ model: SiteModel) -> some View {
+        Section("Support") {
+            NavigationLink(value: PortalRoute.siteList(.tickets, organizationKey: model.sessionKey)) {
+                LabeledContent("Tickets") { Text(model.openTickets.count.formatted()).monospacedDigit() }
             }
+            .accessibilityIdentifier("siteTicketsRow")
             if session.capabilities.offersSitePages, let siteId = model.selectedSiteId {
                 NavigationLink(value: PortalRoute.sitePages(siteId: siteId)) {
-                    Text("Documentation")
+                    Text("Site Documentation")
                 }
                 .id(Self.pagesRowScrollID)
                 .accessibilityIdentifier("sitePagesRow")
             }
+            if session.capabilities.offersSiteChats, let siteId = model.selectedSiteId {
+                SiteChatRow(siteId: siteId, connection: model.connection)
+            }
+        }
+    }
+
+    private func resourcesSection(_ model: SiteModel) -> some View {
+        Section("Resources") {
             NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.sessionKey)) {
                 LabeledContent("Controllers") { Text(model.controllers.count.formatted()).monospacedDigit() }
             }
@@ -1243,7 +1254,7 @@ private struct SiteChatRow: View {
             Task { await open() }
         } label: {
             HStack {
-                Label("Site chat", systemImage: "bubble.left.and.bubble.right").foregroundStyle(.primary)
+                Label("Site Chat", systemImage: "bubble.left.and.bubble.right").foregroundStyle(.primary)
                 Spacer(minLength: 8)
                 if isOpening { ProgressView().controlSize(.small) }
             }
