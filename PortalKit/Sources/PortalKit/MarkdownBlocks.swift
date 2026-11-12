@@ -58,6 +58,7 @@ public enum MarkdownBlocks {
         var isInCode = false
         var mathLines: [String] = []
         var isInMath = false
+        var mathCloser = "$$"
 
         func flush() {
             if !paragraph.isEmpty { blocks.append(.paragraph(paragraph.joined(separator: "\n"))) }
@@ -86,9 +87,9 @@ public enum MarkdownBlocks {
                 continue
             }
             if isInMath {
-                // Display math is shown as its source, in a code block, where it cannot be drawn.
-                if trimmed.hasSuffix("$$") {
-                    let last = String(trimmed.dropLast(2)).trimmingCharacters(in: .whitespaces)
+                // Display math is a block of its own, drawn where it can be and shown as its source where it cannot.
+                if trimmed.hasSuffix(mathCloser) {
+                    let last = String(trimmed.dropLast(mathCloser.count)).trimmingCharacters(in: .whitespaces)
                     if !last.isEmpty { mathLines.append(last) }
                     blocks.append(.code(language: "math", text: mathLines.joined(separator: "\n")))
                     mathLines = []
@@ -98,17 +99,24 @@ public enum MarkdownBlocks {
                 }
                 continue
             }
-            if trimmed.hasPrefix("$$") {
-                flush()
-                let rest = String(trimmed.dropFirst(2))
-                if rest.count >= 2, rest.hasSuffix("$$") {
-                    blocks.append(.code(language: "math", text: String(rest.dropLast(2)).trimmingCharacters(in: .whitespaces)))
-                } else {
-                    let first = rest.trimmingCharacters(in: .whitespaces)
-                    if !first.isEmpty { mathLines.append(first) }
-                    isInMath = true
+            if let opener = ["$$", "\\["].first(where: { trimmed.hasPrefix($0) }) {
+                let closer = opener == "$$" ? "$$" : "\\]"
+                let rest = String(trimmed.dropFirst(opener.count))
+                let isOneLine = rest.count >= closer.count && rest.hasSuffix(closer)
+                let firstLine = isOneLine ? String(rest.dropLast(closer.count)) : rest
+                // Plain words between the delimiters are not a formula: the line is an ordinary paragraph.
+                if isOneLine ? RichMath.isFormula(firstLine.trimmingCharacters(in: .whitespaces)) : true {
+                    flush()
+                    mathCloser = closer
+                    if isOneLine {
+                        blocks.append(.code(language: "math", text: firstLine.trimmingCharacters(in: .whitespaces)))
+                    } else {
+                        let first = firstLine.trimmingCharacters(in: .whitespaces)
+                        if !first.isEmpty { mathLines.append(first) }
+                        isInMath = true
+                    }
+                    continue
                 }
-                continue
             }
             if trimmed.hasPrefix("```") {
                 flush()

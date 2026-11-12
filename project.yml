@@ -31,6 +31,10 @@ targets:
       - PortalApp/Sources
       - PortalApp/Resources
       - Shared
+      # Mermaid and KaTeX, with KaTeX's fonts, which draw diagrams and formulas in a sandboxed web view.
+      - path: PortalApp/RichContent
+        type: folder
+        buildPhase: resources
       # The chat rendering fixture, which the demo server loads, kept whole as a folder.
       - path: Fixtures/chat-rendering
         type: folder

@@ -78,21 +78,16 @@ public struct AnswerChart: Equatable, Sendable {
     }
 }
 
-/// AnswerMath keeps a formula readable where it cannot be drawn: display math becomes a code block, inline math inline code.
+/// AnswerMath keeps a formula readable where it cannot be drawn: inline math becomes inline code, by the same rule that decides what
+/// is a formula (RichMath), so an amount of money such as "$5 and $10" is left as it is.
 public enum AnswerMath {
-    /// Inline math: a formula between single dollars that holds a backslash, `^`, `_` or `=`. An amount of money such as
-    /// "$5 and $10" is left as it is, since a formula's dollars hug its first and last characters.
-    private static let inlineExpression = try? NSRegularExpression(pattern: #"(?<![\\$\w])\$([^\s$](?:[^$]*?[^\s$\\])?)\$(?![\w$])"#)
-
     public static func inlineAsCode(_ text: String) -> String {
-        guard text.contains("$"), let inlineExpression else { return text }
-        var result = text
-        for match in inlineExpression.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
-            guard let whole = Range(match.range, in: result), let inner = Range(match.range(at: 1), in: result) else { continue }
-            let formula = String(result[inner])
-            guard formula.contains(where: { "\\^_=".contains($0) }), !formula.contains("`") else { continue }
-            result.replaceSubrange(whole, with: "`\(formula)`")
-        }
-        return result
+        guard text.contains("$") || text.contains("\\") else { return text }
+        return RichMath.pieces(of: text).map { piece in
+            switch piece {
+            case .text(let words): words
+            case .formula(let tex, _): tex.contains("`") ? tex : "`\(tex)`"
+            }
+        }.joined()
     }
 }
