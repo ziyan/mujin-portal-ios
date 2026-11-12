@@ -314,6 +314,13 @@ public enum LinkPreviewRules {
     public static let pendingRetryInterval: TimeInterval = 3
     public static let maximumRetries = 20
     public static let maximumMessagesPerRequest = 50
+    /// The most cards a message shows, as on the web.
+    public static let maximumCardsPerMessage = 3
+
+    /// The cards a message shows: those whose link is not already a reference chip, at most three.
+    public static func shownCards(_ cards: [LinkPreviewCard], chipPaths: Set<String>) -> [LinkPreviewCard] {
+        Array(cards.filter { card in card.path.map { !chipPaths.contains($0) } ?? true }.prefix(maximumCardsPerMessage))
+    }
 
     /// Whether a message's text holds a link worth asking about: a web
     /// address or a Portal path such as `/ticket/42`.

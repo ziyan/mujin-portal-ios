@@ -145,12 +145,45 @@ import Testing
             blocks == [
                 .heading(level: 1, text: "Title"),
                 .paragraph("First line\nsecond line"),
-                .bulletList(["one", "two wrapped"]),
-                .numberedList(["step", "next"]),
+                .list([MarkdownListItem(text: "one"), MarkdownListItem(text: "two wrapped")]),
+                .list([MarkdownListItem(marker: .number(1), text: "step"), MarkdownListItem(marker: .number(2), text: "next")]),
                 .quote("quoted"),
                 .code(language: "swift", text: "let value = 1"),
                 .rule,
             ])
+    }
+
+    @Test func aNestedListIsOneBlockWithItsLevels() {
+        let blocks = MarkdownBlocks.parse("1. Inspect\n2. Clear the belt\n   - left side\n     - under the guard\n3. Start\n\n- [x] Pads replaced\n- [ ] Sensor cleaned")
+        #expect(
+            blocks == [
+                .list([
+                    MarkdownListItem(marker: .number(1), text: "Inspect"), MarkdownListItem(marker: .number(2), text: "Clear the belt"),
+                    MarkdownListItem(level: 1, text: "left side"), MarkdownListItem(level: 2, text: "under the guard"),
+                    MarkdownListItem(marker: .number(3), text: "Start"),
+                ]),
+                .list([MarkdownListItem(isChecked: true, text: "Pads replaced"), MarkdownListItem(isChecked: false, text: "Sensor cleaned")]),
+            ])
+    }
+
+    @Test func displayMathShowsAsCodeAndMoneyStaysText() {
+        #expect(MarkdownBlocks.parse("Spread:\n\n$$\\sigma = \\sqrt{x}$$") == [.paragraph("Spread:"), .code(language: "math", text: "\\sigma = \\sqrt{x}")])
+        #expect(AnswerMath.inlineAsCode("The rate is $r = \\frac{n}{t}$ today") == "The rate is `r = \\frac{n}{t}` today")
+        #expect(AnswerMath.inlineAsCode("They cost $5 and $10 a pair") == "They cost $5 and $10 a pair")
+    }
+
+    @Test func aChartBlockIsReadAsAChart() throws {
+        let chart = try #require(AnswerChart.parse(
+            language: "chart title=\"Picks per hour\"",
+            text: #"{"chartType": "bar", "xAxis": {"label": "Hour", "data": ["06", "07"]}, "series": [{"name": "Picks", "data": [410, 455.5]}]}"#))
+        #expect(chart.kind == .bar)
+        #expect(chart.title == "Picks per hour")
+        #expect(chart.points.map(\.value) == [410, 455.5])
+        #expect(chart.points.map(\.category) == ["06", "07"])
+        let pie = try #require(AnswerChart.parse(language: "chart", text: #"{"chartType": "pie", "series": [{"name": "Time", "data": [82, 18], "labels": ["Picking", "Waiting"]}]}"#))
+        #expect(pie.points.map(\.category) == ["Picking", "Waiting"])
+        #expect(AnswerChart.parse(language: "chart", text: "not json") == nil)
+        #expect(AnswerChart.parse(language: "json", text: "{}") == nil)
     }
 
     @Test func anUnclosedFenceStillShowsItsCode() {

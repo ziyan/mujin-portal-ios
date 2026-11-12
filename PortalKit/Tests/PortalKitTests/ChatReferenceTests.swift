@@ -57,4 +57,19 @@ import Testing
         #expect(variables["query"] as? String == "")
         #expect(variables["chatId"] as? String == "chat1")
     }
+
+    @Test func aPastedPortalLinkKeepsItsCardAndAMessageShowsAtMostThree() {
+        let pasted = ChatReference(referenceKind: "ticket", writtenText: "https://portal.example.test/ticket/7", isAccessible: true, path: "/ticket/7")
+        let written = ChatReference(referenceKind: "ticket", writtenText: "#7", isAccessible: true, path: "/ticket/7")
+        #expect(pasted.isPastedLink)
+        #expect(!written.isPastedLink)
+        func card(_ hash: String, path: String?) -> LinkPreviewCard {
+            LinkPreviewCard(
+                urlHash: hash, url: nil, finalUrl: nil, linkKind: path == nil ? "external" : "ticket", resourceId: nil, title: hash, description: nil,
+                siteName: nil, statusText: nil, path: path, imageUrl: nil)
+        }
+        let cards = [card("a", path: "/ticket/7"), card("b", path: nil), card("c", path: "/site/site01"), card("d", path: nil), card("e", path: nil)]
+        #expect(LinkPreviewRules.shownCards(cards, chipPaths: []).map(\.urlHash) == ["a", "b", "c"])
+        #expect(LinkPreviewRules.shownCards(cards, chipPaths: ["/ticket/7"]).map(\.urlHash) == ["b", "c", "d"])
+    }
 }
