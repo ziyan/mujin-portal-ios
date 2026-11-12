@@ -496,3 +496,26 @@ import Testing
         #expect(!LinkPreviewRules.mayHoldLink("the chat/abc idea"))
     }
 }
+
+/// A call with the assistant reads aloud only the runs of its own place: its thread, or the main history.
+@Suite struct ThreadCallHearingTests {
+    private func words(inThread root: String?) -> ConversationEvent {
+        ConversationEvent(type: "text_delta", runId: "run01", textDelta: .init(messageId: "answer01", text: "Door 4 is slow"), threadRootMessageId: root)
+    }
+
+    @Test func aCallInAThreadHearsThatThreadAlone() {
+        #expect(ThreadRouting.isHeardInCall(words(inThread: "root01"), callThreadRootMessageId: "root01"))
+        #expect(!ThreadRouting.isHeardInCall(words(inThread: "root02"), callThreadRootMessageId: "root01"))
+        #expect(!ThreadRouting.isHeardInCall(words(inThread: nil), callThreadRootMessageId: "root01"))
+    }
+
+    @Test func aCallOnTheMainHistoryDoesNotHearAThreadsRun() {
+        #expect(ThreadRouting.isHeardInCall(words(inThread: nil), callThreadRootMessageId: nil))
+        #expect(!ThreadRouting.isHeardInCall(words(inThread: "root01"), callThreadRootMessageId: nil))
+    }
+
+    @Test func whatIsNotARunsWordsIsForEveryCall() {
+        let title = ConversationEvent(type: "conversation_updated", runId: nil)
+        #expect(ThreadRouting.isHeardInCall(title, callThreadRootMessageId: "root01"))
+    }
+}

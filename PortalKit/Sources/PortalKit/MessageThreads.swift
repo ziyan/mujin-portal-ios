@@ -64,6 +64,13 @@ public enum ThreadRouting {
         return normalized(event.threadRootMessageId)
     }
 
+    /// Whether a call with the assistant reads aloud what this event says: a call in a thread speaks only the runs answering in that
+    /// thread, and a call on the main history only the runs answering there. Anything that is not a run's words is for every call.
+    public static func isHeardInCall(_ event: ConversationEvent, callThreadRootMessageId: String?) -> Bool {
+        guard isRunContent(event) else { return true }
+        return normalized(event.threadRootMessageId) == normalized(callThreadRootMessageId)
+    }
+
     /// Whether the screen shows a run at work: any run on the main history, and on a thread the run that answers in it.
     public static func isViewRunning(isRunning: Bool, workingThreadRootMessageId: String?, viewThreadRootMessageId: String?) -> Bool {
         guard isRunning else { return false }
