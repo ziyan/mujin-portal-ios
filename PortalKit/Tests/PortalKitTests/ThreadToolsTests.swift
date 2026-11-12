@@ -36,13 +36,23 @@ import Testing
         #expect(ThreadViews.threadToOpenOn(questions: questions + [mainQuestion], approvals: approvals) == nil)
     }
 
-    @Test func aThreadListsItsArtifactsAndThoseWhoseCardIsInIt() {
+    @Test func aThreadListsItsArtifactsAndThoseWhoseCardIsInItNewestFirst() {
         let artifacts = [
-            ArtifactReference(id: "made-main", title: "Main", kind: .html),
-            ArtifactReference(id: "made-here", title: "Here", kind: .html, threadRootMessageId: "root01"),
-            ArtifactReference(id: "card-here", title: "Card", kind: .markdown),
+            ArtifactReference(id: "made-main", title: "Main", kind: .html, createdAt: "2026-03-01T09:00:00Z"),
+            ArtifactReference(id: "made-here", title: "Here", kind: .html, threadRootMessageId: "root01", createdAt: "2026-03-01T10:00:00Z"),
+            ArtifactReference(id: "card-here", title: "Card", kind: .markdown, createdAt: "2026-03-01T11:00:00Z"),
         ]
-        #expect(ThreadViews.artifacts(artifacts, inView: "root01", cardIds: ["card-here"]).map(\.id) == ["made-here", "card-here"])
-        #expect(ThreadViews.artifacts(artifacts, inView: nil, cardIds: []).map(\.id) == ["made-main", "card-here"])
+        #expect(ThreadViews.artifacts(artifacts, inView: "root01", cardIds: ["card-here"]).map(\.id) == ["card-here", "made-here"])
+        #expect(ThreadViews.artifacts(artifacts, inView: nil, cardIds: []).map(\.id) == ["card-here", "made-main"])
+    }
+
+    @Test func artifactsMadeAtTheSameMomentGoByIdDescending() {
+        let artifacts = [
+            ArtifactReference(id: "artifact-a", title: "A", kind: .html, createdAt: "2026-03-01T09:00:00Z"),
+            ArtifactReference(id: "artifact-c", title: "C", kind: .html, createdAt: "2026-03-01T09:00:00Z"),
+            ArtifactReference(id: "artifact-b", title: "B", kind: .html, createdAt: "2026-03-01T08:00:00Z"),
+            ArtifactReference(id: "artifact-d", title: "D", kind: .html),
+        ]
+        #expect(ThreadViews.newestFirst(artifacts).map(\.id) == ["artifact-c", "artifact-a", "artifact-b", "artifact-d"])
     }
 }

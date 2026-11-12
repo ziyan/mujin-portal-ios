@@ -90,11 +90,22 @@ public enum ThreadViews {
         return isMainWaiting ? nil : waitingThreads(questions: questions, approvals: approvals).first
     }
 
-    /// The artifacts a view lists: those made in it, and in a thread also any whose card is among the thread's messages.
+    /// The artifacts a view lists, newest first: those made in it, and in a thread also any whose card is among the thread's messages.
+    /// The server lists them oldest first, so they are put in order here, by when each was made and then by id, both descending.
     public static func artifacts(_ artifacts: [ArtifactReference], inView viewThreadRootMessageId: String?, cardIds: Set<String>) -> [ArtifactReference] {
-        artifacts.filter { artifact in
+        newestFirst(artifacts.filter { artifact in
             belongs(threadRootMessageId: artifact.threadRootMessageId, toView: viewThreadRootMessageId)
                 || (viewThreadRootMessageId != nil && cardIds.contains(artifact.id))
+        })
+    }
+
+    /// Artifacts newest first: by when each was made, then by id, both descending. One that does not say when sorts last.
+    public static func newestFirst(_ artifacts: [ArtifactReference]) -> [ArtifactReference] {
+        artifacts.sorted { first, second in
+            let firstDate = PortalDate.parse(first.createdAt) ?? .distantPast
+            let secondDate = PortalDate.parse(second.createdAt) ?? .distantPast
+            if firstDate != secondDate { return firstDate > secondDate }
+            return first.id > second.id
         }
     }
 }
