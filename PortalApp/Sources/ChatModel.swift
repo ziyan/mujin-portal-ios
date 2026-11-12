@@ -90,6 +90,9 @@ final class ChatModel {
     /// Whether the live feed has dropped and not come back. The first connection of an opened chat does not count.
     private(set) var isFeedLost = false
     private(set) var isLoadingEarlier = false
+    /// Set while an earlier page goes in at the top of the list, which then keeps its distance from the end so the messages in
+    /// view stay where they are.
+    private(set) var isInsertingEarlier = false
     /// The agents the chat's organization may use, the main one first.
     private(set) var agents: [Agent] = []
     /// The people and agents the person picked from the @ list for the draft.
@@ -291,6 +294,8 @@ final class ChatModel {
                         isMujinUser: $0.isMujinUser)
                 }
             }
+            // The cards are read before the rows are shown, so a row has its full height from its first frame.
+            await loadPreviews(of: newRows)
             window.replace(with: newRows, totalCount: await total)
             timeline.load(window.messages)
             var marks: [String: String] = [:]
@@ -302,7 +307,6 @@ final class ChatModel {
             await reloadCards()
             await markRead()
             if agents.isEmpty, let loaded = try? await connection.authorizedAgents(organizationId: newRoom.organizationId) { agents = loaded }
-            await loadPreviews(timeline.messages.suffix(30).map(\.id))
         } catch {
             onError(error)
             if phase == .loading { phase = .failed(error.userMessage) }
@@ -316,9 +320,14 @@ final class ChatModel {
         do {
             let page = try await connection.messages(
                 conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
+            await loadPreviews(of: page)
+            isInsertingEarlier = true
+            defer { isInsertingEarlier = false }
+            // The list takes up the anchor for the insertion before the rows arrive, and keeps it for the layout that places them.
+            try? await Task.sleep(for: .milliseconds(30))
             window.prepend(page)
             timeline.load(window.messages)
-            await loadPreviews(page.map(\.id))
+            try? await Task.sleep(for: .milliseconds(120))
         } catch {
             actionError = error.userMessage
             onError(error)
@@ -483,6 +492,12 @@ final class ChatModel {
     func loadPreviews(_ ids: [String], force: Bool = false) async {
         let candidates = timeline.messages.filter { ids.contains($0.id) && !$0.isDeleted && !$0.hasPreviewsRemoved }.map { (id: $0.id, text: $0.text) }
         await linkPreviews.load(candidates, force: force)
+    }
+
+    /// Reads the cards of rows not shown yet.
+    private func loadPreviews(of rows: [ConversationMessage]) async {
+        let candidates = rows.map(ChatMessage.init).filter { !$0.isDeleted && !$0.hasPreviewsRemoved }.map { (id: $0.id, text: $0.text) }
+        await linkPreviews.load(candidates)
     }
 
     func removePreviews(of message: ChatMessage) async {

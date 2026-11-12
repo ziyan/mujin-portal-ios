@@ -41,6 +41,9 @@ final class ConversationModel {
     /// Whether the live feed has dropped and not come back. The first connection of an opened conversation does not count.
     private(set) var isFeedLost = false
     private(set) var isLoadingEarlier = false
+    /// Set while an earlier page goes in at the top of the transcript, which then keeps its distance from the end so the messages
+    /// in view stay where they are.
+    private(set) var isInsertingEarlier = false
     /// Background work this conversation started that has not ended.
     private(set) var backgroundWork: [BackgroundWork] = []
     /// Questions the person set aside, so what they type goes out as a message.
@@ -289,9 +292,15 @@ final class ConversationModel {
         do {
             let page = try await connection.messages(
                 conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
+            // The page's cards are read before it is shown, so its rows have their full height when they go in.
+            await askForPreviews(page)
+            isInsertingEarlier = true
+            defer { isInsertingEarlier = false }
+            // The transcript takes up the anchor for the insertion before the rows arrive, and keeps it for the layout that places them.
+            try? await Task.sleep(for: .milliseconds(30))
             window.prepend(page)
             transcript.load(messages: window.messages, questions: cards.questions, approvals: cards.approvals, isRunning: transcript.isRunning)
-            await askForPreviews(page)
+            try? await Task.sleep(for: .milliseconds(120))
         } catch {
             actionError = error.userMessage
             onError(error)

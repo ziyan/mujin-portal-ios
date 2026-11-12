@@ -33,6 +33,8 @@ struct ConversationView: View {
     @State private var isOnScreen = false
     /// Whether the top of the thread is in view, where earlier messages load.
     @State private var isTopInView = false
+    /// Whether the transcript shows its end. Only then does it follow an answer being written or a message that arrives.
+    @State private var isAtEnd = true
 
     private var isThread: Bool { threadRootMessageId != nil }
     /// Where the call's stage ends on screen, and where the conversation's content begins, so the messages start below the stage.
@@ -376,17 +378,23 @@ struct ConversationView: View {
             }
             .scrollDismissesKeyboard(.immediately)
             .background(Color.portalPage)
-            // A short thread starts at the top; a long one opens, and follows, at the end.
+            // A short thread starts at the top; a long one opens, and follows, at the end. Read further up, the messages in view stay
+            // where they are while an answer is written below them; an earlier page going in above keeps the distance from the end.
             .defaultScrollAnchor(.top, for: .alignment)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
-            .defaultScrollAnchor(.bottom, for: .sizeChanges)
-            // The end of the thread, which an answer being written changes. Reading the same messages again moves nothing.
-            .onChange(of: model.transcript.entries.last) { _, _ in
+            .defaultScrollAnchor(isAtEnd || model.isInsertingEarlier ? .bottom : .top, for: .sizeChanges)
+            .onScrollGeometryChange(for: Bool.self, of: ListEnd.isShown) { _, isShown in isAtEnd = isShown }
+            // The end of the thread, which an answer being written changes, is followed from the end, and always after the person
+            // says something. Reading the same messages again moves nothing.
+            .onChange(of: model.transcript.entries.last) { _, last in
+                let isOwn = if case .some(.user) = last { true } else { false }
+                guard isAtEnd || isOwn else { return }
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
             // The call's stage taking or giving back room at the top keeps the newest message in view above the composer. The
             // scroll waits for the layout that applies the new margin: made at once, it scrolls to where the end was before.
             .onChange(of: callStageBottom) { _, _ in
+                guard isAtEnd else { return }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(100))
                     proxy.scrollTo("bottom", anchor: .bottom)
