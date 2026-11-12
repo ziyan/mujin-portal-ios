@@ -2,8 +2,9 @@ name: iOS
 
 # Nobody working on the app needs a Mac: the PortalKit tests run on Linux, and
 # the app is built on GitHub's macOS runners, which are free for a public
-# repository. TestFlight is a manual run (workflow_dispatch) of the TestFlight job,
-# and every build it uploads goes on to the public group once the UI tests pass.
+# repository. Every push to main uploads a TestFlight build, and so does a manual run
+# (workflow_dispatch) with upload on; each build goes on to the public group once the UI
+# tests pass.
 on:
   push:
     branches: [main]
@@ -881,7 +882,7 @@ jobs:
   # public group only once those tests pass.
   testflight:
     name: TestFlight
-    if: github.event_name == 'workflow_dispatch' && inputs.upload
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.upload)
     needs: [kit, app]
     runs-on: macos-26
     env:
