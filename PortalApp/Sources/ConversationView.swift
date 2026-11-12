@@ -35,6 +35,8 @@ struct ConversationView: View {
     @State private var isTopInView = false
     /// Whether this screen is counted among those that show a call going elsewhere in a strip under their header.
     @State private var isHostingCallStrip = false
+    /// Whether the conversation already opened on the thread where something waited, which it does once.
+    @State private var hasOpenedWaitingThread = false
 
     private var isThread: Bool { threadRootMessageId != nil }
     /// Whether a call can start here: from the conversation, or from a thread on a server with threads, where it goes in the thread.
@@ -47,6 +49,26 @@ struct ConversationView: View {
     private var isCallStaged: Bool {
         guard let voice else { return false }
         return voice.isActive || voice.phase != .idle
+    }
+
+    /// The artifacts whose cards this view's messages show.
+    private var shownArtifactCardIds: Set<String> {
+        Set((model?.transcript.displayEntries ?? []).compactMap { entry in
+            if case .produced(.artifact(let artifact)) = entry { return artifact.id }
+            return nil
+        })
+    }
+
+    /// The first words of a thread's root, for the line that points to it.
+    private func threadExcerpt(_ rootId: String, _ model: ConversationModel) -> String? {
+        for entry in model.transcript.entries {
+            switch entry {
+            case .assistant(let id, let text, _) where id == rootId: return ThreadRouting.excerpt(text)
+            case .user(let id, let text, _) where id == rootId: return ThreadRouting.excerpt(text)
+            default: continue
+            }
+        }
+        return nil
     }
 
     /// Starts a call. A call and dictation both want the microphone, and a call wins.
@@ -122,12 +144,25 @@ struct ConversationView: View {
         .navigationDestination(item: $openedThreadRootId) { rootId in
             ConversationView(account: account, conversationId: conversationId, title: title, threadRootMessageId: rootId)
         }
+        // A conversation whose questions and approvals wait only in a thread opens on that thread, once.
+        .onChange(of: model?.threadToOpenOn) { _, rootId in
+            guard !isThread, !hasOpenedWaitingThread, let rootId else { return }
+            hasOpenedWaitingThread = true
+            openedThreadRootId = rootId
+        }
         .onChange(of: requestedThreadRootMessageId.wrappedValue, initial: true) { _, rootId in
             guard !isThread, let rootId else { return }
             openedThreadRootId = rootId
             requestedThreadRootMessageId.wrappedValue = nil
         }
         .toolbar {
+            // A thread lists the pages and files made in it.
+            if isThread {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { isShowingArtifacts = true } label: { Label("Pages and files it made", systemImage: "doc.richtext") }
+                        .accessibilityIdentifier("threadArtifactsButton")
+                }
+            }
             // The call sits beside the conversation's menu, in the same capsule; in a thread, alone, and the call goes in the thread.
             if !isCallStaged, voice != nil {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -171,7 +206,10 @@ struct ConversationView: View {
         }
         .attachmentPickers(drafts)
         .sheet(isPresented: $isShowingArtifacts) {
-            ArtifactListSheet(conversationId: conversationId, connection: appModel.connection(for: account)) { artifact in
+            ArtifactListSheet(
+                conversationId: conversationId, threadRootMessageId: threadRootMessageId, cardArtifactIds: shownArtifactCardIds,
+                connection: appModel.connection(for: account)
+            ) { artifact in
                 isShowingArtifacts = false
                 Task {
                     try? await Task.sleep(nanoseconds: 400_000_000)
@@ -206,6 +244,7 @@ struct ConversationView: View {
                 offersMessageThreads: session.capabilities.offersMessageThreads,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             conversationModel.onTitleChanged = { onTitleChanged?($0) }
+            conversationModel.offersTodos = session.capabilities.offersTodos
             model = conversationModel
             takeReference()
             // The screen moves to another conversation (on iPad, a pick from the list): a call that is going stays with the session.
@@ -322,7 +361,11 @@ struct ConversationView: View {
                     if isCallStaged { Color.clear.frame(height: max(callStageBottom - contentTop, 0)) }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    ComposerBar(model: model, voice: voice, dictation: dictation, drafts: drafts, draft: $draft, onTalk: voice == nil ? nil : { startCall() })
+                    VStack(spacing: 0) {
+                        // The todo list of this view, the main history's or this thread's, above where the person writes.
+                        if !model.shownTodos.isEmpty { TodoPanel(todos: model.shownTodos) }
+                        ComposerBar(model: model, voice: voice, dictation: dictation, drafts: drafts, draft: $draft, onTalk: voice == nil ? nil : { startCall() })
+                    }
                 }
         }
     }
@@ -377,6 +420,12 @@ struct ConversationView: View {
                         }
                     }
                     // The one sign of a turn at work: typing dots below everything, until the answer is done.
+                    // A question or an approval that waits in a thread: one line here, which opens it.
+                    if !model.isThread {
+                        ForEach(model.waitingThreadRootIds, id: \.self) { rootId in
+                            WaitingInThreadLine(excerpt: threadExcerpt(rootId, model)) { openedThreadRootId = rootId }
+                        }
+                    }
                     if model.isShowingTypingDots {
                         TypingBubble().id("typing")
                     }
@@ -1239,6 +1288,9 @@ private struct FilingNoteView: View {
 private struct ArtifactListSheet: View {
     @Environment(\.dismiss) private var dismiss
     let conversationId: String
+    /// The thread the list is for, which lists what was made in it and what its messages show; nil for the main history.
+    var threadRootMessageId: String?
+    var cardArtifactIds: Set<String> = []
     let connection: Connection
     let onOpen: (ArtifactReference) -> Void
 
@@ -1281,7 +1333,8 @@ private struct ArtifactListSheet: View {
         }
         .task {
             do {
-                artifacts = try await connection.conversationArtifacts(conversationId: conversationId)
+                let all = try await connection.conversationArtifacts(conversationId: conversationId)
+                artifacts = ThreadViews.artifacts(all, inView: threadRootMessageId, cardIds: cardArtifactIds)
                 phase = .loaded
             } catch {
                 phase = .failed(error.userMessage)

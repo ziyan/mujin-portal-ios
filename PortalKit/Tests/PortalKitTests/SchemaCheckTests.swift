@@ -71,6 +71,17 @@ import Testing
         #expect(checked >= 2)
     }
 
+    /// A thread-native server's thread fields are valid on every interaction document they are added to.
+    @Test func theThreadToolFieldsAreValidWhereTheyAreAdded() throws {
+        var checked = 0
+        for document in Documents.all where Documents.withThreadTools(document) != document {
+            let problems = try DocumentValidator(schema: Self.schema).problems(in: Documents.withThreadTools(document))
+            #expect(problems.isEmpty, "\(document.prefix(60)): \(problems)")
+            checked += 1
+        }
+        #expect(checked >= 5)
+    }
+
     /// The lists people pick from ask for foreground conversations only, a valid argument wherever it is added.
     @Test func theForegroundOnlyListsAreValid() throws {
         var checked = 0

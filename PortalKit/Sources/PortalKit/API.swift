@@ -62,6 +62,7 @@ extension Connection {
                 let askedAt: String?
                 let answeredAt: String?
                 let cancelledAt: String?
+                let threadRootMessageId: String?
             }
             let ListConversationQuestions: [Row]?
         }
@@ -75,6 +76,7 @@ extension Connection {
                 let arguments: String?
                 let decidedAt: String?
                 let cancelledAt: String?
+                let threadRootMessageId: String?
             }
             let ListConversationApprovals: [Row]?
         }
@@ -86,12 +88,13 @@ extension Connection {
         return (
             questions.filter { ($0.answeredAt ?? "").isEmpty && ($0.cancelledAt ?? "").isEmpty }.map {
                 QuestionCard(
-                    id: $0.id, question: $0.question ?? "", choices: $0.choices ?? [], allowOther: $0.allowOther ?? true, askedAt: $0.askedAt)
+                    id: $0.id, question: $0.question ?? "", choices: $0.choices ?? [], allowOther: $0.allowOther ?? true, askedAt: $0.askedAt,
+                    threadRootMessageId: $0.threadRootMessageId)
             },
             approvals.filter { ($0.decidedAt ?? "").isEmpty && ($0.cancelledAt ?? "").isEmpty }.map {
                 ApprovalCard(
                     id: $0.id, toolCallId: $0.toolCallId ?? "", toolName: $0.toolName ?? "", policyReason: $0.policyReason ?? "",
-                    risk: $0.risk ?? "", arguments: $0.arguments ?? "")
+                    risk: $0.risk ?? "", arguments: $0.arguments ?? "", threadRootMessageId: $0.threadRootMessageId)
             }
         )
     }
