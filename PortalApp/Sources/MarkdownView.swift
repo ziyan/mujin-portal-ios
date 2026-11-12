@@ -1,5 +1,6 @@
 import PortalKit
 import SwiftUI
+import UIKit
 
 /// MarkdownView lays out an assistant answer. Blocks come from PortalKit's
 /// splitter; the system renders the bold, italic, code and links inside them.

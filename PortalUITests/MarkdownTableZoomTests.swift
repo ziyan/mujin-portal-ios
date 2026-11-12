@@ -8,7 +8,7 @@ final class MarkdownTableZoomTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func table(_ app: XCUIApplication) -> XCUIElement {
+    private func revealTable(_ app: XCUIApplication) -> XCUIElement {
         let table = DemoApp.element(app, "markdownTable")
         XCTAssertTrue(table.waitForExistence(timeout: 90), "The page never showed its table.\n\(app.debugDescription)")
         DemoApp.scrollToElement(table, in: app)
@@ -19,7 +19,7 @@ final class MarkdownTableZoomTests: XCTestCase {
 
     func testAWideTableDragsSideways() {
         let app = DemoApp.launch(screen: "site-page-rich")
-        let table = table(app)
+        let table = revealTable(app)
         Thread.sleep(forTimeInterval: 1)
         let before = table.screenshot().pngRepresentation
         table.swipeLeft()
@@ -30,7 +30,7 @@ final class MarkdownTableZoomTests: XCTestCase {
 
     func testAPinchOpensTheTableFullScreenWhereItZoomsAndCloses() {
         let app = DemoApp.launch(screen: "site-page-rich")
-        table(app).pinch(withScale: 2, velocity: 1)
+        revealTable(app).pinch(withScale: 2, velocity: 1)
         XCTAssertTrue(viewer(app).waitForExistence(timeout: 10), "A pinch did not open the table full screen.\n\(app.debugDescription)")
         let shown = viewer(app)
         let before = shown.screenshot().pngRepresentation
@@ -47,7 +47,7 @@ final class MarkdownTableZoomTests: XCTestCase {
 
     func testTheFullScreenButtonOpensTheTable() {
         let app = DemoApp.launch(screen: "site-page-rich")
-        _ = table(app)
+        _ = revealTable(app)
         let open = DemoApp.button(app, "markdownTableOpenButton")
         DemoApp.scrollToElement(open, in: app)
         XCTAssertTrue(DemoApp.waitUntilHittable(open, timeout: 10), "The table has no full screen button.\n\(app.debugDescription)")
