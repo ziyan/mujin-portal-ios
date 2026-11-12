@@ -228,6 +228,18 @@ enum SiteSectionViews {
             }
         }
     }
+
+    @ViewBuilder
+    static func tickets(_ model: SiteModel) -> some View {
+        if !model.openTickets.isEmpty {
+            Section("Tickets") {
+                ForEach(SiteSections.top(model.openTickets)) { ticket in
+                    NavigationLink(value: PortalRoute.ticket(id: ticket.id)) { TicketRow(ticket: ticket) }
+                }
+                showAll(.tickets, model: model, count: model.openTickets.count, isShown: SiteSections.hasMore(model.openTickets))
+            }
+        }
+    }
 }
 
 /// ControllerNoteLink is a controller's id in a note, which opens the controller. It is a tap target of its row and not a link, since
