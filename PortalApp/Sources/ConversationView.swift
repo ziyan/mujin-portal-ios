@@ -33,8 +33,12 @@ struct ConversationView: View {
     @State private var isOnScreen = false
     /// Whether the top of the thread is in view, where earlier messages load.
     @State private var isTopInView = false
+    /// Whether this screen is counted among those that show a call going elsewhere in a strip under their header.
+    @State private var isHostingCallStrip = false
 
     private var isThread: Bool { threadRootMessageId != nil }
+    /// Whether a call can start here: from the conversation, or from a thread on a server with threads, where it goes in the thread.
+    private var canCall: Bool { !isThread || session.capabilities.offersMessageThreads }
     /// Where the call's stage ends on screen, and where the conversation's content begins, so the messages start below the stage.
     @State private var callStageBottom: CGFloat = 0
     @State private var contentTop: CGFloat = 0
@@ -55,13 +59,17 @@ struct ConversationView: View {
         Task { await voice.start() }
     }
 
-    /// Hands the call to the session, which keeps it, with this conversation, when the screen goes away. A call that is going already
-    /// with another conversation ends first: one call at a time.
+    /// Hands the call to the session, which keeps it, with this conversation or thread, when the screen goes away. A call that is going
+    /// already, with the assistant or with people, ends first: one call at a time.
     private func holdCall() {
         guard let voice, let model else { return }
         if let other = session.assistantCall, other.voice !== voice { other.end() }
-        session.assistantCall = AssistantCall(conversationId: conversationId, model: model, voice: voice)
+        if let peopleCall = appModel.callCenter.session, !peopleCall.isEnded { appModel.callCenter.hangUp() }
+        session.assistantCall = AssistantCall(conversationId: conversationId, threadRootMessageId: threadRootMessageId, model: model, voice: voice)
     }
+
+    /// Where this screen is, as a call's place: the conversation, or one of its threads.
+    private var place: CallPlace { CallPlace(conversationId: conversationId, threadRootMessageId: threadRootMessageId) }
 
     /// The assistant large over the conversation while the call goes, with what the call is doing under its name, and leave and
     /// mute at the top right. A tap on the picture cuts a playing answer short where that is possible.
@@ -104,6 +112,8 @@ struct ConversationView: View {
                 ProgressView()
             }
         }
+        // A call going on elsewhere, with the assistant or with people, shows under the header, threads included.
+        .safeAreaInset(edge: .top, spacing: 0) { if !isCallStaged { OngoingCallStrip(place: place) } }
         .conversationBar(title: isThread ? "\(String(localized: "Thread")) \u{00B7} \(shownTitle)" : shownTitle, isCallStageShown: isCallStaged)
         // A call that ended on this screen is no longer the session's to keep.
         .onChange(of: isCallStaged) { _, isStaged in
@@ -118,14 +128,14 @@ struct ConversationView: View {
             requestedThreadRootMessageId.wrappedValue = nil
         }
         .toolbar {
-            if !isThread, !isCallStaged {
-            // The call sits beside the conversation's menu, in the same capsule.
-            if voice != nil {
+            // The call sits beside the conversation's menu, in the same capsule; in a thread, alone, and the call goes in the thread.
+            if !isCallStaged, voice != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { startCall() } label: { Label("Call the assistant", systemImage: "phone") }
                         .accessibilityIdentifier("assistantCallButton")
                 }
             }
+            if !isThread, !isCallStaged {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if !isMainChat, session.capabilities.offersMainChatChoice {
@@ -178,7 +188,7 @@ struct ConversationView: View {
         .onAppear { takeReference() }
         .task(id: conversationId) {
             // A call with this conversation that went on while it was off screen: the screen takes it back, with its conversation.
-            if !isThread, let call = session.assistantCall, call.conversationId == conversationId, call.isGoing {
+            if let call = session.assistantCall, call.place == place, call.isGoing {
                 model = call.model
                 voice = call.voice
                 call.model.start()
@@ -186,8 +196,8 @@ struct ConversationView: View {
             }
             // The task runs again each time the screen comes back: the messages stay while `onAppear` reads them again.
             if let model, model.conversationId == conversationId {
-                // A call is made from the whole conversation, not from one of its threads.
-                if !isThread, !isCallStaged { voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory) }
+                // A call is made from the conversation or from one of its threads, on a server whose threads have their own runs.
+                if canCall, !isCallStaged { voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory) }
                 return
             }
             let conversationModel = ConversationModel(
@@ -200,7 +210,7 @@ struct ConversationView: View {
             takeReference()
             // The screen moves to another conversation (on iPad, a pick from the list): a call that is going stays with the session.
             if !isCallStaged { voice?.end() }
-            if !isThread {
+            if canCall {
                 voice = VoiceCallController(
                     model: conversationModel, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
             }
@@ -226,11 +236,19 @@ struct ConversationView: View {
         .onAppear {
             isOnScreen = true
             model?.start()
-            if !isThread { session.conversationIdOnScreen = conversationId }
+            session.callPlaceOnScreen = place
+            if !isHostingCallStrip {
+                isHostingCallStrip = true
+                session.callStripHostCount += 1
+            }
         }
         .onDisappear {
             isOnScreen = false
-            if !isThread, session.conversationIdOnScreen == conversationId { session.conversationIdOnScreen = nil }
+            if session.callPlaceOnScreen == place { session.callPlaceOnScreen = nil }
+            if isHostingCallStrip {
+                isHostingCallStrip = false
+                session.callStripHostCount -= 1
+            }
             // A call goes on in its bar, its conversation still listening for the answers; anything else stops with the screen.
             guard !isCallStaged else { return }
             model?.stop()

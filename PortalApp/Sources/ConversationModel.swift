@@ -183,7 +183,7 @@ final class ConversationModel {
     /// Passes the answer being written to a call that reads it aloud. A tool
     /// call, a card or the end of the turn ends the text written so far.
     private func noteSpeech(_ event: ConversationEvent) {
-        guard let onAssistantText else { return }
+        guard let onAssistantText, ThreadRouting.isHeardInCall(event, callThreadRootMessageId: threadRootMessageId) else { return }
         switch event.kind {
         case .textDelta:
             guard let id = event.textDelta?.messageId,
@@ -209,7 +209,9 @@ final class ConversationModel {
         }
         transcript.appendPendingUser(text, viewing: nil)
         do {
-            try await connection.sendMessage(conversationId: conversationId, text: text, isVoice: true, interruptedAnswer: interruptedAnswer)
+            // In a thread, each spoken turn is a reply in it, so its answer is spoken from the thread's run.
+            try await connection.sendMessage(
+                conversationId: conversationId, text: text, replyToMessageId: threadRootMessageId, isVoice: true, interruptedAnswer: interruptedAnswer)
         } catch {
             transcript.removePendingUser(text)
             actionError = error.userMessage
