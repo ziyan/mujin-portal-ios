@@ -3,11 +3,10 @@ import SwiftUI
 import UIKit
 import WebKit
 
-/// ArtifactWebView shows a page the assistant made. It is a web view with
-/// nothing the page can call: no script bridge, a private data store, and a
-/// content rule list that blocks every address except the server the page
-/// came from. The server adds its own sandbox on the response. The theme
-/// travels in the address fragment, so changing it does not reload the page.
+/// ArtifactWebView shows a page the assistant made, as the web's frame does. The web view loads a frame of the app's own, which
+/// holds the page in a frame sandboxed to its scripts: the page's origin is opaque, it has no cookies (the data store is private
+/// and empty) and never sees the token, which only the app's own fetch carries. Every address but the app's scheme is blocked, and
+/// nothing navigates away. The theme and title go in the page's address fragment, and the page's height comes back in a message.
 struct ArtifactWebView: UIViewRepresentable {
     enum Source {
         case remote(artifactId: String)
@@ -16,40 +15,12 @@ struct ArtifactWebView: UIViewRepresentable {
     }
 
     let source: Source
+    let title: String
     let connection: Connection
     let isDark: Bool
-    /// Inline pages are as tall as their content, between 120 and 640 points.
+    /// Inline pages are as tall as they say, between 120 and 640 points; the full-size one fills the screen.
     let isInline: Bool
     @Binding var height: Double
-
-    /// A page without a viewport declaration is laid out at desktop width and scaled down, so its text is tiny and its
-    /// height does not match what is drawn. Declaring the phone's width fixes both; a page that has its own keeps it.
-    static let viewportScript = """
-        (function () {
-          function add() {
-            if (document.querySelector('meta[name=viewport]')) { return; }
-            var meta = document.createElement('meta');
-            meta.name = 'viewport';
-            meta.content = 'width=device-width, initial-scale=1';
-            (document.head || document.documentElement).appendChild(meta);
-          }
-          if (document.head) { add(); return; }
-          new MutationObserver(function (records, observer) {
-            if (document.head) { add(); observer.disconnect(); }
-          }).observe(document.documentElement, { childList: true });
-        })();
-        """
-
-    /// Reports the content's height whenever it changes, for charts that draw late.
-    static let resizeScript = """
-        (function () {
-          function height() { return Math.min(document.documentElement.scrollHeight, Math.ceil(document.body.getBoundingClientRect().bottom + 8)); }
-          function report() { window.webkit.messageHandlers.artifactHeight.postMessage(height()); }
-          new ResizeObserver(report).observe(document.documentElement);
-          new ResizeObserver(report).observe(document.body);
-          report();
-        })();
-        """
 
     func makeCoordinator() -> Coordinator {
         Coordinator(height: $height, isInline: isInline)
@@ -58,26 +29,37 @@ struct ArtifactWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
-        if isInline {
-            // Scripts of the app's own, in a world the page cannot reach: the page has nothing to call and cannot see them.
-            let world = WKContentWorld.world(name: "portal-artifact-measure")
-            configuration.userContentController.addUserScript(WKUserScript(source: Self.viewportScript, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: world))
-            configuration.userContentController.addUserScript(WKUserScript(source: Self.resizeScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: world))
-            configuration.userContentController.add(context.coordinator, contentWorld: world, name: "artifactHeight")
-        }
+        configuration.setURLSchemeHandler(
+            ArtifactSchemeHandler(source: source, connection: connection, frameHTML: { pageURL in
+                ArtifactSandbox.frameHTML(pageURL: pageURL, frameTitle: title)
+            }),
+            forURLScheme: ArtifactSandbox.scheme)
+        configuration.userContentController.add(context.coordinator, name: "artifactHeight")
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
-        webView.scrollView.isScrollEnabled = !isInline
+        webView.scrollView.isScrollEnabled = false
         webView.allowsLinkPreview = false
         webView.navigationDelegate = context.coordinator
-        context.coordinator.begin(webView: webView, source: source, connection: connection, isDark: isDark)
+        context.coordinator.begin(webView: webView, pageURL: pageURL)
         return webView
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        context.coordinator.apply(isDark: isDark)
+        context.coordinator.show(pageURL)
+    }
+
+    static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "artifactHeight")
+    }
+
+    private var pageURL: URL {
+        let artifactId = switch source {
+        case .remote(let artifactId): artifactId
+        case .html: "demo"
+        }
+        return ArtifactSandbox.pageURL(artifactId: artifactId, isDark: isDark, title: title)
     }
 
     @MainActor
@@ -85,40 +67,29 @@ struct ArtifactWebView: UIViewRepresentable {
         private let height: Binding<Double>
         private let isInline: Bool
         private weak var webView: WKWebView?
-        private var isDark = false
-        private var allowedURL: URL?
+        private var shownPageURL: URL?
         private var loadTask: Task<Void, Never>?
-        private var measureTask: Task<Void, Never>?
 
         init(height: Binding<Double>, isInline: Bool) {
             self.height = height
             self.isInline = isInline
         }
 
-        func begin(webView: WKWebView, source: Source, connection: Connection, isDark: Bool) {
+        func begin(webView: WKWebView, pageURL: URL) {
             self.webView = webView
-            self.isDark = isDark
-            loadTask = Task { [weak self] in
-                switch source {
-                case .html(let html):
-                    webView.loadHTMLString(html, baseURL: nil)
-                case .remote(let artifactId):
-                    let server = await connection.server
-                    // Without the rule list the page would not be contained, so it is not shown.
-                    guard await Self.install(rules: ArtifactSandbox.contentRuleListJSON(server: server), on: webView) else { return }
-                    guard let token = try? await connection.accessToken() else { return }
-                    let url = await connection.artifactPageURL(id: artifactId, isDark: isDark)
-                    var request = URLRequest(url: url)
-                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                    self?.allowedURL = url
-                    webView.load(request)
-                }
+            shownPageURL = pageURL
+            loadTask = Task {
+                // Without the rule list the page would not be contained, so it is not shown.
+                guard await Self.install(rules: ArtifactSandbox.contentRuleListJSON(), on: webView) else { return }
+                var components = URLComponents(url: ArtifactSandbox.frameURL, resolvingAgainstBaseURL: false)!
+                components.queryItems = [URLQueryItem(name: "page", value: pageURL.absoluteString)]
+                webView.load(URLRequest(url: components.url!))
             }
         }
 
         private static func install(rules: String, on webView: WKWebView) async -> Bool {
             do {
-                let list = try await WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "artifact-sandbox", encodedContentRuleList: rules)
+                let list = try await WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "artifact-frame", encodedContentRuleList: rules)
                 guard let list else { return false }
                 webView.configuration.userContentController.add(list)
                 return true
@@ -127,55 +98,94 @@ struct ArtifactWebView: UIViewRepresentable {
             }
         }
 
-        /// Hands the page the new theme by changing only the fragment.
-        func apply(isDark: Bool) {
-            guard isDark != self.isDark else { return }
-            self.isDark = isDark
-            webView?.evaluateJavaScript("location.hash = '\(ArtifactSandbox.themeFragment(isDark: isDark))'")
+        /// Hands the page a new theme by changing only the fragment of its address, which does not reload it.
+        func show(_ pageURL: URL) {
+            guard pageURL != shownPageURL else { return }
+            shownPageURL = pageURL
+            guard let quoted = try? String(data: JSONSerialization.data(withJSONObject: [pageURL.absoluteString]), encoding: .utf8) else { return }
+            webView?.evaluateJavaScript("window.portalShowPage && window.portalShowPage(\(quoted)[0])")
         }
 
-        /// The page's height, from the observer the app injected.
+        /// The height the page reports, passed on by the frame. Only the app's frame can say it: the page's own frame is not heard.
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard let number = message.body as? NSNumber else { return }
-            setHeight(number.doubleValue)
-        }
-
-        private func setHeight(_ measured: Double) {
-            // As tall as the content, up to 70% of the screen; the expand button shows the rest.
-            let limit = max(ArtifactSandbox.inlineHeightRange.lowerBound, UIScreen.main.bounds.height * 0.7)
-            let fitted = min(ArtifactSandbox.clampedHeight(measured), limit)
-            if abs(fitted - height.wrappedValue) > 1 { height.wrappedValue = fitted }
+            guard isInline, message.frameInfo.isMainFrame, message.frameInfo.request.url?.scheme == ArtifactSandbox.scheme,
+                let number = message.body as? NSNumber
+            else { return }
+            let clamped = ArtifactSandbox.clampedHeight(number.doubleValue)
+            if abs(clamped - height.wrappedValue) > 1 { height.wrappedValue = clamped }
         }
 
         // MARK: WKNavigationDelegate
 
-        /// The page itself loads once; nothing it links to opens in it.
+        /// The frame loads once, and the page once inside it with changes to its fragment; nothing either links to opens.
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
-            guard navigationAction.targetFrame?.isMainFrame == true, let url = navigationAction.request.url else { return .cancel }
-            if url.scheme == "about" || url.scheme == "data" { return .allow }
-            guard let allowedURL else { return .cancel }
-            let isSamePage = url.absoluteString.split(separator: "#").first == allowedURL.absoluteString.split(separator: "#").first
-            return isSamePage ? .allow : .cancel
+            guard let url = navigationAction.request.url, url.scheme == ArtifactSandbox.scheme else { return .cancel }
+            if navigationAction.targetFrame?.isMainFrame == true { return url.path == ArtifactSandbox.frameURL.path ? .allow : .cancel }
+            guard let shown = shownPageURL else { return .cancel }
+            return url.path == shown.path ? .allow : .cancel
         }
+    }
+}
 
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            guard isInline else { return }
-            // Charts draw after the load, so the height is read again a few times.
-            measureTask?.cancel()
-            measureTask = Task { [weak self] in
-                for pause in [0.0, 0.5, 1.5, 3.0] {
-                    try? await Task.sleep(nanoseconds: UInt64(pause * 1_000_000_000))
-                    if Task.isCancelled { return }
-                    await self?.measure()
+/// ArtifactSchemeHandler serves the frame, the page and the artifact kit to an artifact's web view. The page's bytes are fetched
+/// with the account's token by the app, never by the page, and served with the policy the server gives the web's frame.
+@MainActor
+final class ArtifactSchemeHandler: NSObject, WKURLSchemeHandler {
+    private let source: ArtifactWebView.Source
+    private let connection: Connection
+    private let frameHTML: (URL) -> String
+    private var tasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+
+    init(source: ArtifactWebView.Source, connection: Connection, frameHTML: @escaping (URL) -> String) {
+        self.source = source
+        self.connection = connection
+        self.frameHTML = frameHTML
+    }
+
+    func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
+        guard let url = urlSchemeTask.request.url, url.host == "artifact" else {
+            urlSchemeTask.didFailWithError(URLError(.unsupportedURL))
+            return
+        }
+        let key = ObjectIdentifier(urlSchemeTask)
+        let source = source
+        let connection = connection
+        let frameHTML = frameHTML
+        tasks[key] = Task { @MainActor [weak self] in
+            let answer: (data: Data, contentType: String, policy: String?)?
+            if url.path == ArtifactSandbox.frameURL.path {
+                let page = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "page" }?.value.flatMap(URL.init(string:))
+                answer = page.map { (Data(frameHTML($0).utf8), "text/html; charset=utf-8", nil) }
+            } else if url.path.hasPrefix("/api/v1/artifact/") {
+                switch source {
+                case .html(let html):
+                    answer = (ArtifactSandbox.framedPage(Data(html.utf8)), "text/html; charset=utf-8", ArtifactSandbox.pageContentSecurityPolicy)
+                case .remote(let artifactId):
+                    let data = try? await connection.artifactData(id: artifactId, isDownload: false)
+                    answer = data.map { (ArtifactSandbox.framedPage($0), "text/html; charset=utf-8", ArtifactSandbox.pageContentSecurityPolicy) }
                 }
+            } else if url.path.hasPrefix(ArtifactSandbox.kitPath) {
+                let name = String(url.path.dropFirst(ArtifactSandbox.kitPath.count))
+                answer = (try? await connection.artifactKitData(name: name)).map { ($0.data, $0.contentType, nil) }
+            } else {
+                answer = nil
             }
+            guard let self, self.tasks.removeValue(forKey: key) != nil else { return }
+            guard let answer else {
+                urlSchemeTask.didFailWithError(URLError(.resourceUnavailable))
+                return
+            }
+            var headers = ["Content-Type": answer.contentType, "Cache-Control": "no-store"]
+            if let policy = answer.policy { headers["Content-Security-Policy"] = policy }
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!
+            urlSchemeTask.didReceive(response)
+            urlSchemeTask.didReceive(answer.data)
+            urlSchemeTask.didFinish()
         }
+    }
 
-        private func measure() async {
-            guard let webView else { return }
-            let measured = try? await webView.evaluateJavaScript("Math.min(document.documentElement.scrollHeight, Math.ceil(document.body.getBoundingClientRect().bottom + 8))")
-            if let number = measured as? NSNumber { setHeight(number.doubleValue) }
-        }
+    func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {
+        tasks.removeValue(forKey: ObjectIdentifier(urlSchemeTask))?.cancel()
     }
 }
 
@@ -188,7 +198,7 @@ struct ArtifactCardView: View {
     let connection: Connection
     let onOpen: () -> Void
 
-    @State private var height = 160.0
+    @State private var height = ArtifactSandbox.defaultHeight
     @State private var markdown: String?
 
     var body: some View {
@@ -218,11 +228,17 @@ struct ArtifactCardView: View {
         .contextMenu {
             Button(action: onOpen) { Label("Open full size", systemImage: "arrow.up.left.and.arrow.down.right") }
         }
+        .task {
+            // The screenshot run opens a page or a document full size, as a tap on its title does.
+            guard appModel.isDemo, DemoArtifact.opensFullSize(artifact.kind, screen: DemoOptions.screen) else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            onOpen()
+        }
     }
 
 
     private var pageSource: ArtifactWebView.Source {
-        appModel.isDemo ? ArtifactWebView.Source.html(DemoArtifact.html(isDark: colorScheme == .dark)) : ArtifactWebView.Source.remote(artifactId: artifact.id)
+        appModel.isDemo ? ArtifactWebView.Source.html(DemoArtifact.html) : ArtifactWebView.Source.remote(artifactId: artifact.id)
     }
 
     private func loadMarkdown() async -> String? {
@@ -241,7 +257,7 @@ struct ArtifactCardView: View {
                 }
         } else {
             ArtifactWebView(
-                source: pageSource,
+                source: pageSource, title: artifact.title,
                 connection: connection, isDark: colorScheme == .dark, isInline: true, height: $height
             )
             .frame(height: height)
@@ -281,7 +297,7 @@ struct ArtifactFullView: View {
                     }
                 } else {
                     ArtifactWebView(
-                        source: pageSource,
+                        source: pageSource, title: artifact.title,
                         connection: connection, isDark: colorScheme == .dark, isInline: false, height: $height
                     )
                     .ignoresSafeArea(edges: .bottom)
@@ -317,7 +333,7 @@ struct ArtifactFullView: View {
 
 
     private var pageSource: ArtifactWebView.Source {
-        appModel.isDemo ? ArtifactWebView.Source.html(DemoArtifact.html(isDark: colorScheme == .dark)) : ArtifactWebView.Source.remote(artifactId: artifact.id)
+        appModel.isDemo ? ArtifactWebView.Source.html(DemoArtifact.html) : ArtifactWebView.Source.remote(artifactId: artifact.id)
     }
 
     private func loadMarkdown() async -> String? {
@@ -417,33 +433,92 @@ struct ProducedFileRow: View {
     }
 }
 
-/// DemoArtifact is an invented page and document for screenshots.
+/// DemoArtifact is an invented page and document for screenshots. The page does what the server's artifact kit does: it takes the
+/// theme from its address fragment on load and on every change, hides a heading that repeats the title the app shows, and tells
+/// the frame around it how tall it is.
 enum DemoArtifact {
+    static func opensConversation(screen: String?) -> Bool { screen == "artifact-full" || screen == "artifact-document-full" }
+
+    static func opensFullSize(_ kind: ArtifactReference.Kind, screen: String?) -> Bool {
+        (screen == "artifact-full" && kind == .html) || (screen == "artifact-document-full" && kind == .markdown)
+    }
+
     static let markdown = """
         ## Weekly throughput
 
-        - **site01** moved 1,240 pallets.
-        - **site02** moved 980 pallets.
+        Pallets moved by each site, Monday to Sunday.
+
+        | Site | Pallets | Change |
+        | :--- | ---: | ---: |
+        | site01 | 1,240 | +6% |
+        | site02 | 980 | -2% |
+        | site03 | 610 | +11% |
+
+        ### What changed
+
+        - **site01** ran a second shift on Thursday and Friday.
+        - **site02** lost half a day to a conveyor stop on Tuesday.
+        - **site03** added a pick station, which shows from Wednesday on.
+
+        ### Next week
+
+        1. Keep the second shift at site01 if the inbound volume holds.
+        2. Check the conveyor at site02 before Monday's first wave.
+        3. Compare site03's new station with its others after a full week.
 
         > Numbers are invented for the demo.
         """
 
-    static func html(isDark: Bool) -> String {
-        let background = isDark ? "#1c1c1e" : "#ffffff"
-        let text = isDark ? "#f2f2f7" : "#1c1c1e"
-        let bar = isDark ? "#FF7025" : "#e76125"
-        return """
-            <!doctype html><html><head>
-            <style>
-            body { font-family: -apple-system, sans-serif; margin: 0; padding: 12px; background: \(background); color: \(text); }
-            .row { display: flex; align-items: center; margin: 8px 0; font-size: 15px; }
-            .label { width: 64px; }
-            .bar { height: 18px; border-radius: 4px; background: \(bar); }
-            </style></head><body>
-            <div class="row"><span class="label">site01</span><div class="bar" style="width: 220px"></div></div>
-            <div class="row"><span class="label">site02</span><div class="bar" style="width: 174px"></div></div>
-            <div class="row"><span class="label">site03</span><div class="bar" style="width: 96px"></div></div>
-            </body></html>
-            """
-    }
+    static let html = """
+        <!doctype html><html><head><meta charset="utf-8">
+        <style>
+        :root { --text: #212121; --muted: #666666; --bar: #e76125; --grid: #e0e0e0; }
+        :root[data-theme="dark"] { --text: #ffffff; --muted: #b3b3b3; --bar: #ff7025; --grid: #3a3a3a; }
+        html, body { margin: 0; background: transparent; color: var(--text); font: 15px -apple-system, system-ui, sans-serif; }
+        body { padding: 4px 2px 8px; }
+        h1 { font-size: 17px; margin: 0 0 8px; }
+        p { color: var(--muted); margin: 0 0 12px; font-size: 13px; }
+        svg { display: block; width: 100%; height: auto; }
+        .bar { fill: var(--bar); } .label { fill: var(--muted); font-size: 11px; } .grid { stroke: var(--grid); }
+        </style></head><body>
+        <h1>Weekly pallet throughput</h1>
+        <p>Pallets moved per day across the three demo sites.</p>
+        <svg viewBox="0 0 320 200" role="img" aria-label="Pallets per day, Monday to Sunday">
+          <line class="grid" x1="24" y1="20" x2="316" y2="20"/><line class="grid" x1="24" y1="90" x2="316" y2="90"/><line class="grid" x1="24" y1="160" x2="316" y2="160"/>
+          <text class="label" x="0" y="24">600</text><text class="label" x="0" y="94">300</text><text class="label" x="8" y="164">0</text>
+          <rect class="bar" x="34" y="62" width="28" height="98" rx="3"/><rect class="bar" x="76" y="48" width="28" height="112" rx="3"/>
+          <rect class="bar" x="118" y="70" width="28" height="90" rx="3"/><rect class="bar" x="160" y="34" width="28" height="126" rx="3"/>
+          <rect class="bar" x="202" y="28" width="28" height="132" rx="3"/><rect class="bar" x="244" y="104" width="28" height="56" rx="3"/>
+          <rect class="bar" x="286" y="122" width="28" height="38" rx="3"/>
+          <text class="label" x="38" y="180">Mon</text><text class="label" x="81" y="180">Tue</text><text class="label" x="121" y="180">Wed</text>
+          <text class="label" x="165" y="180">Thu</text><text class="label" x="211" y="180">Fri</text><text class="label" x="250" y="180">Sat</text>
+          <text class="label" x="291" y="180">Sun</text>
+        </svg>
+        <script>
+        (function () {
+          var root = document.documentElement;
+          function followTheme() {
+            var asked = /theme=(dark|light)/.exec(location.hash || "");
+            root.setAttribute("data-theme", asked ? asked[1] : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+          }
+          function hideRepeatedTitle() {
+            var title = /[#&]title=([^&]*)/.exec(location.hash || "");
+            if (!title || window.parent === window) { return; }
+            var text = decodeURIComponent(title[1]).trim().toLowerCase();
+            document.querySelectorAll("h1, h2, h3").forEach(function (heading) {
+              if (heading.textContent.trim().toLowerCase() === text) { heading.hidden = true; }
+            });
+          }
+          function tellHeight() {
+            if (window.parent !== window) { window.parent.postMessage({ portalArtifact: { height: root.scrollHeight } }, "*"); }
+          }
+          followTheme();
+          hideRepeatedTitle();
+          addEventListener("hashchange", followTheme);
+          addEventListener("load", tellHeight);
+          new ResizeObserver(tellHeight).observe(root);
+        })();
+        </script>
+        </body></html>
+        """
 }

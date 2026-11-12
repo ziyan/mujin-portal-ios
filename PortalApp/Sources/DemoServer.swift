@@ -348,13 +348,17 @@ final class DemoState: @unchecked Sendable {
             toolMessage("m33", "call11", "metrics", "ok", note: "7 days of throughput", durationMS: 2_400, 1_860),
             [
                 "id": "m34", "role": "assistant", "content": "", "createdAt": stamp(1_850),
-                "toolCalls": [call("call12", "think_harder", "{\"switchReason\":\"Needs a closer comparison\"}"), call("call13", "artifact", "{\"title\":\"Throughput by site\"}")],
+                "toolCalls": [call("call12", "think_harder", "{\"switchReason\":\"Needs a closer comparison\"}"), call("call13", "artifact", "{\"title\":\"Throughput by site\"}"), call("call14", "artifact", "{\"title\":\"Weekly throughput notes\"}")],
             ],
             toolMessage("m35", "call12", "think_harder", "", note: nil, durationMS: nil, 1_845),
             toolMessage(
                 "m36", "call13", "artifact",
                 "{\"artifactId\":\"artifact01\",\"attachmentId\":\"attachment01\",\"title\":\"Throughput by site\",\"artifactKind\":\"html\",\"sizeBytes\":2048,\"url\":\"/api/v1/artifact/artifact01\"}",
                 note: "1 chart", durationMS: 600, 1_840),
+            toolMessage(
+                "m36b", "call14", "artifact",
+                "{\"artifactId\":\"artifact02\",\"attachmentId\":\"attachment02\",\"title\":\"Weekly throughput notes\",\"artifactKind\":\"markdown\",\"sizeBytes\":640,\"url\":\"/api/v1/artifact/artifact02\"}",
+                note: "1 document", durationMS: 400, 1_835),
             [
                 "id": "m37", "role": "assistant", "content": "Site01 leads this week with 1,240 pallets, ahead of site02 and site03.", "createdAt": stamp(1_800),
                 "reactions": [["id": "r31", "messageId": "m37", "reactorKind": "user", "reactorUserId": "user01", "emoji": "\u{1F44D}", "isAcknowledgment": false]],
@@ -1400,7 +1404,12 @@ struct DemoTransport: HTTPTransport {
             ]
         case "ListConversationArtifacts":
             guard conversationId == "conversation04" else { return ["ListConversationArtifacts": []] }
-            return ["ListConversationArtifacts": [["id": "artifact01", "conversationId": "conversation04", "attachmentId": "attachment01", "title": "Throughput by site", "artifactKind": "html", "sizeBytes": 2048]]]
+            return [
+                "ListConversationArtifacts": [
+                    ["id": "artifact01", "conversationId": "conversation04", "attachmentId": "attachment01", "title": "Throughput by site", "artifactKind": "html", "sizeBytes": 2048],
+                    ["id": "artifact02", "conversationId": "conversation04", "attachmentId": "attachment02", "title": "Weekly throughput notes", "artifactKind": "markdown", "sizeBytes": 640],
+                ]
+            ]
         default:
             return ["CancelRun": NSNull()]
         }
