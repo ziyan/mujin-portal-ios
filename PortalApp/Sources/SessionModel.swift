@@ -54,6 +54,10 @@ final class SessionModel {
     var ticketToOpen: String?
     /// The feedback sheet a screenshot opened, nil while none is up.
     var feedbackRequest: FeedbackRequest?
+    /// The words typed into the feedback sheet when it was put away to show a page, given back when it opens again.
+    var feedbackDraftText = ""
+    /// Counts the pages opened through `open`, so whatever covers the screen closes each time, whether the tab changes or not.
+    private(set) var pageOpenCount = 0
     /// Set when a notification asks More to show the Automations screen.
     var automationsRequested = false
     var isShowingNotifications = false
@@ -313,6 +317,7 @@ final class SessionModel {
 
     /// Goes where a notification or the assistant speaking first points.
     func open(_ route: PushRoute) {
+        pageOpenCount += 1
         switch route {
         case .conversation(let id):
             conversationToOpen = id
