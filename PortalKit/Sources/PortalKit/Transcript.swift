@@ -201,6 +201,8 @@ public enum TranscriptNote: Equatable, Sendable {
     case scheduled(jobName: String, message: String)
     /// Background work ended; `report` is what it handed back.
     case backgroundFinished(title: String, report: String)
+    /// A background command ended and woke the assistant; `command` is what ran. Not shown, as finished work's wake is not.
+    case backgroundCommandFinished(command: String, report: String)
     /// Finished work could not wake the assistant. The model never sees this.
     case backgroundNotice(text: String)
     /// A long conversation was compacted into `summary`.
@@ -704,6 +706,7 @@ public struct Transcript: Equatable, Sendable {
         }
         if let name = title(after: "[Scheduled:") { return .scheduled(jobName: name, message: rest) }
         if let name = title(after: "[Background work finished:") { return .backgroundFinished(title: name, report: rest) }
+        if let command = title(after: BackgroundCommandRules.wakePrefix) { return .backgroundCommandFinished(command: command, report: rest) }
         if let reason = title(after: "[Speaking first:") { return .speakFirst(reason: reason) }
         if let name = title(after: "[Goal check-in:") { return .goalCheckIn(title: name, message: rest) }
         return nil

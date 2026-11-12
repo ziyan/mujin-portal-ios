@@ -201,6 +201,7 @@ public enum Documents {
         documents += dreamDocuments
         documents += artifactDocuments
         documents += threadToolDocuments
+        documents += backgroundCommandDocuments
         documents += memoryFilingDocuments
         documents += siteOverviewDocuments
         documents += siteResourceDocuments

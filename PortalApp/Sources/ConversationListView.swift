@@ -115,7 +115,7 @@ struct ConversationListView: View {
                 if screen == "chat-info" || screen.hasPrefix("chat-call-history") { selection.open("chatconv02") }
                 if screen == "chat-site-info" || screen == "chat-site-picker" { selection.open("chatsite01") }
                 if screen == "photo-chat" { selection.open("conversation-photos") }
-                if screen == "voice" || screen == "conversation-links" || screen == "message-actions" || screen == "select-text" || screen == "title-event" { selection.open("conversation01") }
+                if screen == "voice" || screen == "background-commands" || screen == "conversation-links" || screen == "message-actions" || screen == "select-text" || screen == "title-event" { selection.open("conversation01") }
                 if screen == "side-chat-links" { selection.open("conversation05") }
                 if DemoArtifact.opensConversation(screen: screen) { selection.open("conversation04") }
                 if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selection.open("chatconv01") }

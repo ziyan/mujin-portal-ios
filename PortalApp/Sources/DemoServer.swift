@@ -38,6 +38,8 @@ final class DemoState: @unchecked Sendable {
         var chats: [[String: Any]] = []
         /// Conversations and chats the person archived, which only the archived list shows.
         var archived: [[String: Any]] = []
+        /// The background shell commands of the demo's first conversation.
+        var backgroundCommands: [[String: Any]] = []
         var tickets: [[String: Any]] = []
         var comments: [String: [[String: Any]]] = [:]
         var sockets: [DemoSocket] = []
@@ -186,6 +188,24 @@ final class DemoState: @unchecked Sendable {
         ]
         if ThreadDemo.waitsInThread(DemoOptions.screen) {
             data.approvals[ThreadDemo.assistantConversationId] = [ThreadDemo.threadApproval(stamp: stamp)]
+        }
+        if DemoOptions.screen == "background-commands" {
+            data.backgroundCommands = [
+                [
+                    "id": "command01", "conversationId": "conversation01", "threadRootMessageId": NSNull(), "userId": "user01",
+                    "command": "tail -n 200 -f /var/log/planner/planner.log | grep --line-buffered dock", "commandState": "running",
+                    "isMovedFromInline": true, "exitCode": NSNull(), "endReason": NSNull(), "stdoutHead": NSNull(),
+                    "stdoutTail": (1...14).map { "10:\(String(format: "%02d", $0)):00 dock door \($0 % 4 + 1) closed in \(2 + $0 % 3).\($0 % 9)s" }.joined(separator: "\n") + "\n",
+                    "stderrHead": NSNull(), "stderrTail": NSNull(), "stdoutByteCount": 4_210, "stderrByteCount": 0, "stopRequestedAt": NSNull(),
+                    "startedAt": stamp(754), "finishedAt": NSNull(),
+                ],
+                [
+                    "id": "command02", "conversationId": "conversation01", "threadRootMessageId": NSNull(), "userId": "user01",
+                    "command": "du -sh /var/log/planner", "commandState": "exited", "isMovedFromInline": false, "exitCode": 0, "endReason": NSNull(),
+                    "stdoutHead": "1.4G\t/var/log/planner\n", "stdoutTail": NSNull(), "stderrHead": NSNull(), "stderrTail": NSNull(),
+                    "stdoutByteCount": 22, "stderrByteCount": 0, "stopRequestedAt": NSNull(), "startedAt": stamp(1_900), "finishedAt": stamp(1_893),
+                ],
+            ]
         }
         data.approvals["conversation02"] = [
             [
@@ -653,6 +673,8 @@ struct DemoTransport: HTTPTransport {
                 ["name": "listConversations", "args": [["name": "isForegroundOnly"], ["name": "archivedOnly"]]],
             ]
             if ThreadDemo.waitsInThread(DemoOptions.screen) { queryFields.append(["name": "listConversationTodos"]) }
+            // Background shell commands are shot against a server that runs them.
+            if DemoOptions.screen == "background-commands" { queryFields.append(["name": "listBackgroundCommands"]) }
             if hasCallHistory { queryFields.append(["name": "listChatCalls"]) }
             var mutationFields: [[String: Any]] = [
                 ["name": "sendMessage", "args": (hasCalls || isRendering ? [["name": "voiceMessage"]] : []) + (isRendering ? [["name": "isInternal"]] : [])],
@@ -1241,6 +1263,22 @@ struct DemoTransport: HTTPTransport {
             ]
         case "ListConversationQuestions":
             return ["ListConversationQuestions": state.withData { $0.questions[conversationId] ?? [] }]
+        case "ListBackgroundCommands":
+            guard DemoOptions.screen == "background-commands", conversationId == "conversation01" else {
+                return ["ListBackgroundCommands": ["backgroundCommands": [], "meta": ["totalCount": 0]]]
+            }
+            let rows = state.withData { $0.backgroundCommands }
+            return ["ListBackgroundCommands": ["backgroundCommands": rows, "meta": ["totalCount": rows.count]]]
+        case "StopBackgroundCommand":
+            let commandId = variables["backgroundCommandId"] as? String
+            let stopped: [String: Any] = state.withData { data in
+                guard let index = data.backgroundCommands.firstIndex(where: { ($0["id"] as? String) == commandId }) else { return [:] }
+                data.backgroundCommands[index]["commandState"] = "stopped"
+                data.backgroundCommands[index]["stopRequestedAt"] = ISO8601DateFormatter().string(from: Date())
+                data.backgroundCommands[index]["finishedAt"] = ISO8601DateFormatter().string(from: Date())
+                return data.backgroundCommands[index]
+            }
+            return ["StopBackgroundCommand": ["backgroundCommand": stopped]]
         case "ListConversationApprovals":
             return ["ListConversationApprovals": state.withData { $0.approvals[conversationId] ?? [] }]
         case "ListConversationTodos":

@@ -43,6 +43,13 @@ final class ConversationModel {
     private(set) var isLoadingEarlier = false
     /// Background work this conversation started that has not ended.
     private(set) var backgroundWork: [BackgroundWork] = []
+    /// Whether the assistant runs shell commands in the background on this server.
+    var offersBackgroundCommands = false
+    /// The conversation's background commands, every thread's together.
+    private(set) var backgroundCommands: [BackgroundCommand] = []
+    /// This view's background commands, running first: the main history's, or this thread's.
+    var shownBackgroundCommands: [BackgroundCommand] { BackgroundCommandRules.commands(backgroundCommands, inView: threadRootMessageId) }
+    var runningBackgroundCommandCount: Int { BackgroundCommandRules.runningCount(backgroundCommands, inView: threadRootMessageId) }
     /// Questions the person set aside, so what they type goes out as a message.
     private(set) var dismissedQuestionIds: Set<String> = []
     /// The message the next send replies to, shown above the composer.
@@ -141,6 +148,8 @@ final class ConversationModel {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
                 guard let self, !Task.isCancelled else { return }
                 if !self.backgroundWork.isEmpty { await self.refreshBackgroundWork() }
+                // A running command's output and state are read again while it runs.
+                if self.backgroundCommands.contains(where: \.isRunning) { await self.refreshBackgroundCommands() }
                 // Filing has no event: the note is read again about every 20 seconds.
                 round += 1
                 if round % 4 == 0 { await self.refreshFiling() }
@@ -261,6 +270,7 @@ final class ConversationModel {
             phase = .loaded
             if isRunFinished { watchForServerTitle() }
             await refreshBackgroundWork()
+            await refreshBackgroundCommands()
             await askForPreviews(window.messages.suffix(30))
         } catch {
             onError(error)
@@ -320,6 +330,22 @@ final class ConversationModel {
     func refreshBackgroundWork() async {
         if let work = try? await connection.backgroundWork(conversationId: conversationId) {
             backgroundWork = work.filter(\.isInProgress)
+        }
+    }
+
+    func refreshBackgroundCommands() async {
+        guard offersBackgroundCommands, let commands = try? await connection.backgroundCommands(conversationId: conversationId) else { return }
+        backgroundCommands = commands
+    }
+
+    /// Asks one of the person's own commands to stop.
+    func stopBackgroundCommand(_ command: BackgroundCommand) async {
+        do {
+            try await connection.stopBackgroundCommand(id: command.id)
+            await refreshBackgroundCommands()
+        } catch {
+            actionError = error.userMessage
+            onError(error)
         }
     }
 
