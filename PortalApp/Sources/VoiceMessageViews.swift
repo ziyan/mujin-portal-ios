@@ -82,7 +82,8 @@ struct VoiceMessageBubble: View {
                     }
                 }
                 if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
-                if !isUnplayable {
+                // A message that has no transcript, and will have none, offers no text to show.
+                if !isUnplayable, voice.transcriptStatus != .absent {
                     Button { isShowingText.toggle() } label: {
                         Text(isShowingText ? "Hide text" : "Show text").font(.footnote.weight(.medium))
                     }
@@ -161,6 +162,8 @@ struct VoiceMessageBubble: View {
             Label("Transcribing\u{2026}", systemImage: "ellipsis").font(.footnote).foregroundStyle(.secondary)
         case .failed:
             Label("Could not transcribe", systemImage: "exclamationmark.circle").font(.footnote).foregroundStyle(.secondary)
+        case .absent:
+            EmptyView()
         }
     }
 }
