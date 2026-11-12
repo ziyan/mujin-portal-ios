@@ -145,6 +145,8 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
     public let isAuthorMujinUser: Bool?
     /// The tickets, controllers, virtual controllers, sites and cells the message names, as the reader may see them.
     public let references: [ChatReference]?
+    /// On an assistant answer, whether the person it was given for is Mujin staff. Asked for only from a server that has it.
+    public let isOnBehalfOfMujinUser: Bool?
 
     public init(
         id: String, role: String, content: JSONValue? = nil, toolCalls: JSONValue? = nil, toolCallId: String? = nil,
@@ -155,8 +157,10 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
         replyToMessageId: String? = nil, replyToExcerpt: String? = nil, replyToAuthorName: String? = nil,
         isAddressingAssistant: Bool? = nil, editedAt: String? = nil, deletedAt: String? = nil, linkPreviewsRemovedAt: String? = nil,
         voiceMessage: VoiceMessage? = nil, call: ChatCall? = nil, threadRootMessageId: String? = nil, threadReplyCount: Int? = nil,
-        threadLastReplyAt: String? = nil, isInternal: Bool? = nil, isAuthorMujinUser: Bool? = nil, references: [ChatReference]? = nil
+        threadLastReplyAt: String? = nil, isInternal: Bool? = nil, isAuthorMujinUser: Bool? = nil, references: [ChatReference]? = nil,
+        isOnBehalfOfMujinUser: Bool? = nil
     ) {
+        self.isOnBehalfOfMujinUser = isOnBehalfOfMujinUser
         self.references = references
         self.isInternal = isInternal
         self.isAuthorMujinUser = isAuthorMujinUser

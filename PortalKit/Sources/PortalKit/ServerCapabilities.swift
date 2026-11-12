@@ -13,6 +13,8 @@ public struct ServerCapabilities: Equatable, Sendable {
     public let listMessageArgumentNames: Set<String>
     /// The arguments the ListConversations query takes.
     public let listConversationArgumentNames: Set<String>
+    /// The fields of the ConversationMessage type, for a message field that came after the operations.
+    public let messageFieldNames: Set<String>
     /// The fields of the voice setting the GetAgentVoiceSetting query returns.
     public let voiceSettingFieldNames: Set<String>
     /// The fields of the Site type, for a feature that needs a field and not only an operation.
@@ -23,8 +25,9 @@ public struct ServerCapabilities: Equatable, Sendable {
     public init(
         queryNames: Set<String> = [], mutationNames: Set<String> = [], subscriptionNames: Set<String> = [], sendMessageArgumentNames: Set<String> = [],
         listMessageArgumentNames: Set<String> = [], voiceSettingFieldNames: Set<String> = [], siteFieldNames: Set<String> = [],
-        pageFieldNames: Set<String> = [], listConversationArgumentNames: Set<String> = []
+        pageFieldNames: Set<String> = [], listConversationArgumentNames: Set<String> = [], messageFieldNames: Set<String> = []
     ) {
+        self.messageFieldNames = messageFieldNames
         self.listConversationArgumentNames = listConversationArgumentNames
         self.pageFieldNames = pageFieldNames
         self.siteFieldNames = siteFieldNames
@@ -64,6 +67,8 @@ public struct ServerCapabilities: Equatable, Sendable {
     public var offersMonitoringBoard: Bool { offersQuery("ListMonitoringBoard") || offersQuery("GetMonitoringBoard") }
     /// Lists people pick from leave out background runs and empty assistant conversations, from the page and from the total.
     public var offersForegroundOnlyLists: Bool { listConversationArgumentNames.contains("isForegroundOnly") }
+    /// An assistant answer says whether the person it was given for is Mujin staff.
+    public var offersOnBehalfOfStaff: Bool { messageFieldNames.contains("isOnBehalfOfMujinUser") }
     /// The server's notification subscription (for live inbox updates).
     public var offersNotificationFeed: Bool { offersSubscription("OnNotification") }
 
@@ -89,6 +94,8 @@ public struct ServerCapabilities: Equatable, Sendable {
         let siteType: RootType?
         /// The page type, asked for by name. Null on a server that has no such type.
         let pageType: RootType?
+        /// The message type, asked for by name.
+        let messageType: RootType?
     }
 
     init(_ introspection: Introspection) {
@@ -101,7 +108,7 @@ public struct ServerCapabilities: Equatable, Sendable {
             subscriptionNames: names(introspection.__schema.subscriptionType), sendMessageArgumentNames: Set(sendArguments.map(\.name)),
             listMessageArgumentNames: Set(listArguments.map(\.name)), voiceSettingFieldNames: names(introspection.voiceSetting),
             siteFieldNames: names(introspection.siteType), pageFieldNames: names(introspection.pageType),
-            listConversationArgumentNames: Set(conversationListArguments.map(\.name)))
+            listConversationArgumentNames: Set(conversationListArguments.map(\.name)), messageFieldNames: names(introspection.messageType))
     }
 }
 
@@ -117,6 +124,7 @@ extension Documents {
           voiceSetting: __type(name: "AgentVoiceSetting") { fields { name } }
           siteType: __type(name: "Site") { fields { name } }
           pageType: __type(name: "Page") { fields { name } }
+          messageType: __type(name: "ConversationMessage") { fields { name } }
         }
         """
 }

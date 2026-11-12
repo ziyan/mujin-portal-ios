@@ -58,6 +58,19 @@ import Testing
         #expect(checked >= 4)
     }
 
+    /// An assistant answer's isOnBehalfOfMujinUser is a valid field wherever a message's fields are asked for.
+    @Test func theOnBehalfOfStaffFieldIsValidWhereItIsAdded() throws {
+        var checked = 0
+        for document in Documents.all where document.contains("onBehalfOfUserName") {
+            let prepared = Documents.withOnBehalfOfStaff(document)
+            #expect(prepared.contains("onBehalfOfUserName isOnBehalfOfMujinUser"))
+            let problems = try DocumentValidator(schema: Self.schema).problems(in: prepared)
+            #expect(problems.isEmpty, "\(document.prefix(60)): \(problems)")
+            checked += 1
+        }
+        #expect(checked >= 2)
+    }
+
     /// The lists people pick from ask for foreground conversations only, a valid argument wherever it is added.
     @Test func theForegroundOnlyListsAreValid() throws {
         var checked = 0
