@@ -55,7 +55,7 @@ import Testing
         var transcript = Transcript()
         transcript.apply(
             ConversationEvent(
-                type: "run_error", runId: "run01", runError: .init(error: "provider unavailable at 10.0.0.1", turnEndReason: "The model did not answer.")))
+                type: "run_error", runId: "run01", runError: .init(error: "provider unavailable at 192.0.2.1", turnEndReason: "The model did not answer.")))
         #expect(transcript.entries.count == 1)
         guard case .turnEnd(_, let kind, let text, _) = transcript.entries[0] else { Issue.record("not a turn end"); return }
         #expect(kind == .failed)
