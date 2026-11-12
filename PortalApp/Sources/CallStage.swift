@@ -32,44 +32,51 @@ struct CallStage<Avatar: View>: View {
     static var controlSize: CGFloat { 44 }
 
     var body: some View {
-        GeometryReader { proxy in
-            let barTop = Self.windowTopInset
-            let contentTop = max(proxy.safeAreaInsets.top, barTop)
-            let barHeight = max(contentTop - barTop, Self.controlSize)
-            let isWide = horizontalSizeClass == .regular
-            // About a third of the chat's column on a phone, less on a wide screen, and never so large it hides the conversation.
-            let avatarSize = min(proxy.size.width * (isWide ? 0.2 : 0.26), isWide ? 160 : 110)
-            // On a phone the picture takes the middle of the bar, where the title was. On a wide screen the floating tab bar may share
-            // the bar's row, so the picture starts below it, with room for the ring it wears while someone speaks.
-            let avatarTop = isWide ? contentTop + 32 : barTop + (barHeight - Self.controlSize) / 2
-            // The bottom of the name capsule as last measured, else an estimate until it is.
-            let stageBottom = capsuleBottom ?? avatarTop + avatarSize + 8 + Self.nameCapsuleOverhang
-            // The capsule may be as wide as the room between the back button and the call's controls.
-            let nameWidth = max(proxy.size.width - 2 * (16 + Self.controlSize + 12), avatarSize)
-            ZStack(alignment: .top) {
-                // Messages scrolled up under the stage fade into the chat's own background behind it, with no edge.
-                LinearGradient(
-                    stops: [
-                        .init(color: Color.portalPage, location: 0),
-                        .init(color: Color.portalPage, location: stageBottom / (stageBottom + Self.fadeHeight)),
-                        .init(color: Color.portalPage.opacity(0), location: 1),
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-                .frame(height: stageBottom + Self.fadeHeight)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-                stage(size: avatarSize, nameWidth: nameWidth)
-                    .padding(.top, avatarTop)
-                    .frame(maxWidth: .infinity)
-                controls
-                    .padding(.top, barTop + (barHeight - Self.controlSize) / 2)
-                    .padding(.trailing, 16)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+        ZStack(alignment: .top) {
+            fade
+            // The picture and the controls sit below the navigation bar, inside the conversation's own area: drawn in the bar's
+            // row, the bar takes their touches and the buttons do nothing.
+            GeometryReader { proxy in
+                let isWide = horizontalSizeClass == .regular
+                // About a quarter of the chat's column on a phone, less on a wide screen, and never so large it hides the conversation.
+                let avatarSize = min(proxy.size.width * (isWide ? 0.2 : 0.26), isWide ? 160 : 110)
+                // The capsule may be as wide as the room beside the call's controls on either side.
+                let nameWidth = max(proxy.size.width - 2 * (16 + Self.controlSize + 12), avatarSize)
+                ZStack(alignment: .top) {
+                    stage(size: avatarSize, nameWidth: nameWidth)
+                        .padding(.top, isWide ? 24 : 4)
+                        .frame(maxWidth: .infinity)
+                    controls
+                        .padding(.top, 4)
+                        .padding(.trailing, 16)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
             }
-            .onChange(of: stageBottom, initial: true) { _, bottom in onStageBottom?(bottom + 8) }
+        }
+        .onChange(of: capsuleBottom, initial: true) { _, bottom in
+            if let bottom { onStageBottom?(bottom + 8) }
+        }
+    }
+
+    /// Messages scrolled up under the stage fade into the chat's own background behind it, with no edge. It reaches from the top of
+    /// the screen, behind the bar, to just below the name capsule, and takes no touches.
+    private var fade: some View {
+        let stageBottom = capsuleBottom ?? 0
+        return VStack(spacing: 0) {
+            LinearGradient(
+                stops: [
+                    .init(color: Color.portalPage, location: 0),
+                    .init(color: Color.portalPage, location: stageBottom / max(stageBottom + Self.fadeHeight, 1)),
+                    .init(color: Color.portalPage.opacity(0), location: 1),
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+            .frame(height: stageBottom + Self.fadeHeight)
+            Spacer(minLength: 0)
         }
         .ignoresSafeArea(.container, edges: .top)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     /// How far the name capsule hangs below the picture: half of two short lines of text and their padding.
@@ -165,14 +172,6 @@ struct CallStage<Avatar: View>: View {
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .glassEffect(.regular, in: .capsule)
-    }
-
-    /// The status bar's height: the window's own top inset, under which the navigation bar's row begins.
-    private static var windowTopInset: CGFloat {
-        let window = UIApplication.shared.connectedScenes
-            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
-            .first
-        return window?.safeAreaInsets.top ?? 0
     }
 }
 
