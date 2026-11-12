@@ -182,6 +182,9 @@ final class DemoState: @unchecked Sendable {
                 "askedAt": stamp(150), "answeredAt": NSNull(), "cancelledAt": NSNull(),
             ]
         ]
+        if ThreadDemo.waitsInThread(DemoOptions.screen) {
+            data.approvals[ThreadDemo.assistantConversationId] = [ThreadDemo.threadApproval(stamp: stamp)]
+        }
         data.approvals["conversation02"] = [
             [
                 "id": "approval01", "toolCallId": "call02", "toolName": "shell", "policyReason": "This command changes a running service.", "risk": "high",
@@ -614,6 +617,7 @@ struct DemoTransport: HTTPTransport {
                 ["name": "globalSearch"],
                 ["name": "listConversationMessages", "args": hasThreads ? [["name": "threadRootMessageId"]] : []],
             ]
+            if ThreadDemo.waitsInThread(DemoOptions.screen) { queryFields.append(["name": "listConversationTodos"]) }
             if hasCallHistory { queryFields.append(["name": "listChatCalls"]) }
             var mutationFields: [[String: Any]] = [
                 ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"], ["name": "openSiteChat"],
@@ -642,6 +646,8 @@ struct DemoTransport: HTTPTransport {
             let voiceSettingFields = hasSpeech ? SpeechDemo.voiceSettingFieldNames : ["speechVoice", "speechVoices", "defaultSpeechVoice", "previewText"]
             schemaAnswer["voiceSetting"] = ["fields": voiceSettingFields.map { ["name": $0] }]
             schemaAnswer["messageType"] = ["fields": [["name": "isOnBehalfOfMujinUser"]]]
+            // Questions, approvals and the rest say their thread, and the assistant keeps a todo list.
+            schemaAnswer["questionType"] = ["fields": [["name": "threadRootMessageId"]]]
             schemaAnswer["siteType"] = ["fields": (hasSiteViewRules ? ["id", "name", "telemetrySourceControllerId"] : ["id", "name"]).map { ["name": $0] }]
             if hasPages {
                 let pageFields = ["id", "siteId", "parentPageId", "position", "currentRevisionId", "title", "icon", "isPublished", "draftTitle", "draftContent", "viewerCapabilities"]
@@ -1198,6 +1204,10 @@ struct DemoTransport: HTTPTransport {
             return ["ListConversationQuestions": state.withData { $0.questions[conversationId] ?? [] }]
         case "ListConversationApprovals":
             return ["ListConversationApprovals": state.withData { $0.approvals[conversationId] ?? [] }]
+        case "ListConversationTodos":
+            let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
+            let isThreadConversation = ThreadDemo.waitsInThread(DemoOptions.screen) && conversationId == ThreadDemo.assistantConversationId
+            return ["ListConversationTodos": isThreadConversation ? ThreadDemo.todos(stamp: stamp) : []]
         case "EnsureMainConversation":
             let main = state.withData { data in data.conversations.first { ($0["isMain"] as? Bool) == true } ?? [:] }
             return ["EnsureMainConversation": ["conversation": main]]

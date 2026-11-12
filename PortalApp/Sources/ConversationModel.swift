@@ -71,7 +71,16 @@ final class ConversationModel {
     /// Whether the summary, and so the server's own title, has been written already.
     private var hasSummary = false
     private var hasHeardTitleEvent = false
+    /// The questions and approvals of this view: the main history's, or this thread's.
     private var cards: (questions: [QuestionCard], approvals: [ApprovalCard]) = ([], [])
+    /// The threads where a question or an approval waits, which the main history points to. Empty in a thread.
+    private(set) var waitingThreadRootIds: [String] = []
+    /// The thread the conversation should open on: where something waits, when nothing waits in the main history.
+    private(set) var threadToOpenOn: String?
+    /// Whether the server keeps the assistant's todo list, which each view shows its own part of.
+    var offersTodos = false
+    private(set) var todos: [ConversationTodo] = []
+    var shownTodos: [ConversationTodo] { ThreadViews.todos(todos, inView: threadRootMessageId) }
 
     init(
         conversationId: String, currentUserId: String, connection: Connection, socketFactory: @escaping FeedSocketFactory,
@@ -230,7 +239,15 @@ final class ConversationModel {
             async let total: Int? = shouldCountMessages ? connection.messageCountOrNil(conversationId: conversationId) : nil
             let (loadedSummary, loadedMessages, loadedCards) = try await (summary, messages, waitingCards)
             window.replace(with: loadedMessages, totalCount: await total)
-            cards = loadedCards
+            // Each view shows the questions and approvals asked in it; the main history points to the threads where others wait.
+            let viewRoot = threadRootMessageId
+            cards = (
+                loadedCards.questions.filter { ThreadViews.belongs(threadRootMessageId: $0.threadRootMessageId, toView: viewRoot) },
+                loadedCards.approvals.filter { ThreadViews.belongs(threadRootMessageId: $0.threadRootMessageId, toView: viewRoot) }
+            )
+            waitingThreadRootIds = isThread ? [] : ThreadViews.waitingThreads(questions: loadedCards.questions, approvals: loadedCards.approvals)
+            threadToOpenOn = isThread ? nil : ThreadViews.threadToOpenOn(questions: loadedCards.questions, approvals: loadedCards.approvals)
+            if offersTodos, let loadedTodos = try? await connection.todos(conversationId: conversationId) { todos = loadedTodos }
             isTitleCustom = loadedSummary.isTitleCustom == true
             hasSummary = !(loadedSummary.summary ?? "").isEmpty
             applyTitle(loadedSummary.title)
