@@ -276,8 +276,14 @@ struct MainTabsView: View {
             if !sections.contains(session.selectedSection) { session.selectedSection = .more }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            if let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded, appModel.callCenter.chatIdOnScreen != call.chatId {
-                CallBar(center: appModel.callCenter, call: call)
+            VStack(spacing: 0) {
+                if let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded, appModel.callCenter.chatIdOnScreen != call.chatId {
+                    CallBar(center: appModel.callCenter, call: call)
+                }
+                // A call with the assistant whose conversation is off screen goes on here, as a call with people does.
+                if let call = session.assistantCall, call.isGoing, session.conversationIdOnScreen != call.conversationId {
+                    AssistantCallBar(call: call)
+                }
             }
         }
         // These show over the top screen, so an incoming call, a link or the inbox shows even while a sheet is up.
