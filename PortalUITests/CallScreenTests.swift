@@ -17,6 +17,16 @@ final class CallScreenTests: XCTestCase {
         XCTAssertFalse(leave.exists, "The call screen did not close.\n\(app.debugDescription)")
     }
 
+    /// A page opened while the call covers the screen, such as from a notification, shows: the call shrinks to its bar and goes on.
+    func testAPageOpenedDuringTheCallShrinksTheCallToItsBar() {
+        let app = DemoApp.launch(screen: "call-push")
+        let leave = DemoApp.element(app, "leaveCallButton")
+        XCTAssertTrue(DemoApp.waitUntilExists(leave, timeout: 60), "The call screen did not open.\n\(app.debugDescription)")
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: leave)
+        XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 30), .completed, "The page opened behind the call.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.waitUntilExists(DemoApp.element(app, "callBar"), timeout: 15), "The call did not go on in its bar.\n\(app.debugDescription)")
+    }
+
     /// A dropped call says what is happening and keeps its controls.
     func testALostConnectionSaysItIsReconnecting() {
         let app = DemoApp.launch(screen: "call-reconnecting")

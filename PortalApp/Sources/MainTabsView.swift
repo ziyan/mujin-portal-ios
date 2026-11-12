@@ -118,6 +118,13 @@ struct MainTabsView: View {
             if appModel.isDemo, DemoOptions.screen == "chat-in-call" {
                 appModel.callCenter.showDemo(CallDemo.session(for: "chat-in-call"), isScreenShown: false)
             }
+            // A notification tapped while the full-screen call is up: the call shrinks to its bar and the conversation shows.
+            if appModel.isDemo, DemoOptions.screen == "call-push" {
+                Task { [appModel = self.appModel, account] in
+                    try? await Task.sleep(nanoseconds: 6_000_000_000)
+                    appModel.pendingRoute = AppModel.PendingRoute(userId: account.userId, route: .conversation(id: "conversation01"))
+                }
+            }
             // A notification about a reply in a thread, as if it had launched the app: the chat opens on that thread.
             if appModel.isDemo, DemoOptions.screen == "thread-push" {
                 newSession.open(.chatThread(conversationId: ThreadDemo.chatConversationId, threadRootMessageId: ThreadDemo.chatThreadRootMessageId))
@@ -219,10 +226,14 @@ struct MainTabsView: View {
         session.feedbackRequest = FeedbackRequest(pictureData: ScreenPicture.captureKeyWindow(), screenName: session.selectedSection.rawValue)
     }
 
+    /// Closes whatever covers the screen, so a page that is opened shows instead of opening behind it. The full-screen call shrinks to
+    /// its bar and goes on; the feedback sheet goes away keeping the words typed so far, which it shows again when it next opens.
     private func closeSheets(_ session: SessionModel) {
         appModel.openedLink = nil
         appModel.openedCitation = nil
         session.isShowingNotifications = false
+        session.feedbackRequest = nil
+        if appModel.callCenter.isScreenShown { appModel.callCenter.minimize() }
     }
 
     private func tabBar(_ session: SessionModel) -> some View {
@@ -301,6 +312,8 @@ struct MainTabsView: View {
         }
         // The person asked to go to a tab or a conversation, such as "Ask about" on a page in a sheet: the sheet is over it.
         .onChange(of: session.selectedSection) { _, _ in closeSheets(session) }
+        // A page opened on the tab already shown, such as a chat from a notification while on Chat, changes no tab.
+        .onChange(of: session.pageOpenCount) { _, _ in closeSheets(session) }
         .onChange(of: session.conversationToOpen) { _, conversationId in if conversationId != nil { closeSheets(session) } }
         .onChange(of: session.composeRequest != nil) { _, isComposing in if isComposing { closeSheets(session) } }
         .onChange(of: appModel.openedLink, initial: true) { _, opened in
