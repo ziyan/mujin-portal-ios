@@ -631,7 +631,7 @@ struct ChatView: View {
                         model.clearReferenceCandidates()
                     } label: {
                         HStack(spacing: 10) {
-                            ReferenceChip(reference: ChatReference(referenceKind: candidate.referenceKind, writtenText: nil, isAccessible: true, label: candidate.label))
+                            MessageReferenceChip(reference: ChatReference(referenceKind: candidate.referenceKind, writtenText: nil, isAccessible: true, label: candidate.label))
                             if let detail = candidate.detailText, !detail.isEmpty {
                                 Text(detail).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                             }

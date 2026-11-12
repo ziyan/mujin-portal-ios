@@ -11,7 +11,7 @@ struct ReferenceChipRow: View {
     var body: some View {
         FlowLayout(spacing: 6) {
             ForEach(references, id: \.self) { reference in
-                Button { if let path = reference.path { onOpen(path) } } label: { ReferenceChip(reference: reference) }
+                Button { if let path = reference.path { onOpen(path) } } label: { MessageReferenceChip(reference: reference) }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("referenceChip")
             }
@@ -19,8 +19,8 @@ struct ReferenceChipRow: View {
     }
 }
 
-/// ReferenceChip is one thing a message names: its kind's symbol and what it is called, and for a ticket its status.
-struct ReferenceChip: View {
+/// MessageReferenceChip is one thing a message names: its kind's symbol and what it is called, and for a ticket its status.
+struct MessageReferenceChip: View {
     let reference: ChatReference
 
     var body: some View {
