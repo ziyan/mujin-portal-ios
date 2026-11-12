@@ -195,6 +195,9 @@
         {
           "selector": "svg[id^=mermaid], .mermaid svg, [data-testid=mermaid-diagram] svg",
           "count": 4
+        },
+        {
+          "drawnDiagrams": 4
         }
       ],
       "pending": "mermaid diagrams in assistant messages: the diagram is never drawn, its source stays a code block"
@@ -230,6 +233,9 @@
         },
         {
           "textContains": "$5 and $10"
+        },
+        {
+          "katexOutput": 2
         }
       ],
       "pending": "math in assistant messages: the formulas are left blank, never drawn"

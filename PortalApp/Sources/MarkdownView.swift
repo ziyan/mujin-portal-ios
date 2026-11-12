@@ -33,7 +33,14 @@ struct MarkdownView: View {
     private func view(for block: MarkdownBlock) -> some View {
         switch block {
         case .paragraph(let text):
-            Text(Self.chips(Self.inline(text), names: mentionNames, isOnAccent: isOnAccent))
+            if RichMath.hasFormula(text) {
+                // A paragraph that holds a formula is drawn with KaTeX; if it cannot be, the formula shows as its source.
+                RichDrawing(content: .paragraph(html: RichMath.html(of: text)), identifier: "mathParagraph") {
+                    Text(Self.chips(Self.inline(text), names: mentionNames, isOnAccent: isOnAccent))
+                }
+            } else {
+                Text(Self.chips(Self.inline(text), names: mentionNames, isOnAccent: isOnAccent))
+            }
         case .heading(let level, let text):
             Text(Self.inline(text))
                 .font(level == 1 ? .title2.bold() : level == 2 ? .title3.bold() : .headline)
@@ -42,8 +49,16 @@ struct MarkdownView: View {
         case .code(let language, let text):
             if let chart = AnswerChart.parse(language: language, text: text) {
                 AnswerChartView(chart: chart)
+            } else if language == "math" {
+                // A formula on its own line, drawn with KaTeX, or its source where it cannot be.
+                RichDrawing(content: .formula(text), identifier: "mathFormula") { codeBlock(text, language: "math") }
+            } else if language.split(separator: " ").first == "mermaid" {
+                // A diagram sits under the code block's header; one that cannot be drawn shows its source there.
+                CodeFrame(language: "mermaid", source: text) {
+                    RichDrawing(content: .diagram(text), identifier: "mermaidDiagram") { codeBody(text).accessibilityIdentifier("markdownCode") }
+                }
             } else {
-                codeBlock(text)
+                codeBlock(text, language: language)
             }
 
         case .list(let items):
@@ -65,14 +80,19 @@ struct MarkdownView: View {
     }
 
     /// Code as typed, which scrolls sideways rather than wrap. A diagram or formula the app cannot draw shows its source this way.
-    private func codeBlock(_ text: String) -> some View {
+    private func codeBlock(_ text: String, language: String) -> some View {
+        CodeFrame(language: language, source: text) { codeBody(text) }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("markdownCode")
+    }
+
+    private func codeBody(_ text: String) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             Text(text)
                 .font(.callout.monospaced())
                 .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .accessibilityIdentifier("markdownCode")
     }
 
     static func inline(_ text: String) -> AttributedString {

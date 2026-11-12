@@ -288,14 +288,14 @@ final class ChatRenderingTests: XCTestCase {
             Check("pre count 7: seven code blocks") { $0.count(identifier: "markdownCode") == 7 },
         ],
         "mermaid-diagrams": [
-            Check("pending, 4 diagrams: each diagram's source shows as code, never a blank") { $0.count(identifier: "markdownCode") == 4 && $0.hasText("flowchart LR") },
+            Check("drawnDiagrams 4: the four diagrams are drawn") { $0.count(identifier: "mermaidDiagram") == 4 },
         ],
         "mermaid-broken": [
             Check("pre count 1: the broken diagram shows its source") { $0.count(identifier: "markdownCode") == 1 && $0.hasText("this is not a diagram") },
         ],
         "math": [
-            Check("pending, .katex minimum 2: the inline formula shows its source") { $0.hasText("\\frac{n}{t}") },
-            Check("pending, .katex-display count 1: the display formula shows as code") { $0.count(identifier: "markdownCode") == 1 && $0.hasText("\\sigma") },
+            Check("katexOutput, .katex minimum 2: the inline formula is drawn") { $0.count(identifier: "mathParagraph") >= 1 },
+            Check("katexOutput, .katex-display count 1: the display formula is drawn") { $0.count(identifier: "mathFormula") == 1 },
             Check("textContains $5 and $10: money stays text") { $0.hasText("$5 and $10") },
         ],
         "chart-bar": [Check("svg minimum 1: the bar chart is drawn") { $0.count(identifier: "answerChart") == 1 }],
