@@ -140,8 +140,10 @@ private struct RichContentWebView: UIViewRepresentable {
     let content: RichContentPage.Content
     @Binding var height: CGFloat
     @Binding var hasFailed: Bool
+    /// Called with a picture of the drawing once it has drawn and kept its height a moment.
+    let onDrawn: (UIImage) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(height: $height, hasFailed: $hasFailed) }
+    func makeCoordinator() -> Coordinator { Coordinator(height: $height, hasFailed: $hasFailed, onDrawn: onDrawn) }
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -155,6 +157,7 @@ private struct RichContentWebView: UIViewRepresentable {
         webView.scrollView.isScrollEnabled = false
         webView.allowsLinkPreview = false
         webView.navigationDelegate = context.coordinator
+        context.coordinator.webView = webView
         Task {
             if let list = try? await WKContentRuleListStore.default().compileContentRuleList(
                 forIdentifier: "rich-content", encodedContentRuleList: RichContentPage.contentRuleListJSON)
@@ -178,19 +181,40 @@ private struct RichContentWebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         private let height: Binding<CGFloat>
         private let hasFailed: Binding<Bool>
+        private let onDrawn: (UIImage) -> Void
+        weak var webView: WKWebView?
+        private var snapshotTask: Task<Void, Never>?
 
-        init(height: Binding<CGFloat>, hasFailed: Binding<Bool>) {
+        init(height: Binding<CGFloat>, hasFailed: Binding<Bool>, onDrawn: @escaping (UIImage) -> Void) {
             self.height = height
             self.hasFailed = hasFailed
+            self.onDrawn = onDrawn
         }
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.frameInfo.isMainFrame, let body = message.body as? [String: Any] else { return }
             if body["failed"] as? Bool == true {
+                snapshotTask?.cancel()
                 hasFailed.wrappedValue = true
             } else if let reported = (body["height"] as? NSNumber)?.doubleValue, reported > 0 {
                 let fitted = min(CGFloat(reported), 2_000)
                 if abs(fitted - height.wrappedValue) > 1 { height.wrappedValue = fitted }
+                takeSnapshotWhenSettled()
+            }
+        }
+
+        /// A drawing that has kept its height for a moment is pictured, and the picture stands in for the web view from then on, so a
+        /// long chat holds pictures rather than web views and a drawing never draws again as it scrolls.
+        private func takeSnapshotWhenSettled() {
+            snapshotTask?.cancel()
+            snapshotTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled, let self, let webView = self.webView, webView.bounds.height > 1 else { return }
+                let configuration = WKSnapshotConfiguration()
+                configuration.rect = webView.bounds
+                configuration.afterScreenUpdates = true
+                guard let image = try? await webView.takeSnapshot(configuration: configuration), !Task.isCancelled else { return }
+                self.onDrawn(image)
             }
         }
 
@@ -201,23 +225,78 @@ private struct RichContentWebView: UIViewRepresentable {
     }
 }
 
+/// RichDrawingCache keeps the pictures of drawings already made, by what was drawn, in which appearance and at which width, so a
+/// drawing that scrolls away and back, or a screen that opens again, shows its picture at once with no web view.
+enum RichDrawingCache {
+    nonisolated(unsafe) static let pictures: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 200
+        return cache
+    }()
+
+    static func key(_ content: RichContentPage.Content, isDark: Bool, width: CGFloat) -> NSString {
+        "\(isDark ? "dark" : "light")|\(Int(width.rounded()))|\(String(describing: content).hashValue)|\(String(describing: content).count)" as NSString
+    }
+}
+
 /// RichDrawing is a drawing with its source to fall back on: until it is drawn the source is not shown, and if it cannot be drawn
-/// the source is what shows, never a blank.
+/// the source is what shows, never a blank. Once drawn, a picture of it takes the web view's place.
 struct RichDrawing<Fallback: View>: View {
     let content: RichContentPage.Content
     let identifier: String
     @ViewBuilder let fallback: () -> Fallback
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var height: CGFloat = 0
     @State private var hasFailed = false
+    @State private var width: CGFloat = 0
+    @State private var picture: UIImage?
+    /// Whether the drawing has come near the screen. A long chat makes its web views one at a time as they come into view, not all
+    /// at once when it opens.
+    @State private var hasComeIntoView = false
+
+    private var key: NSString { RichDrawingCache.key(content, isDark: colorScheme == .dark, width: width) }
 
     var body: some View {
-        if hasFailed {
-            fallback()
-        } else {
-            RichContentWebView(content: content, height: $height, hasFailed: $hasFailed)
+        Group {
+            if hasFailed {
+                fallback()
+            } else if let shown = picture ?? (width > 0 ? RichDrawingCache.pictures.object(forKey: key) : nil) {
+                Image(uiImage: shown)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .accessibilityElement()
+                    .accessibilityLabel(Text(accessibilityText))
+                    .accessibilityIdentifier(identifier)
+            } else if width > 0, hasComeIntoView {
+                RichContentWebView(content: content, height: $height, hasFailed: $hasFailed) { image in
+                    RichDrawingCache.pictures.setObject(image, forKey: key)
+                    picture = image
+                }
                 .frame(height: max(height, 24))
                 .accessibilityIdentifier(height > 0 ? identifier : "\(identifier)Pending")
+            } else {
+                Color.clear.frame(height: 24)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .onScrollVisibilityChange(threshold: 0.01) { isVisible in
+            if isVisible { hasComeIntoView = true }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { newWidth in
+            if abs(newWidth - width) > 1 { width = newWidth }
+        }
+        // A new appearance or width draws again, from the picture made for it if there is one.
+        .onChange(of: key) { _, _ in picture = nil }
+    }
+
+    /// What VoiceOver reads for the picture: the formula's source, or what the diagram is.
+    private var accessibilityText: String {
+        switch content {
+        case .formula(let tex): tex
+        case .diagram: String(localized: "Diagram")
+        case .paragraph(let html): html.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
         }
     }
 }

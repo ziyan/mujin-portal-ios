@@ -158,7 +158,7 @@ jobs:
           MONITOR=$!
           set +e
           xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
-            -only-testing:MujinPortalUITests -skip-testing:MujinPortalUITests/ChatRenderingTests -parallel-testing-enabled NO -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
+            -only-testing:MujinPortalUITests -skip-testing:MujinPortalUITests/ChatRenderingTests -skip-testing:MujinPortalUITests/ChatRenderingPerformanceTests -parallel-testing-enabled NO -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
           RESULT=${PIPESTATUS[0]}
           kill "${MONITOR}" || true
           exit "${RESULT}"
@@ -210,7 +210,8 @@ jobs:
           mkdir -p rendering-screenshots
           TEST_RUNNER_RENDERING_SHOTS_DIRECTORY="${PWD}/rendering-screenshots" xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal \
             -destination "id=${DEVICE}" -derivedDataPath build -only-testing:MujinPortalUITests/ChatRenderingTests \
-            -resultBundlePath rendering.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee rendering.log | grep -E 'error:|Test Case .* (passed|failed)|\*\* TEST'
+            -only-testing:MujinPortalUITests/ChatRenderingPerformanceTests \
+            -resultBundlePath rendering.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee rendering.log | grep -E 'error:|Test Case .* (passed|failed)|measured \[|rendering-performance|\*\* TEST'
 
       - name: Keep the pictures
         if: always()

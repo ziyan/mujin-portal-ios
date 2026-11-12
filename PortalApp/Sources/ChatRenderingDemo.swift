@@ -25,7 +25,21 @@ enum ChatRenderingDemo {
         switch screen {
         case "rendering-chat", "rendering-chat-staff": chatConversationId
         case "rendering-assistant": assistantConversationId
+        case "rendering-formulas": formulasConversationId
         default: nil
+        }
+    }
+
+    /// A long conversation full of formulas and diagrams, for measuring how a chat of them scrolls and how much memory it holds.
+    static let formulasConversationId = "conversation-formulas"
+    static let formulaMessageCount = 120
+
+    static func formulaMessages(stamp: (TimeInterval) -> String) -> [[String: Any]] {
+        (1...formulaMessageCount).map { number -> [String: Any] in
+            var text = "Formula message \(number): the rate is $r_{\(number)} = \\frac{n}{t}$ picks an hour."
+            if number % 5 == 0 { text += "\n\n$$\\sigma_{\(number)} = \\sqrt{\\frac{1}{N}\\sum_{i=1}^{N}(r_i - \\bar{r})^2}$$" }
+            if number % 10 == 0 { text += "\n\n```mermaid\nflowchart LR\n  Pick\(number)[Pick] --> Pack\(number)[Pack] --> Ship\(number)[Ship]\n```" }
+            return ["id": "formula\(number)", "role": "assistant", "content": text, "createdAt": stamp(Double(formulaMessageCount + 1 - number) * 60)]
         }
     }
 
@@ -132,6 +146,11 @@ enum ChatRenderingDemo {
             "isMain": false,
         ])
         data.messages[assistantConversationId] = assistantRows(assistantEntries, stamp: stamp)
+        data.conversations.append([
+            "id": formulasConversationId, "agentId": "agent01", "title": "Formulas", "summary": NSNull(), "lastMessageAt": stamp(60),
+            "activeRunId": NSNull(), "archivedAt": NSNull(), "createdAt": stamp(90_000), "modifiedAt": stamp(60), "isMain": false,
+        ])
+        data.messages[formulasConversationId] = formulaMessages(stamp: stamp)
     }
 
     private static func member(_ person: Person, isAdmin: Bool) -> [String: Any] {
