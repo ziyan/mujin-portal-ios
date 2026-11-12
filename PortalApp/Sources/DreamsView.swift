@@ -141,5 +141,4 @@ struct DreamsView: View {
             errorText = error.userMessage
         }
     }
-    }
 }
