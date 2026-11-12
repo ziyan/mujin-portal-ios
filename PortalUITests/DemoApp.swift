@@ -83,9 +83,18 @@ enum DemoApp {
     /// Brings the element into the tap band, scrolling the page up or down, and returns once it is still and hittable.
     static func scrollToElement(_ element: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(element.waitForExistence(timeout: 90), "\(element) never appeared", file: file, line: line)
-        for attempt in 0..<15 {
+        // Whether the last move pushed the page up (to show what is below), so a row that left the screen can be brought back.
+        var didLastMovePageUp: Bool?
+        for attempt in 0..<20 {
             if isInTapBand(element, in: app), waitUntilStill(element), isInTapBand(element, in: app), waitUntilHittable(element) { return }
-            guard element.exists else { continue }
+            guard element.exists, element.frame.height > 0 else {
+                // A row a scroll carried out of a lazy list leaves the accessibility tree, so its frame says nothing. It went the way the
+                // page last moved: a short drag the other way brings it back without overshooting again.
+                let isUp = !(didLastMovePageUp ?? true)
+                dragPage(app, isUp: isUp)
+                didLastMovePageUp = isUp
+                continue
+            }
             let window = app.windows.firstMatch.frame
             let isAboveBand = element.frame.midY <= window.minY + window.height * 0.15
             if attempt >= 4 {
@@ -95,6 +104,7 @@ enum DemoApp {
             } else {
                 app.swipeUp()
             }
+            didLastMovePageUp = !isAboveBand
         }
         XCTFail("\(element) could not be scrolled into the tap band", file: file, line: line)
     }
