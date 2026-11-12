@@ -465,6 +465,7 @@ final class SessionModel {
             await connection.setMessageThreads(newCapabilities.offersMessageThreads)
             await connection.setInternalNotes(newCapabilities.offersInternalNotes)
             await connection.setChatReferences(newCapabilities.offersChatReferences)
+            await connection.setForegroundOnlyLists(newCapabilities.offersForegroundOnlyLists)
             // Asked only of a server whose schema has the fields; an older one has neither feature.
             voiceAvailability = await connection.voiceAvailability(capabilities: newCapabilities)
             // The first screen needs none of what follows, so a slow network does not hold it back.

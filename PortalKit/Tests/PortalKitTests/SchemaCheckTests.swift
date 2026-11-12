@@ -58,6 +58,20 @@ import Testing
         #expect(checked >= 4)
     }
 
+    /// The lists people pick from ask for foreground conversations only, a valid argument wherever it is added.
+    @Test func theForegroundOnlyListsAreValid() throws {
+        var checked = 0
+        for document in Documents.all where document.contains("ListConversations(") {
+            let prepared = Documents.withForegroundOnly(document)
+            #expect(prepared.contains("ListConversations(isForegroundOnly: true, "))
+            #expect(!prepared.contains("query ListConversations(isForegroundOnly"))
+            let problems = try DocumentValidator(schema: Self.schema).problems(in: prepared)
+            #expect(problems.isEmpty, "\(document.prefix(60)): \(problems)")
+            checked += 1
+        }
+        #expect(checked >= 2)
+    }
+
     /// Internal notes: every document that asks for a message's or a chat's fields is valid with the internal-note fields added, on top
     /// of the thread fields, and SendMessage with its isInternal argument.
     @Test func theInternalNoteFieldsAreValidWhereTheyAreAdded() throws {

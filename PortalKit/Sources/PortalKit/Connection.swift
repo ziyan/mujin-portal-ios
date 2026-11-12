@@ -52,8 +52,16 @@ public actor Connection {
         hasChatReferences = hasReferences
     }
 
+    /// Whether this server can leave background runs out of a list of conversations. Set from its capabilities.
+    public private(set) var hasForegroundOnlyLists = false
+
+    public func setForegroundOnlyLists(_ hasForegroundOnly: Bool) {
+        hasForegroundOnlyLists = hasForegroundOnly
+    }
+
     /// The document as this server takes it.
     public func prepared(_ document: String) -> String {
+        let document = hasForegroundOnlyLists ? Documents.withForegroundOnly(document) : document
         let withMedia = Documents.withChatMedia(document, hasVoice: hasVoiceMessages, hasCalls: hasChatCalls)
         let withThreads = hasMessageThreads ? Documents.withThreads(withMedia) : withMedia
         let withNotes = hasInternalNotes ? Documents.withInternalNotes(withThreads) : withThreads

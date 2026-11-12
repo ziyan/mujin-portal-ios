@@ -11,6 +11,8 @@ public struct ServerCapabilities: Equatable, Sendable {
     public let sendMessageArgumentNames: Set<String>
     /// The arguments the ListConversationMessages query takes.
     public let listMessageArgumentNames: Set<String>
+    /// The arguments the ListConversations query takes.
+    public let listConversationArgumentNames: Set<String>
     /// The fields of the voice setting the GetAgentVoiceSetting query returns.
     public let voiceSettingFieldNames: Set<String>
     /// The fields of the Site type, for a feature that needs a field and not only an operation.
@@ -21,8 +23,9 @@ public struct ServerCapabilities: Equatable, Sendable {
     public init(
         queryNames: Set<String> = [], mutationNames: Set<String> = [], subscriptionNames: Set<String> = [], sendMessageArgumentNames: Set<String> = [],
         listMessageArgumentNames: Set<String> = [], voiceSettingFieldNames: Set<String> = [], siteFieldNames: Set<String> = [],
-        pageFieldNames: Set<String> = []
+        pageFieldNames: Set<String> = [], listConversationArgumentNames: Set<String> = []
     ) {
+        self.listConversationArgumentNames = listConversationArgumentNames
         self.pageFieldNames = pageFieldNames
         self.siteFieldNames = siteFieldNames
         self.voiceSettingFieldNames = voiceSettingFieldNames
@@ -59,6 +62,8 @@ public struct ServerCapabilities: Equatable, Sendable {
     public var offersAgentOversight: Bool { offersQuery("GetAgentOversight") }
     /// The cross-tenant board of active monitoring. Not in the schema yet.
     public var offersMonitoringBoard: Bool { offersQuery("ListMonitoringBoard") || offersQuery("GetMonitoringBoard") }
+    /// Lists people pick from leave out background runs and empty assistant conversations, from the page and from the total.
+    public var offersForegroundOnlyLists: Bool { listConversationArgumentNames.contains("isForegroundOnly") }
     /// The server's notification subscription (for live inbox updates).
     public var offersNotificationFeed: Bool { offersSubscription("OnNotification") }
 
@@ -90,11 +95,13 @@ public struct ServerCapabilities: Equatable, Sendable {
         func names(_ type: Introspection.RootType?) -> Set<String> { Set((type?.fields ?? []).map(\.name)) }
         let sendArguments = (introspection.__schema.mutationType?.fields ?? []).first { Self.normalized($0.name) == "sendMessage" }?.args ?? []
         let listArguments = (introspection.__schema.queryType?.fields ?? []).first { Self.normalized($0.name) == "listConversationMessages" }?.args ?? []
+        let conversationListArguments = (introspection.__schema.queryType?.fields ?? []).first { Self.normalized($0.name) == "listConversations" }?.args ?? []
         self.init(
             queryNames: names(introspection.__schema.queryType), mutationNames: names(introspection.__schema.mutationType),
             subscriptionNames: names(introspection.__schema.subscriptionType), sendMessageArgumentNames: Set(sendArguments.map(\.name)),
             listMessageArgumentNames: Set(listArguments.map(\.name)), voiceSettingFieldNames: names(introspection.voiceSetting),
-            siteFieldNames: names(introspection.siteType), pageFieldNames: names(introspection.pageType))
+            siteFieldNames: names(introspection.siteType), pageFieldNames: names(introspection.pageType),
+            listConversationArgumentNames: Set(conversationListArguments.map(\.name)))
     }
 }
 
