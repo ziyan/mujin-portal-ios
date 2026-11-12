@@ -133,15 +133,6 @@ import Testing
         #expect(dreams.first?.phaseReports?.first?.doneItemCount == 3)
     }
 
-    @Test func decliningALinkProposalSendsBothPagesAndTheRelation() async throws {
-        let (connection, transport) = scriptedConnection { _, _ in ["DeclineMemoryLinkProposal": ["fromMemoryPageId": "p1", "toMemoryPageId": "p2"]] }
-        try await connection.answerLinkProposal(MemoryLink(fromMemoryPageId: "p1", toMemoryPageId: "p2", relation: "uses"), isAccepted: false)
-        let variables = sentVariables(try #require(transport.requests.last))
-        #expect(variables["relation"] as? String == "uses")
-        let body = String(decoding: try #require(transport.requests.last?.httpBody), as: UTF8.self)
-        #expect(body.contains("DeclineMemoryLinkProposal"))
-    }
-
     @Test func aConversationsArtifactsKeepOnlyKindsTheAppDraws() async throws {
         let (connection, _) = scriptedConnection { _, _ in
             ["ListConversationArtifacts": [["id": "a1", "title": "Weekly chart", "artifactKind": "html", "sizeBytes": 2048], ["id": "a2", "title": "Odd", "artifactKind": "flash"]]]

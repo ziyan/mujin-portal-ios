@@ -9,7 +9,6 @@ struct DreamsView: View {
     @Environment(SessionModel.self) private var session
 
     @State private var setting: AgentDreamSetting?
-    @State private var proposals: [MemoryLink] = []
     @State private var runs: [MemoryDream] = []
     @State private var phase = LoadPhase.loading
     @State private var budgetShare = 20.0
@@ -54,21 +53,6 @@ struct DreamsView: View {
                         }
                     }
                     if canManage { settingsSection(setting) }
-                }
-                if !proposals.isEmpty {
-                    Section("Links it proposes") {
-                        ForEach(proposals) { link in
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("\(link.fromPageName ?? link.fromPagePath ?? "") \u{2192} \(link.toPageName ?? link.toPagePath ?? "")").font(.subheadline.weight(.semibold))
-                                Text((link.relation ?? "related").replacingOccurrences(of: "_", with: " ")).font(.caption).foregroundStyle(.secondary)
-                                HStack {
-                                    Button("Accept") { Task { await answer(link, isAccepted: true) } }.buttonStyle(.borderedProminent)
-                                    Button("Decline") { Task { await answer(link, isAccepted: false) } }.buttonStyle(.bordered)
-                                }
-                                .controlSize(.small)
-                            }
-                        }
-                    }
                 }
                 if !runs.isEmpty {
                     Section("Recent runs") {
@@ -129,7 +113,6 @@ struct DreamsView: View {
             budgetShare = Double(loaded.dreamBudgetSharePercent ?? 20)
             tokenCap = loaded.dreamTokenCap ?? 0
             phase = .loaded
-            proposals = (try? await connection.linkProposals()) ?? []
             // Only an organization's administrators may read the runs.
             runs = loaded.canManageOrganization == true ? ((try? await connection.memoryDreams()) ?? []) : []
         } catch {
@@ -158,14 +141,5 @@ struct DreamsView: View {
             errorText = error.userMessage
         }
     }
-
-    private func answer(_ link: MemoryLink, isAccepted: Bool) async {
-        do {
-            try await appModel.connection(for: session.account).answerLinkProposal(link, isAccepted: isAccepted)
-            proposals.removeAll { $0.id == link.id }
-        } catch {
-            errorText = error.userMessage
-            appModel.handle(error, account: session.account)
-        }
     }
 }
