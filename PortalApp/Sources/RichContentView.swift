@@ -56,7 +56,8 @@ enum RichContentPage {
             #content { padding: 2px 0; overflow-wrap: anywhere; }
             #content.diagram { padding: 8px; text-align: center; }
             #content.formula { text-align: center; overflow-x: auto; }
-            #content svg { max-width: 100%; height: auto; }
+            #content.diagram { display: inline-block; text-align: left; }
+            #content.formula svg, #content.paragraph svg { max-width: 100%; height: auto; }
             code { font: -apple-system-footnote; font-family: ui-monospace, Menlo, monospace; }
             .katex { font-size: 1.05em; }
             </style>
@@ -69,7 +70,9 @@ enum RichContentPage {
               var kind = "\(kind)";
               var box = document.getElementById("content");
               function tell(message) { window.webkit.messageHandlers.richContent.postMessage(message); }
-              function tellHeight() { tell({ height: Math.ceil(document.documentElement.scrollHeight) }); }
+              function tellHeight() {
+                tell({ height: Math.ceil(document.documentElement.scrollHeight), width: Math.ceil(box.getBoundingClientRect().width) });
+              }
               function fail() { tell({ failed: true }); }
               try {
                 if (kind === "formula") {
@@ -85,7 +88,13 @@ enum RichContentPage {
                   tellHeight();
                 } else {
                   var isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-                  mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: isDark ? "dark" : "default" });
+                  // A diagram is drawn at its natural size and scrolls sideways when wide, never shrunk below readable text.
+                  var natural = { useMaxWidth: false };
+                  mermaid.initialize({
+                    startOnLoad: false, securityLevel: "strict", theme: isDark ? "dark" : "default",
+                    flowchart: natural, sequence: natural, gantt: natural, state: natural, class: natural, er: natural, journey: natural,
+                    pie: natural, mindmap: natural, timeline: natural, gitGraph: natural, quadrantChart: natural, xyChart: natural
+                  });
                   mermaid.render("diagram", source).then(function (result) {
                     box.innerHTML = result.svg;
                     tellHeight();
@@ -139,11 +148,13 @@ final class RichContentSchemeHandler: NSObject, WKURLSchemeHandler {
 private struct RichContentWebView: UIViewRepresentable {
     let content: RichContentPage.Content
     @Binding var height: CGFloat
+    /// How wide the drawing is drawn, which a diagram reports at its natural size.
+    @Binding var naturalWidth: CGFloat
     @Binding var hasFailed: Bool
     /// Called with a picture of the drawing once it has drawn and kept its height a moment.
     let onDrawn: (UIImage) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(height: $height, hasFailed: $hasFailed, onDrawn: onDrawn) }
+    func makeCoordinator() -> Coordinator { Coordinator(height: $height, naturalWidth: $naturalWidth, hasFailed: $hasFailed, onDrawn: onDrawn) }
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -180,13 +191,15 @@ private struct RichContentWebView: UIViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         private let height: Binding<CGFloat>
+        private let naturalWidth: Binding<CGFloat>
         private let hasFailed: Binding<Bool>
         private let onDrawn: (UIImage) -> Void
         weak var webView: WKWebView?
         private var snapshotTask: Task<Void, Never>?
 
-        init(height: Binding<CGFloat>, hasFailed: Binding<Bool>, onDrawn: @escaping (UIImage) -> Void) {
+        init(height: Binding<CGFloat>, naturalWidth: Binding<CGFloat>, hasFailed: Binding<Bool>, onDrawn: @escaping (UIImage) -> Void) {
             self.height = height
+            self.naturalWidth = naturalWidth
             self.hasFailed = hasFailed
             self.onDrawn = onDrawn
         }
@@ -199,6 +212,10 @@ private struct RichContentWebView: UIViewRepresentable {
             } else if let reported = (body["height"] as? NSNumber)?.doubleValue, reported > 0 {
                 let fitted = min(CGFloat(reported), 2_000)
                 if abs(fitted - height.wrappedValue) > 1 { height.wrappedValue = fitted }
+                if let reportedWidth = (body["width"] as? NSNumber)?.doubleValue, reportedWidth > 0 {
+                    let wide = min(CGFloat(reportedWidth), 4_000)
+                    if abs(wide - naturalWidth.wrappedValue) > 1 { naturalWidth.wrappedValue = wide }
+                }
                 takeSnapshotWhenSettled()
             }
         }
@@ -248,9 +265,12 @@ struct RichDrawing<Fallback: View>: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var height: CGFloat = 0
+    @State private var naturalWidth: CGFloat = 0
     @State private var hasFailed = false
     @State private var width: CGFloat = 0
     @State private var picture: UIImage?
+
+    private var isDiagram: Bool { if case .diagram = content { true } else { false } }
     /// Whether the drawing has come near the screen. A long chat makes its web views one at a time as they come into view, not all
     /// at once when it opens.
     @State private var hasComeIntoView = false
@@ -262,18 +282,37 @@ struct RichDrawing<Fallback: View>: View {
             if hasFailed {
                 fallback()
             } else if let shown = picture ?? (width > 0 ? RichDrawingCache.pictures.object(forKey: key) : nil) {
-                Image(uiImage: shown)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity)
+                if isDiagram {
+                    // A diagram keeps its natural size: one wider than the block scrolls sideways, a narrower one is centered.
+                    ScrollView(.horizontal, showsIndicators: shown.size.width > width) {
+                        Image(uiImage: shown)
+                            .frame(width: shown.size.width, height: shown.size.height)
+                            .frame(minWidth: width)
+                    }
+                    .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                    .frame(height: shown.size.height)
                     .accessibilityElement()
                     .accessibilityLabel(Text(accessibilityText))
                     .accessibilityIdentifier(identifier)
-            } else if width > 0, hasComeIntoView {
-                RichContentWebView(content: content, height: $height, hasFailed: $hasFailed) { image in
-                    RichDrawingCache.pictures.setObject(image, forKey: key)
-                    picture = image
+                } else {
+                    Image(uiImage: shown)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .accessibilityElement()
+                        .accessibilityLabel(Text(accessibilityText))
+                        .accessibilityIdentifier(identifier)
                 }
+            } else if width > 0, hasComeIntoView {
+                // A diagram's web view is as wide as the diagram, so it draws, and is pictured, whole.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    RichContentWebView(content: content, height: $height, naturalWidth: $naturalWidth, hasFailed: $hasFailed) { image in
+                        RichDrawingCache.pictures.setObject(image, forKey: key)
+                        picture = image
+                    }
+                    .frame(width: isDiagram && naturalWidth > 0 ? naturalWidth : width, height: max(height, 24))
+                }
+                .scrollDisabled(true)
                 .frame(height: max(height, 24))
                 .accessibilityIdentifier(height > 0 ? identifier : "\(identifier)Pending")
             } else {
