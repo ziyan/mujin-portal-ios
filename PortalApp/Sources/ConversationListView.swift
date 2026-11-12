@@ -97,6 +97,7 @@ struct ConversationListView: View {
                 if screen == "side-chat-links" { selection.open("conversation05") }
                 if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selection.open("chatconv01") }
                 if let conversationId = CallDemo.conversationId(for: screen) { selection.open(conversationId) }
+                if let conversationId = ChatHistoryDemo.conversationId(for: screen) { selection.open(conversationId) }
                 if let conversationId = ThreadDemo.conversationId(for: screen) { selection.open(conversationId) }
                 if let conversationId = SpeechDemo.conversationId(for: screen) { selection.open(conversationId) }
                 if let thread = ThreadDemo.threadToOpen(for: screen) { requestedThread = thread }
