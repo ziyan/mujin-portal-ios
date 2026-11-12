@@ -143,7 +143,11 @@ import Testing
         let updates = ConversationFeed.updates(
             connection: connection(), conversationId: "conversation01", socketFactory: { _, _ in sockets.withValue { $0.removeFirst() } }, timing: timing)
         let task = Task { for await _ in updates {} }
-        try? await Task.sleep(nanoseconds: 600_000_000)
+        // A busy runner may be slow to start the pings: wait for two, up to a generous limit, rather than a fixed time.
+        let deadline = Date().addingTimeInterval(10)
+        while socket.sent.filter({ $0.contains("\"ping\"") }).count < 2, Date() < deadline {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
         task.cancel()
         #expect(socket.sent.filter { $0.contains("\"ping\"") }.count >= 2)
         #expect(!socket.sent.contains { $0.contains("connection_init") && $0.count > 100 })

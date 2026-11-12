@@ -1,6 +1,13 @@
 import PortalKit
 import SwiftUI
 
+/// DictationControl is the microphone button of a composer: it starts and stops dictating into the box.
+struct DictationControl {
+    let isListening: Bool
+    let isEnabled: Bool
+    let action: () -> Void
+}
+
 /// ComposerCard is where the person writes, on every screen that has a box:
 /// one rounded card with the words on top and the buttons inside it, adding
 /// files at the bottom left, then voice, stop and send at the bottom right.
@@ -17,6 +24,7 @@ struct ComposerCard<Accessory: View>: View {
     var sendLabel: LocalizedStringKey = "Send"
     var onVoice: (() -> Void)?
     var onStop: (() -> Void)?
+    var dictation: DictationControl?
     var fieldIdentifier = "messageField"
     var sendIdentifier = "sendButton"
     var onEscape: (() -> Bool)?
@@ -54,6 +62,22 @@ struct ComposerCard<Accessory: View>: View {
                 if let drafts { AttachMenu(drafts: drafts, systemImage: "plus") }
                 accessory
                 Spacer(minLength: 0)
+                if let dictation {
+                    // A plain microphone, apart from the waveform that starts a call and the filled one that records a voice message.
+                    // Listening, it is tinted and sits on a soft circle.
+                    Button(action: dictation.action) {
+                        Image(systemName: "mic")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(dictation.isListening ? Color.accentColor : Color.secondary)
+                            .frame(width: diameter, height: diameter)
+                            .background(dictation.isListening ? Color.accentColor.opacity(0.18) : Color.clear, in: .circle)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(.rect)
+                    }
+                    .disabled(!dictation.isEnabled)
+                    .accessibilityLabel(dictation.isListening ? Text("Stop dictating") : Text("Dictate"))
+                    .accessibilityIdentifier("dictateButton")
+                }
                 if let onVoice, !canSend {
                     Button(action: onVoice) {
                         Image(systemName: "waveform")
@@ -121,12 +145,13 @@ extension ComposerCard {
     /// The card with a view of the screen's own beside the attach button.
     init(
         placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,
-        isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", fieldIdentifier: String = "messageField",
-        sendIdentifier: String = "sendButton", onEscape: (() -> Bool)? = nil, onSend: @escaping () -> Void, @ViewBuilder accessory: () -> Accessory
+        isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", dictation: DictationControl? = nil,
+        fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton", onEscape: (() -> Bool)? = nil, onSend: @escaping () -> Void,
+        @ViewBuilder accessory: () -> Accessory
     ) {
         self.init(
             placeholder: placeholder, text: text, drafts: drafts, isEnabled: isEnabled, canSend: canSend, isSending: isSending, sendSymbol: sendSymbol,
-            sendLabel: sendLabel, onVoice: nil, onStop: nil, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
+            sendLabel: sendLabel, onVoice: nil, onStop: nil, dictation: dictation, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
             onSend: onSend, accessory: accessory)
     }
 }
@@ -135,12 +160,12 @@ extension ComposerCard where Accessory == EmptyView {
     init(
         placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,
         isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", onVoice: (() -> Void)? = nil,
-        onStop: (() -> Void)? = nil, fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton", onEscape: (() -> Bool)? = nil,
-        onSend: @escaping () -> Void
+        onStop: (() -> Void)? = nil, dictation: DictationControl? = nil, fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton",
+        onEscape: (() -> Bool)? = nil, onSend: @escaping () -> Void
     ) {
         self.init(
             placeholder: placeholder, text: text, drafts: drafts, isEnabled: isEnabled, canSend: canSend, isSending: isSending, sendSymbol: sendSymbol,
-            sendLabel: sendLabel, onVoice: onVoice, onStop: onStop, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
+            sendLabel: sendLabel, onVoice: onVoice, onStop: onStop, dictation: dictation, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
             onSend: onSend, accessory: { EmptyView() })
     }
 }
@@ -193,25 +218,58 @@ extension View {
     }
 
     /// The bar of a screen whose bottom is a composer: the title is a glass
-    /// pill in the middle, the bar itself see-through so messages run under
-    /// it with the system's soft edge, and the tab bar gives way.
-    func conversationBar(title: String, onTitleTap: (() -> Void)? = nil) -> some View {
-        navigationTitle(title)
+    /// pill, the bar itself see-through so messages run under it with the
+    /// system's soft edge, and on a phone the tab bar gives way.
+    func conversationBar(title: String, onTitleTap: (() -> Void)? = nil, isCallStageShown: Bool = false) -> some View {
+        // During a call the stage names who it is with; the bar shows no title of its own.
+        navigationTitle(isCallStageShown ? "" : title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
-            .toolbarVisibility(.hidden, for: .tabBar)
+            .hidesTabBarWhenCompact()
             .scrollEdgeEffectStyle(.hard, for: .top)
+            .modifier(ConversationTitlePill(title: title, onTitleTap: onTitleTap, isCallStageShown: isCallStageShown))
+    }
+}
+
+/// ConversationTitlePill puts a conversation's title in its bar: in the middle on a phone, and at the leading
+/// edge on a wide screen, where the floating tab bar takes the middle of the top row whenever the bar shares it
+/// (in landscape, or with the list of conversations hidden).
+private struct ConversationTitlePill: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    let title: String
+    let onTitleTap: (() -> Void)?
+    /// A call's stage names who the call is with, so the pill steps aside while it shows.
+    let isCallStageShown: Bool
+
+    /// maximumWideWidth keeps a long title clear of the floating tab bar.
+    private let maximumWideWidth: CGFloat = 300
+
+    func body(content: Content) -> some View {
+        let isWide = horizontalSizeClass == .regular
+        content
+            // On a wide screen the pill stands at the leading edge, so the bar's own title in the middle would say it twice.
+            .toolbar(removing: isWide ? .title : nil)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    if let onTitleTap {
-                        Button(action: onTitleTap) { titlePill(title) }
-                            .buttonStyle(.plain)
-                            .accessibilityHint(Text("Shows who is in this chat"))
-                    } else {
-                        titlePill(title)
+                if !isCallStageShown {
+                    ToolbarItem(placement: isWide ? .topBarLeading : .principal) {
+                        // As wide as the title, up to the limit: a leading item is otherwise squeezed into a round button.
+                        pill.frame(maxWidth: isWide ? maximumWideWidth : nil, alignment: .leading)
+                            .fixedSize(horizontal: isWide, vertical: false)
                     }
+                    // The pill is its own glass; the bar's shared glass around it would draw a second shape.
+                    .sharedBackgroundVisibility(.hidden)
                 }
             }
+    }
+
+    @ViewBuilder private var pill: some View {
+        if let onTitleTap {
+            Button(action: onTitleTap) { titlePill(title) }
+                .buttonStyle(.plain)
+                .accessibilityHint(Text("Shows who is in this chat"))
+        } else {
+            titlePill(title)
+        }
     }
 }
 
@@ -343,10 +401,27 @@ struct ChatAvatar: View {
 
     var body: some View {
         let members = room.avatarMembers(excluding: session.account.userId)
-        if room.isGroup, members.count > 1 {
+        if room.isSite {
+            Image(systemName: "building.2.fill")
+                .font(.system(size: size * 0.42))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: size, height: size)
+                .background(Color.accentColor.opacity(0.16), in: Circle())
+        } else if room.isGroup, members.count > 1 {
             AvatarStack(members: members, size: size)
         } else {
             UserAvatar(userId: members.first?.userId, name: room.title, size: size)
+        }
+    }
+}
+
+extension View {
+    /// A search field over a list of people, on the screens where the list can be long.
+    @ViewBuilder func searchablePeople(isOn: Bool, text: Binding<String>) -> some View {
+        if isOn {
+            searchable(text: text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search people")
+        } else {
+            self
         }
     }
 }
@@ -466,32 +541,60 @@ extension View {
 /// brighten in turn on a 1.2 second beat. It is the size of a short assistant message, so the answer takes its place
 /// without a jump. The web chat box shows the same dots.
 struct TypingBubble: View {
-    @Environment(\.accessibilityReduceMotion) private var isReducingMotion
-    private static let beat = 1.2
-
     var body: some View {
         HStack(spacing: 0) {
-            TimelineView(.animation(paused: isReducingMotion)) { context in
-                let time = context.date.timeIntervalSinceReferenceDate
-                HStack(spacing: 5) {
-                    ForEach(0..<3, id: \.self) { index in
-                        // Each dot peaks a sixth of a beat after the one before it.
-                        let phase = (time / Self.beat - Double(index) / 6).truncatingRemainder(dividingBy: 1)
-                        let level = (1 - cos(2 * Double.pi * (phase < 0 ? phase + 1 : phase))) / 2
-                        Circle()
-                            .fill(Color.secondary)
-                            .frame(width: 8, height: 8)
-                            .opacity(0.4 + 0.6 * level)
-                            .offset(y: -3 * level)
-                    }
-                }
+            TypingDots()
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
                 .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
             Spacer(minLength: 56)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Thinking\u{2026}"))
+        .accessibilityIdentifier("typingBubble")
+    }
+}
+
+/// TypingDots is the one way the app shows the assistant at work: three dots rising in turn. The typing bubble holds them where
+/// the answer will appear; a line that points at work happening elsewhere (a thread, the background) holds them smaller.
+struct TypingDots: View {
+    var dotSize: CGFloat = 8
+    @Environment(\.accessibilityReduceMotion) private var isReducingMotion
+    private static let beat = 1.2
+
+    var body: some View {
+        TimelineView(.animation(paused: isReducingMotion)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            HStack(spacing: dotSize * 5 / 8) {
+                ForEach(0..<3, id: \.self) { index in
+                    // Each dot peaks a sixth of a beat after the one before it.
+                    let phase = (time / Self.beat - Double(index) / 6).truncatingRemainder(dividingBy: 1)
+                    let level = isReducingMotion ? 0 : (1 - cos(2 * Double.pi * (phase < 0 ? phase + 1 : phase))) / 2
+                    Circle()
+                        .fill(Color.secondary)
+                        .frame(width: dotSize, height: dotSize)
+                        .opacity(0.4 + 0.6 * level)
+                        .offset(y: -dotSize * 3 / 8 * level)
+                }
+            }
+            .padding(.vertical, dotSize * 3 / 8)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// HidesTabBarWhenCompact gives a pushed screen the whole phone. On a wide screen the tab bar stays: a split view
+/// shows its detail with no back button to bring the bar back, and on iPad that bar can be the only way to leave.
+private struct HidesTabBarWhenCompact: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    func body(content: Content) -> some View {
+        content.toolbarVisibility(horizontalSizeClass == .compact ? .hidden : .automatic, for: .tabBar)
+    }
+}
+
+extension View {
+    func hidesTabBarWhenCompact() -> some View {
+        modifier(HidesTabBarWhenCompact())
     }
 }

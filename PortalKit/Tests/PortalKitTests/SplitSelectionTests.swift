@@ -1,8 +1,20 @@
+import Foundation
 import Testing
 
 @testable import PortalKit
 
 struct SplitSelectionTests {
+    @Test func aSheetClosingAsAConversationOpensDoesNotEmptyTheDetail() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var selection = SplitSelection()
+        selection.open("conversation01", now: now)
+        selection.selectedId = nil
+        selection.setDetailOnTop(false, now: now.addingTimeInterval(0.2))
+        #expect(selection.detailId == "conversation01")
+        selection.setDetailOnTop(false, now: now.addingTimeInterval(5))
+        #expect(selection.detailId == nil)
+    }
+
     @Test func nothingIsDrawnBeforeAnythingIsChosen() {
         #expect(SplitSelection().detailId == nil)
     }

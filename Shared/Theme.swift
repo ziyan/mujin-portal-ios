@@ -17,6 +17,10 @@ extension Color {
     static let statusSuccess = Color("StatusSuccess")
     static let statusWarning = Color("StatusWarning")
     static let statusError = Color("StatusError")
+    /// A critical alarm: darker than an error, and dark enough for white words in both appearances.
+    static let statusCritical = Color("StatusCritical")
+    /// A warning alarm: amber, which reads apart from the reds of Error and Critical and from the accent.
+    static let statusAmber = Color("StatusAmber")
     static let statusInfo = Color("StatusInfo")
 }
 
@@ -31,6 +35,16 @@ struct PortalRows<Content: View>: View {
             .labelStyle(PortalRowLabelStyle())
             // Switches take the accent, not the system green.
             .tint(Color.accentColor)
+    }
+}
+
+/// InlineLabelStyle is a small mark inside a row: the icon right beside its words, not in the row's icon column.
+struct InlineLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.icon
+            configuration.title
+        }
     }
 }
 

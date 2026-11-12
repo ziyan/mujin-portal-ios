@@ -68,11 +68,15 @@ public struct ControllerSummary: Codable, Equatable, Hashable, Identifiable, Sen
     /// The release of the controller software this controller runs, and the registered image that matches it exactly.
     public let releaseId: String?
     public let releaseImageId: String?
+    /// Whether the controller is left out of its site's and cells' merged views. Only a server that has the field says.
+    public let isExcludedFromSiteViews: Bool?
 
     public init(
         id: String, comment: String? = nil, siteId: String? = nil, organizationId: String? = nil, region: String? = nil, connection: Connection? = nil,
-        hypervisorState: State? = nil, viewerCapabilities: [String]? = nil, releaseId: String? = nil, releaseImageId: String? = nil
+        hypervisorState: State? = nil, viewerCapabilities: [String]? = nil, releaseId: String? = nil, releaseImageId: String? = nil,
+        isExcludedFromSiteViews: Bool? = nil
     ) {
+        self.isExcludedFromSiteViews = isExcludedFromSiteViews
         self.releaseId = releaseId
         self.releaseImageId = releaseImageId
         self.viewerCapabilities = viewerCapabilities
@@ -435,7 +439,7 @@ extension Connection {
         return result
     }
 
-    public func controllers(organizationId: String? = nil, cellId: String? = nil) async throws -> [ControllerSummary] {
+    public func controllers(organizationId: String? = nil, cellId: String? = nil, includesExclusionFlag: Bool = false) async throws -> [ControllerSummary] {
         struct Answer: Decodable, Sendable {
             struct Meta: Decodable, Sendable { let totalCount: Int? }
             struct List: Decodable, Sendable {
@@ -450,7 +454,8 @@ extension Connection {
             var variables: [String: JSONValue] = ["options": .object(["first": .number(200), "after": .number(Double(rows.count))])]
             if let organizationId { variables["organizationId"] = .string(organizationId) }
             if let cellId { variables["cellId"] = .string(cellId) }
-            let list = try await execute(Documents.listControllers, variables: variables, as: Answer.self).ListControllers
+            let document = includesExclusionFlag ? Documents.withExclusionFlag(Documents.listControllers) : Documents.listControllers
+            let list = try await execute(document, variables: variables, as: Answer.self).ListControllers
             let page = list?.controllers ?? []
             rows += page
             if page.isEmpty { break }
@@ -461,9 +466,10 @@ extension Connection {
     }
 
     /// One controller, as the lists show it, for a page opened from a link.
-    public func controller(id: String) async throws -> ControllerSummary {
+    public func controller(id: String, includesExclusionFlag: Bool = false) async throws -> ControllerSummary {
         struct Answer: Decodable, Sendable { let GetController: ControllerSummary? }
-        guard let controller = try await execute(Documents.getController, variables: ["controllerId": .string(id)], as: Answer.self).GetController else {
+        let document = includesExclusionFlag ? Documents.withExclusionFlag(Documents.getController) : Documents.getController
+        guard let controller = try await execute(document, variables: ["controllerId": .string(id)], as: Answer.self).GetController else {
             throw PortalError.refused("Controller not found.")
         }
         return controller

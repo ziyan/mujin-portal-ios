@@ -76,7 +76,7 @@ struct AlarmSubscriptionsView: View {
         }
         .navigationTitle("Alarm subscriptions")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .confirmationDialog("Notify me about alarms from", isPresented: $isCreating, titleVisibility: .visible) {
             ForEach(AlarmSubscription.levels, id: \.self) { level in
                 Button(level.capitalized) { Task { await create(level: level) } }

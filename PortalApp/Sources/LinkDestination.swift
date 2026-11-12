@@ -14,6 +14,8 @@ enum LinkResolution: Equatable {
     case lookup
     /// A conversation or a chat, opened on the Chat tab.
     case conversation(String)
+    /// One message of a chat, opened in the person's own conversation of it.
+    case chatMessage(chatId: String, messageId: String)
     /// A tab already on the bar.
     case tab(AppSection)
     /// The notification inbox.
@@ -25,7 +27,7 @@ enum LinkResolution: Equatable {
     var isSheet: Bool {
         switch self {
         case .screen, .lookup: true
-        case .conversation, .tab, .notifications, .web: false
+        case .conversation, .chatMessage, .tab, .notifications, .web: false
         }
     }
 }
@@ -41,14 +43,19 @@ extension SessionModel {
         case .release(let id):
             return .screen(.route(.release(id: id)))
         case .site(let id):
-            guard let organization else { return .web }
-            return .screen(.route(.site(id: id, organizationId: organization)))
+            // A link does not say whose site it is, and it need not be the person's own organization. The screen reads that from the site.
+            return .screen(.route(.site(id: id, organizationId: organizationId)))
         case .cell(let id, let siteId):
-            return .screen(.route(.cell(id: id, siteId: siteId, organizationId: organization)))
-        case .sitePage:
-            return .web
+            return .screen(.route(.cell(id: id, siteId: siteId, organizationId: organizationId)))
+        case .sitePages(let siteId):
+            // The pages need no organization: the screens read the site, whoever it belongs to. A server without them opens the web.
+            return capabilities.offersSitePages ? .screen(.route(.sitePages(siteId: siteId))) : .web
+        case .sitePage(let id, let siteId):
+            return capabilities.offersSitePages ? .screen(.route(.sitePage(id: id, siteId: siteId))) : .web
         case .conversation(let id):
             return .conversation(id)
+        case .chatMessage(let chatId, let messageId):
+            return capabilities.offersMessageLinks ? .chatMessage(chatId: chatId, messageId: messageId) : .web
         case .user(let id):
             if id == userId { return .screen(.more(.account(.profile))) }
             guard let organization, peopleAccess.canSeeMembers(in: organization) else { return .web }

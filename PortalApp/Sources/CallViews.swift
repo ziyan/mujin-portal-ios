@@ -21,7 +21,10 @@ struct CallBar: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 0) {
                         Text(call.chatTitle).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
-                        Text(call.statusText).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            Text(call.statusText).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            if call.isTranscriptionOn { RecordingMark() }
+                        }
                     }
                     Spacer(minLength: 4)
                 }
@@ -60,6 +63,19 @@ struct CallBar: View {
         .glassEffect(.regular, in: .rect(cornerRadius: 24, style: .continuous))
         .padding(.horizontal, 12)
         .padding(.bottom, 4)
+    }
+}
+
+/// RecordingMark is the red dot and the word that say a call is being recorded, beside its time wherever the call is put away.
+struct RecordingMark: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle().fill(Color.statusError).frame(width: 7, height: 7)
+            // Its own key: a call is recorded as sound, and the camera screens' "Recording" means video.
+            Text("call.recordingMark").font(.caption.weight(.semibold)).foregroundStyle(Color.statusError).lineLimit(1).fixedSize()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("This call is being recorded and transcribed."))
     }
 }
 
@@ -117,9 +133,20 @@ struct CallBanner: View {
 
 /// CallLineView is a call in the chat's history: who called, how long it lasted or how it ended, and the transcript when there is one.
 struct CallLineView: View {
+    @ScaledMetric(relativeTo: .body) private var iconColumnWidth = 26
     let call: ChatCall
     let currentUserId: String
+    /// Reads the call's words and recordings, which the chat's history leaves out.
+    let loadDetail: () async throws -> ChatCall
+    let openRecording: (ChatCallRecording) -> Void
+
     @State private var isShowingTranscript = false
+    @State private var detail: ChatCall?
+    @State private var isLoading = false
+    @State private var didFailToLoad = false
+
+    /// The call with its words and recordings once they are read.
+    private var shownCall: ChatCall { detail ?? call }
 
     private var callerText: String {
         call.startedByUserId == currentUserId ? String(localized: "You called") : String(localized: "\(call.startedByUserName ?? String(localized: "Someone")) called")
@@ -141,33 +168,67 @@ struct CallLineView: View {
     }
 
     var body: some View {
-        let segments = call.spokenSegments()
+        let segments = shownCall.spokenSegments()
+        let recordings = shownCall.recordingAttachments ?? []
         VStack(spacing: 6) {
             HStack(spacing: 10) {
                 Image(systemName: isMissed ? "phone.down.fill" : "phone.fill")
                     .foregroundStyle(isMissed ? Color.statusError : Color.statusSuccess)
+                    // The two symbols differ in width, so a fixed column keeps the words of every row on one line.
+                    .frame(width: iconColumnWidth)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(callerText).font(.subheadline.weight(.semibold))
                     Text(outcomeText).font(.footnote).foregroundStyle(isMissed ? Color.statusError : Color.secondary)
                 }
-                if !segments.isEmpty {
+                if call.transcriptStatus == .ready || !segments.isEmpty {
                     Spacer(minLength: 8)
                     Button { isShowingTranscript.toggle() } label: {
                         Text(isShowingTranscript ? "Hide transcript" : "Show transcript").font(.footnote.weight(.medium)).multilineTextAlignment(.trailing)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
+                    .accessibilityIdentifier("callTranscriptToggle")
                 }
             }
-            if isShowingTranscript && !segments.isEmpty {
+            switch call.transcriptStatus {
+            case .transcribing:
+                statusText("Transcribing…")
+            case .failed:
+                statusText("No recording or transcript is available.")
+            case .none, .ready:
+                EmptyView()
+            }
+            if isShowingTranscript {
                 VStack(alignment: .leading, spacing: 6) {
+                    if isLoading {
+                        ProgressView().frame(maxWidth: .infinity)
+                    } else if didFailToLoad {
+                        Text("Could not load the transcript.").font(.footnote).foregroundStyle(Color.statusError)
+                    }
                     ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
                         (Text((segment.userName ?? "") + ": ").font(.footnote.weight(.semibold)) + Text(segment.text ?? "").font(.footnote))
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(recordings) { recording in
+                            Button { openRecording(recording) } label: {
+                                Label("Recording of \(shownCall.member(recording.uploadedByUserId)?.userName ?? "")", systemImage: "waveform")
+                                    .font(.footnote.weight(.medium))
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.accentColor)
+                            .accessibilityIdentifier("callRecording-\(recording.id)")
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("callTranscript")
             }
         }
         .padding(.horizontal, 14)
@@ -175,7 +236,29 @@ struct CallLineView: View {
         .frame(maxWidth: 360, alignment: .leading)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+        .onAppear {
+            if DemoOptions.screen == "chat-call-transcript", call.transcriptStatus == .ready { isShowingTranscript = true }
+        }
+        .task(id: isShowingTranscript) {
+            if isShowingTranscript { await loadDetailIfNeeded() }
+        }
+    }
+
+    private func statusText(_ key: LocalizedStringKey) -> some View {
+        Text(key).font(.footnote).foregroundStyle(Color.secondary).frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func loadDetailIfNeeded() async {
+        guard detail == nil, !isLoading else { return }
+        isLoading = true
+        didFailToLoad = false
+        defer { isLoading = false }
+        do {
+            detail = try await loadDetail()
+        } catch {
+            didFailToLoad = !Task.isCancelled
+        }
     }
 }
 
@@ -194,6 +277,16 @@ struct CallPeoplePicker: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selected: Set<String> = DemoOptions.screen == "call-picker" ? ["user03"] : []
     @State private var isVideo = false
+    @State private var searchText = ""
+
+    /// With this many people to pick from, the list can be searched.
+    private static let searchablePersonCount = 9
+
+    private var shownPeople: [ChatMember] {
+        let text = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return people }
+        return people.filter { $0.shownName.localizedCaseInsensitiveContains(text) || ($0.organizationName ?? "").localizedCaseInsensitiveContains(text) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -212,7 +305,7 @@ struct CallPeoplePicker: View {
                         if people.isEmpty {
                             Text("Everyone is already on the call.").foregroundStyle(.secondary)
                         }
-                        ForEach(people) { person in
+                        ForEach(shownPeople) { person in
                             Button {
                                 if selected.contains(person.userId) { selected.remove(person.userId) } else { selected.insert(person.userId) }
                             } label: {
@@ -240,6 +333,7 @@ struct CallPeoplePicker: View {
                 }
             }
             .portalList()
+            .searchablePeople(isOn: people.count >= Self.searchablePersonCount, text: $searchText)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

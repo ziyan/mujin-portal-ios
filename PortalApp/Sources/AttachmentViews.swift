@@ -44,6 +44,25 @@ extension RichBodyView where TextPart == MarkdownView {
     }
 }
 
+/// CappedAspectBox is a box of one shape that grows with the room it is offered up to a width, and whose height always
+/// follows that capped width. Built from an aspect ratio and a maximum width, a list could measure the box at the row's full
+/// width while drawing it at the cap, which on a wide screen left a tall row with its content centered in empty space.
+struct CappedAspectBox: Layout {
+    let maximumWidth: CGFloat
+    let aspect: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = min(proposal.width ?? maximumWidth, maximumWidth)
+        return CGSize(width: width, height: width / aspect)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for subview in subviews {
+            subview.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+        }
+    }
+}
+
 /// AttachmentView is one file in a text: a picture inline, a video as a card that plays, any other file as a row.
 struct AttachmentView: View {
     let attachmentId: String
@@ -103,8 +122,8 @@ private struct AttachmentImage: View {
     }
 
     var body: some View {
+        CappedAspectBox(maximumWidth: 420, aspect: Self.boxAspect) {
         Color(.tertiarySystemFill)
-            .aspectRatio(Self.boxAspect, contentMode: .fit)
             .overlay {
                 switch phase {
                 case .loading:
@@ -127,7 +146,7 @@ private struct AttachmentImage: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .frame(maxWidth: 420, alignment: .leading)
+        }
             .task(id: attachmentId) {
                 let key = AttachmentImageCache.key(connection, attachmentId)
                 if let held = AttachmentImageCache.images.object(forKey: key) {
@@ -200,8 +219,8 @@ private struct AttachmentVideo: View {
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     // A fixed 16:9 box: the poster arriving or the player replacing it never changes the row's height.
+                    CappedAspectBox(maximumWidth: 420, aspect: 16 / 9) {
                     Color.black
-                        .aspectRatio(16 / 9, contentMode: .fit)
                         .overlay {
                             if let player {
                                 VideoPlayer(player: player)
@@ -216,6 +235,7 @@ private struct AttachmentVideo: View {
                             }
                         }
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
                     .contentShape(Rectangle())
                     .onTapGesture { if player == nil { Task { await play() } } }
                     .accessibilityElement(children: player == nil ? .ignore : .contain)

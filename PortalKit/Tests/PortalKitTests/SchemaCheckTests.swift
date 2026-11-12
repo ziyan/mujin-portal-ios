@@ -46,6 +46,31 @@ import Testing
         }
     }
 
+    /// Message threads are built against the contract the server has, which the vendored schema holds: the fields and arguments are
+    /// checked wherever the app adds them for a server that offers them.
+    @Test func theThreadFieldsAreValidWhereTheyAreAdded() throws {
+        var checked = 0
+        for document in Documents.all where document.contains("linkPreviewsRemovedAt") || document.contains("OnConversationEvent(") {
+            let problems = try DocumentValidator(schema: Self.schema).problems(in: Documents.withThreads(document))
+            #expect(problems.isEmpty, "\(document.prefix(60)): \(problems)")
+            checked += 1
+        }
+        #expect(checked >= 4)
+    }
+
+    /// Dictation and reading aloud are built against the contract the server plans: the two availability fields are checked as soon as
+    /// the vendored schema has them, and not before. The app asks for them only of a server whose schema has them.
+    @Test func theVoiceAvailabilityDocumentIsValidOnceTheSchemaHasTheFields() throws {
+        let fields = (Self.schema.types["AgentVoiceSetting"]?.fields ?? []).map(\.name)
+        for (isAskingForDictation, isAskingForReadAloud) in [(true, false), (false, true), (true, true)] {
+            let hasFields = (!isAskingForDictation || fields.contains("isDictationAvailable")) && (!isAskingForReadAloud || fields.contains("isReadAloudAvailable"))
+            guard hasFields else { continue }
+            let document = Documents.agentVoiceAvailability(isAskingForDictation: isAskingForDictation, isAskingForReadAloud: isAskingForReadAloud)
+            let problems = try DocumentValidator(schema: Self.schema).problems(in: document)
+            #expect(problems.isEmpty, "\(document): \(problems)")
+        }
+    }
+
     @Test func theValidatorCatchesAWrongField() throws {
         let problems = try DocumentValidator(schema: Self.schema).problems(
             in: "query ListConversations($userId: String) { ListConversations(userId: $userId) { conversations { id noSuchField } } }")

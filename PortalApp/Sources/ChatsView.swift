@@ -11,12 +11,13 @@ struct ChatsView: View {
     @State private var model: ChatListModel?
     @State private var selection = SplitSelection()
     @State private var searchText = ""
+    @State private var columnVisibility: NavigationSplitViewVisibility = DemoOptions.isListHidden ? .detailOnly : .automatic
     @State private var newChatMode: NewChatMode?
 
     var body: some View {
-        NavigationSplitView(preferredCompactColumn: Binding(
+        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: Binding(
             get: { selection.isDetailOnTop ? .detail : .sidebar },
-            set: { selection.isDetailOnTop = $0 == .detail })
+            set: { selection.setDetailOnTop($0 == .detail) })
         ) {
             Group {
                 if !session.capabilities.offersChats {
@@ -47,6 +48,9 @@ struct ChatsView: View {
                     }
                 }
             }
+            // The floating tab bar has the one sidebar button; the split view's own beside it would be a second. The list
+            // still slides in from the leading edge.
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             if let shownConversationId = selection.detailId {
                 NavigationStack {
@@ -73,8 +77,10 @@ struct ChatsView: View {
             if appModel.isDemo, let screen = DemoOptions.screen {
                 if screen.hasPrefix("chat:") { selection.open(String(screen.dropFirst("chat:".count))) }
                 if screen == "chat-info" { selection.open("chatconv02") }
+                if screen == "chat-site-info" || screen == "chat-site-picker" { selection.open("chatsite01") }
                 if screen == "chat-reply" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selection.open("chatconv01") }
                 if let conversationId = CallDemo.conversationId(for: screen) { selection.open(conversationId) }
+                if let conversationId = SpeechDemo.conversationId(for: screen), conversationId.hasPrefix("chat") { selection.open(conversationId) }
                 if screen == "chats-new" { newChatMode = .direct }
                 if screen == "chats-new-group" { newChatMode = .group }
             }
@@ -83,6 +89,11 @@ struct ChatsView: View {
             if !searchText.isEmpty { try? await Task.sleep(nanoseconds: 300_000_000) }
             if Task.isCancelled { return }
             await model?.search(searchText)
+        }
+        .onChange(of: session.lastReadChat) { _, mark in
+            guard let mark, let model else { return }
+            model.markRead(id: mark.conversationId)
+            if model.searchText.isEmpty { session.setChatUnreadCount(model.unreadCount) }
         }
         .onChange(of: session.chatToOpen, initial: true) { _, conversationId in
             guard let conversationId else { return }
@@ -127,8 +138,9 @@ struct ChatsView: View {
                 }
             } else {
                 List(selection: $selection.selectedId) {
-                    let people = model.chats.filter { $0.chat?.isGroup != true }
+                    let people = model.chats.filter { $0.chat?.hasManyAuthors != true }
                     let groups = model.chats.filter { $0.chat?.isGroup == true }
+                    let sites = model.chats.filter { $0.chat?.isSite == true }
                     if !people.isEmpty {
                         Section("People") {
                             ForEach(people) { conversation in
@@ -140,6 +152,14 @@ struct ChatsView: View {
                     if !groups.isEmpty {
                         Section("Groups") {
                             ForEach(groups) { conversation in
+                                NavigationLink(value: conversation.id) { if let room = conversation.chat { ChatRow(room: room) } }
+                                    .listRowBackground(Color.portalCard)
+                            }
+                        }
+                    }
+                    if !sites.isEmpty {
+                        Section("Sites") {
+                            ForEach(sites) { conversation in
                                 NavigationLink(value: conversation.id) { if let room = conversation.chat { ChatRow(room: room) } }
                                     .listRowBackground(Color.portalCard)
                             }
@@ -200,7 +220,7 @@ private struct ChatRow: View {
     private var excerpt: String {
         let text = room.lastMessageExcerpt ?? ""
         if text.isEmpty { return String(localized: "No messages yet") }
-        guard room.isGroup, let author = room.lastMessageAuthorName, !author.isEmpty else { return text }
+        guard room.hasManyAuthors, let author = room.lastMessageAuthorName, !author.isEmpty else { return text }
         return "\(author): \(text)"
     }
 }

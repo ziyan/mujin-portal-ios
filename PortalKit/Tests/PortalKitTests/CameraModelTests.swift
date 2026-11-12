@@ -29,10 +29,10 @@ private func channel(_ id: Int, _ width: Int, enabled: Bool = true) -> CameraCha
 
     @Test func thePlaybackRequestNamesTheCameraTheRecordedChannelAndTheWindowInWholeMilliseconds() throws {
         let camera = Camera(
-            id: "registry01", controllerId: "controller01", originCameraId: "nvrcamera01", status: "online", isControllerConnected: true,
+            id: "registry01", controllerId: "controller1", originCameraId: "nvrcamera01", status: "online", isControllerConnected: true,
             channels: [channel(0, 1920), channel(1, 1024), channel(2, 640)])
         let path = CameraRoutes.playbackPath(camera: camera, quality: .medium, startMS: 1_700_000_000_000.4, endMS: 1_700_000_060_000.6)
-        #expect(path == "/api/v1/unifiprotect/controller01/playback/nvrcamera01?channel=0&start=1700000000000&end=1700000060001")
+        #expect(path == "/api/v1/unifiprotect/controller1/playback/nvrcamera01?channel=0&start=1700000000000&end=1700000060001")
         #expect(CameraRoutes.playbackPath(camera: camera, quality: .low, startMS: 1000, endMS: 2000).contains("channel=2&"))
         // The NVR's id is sent, not the registry's.
         #expect(!path.contains("registry01"))
@@ -80,7 +80,7 @@ private func channel(_ id: Int, _ width: Int, enabled: Bool = true) -> CameraCha
             return [
                 "ListCameras": [
                     "cameras": [
-                        ["id": "cam1", "controllerId": "controller01", "originCameraId": "nvr1", "name": "Dock door", "status": "online", "isControllerConnected": true,
+                        ["id": "cam1", "controllerId": "controller1", "originCameraId": "nvr1", "name": "Dock door", "status": "online", "isControllerConnected": true,
                          "timeZone": "America/Chicago", "channels": [["id": 0, "isEnabled": true, "width": 1920, "height": 1080], ["id": 2, "isEnabled": true, "width": 640, "height": 360]]],
                         ["id": "broken", "controllerId": NSNull(), "originCameraId": "nvr2"],
                         NSNull(),
@@ -111,7 +111,7 @@ private func channel(_ id: Int, _ width: Int, enabled: Bool = true) -> CameraCha
             case "GetCamera":
                 let identifier = variables["cameraId"] as? String ?? ""
                 if identifier == "gone" { return ["GetCamera": ["camera": NSNull()]] }
-                return ["GetCamera": ["camera": ["id": identifier, "controllerId": "controller01", "originCameraId": "nvr-\(identifier)", "name": identifier]]]
+                return ["GetCamera": ["camera": ["id": identifier, "controllerId": "controller1", "originCameraId": "nvr-\(identifier)", "name": identifier]]]
             default:
                 return [:]
             }
@@ -123,19 +123,19 @@ private func channel(_ id: Int, _ width: Int, enabled: Bool = true) -> CameraCha
 
     @Test func theNVRsZoneComesFromItsBootstrap() async {
         let transport = ScriptedTransport { request in
-            #expect(request.url?.path == "/api/v1/unifiprotect/controller01/bootstrap")
+            #expect(request.url?.path == "/api/v1/unifiprotect/controller1/bootstrap")
             return (200, ScriptedTransport.json(["nvr": ["timezone": "Europe/Berlin"], "cameras": []]))
         }
         let connection = Connection(account: makeAccount(), transport: transport)
-        #expect(await connection.nvrTimeZone(controllerId: "controller01") == "Europe/Berlin")
+        #expect(await connection.nvrTimeZone(controllerId: "controller1") == "Europe/Berlin")
     }
 
     @Test func aBootstrapWithoutAValidZoneGivesNil() async {
         let missing = Connection(account: makeAccount(), transport: ScriptedTransport { _ in (200, ScriptedTransport.json(["nvr": [:]])) })
-        #expect(await missing.nvrTimeZone(controllerId: "controller01") == nil)
+        #expect(await missing.nvrTimeZone(controllerId: "controller1") == nil)
         let invalid = Connection(account: makeAccount(), transport: ScriptedTransport { _ in (200, ScriptedTransport.json(["nvr": ["timezone": "Nowhere/Land"]])) })
-        #expect(await invalid.nvrTimeZone(controllerId: "controller01") == nil)
+        #expect(await invalid.nvrTimeZone(controllerId: "controller1") == nil)
         let offline = Connection(account: makeAccount(), transport: ScriptedTransport { _ in (502, Data()) })
-        #expect(await offline.nvrTimeZone(controllerId: "controller01") == nil)
+        #expect(await offline.nvrTimeZone(controllerId: "controller1") == nil)
     }
 }

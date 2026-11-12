@@ -9,10 +9,24 @@ public struct ServerCapabilities: Equatable, Sendable {
     public let subscriptionNames: Set<String>
     /// The arguments the SendMessage mutation takes.
     public let sendMessageArgumentNames: Set<String>
+    /// The arguments the ListConversationMessages query takes.
+    public let listMessageArgumentNames: Set<String>
+    /// The fields of the voice setting the GetAgentVoiceSetting query returns.
+    public let voiceSettingFieldNames: Set<String>
+    /// The fields of the Site type, for a feature that needs a field and not only an operation.
+    public let siteFieldNames: Set<String>
+    /// The fields of the Page type, for the documentation pages, which need fields as well as operations.
+    public let pageFieldNames: Set<String>
 
     public init(
-        queryNames: Set<String> = [], mutationNames: Set<String> = [], subscriptionNames: Set<String> = [], sendMessageArgumentNames: Set<String> = []
+        queryNames: Set<String> = [], mutationNames: Set<String> = [], subscriptionNames: Set<String> = [], sendMessageArgumentNames: Set<String> = [],
+        listMessageArgumentNames: Set<String> = [], voiceSettingFieldNames: Set<String> = [], siteFieldNames: Set<String> = [],
+        pageFieldNames: Set<String> = []
     ) {
+        self.pageFieldNames = pageFieldNames
+        self.siteFieldNames = siteFieldNames
+        self.voiceSettingFieldNames = voiceSettingFieldNames
+        self.listMessageArgumentNames = listMessageArgumentNames
         self.sendMessageArgumentNames = sendMessageArgumentNames
         self.queryNames = Set(queryNames.map(Self.normalized))
         self.mutationNames = Set(mutationNames.map(Self.normalized))
@@ -31,6 +45,9 @@ public struct ServerCapabilities: Equatable, Sendable {
 
     /// Chats between people.
     public var offersChats: Bool { offersQuery("ListChatCandidates") && offersMutation("StartDirectChat") }
+
+    /// A chat for each site, for the people with access to it.
+    public var offersSiteChats: Bool { offersMutation("OpenSiteChat") }
 
     /// Whether SendMessage takes structured mentions. Until it does, a
     /// message names an agent by its text and the server matches the name.
@@ -61,14 +78,23 @@ public struct ServerCapabilities: Equatable, Sendable {
             let subscriptionType: RootType?
         }
         let __schema: Schema
+        /// The voice setting type, asked for by name. Null on a server that has no such type.
+        let voiceSetting: RootType?
+        /// The site type, asked for by name.
+        let siteType: RootType?
+        /// The page type, asked for by name. Null on a server that has no such type.
+        let pageType: RootType?
     }
 
     init(_ introspection: Introspection) {
         func names(_ type: Introspection.RootType?) -> Set<String> { Set((type?.fields ?? []).map(\.name)) }
         let sendArguments = (introspection.__schema.mutationType?.fields ?? []).first { Self.normalized($0.name) == "sendMessage" }?.args ?? []
+        let listArguments = (introspection.__schema.queryType?.fields ?? []).first { Self.normalized($0.name) == "listConversationMessages" }?.args ?? []
         self.init(
             queryNames: names(introspection.__schema.queryType), mutationNames: names(introspection.__schema.mutationType),
-            subscriptionNames: names(introspection.__schema.subscriptionType), sendMessageArgumentNames: Set(sendArguments.map(\.name)))
+            subscriptionNames: names(introspection.__schema.subscriptionType), sendMessageArgumentNames: Set(sendArguments.map(\.name)),
+            listMessageArgumentNames: Set(listArguments.map(\.name)), voiceSettingFieldNames: names(introspection.voiceSetting),
+            siteFieldNames: names(introspection.siteType), pageFieldNames: names(introspection.pageType))
     }
 }
 
@@ -77,10 +103,13 @@ extension Documents {
     public static let serverCapabilities = """
         query ServerCapabilities {
           __schema {
-            queryType { fields { name } }
+            queryType { fields { name args { name } } }
             mutationType { fields { name args { name } } }
             subscriptionType { fields { name } }
           }
+          voiceSetting: __type(name: "AgentVoiceSetting") { fields { name } }
+          siteType: __type(name: "Site") { fields { name } }
+          pageType: __type(name: "Page") { fields { name } }
         }
         """
 }

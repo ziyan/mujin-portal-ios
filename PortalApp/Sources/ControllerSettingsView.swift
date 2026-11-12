@@ -31,7 +31,7 @@ struct ControllerSettingsView: View {
                             settings.isSyncEnabled = value
                             Task { await saveSync() }
                         }))
-                        intervalPicker(seconds: settings.syncIntervalSeconds) { value in
+                        intervalPicker(chosen: ControllerSettings.nearestChoice(to: settings.syncIntervalSeconds), choices: ControllerSettings.intervalChoices) { value in
                             settings.syncIntervalSeconds = value
                             Task { await saveSync() }
                         }
@@ -45,7 +45,7 @@ struct ControllerSettingsView: View {
                             settings.isBackupEnabled = value
                             Task { await saveBackup() }
                         }))
-                        intervalPicker(seconds: settings.backupIntervalSeconds) { value in
+                        intervalPicker(chosen: ControllerSettings.nearestBackupChoice(to: settings.backupIntervalSeconds), choices: ControllerSettings.backupIntervalChoices) { value in
                             settings.backupIntervalSeconds = value
                             Task { await saveBackup() }
                         }
@@ -61,13 +61,13 @@ struct ControllerSettingsView: View {
         }
         .navigationTitle("Controller settings")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .task { await load() }
     }
 
-    private func intervalPicker(seconds: Int64?, set: @escaping (Int64) -> Void) -> some View {
-        Picker("Every", selection: Binding(get: { ControllerSettings.nearestChoice(to: seconds) }, set: set)) {
-            ForEach(ControllerSettings.intervalChoices, id: \.self) { value in
+    private func intervalPicker(chosen: Int64, choices: [Int64], set: @escaping (Int64) -> Void) -> some View {
+        Picker("Every", selection: Binding(get: { chosen }, set: set)) {
+            ForEach(choices, id: \.self) { value in
                 Text(Duration.seconds(value).formatted(.units(allowed: [.weeks, .days, .hours, .minutes], width: .wide, maximumUnitCount: 1))).tag(value)
             }
         }
@@ -88,7 +88,7 @@ struct ControllerSettingsView: View {
     }
 
     private func saveBackup() async {
-        await save { try await $0.setBackupSettings(id: controller.id, isEnabled: settings.isBackupEnabled ?? false, intervalSeconds: ControllerSettings.nearestChoice(to: settings.backupIntervalSeconds)) }
+        await save { try await $0.setBackupSettings(id: controller.id, isEnabled: settings.isBackupEnabled ?? false, intervalSeconds: ControllerSettings.nearestBackupChoice(to: settings.backupIntervalSeconds)) }
     }
 
     private func save(_ change: (Connection) async throws -> Void) async {

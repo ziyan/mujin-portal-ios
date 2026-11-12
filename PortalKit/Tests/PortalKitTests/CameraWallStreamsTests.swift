@@ -181,6 +181,6 @@ struct CameraWallStreamsTests {
         ]
         #expect(CameraWallStreams.tileQuality.channelId(of: channels) == 2)
         #expect(CameraWallStreams.tileQuality.channelId(of: nil) == 0)
-        #expect(CameraRoutes.livePath(controllerId: "controller01", cameraId: "nvrcamera01", channel: 2) == "/api/v1/unifiprotect/controller01/livestream/nvrcamera01?channel=2")
+        #expect(CameraRoutes.livePath(controllerId: "controller1", cameraId: "nvrcamera01", channel: 2) == "/api/v1/unifiprotect/controller1/livestream/nvrcamera01?channel=2")
     }
 }

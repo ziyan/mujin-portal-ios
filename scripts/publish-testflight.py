@@ -8,7 +8,14 @@ step may already be done, so running it again is safe.
 Reads APP_ID, BETA_GROUP_NAME, KEY_ID, ISSUER_ID and KEY_PATH from the
 environment. Uses only the standard library and the openssl command.
 
+With --update-feed it instead writes what the apps read to learn of an update:
+the newest build public testers can install now. A build still waiting for beta
+review does not count, so nobody is told about a build they cannot get. Given a
+build number, it waits a while for that build first. Writes nothing when no
+build can be installed yet.
+
 Usage: publish-testflight.py <build number> [--dry-run]
+       publish-testflight.py --update-feed <file> [<build number to wait for>]
 """
 
 import base64
@@ -25,6 +32,7 @@ API = "https://api.appstoreconnect.apple.com"
 WHAT_TO_TEST = "Fixes and improvements. Please tell us about anything that looks wrong."
 PROCESSING_TIMEOUT_SECONDS = 60 * 60
 POLL_INTERVAL_SECONDS = 30
+BETA_REVIEW_WAIT_SECONDS = 30 * 60
 
 
 def encode(data):
@@ -143,7 +151,57 @@ def submit_for_review(build_id):
     require(status, answer, "submitting for beta review")
 
 
+def find_installable_build(app_id, group_id):
+    """Returns the version and number of the newest build the group can install, or None."""
+    query = urllib.parse.urlencode(
+        {
+            "filter[app]": app_id,
+            "filter[betaGroups]": group_id,
+            "filter[expired]": "false",
+            "filter[processingState]": "VALID",
+            "sort": "-uploadedDate",
+            "limit": "20",
+            "include": "buildBetaDetail,preReleaseVersion",
+            "fields[builds]": "version,buildBetaDetail,preReleaseVersion",
+            "fields[buildBetaDetails]": "externalBuildState",
+            "fields[preReleaseVersions]": "version",
+        }
+    )
+    answer = require(*call("GET", f"/v1/builds?{query}"), "reading the group's builds")
+    included = {(item["type"], item["id"]): item["attributes"] for item in answer.get("included", [])}
+    newest = None
+    for build in answer["data"]:
+        detail = build["relationships"]["buildBetaDetail"]["data"]
+        version = build["relationships"]["preReleaseVersion"]["data"]
+        if included.get((detail["type"], detail["id"]), {}).get("externalBuildState") != "IN_BETA_TESTING":
+            continue
+        number = int(build["attributes"]["version"])
+        if newest is None or number > newest["build"]:
+            newest = {"version": included[(version["type"], version["id"])]["version"], "build": number}
+    return newest
+
+
+def write_update_feed(path, wanted_build):
+    app_id = os.environ["APP_ID"]
+    group_id = find_group(app_id, os.environ["BETA_GROUP_NAME"])
+    deadline = time.time() + BETA_REVIEW_WAIT_SECONDS
+    newest = find_installable_build(app_id, group_id)
+    while wanted_build is not None and (newest is None or newest["build"] < wanted_build) and time.time() < deadline:
+        print(f"build {wanted_build}: not installable yet, newest is {newest}", flush=True)
+        time.sleep(POLL_INTERVAL_SECONDS)
+        newest = find_installable_build(app_id, group_id)
+    if newest is None:
+        print("no build can be installed yet")
+        return
+    with open(path, "w", encoding="utf-8") as feed:
+        json.dump(newest, feed)
+    print(f"update feed: {newest}")
+
+
 def main():
+    if len(sys.argv) >= 3 and sys.argv[1] == "--update-feed":
+        write_update_feed(sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else None)
+        return
     arguments = [argument for argument in sys.argv[1:] if argument != "--dry-run"]
     if len(arguments) != 1:
         sys.exit(__doc__)

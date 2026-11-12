@@ -176,6 +176,8 @@ public enum Documents {
         documents += assistantDocuments
         documents += automationDocuments
         documents += ticketDocuments
+        documents += portalFeedbackDocuments
+        documents += siteViewRuleDocuments
         documents += siteDocuments
         documents += notificationDocuments
         documents += chatDocuments
@@ -210,6 +212,9 @@ public enum Documents {
         documents += accountSecurityDocuments
         documents += peopleDocuments
         documents += webAppDocuments
+        documents += messageThreadDocuments
+        documents += messageLinkDocuments
+        documents += sitePageDocuments
         return documents
     }
 }

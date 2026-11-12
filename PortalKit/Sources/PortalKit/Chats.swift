@@ -38,10 +38,10 @@ public struct ChatMember: Codable, Equatable, Identifiable, Sendable {
 public struct ChatRoom: Codable, Equatable, Identifiable, Sendable {
     public let id: String
     public let organizationId: String?
-    /// `direct` or `group`.
+    /// `direct`, `group`, or `site`: everyone with access to a site, which the server keeps in step.
     public let chatKind: String?
     public let name: String?
-    /// The group's name, or for a direct chat the other person.
+    /// The group's name, for a direct chat the other person, or for a site chat the site and its organization.
     public let displayName: String?
     public let isMemoryFilingEnabled: Bool?
     public let lastMessageAt: String?
@@ -51,7 +51,7 @@ public struct ChatRoom: Codable, Equatable, Identifiable, Sendable {
     public let isReaderAdmin: Bool?
     /// False when the person left: they read what was said, and cannot write.
     public let isReaderMember: Bool?
-    public let readerUnreadMessageCount: Int64?
+    public var readerUnreadMessageCount: Int64?
     public let readerLastReadMessageId: String?
     public let lastMessageExcerpt: String?
     public let lastMessageAuthorName: String?
@@ -82,6 +82,9 @@ public struct ChatRoom: Codable, Equatable, Identifiable, Sendable {
     }
 
     public var isGroup: Bool { chatKind == "group" }
+    public var isSite: Bool { chatKind == "site" }
+    /// Several people speak in it, so a line says who said it.
+    public var hasManyAuthors: Bool { isGroup || isSite }
     public var title: String { (displayName ?? name ?? "").isEmpty ? "Chat" : (displayName ?? name ?? "") }
     public var unreadCount: Int { Int(readerUnreadMessageCount ?? 0) }
     public var canWrite: Bool { isReaderMember != false }
@@ -313,7 +316,7 @@ public enum LinkPreviewRules {
     public static func mayHoldLink(_ text: String) -> Bool {
         if text.contains("http://") || text.contains("https://") { return true }
         guard let expression = try? NSRegularExpression(
-            pattern: #"(^|\s)/(ticket|site|controller|virtual-controller|virtualcontroller|incident|page|release)/[^\s]+"#)
+            pattern: #"(^|\s)/(ticket|site|controller|virtual-controller|virtualcontroller|incident|page|release|chat)/[^\s]+"#)
         else { return false }
         return expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
@@ -338,8 +341,16 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
     public let hasPreviewsRemoved: Bool
     public let voice: VoiceMessage?
     public let call: ChatCall?
+    /// The message this one is a reply in the thread of; nil in the main history.
+    public let threadRootMessageId: String?
+    /// How many replies this message's thread holds and when the last came; zero and nil when it has none.
+    public internal(set) var threadReplyCount: Int
+    public internal(set) var threadLastReplyAt: String?
 
     public init(_ message: ConversationMessage) {
+        threadRootMessageId = ThreadRouting.normalized(message.threadRootMessageId)
+        threadReplyCount = max(0, message.threadReplyCount ?? 0)
+        threadLastReplyAt = message.threadLastReplyAt
         voice = message.voiceMessage
         call = message.call
         id = message.id
@@ -363,6 +374,11 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
     public var isVoiceMessage: Bool { voice != nil }
     public var isCallLine: Bool { call != nil }
     public var isReply: Bool { !(replyToMessageId ?? "").isEmpty }
+    /// The message has a thread under it, which the main history shows as a count.
+    public var hasThread: Bool { threadReplyCount > 0 }
+    /// The thread this message is part of: the one it is a reply in, else its own when it has replies. The bar beside it follows it.
+    public var threadKey: String? { threadRootMessageId ?? (hasThread ? id : nil) }
+    public var threadSummary: ThreadSummary? { hasThread ? ThreadSummary(replyCount: threadReplyCount, lastReplyAt: threadLastReplyAt) : nil }
     /// A reply whose quoted message was said before the person joined has no excerpt.
     public var hasQuotedText: Bool { !(replyToExcerpt ?? "").isEmpty }
 }
@@ -390,13 +406,22 @@ public struct ChatTimeline: Equatable, Sendable {
     private var typingNames: [String: String] = [:]
     private var isAssistantTypingAt: Date?
     public private(set) var readMarks: [String: String] = [:]
+    /// The thread this timeline lists, by the id of the message it hangs from. Nil for the main history.
+    public let threadRootMessageId: String?
 
-    public init() {}
+    public init(threadRootMessageId: String? = nil) {
+        self.threadRootMessageId = ThreadRouting.normalized(threadRootMessageId)
+    }
+
+    public var isThread: Bool { threadRootMessageId != nil }
 
     /// Replaces the history. Only messages said in the room are kept: the
-    /// person's private tool rows are not part of what the room reads.
+    /// person's private tool rows are not part of what the room reads. The main history lists every message, replies included; a thread lists its root and replies.
     public mutating func load(_ rows: [ConversationMessage]) {
-        let shared = rows.filter { $0.isChatMessage == true && ($0.role == "user" || $0.role == "assistant") }
+        let shared = rows.filter {
+            $0.isChatMessage == true && ($0.role == "user" || $0.role == "assistant")
+                && ThreadRouting.belongs($0, toViewWithThreadRootMessageId: threadRootMessageId)
+        }
         messages = shared.map(ChatMessage.init)
         persistedReactions = [:]
         for row in shared where !(row.reactions ?? []).isEmpty { persistedReactions[row.id] = row.reactions }
@@ -412,6 +437,7 @@ public struct ChatTimeline: Equatable, Sendable {
 
     /// Adds or replaces a message the person just sent, before its event arrives.
     public mutating func upsert(_ row: ConversationMessage) {
+        guard ThreadRouting.belongs(row, toViewWithThreadRootMessageId: threadRootMessageId) else { return }
         let message = ChatMessage(row)
         if let index = messages.firstIndex(where: { $0.id == message.id }) { messages[index] = message } else { messages.append(message) }
     }
@@ -432,6 +458,8 @@ public struct ChatTimeline: Equatable, Sendable {
         switch ConversationEvent.Kind(rawValue: chat.type ?? event.type) {
         case .chatSaid, .chatEdited:
             guard let row = chat.message else { return .none }
+            // A message of another thread is not listed in a thread.
+            guard ThreadRouting.belongs(row, toViewWithThreadRootMessageId: threadRootMessageId) else { return .none }
             let message = ChatMessage(row)
             if !(row.reactions ?? []).isEmpty { persistedReactions[row.id] = row.reactions }
             if let index = messages.firstIndex(where: { $0.id == message.id }) {
@@ -439,6 +467,11 @@ public struct ChatTimeline: Equatable, Sendable {
                 return .none
             }
             messages.append(message)
+            // A new reply counts under the message its thread hangs from.
+            if let root = message.threadRootMessageId, let rootIndex = messages.firstIndex(where: { $0.id == root }) {
+                messages[rootIndex].threadReplyCount += 1
+                messages[rootIndex].threadLastReplyAt = message.createdAt
+            }
             typingAt[message.authorUserId ?? ""] = nil
             return .received(messageId: message.id)
         case .chatDeleted:
@@ -448,7 +481,8 @@ public struct ChatTimeline: Equatable, Sendable {
                 ConversationMessage(
                     id: old.id, role: old.isAssistant ? "assistant" : "user", content: .string(""), createdAt: old.createdAt, isChatMessage: true,
                     authorUserId: old.authorUserId, authorName: old.authorName, authorOrganizationName: old.authorOrganizationName,
-                    deletedAt: "deleted"))
+                    deletedAt: "deleted", threadRootMessageId: old.threadRootMessageId, threadReplyCount: old.threadReplyCount,
+                    threadLastReplyAt: old.threadLastReplyAt))
             return .none
         case .chatReacted:
             guard let id = chat.messageId else { return .none }
@@ -517,6 +551,18 @@ extension Documents {
     public static let startDirectChat = """
         mutation StartDirectChat($userId: String) {
           StartDirectChat(userId: $userId) { chat { \(chatRoomFields) } conversation { id } }
+        }
+        """
+
+    public static let listSiteChatPeople = """
+        query ListSiteChatPeople($chatId: String!) {
+          ListSiteChatPeople(chatId: $chatId) { userId userName organizationId organizationName isMujinUser }
+        }
+        """
+
+    public static let openSiteChat = """
+        mutation OpenSiteChat($siteId: String) {
+          OpenSiteChat(siteId: $siteId) { chat { \(chatRoomFields) } conversation { id } }
         }
         """
 
@@ -612,7 +658,7 @@ extension Documents {
 
     static var chatDocuments: [String] {
         [
-            listChats, getChat, listChatCandidates, startDirectChat, createGroupChat, addChatMembers, removeChatMember, renameChat, setChatMemberAdmin,
+            listChats, getChat, listChatCandidates, startDirectChat, openSiteChat, listSiteChatPeople, createGroupChat, addChatMembers, removeChatMember, renameChat, setChatMemberAdmin,
             setChatNotificationLevel, setChatMemoryFiling, sendChatMessage, editChatMessage, deleteChatMessage, markChatRead, setChatTyping,
             listMessageLinkPreviews, removeMessageLinkPreviews, listAuthorizedAgents,
         ]
@@ -660,6 +706,26 @@ extension Connection {
             let StartDirectChat: Started?
         }
         guard let id = try await execute(Documents.startDirectChat, variables: ["userId": .string(userId)], as: Answer.self).StartDirectChat?.conversation?.id
+        else { throw PortalError.unreadableAnswer }
+        return id
+    }
+
+    /// The people with access to the site of a chat, who join it when mentioned or called.
+    public func siteChatPeople(chatId: String) async throws -> [ChatCandidate] {
+        struct Answer: Decodable, Sendable { let ListSiteChatPeople: [ChatCandidate]? }
+        return try await execute(Documents.listSiteChatPeople, variables: ["chatId": .string(chatId)], as: Answer.self).ListSiteChatPeople ?? []
+    }
+
+    /// Opens the chat of a site the person can read and returns their conversation of it.
+    public func openSiteChat(siteId: String) async throws -> String {
+        struct Answer: Decodable, Sendable {
+            struct Opened: Decodable, Sendable {
+                struct Conversation: Decodable, Sendable { let id: String }
+                let conversation: Conversation?
+            }
+            let OpenSiteChat: Opened?
+        }
+        guard let id = try await execute(Documents.openSiteChat, variables: ["siteId": .string(siteId)], as: Answer.self).OpenSiteChat?.conversation?.id
         else { throw PortalError.unreadableAnswer }
         return id
     }

@@ -29,7 +29,7 @@ final class BrowserFromSheetTests: XCTestCase {
     // MARK: - The browser from a controller sheet
 
     func testControllerSheetOpensLiveWebUI() {
-        let app = openResult("controller|controller01", query: "controller01")
+        let app = openResult("controller|controller1", query: "controller1")
         let row = app.buttons["Open the live web UI"]
         XCTAssertTrue(row.waitForExistence(timeout: 60), "The controller page has no live web UI row")
         row.tap()
@@ -40,7 +40,7 @@ final class BrowserFromSheetTests: XCTestCase {
     }
 
     func testControllerSheetOpensWebAppTile() {
-        let app = openResult("controller|controller01", query: "controller01")
+        let app = openResult("controller|controller1", query: "controller1")
         let tile = DemoApp.button(app, "webApp.order-board")
         DemoApp.scrollToElement(tile, in: app)
         tile.tap()
@@ -53,7 +53,7 @@ final class BrowserFromSheetTests: XCTestCase {
 
     /// The page under the browser stays as it was: the person goes back to the same place, and it is not read again.
     func testClosingTheBrowserKeepsTheControllerPageWhereItWas() {
-        let app = openResult("controller|controller01", query: "controller01")
+        let app = openResult("controller|controller1", query: "controller1")
         let tile = DemoApp.button(app, "webApp.order-board")
         DemoApp.scrollToElement(tile, in: app)
         let before = tile.frame
@@ -103,7 +103,7 @@ final class BrowserFromSheetTests: XCTestCase {
         XCTAssertTrue(DemoApp.button(app, "searchRow-\(rowKey)").waitForExistence(timeout: 30), "Closing the sheet of \(rowKey) did not return to the search", file: file, line: line)
     }
 
-    func testControllerSheetCloses() { checkSheetCloses("controller|controller01", query: "controller01") }
+    func testControllerSheetCloses() { checkSheetCloses("controller|controller1", query: "controller1") }
     func testVirtualControllerSheetCloses() { checkSheetCloses("virtualController|virtual01", query: "training") }
     func testSiteSheetCloses() { checkSheetCloses("site|site01", query: "example yard") }
     func testCameraSheetCloses() { checkSheetCloses("camera|camera01", query: "dock door") }

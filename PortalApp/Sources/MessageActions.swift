@@ -20,6 +20,29 @@ struct MessageActions {
     let onDelete: (() -> Void)?
     /// Set by the bubble that holds the message, which owns the sheet for it.
     var onSelect: () -> Void = {}
+    /// Puts the address of the message on the pasteboard. Nil for a message that is not stored yet.
+    var onCopyLink: (() -> Void)?
+    /// The words of the message as written, when it may be read aloud: a message of text, not a voice message, a call line or one
+    /// still being written. Whether the server offers reading, and whether anything of it can be said, is decided where it is held.
+    var readAloudText: String?
+    /// Reads the message aloud, or stops when it is the one being read. Set when the message is held.
+    var onReadAloud: (() -> Void)?
+    /// Whether this message is the one being read now.
+    var isReadingAloud = false
+}
+
+/// SpeakableMessages remembers which messages have something to say, so a list of them is not read through again at each redraw.
+@MainActor
+enum SpeakableMessages {
+    private static var results: [String: Bool] = [:]
+
+    static func hasSpeakableText(_ markdown: String) -> Bool {
+        if let known = results[markdown] { return known }
+        if results.count > 500 { results.removeAll() }
+        let result = ReadAloudText.hasSpeakableText(markdown)
+        results[markdown] = result
+        return result
+    }
 }
 
 /// HoldableMessage is a message bubble that opens its actions on a long press.
@@ -37,6 +60,18 @@ struct HoldableMessage<Bubble: View>: View {
         self.bubble = bubble()
     }
 
+    /// The words to read when this message may be read aloud: the server has it set up and the message has words to say.
+    private var readAloudText: String? {
+        guard let actions, session.voiceAvailability.isReadAloudAvailable, let text = actions.readAloudText, SpeakableMessages.hasSpeakableText(text) else {
+            return nil
+        }
+        return text
+    }
+
+    private func toggleReadAloud(_ text: String, messageId: String) {
+        session.readAloud.toggle(messageId: messageId, markdown: text, isDemo: appModel.isDemo)
+    }
+
     var body: some View {
         bubble
             .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in bubbleWidth = width }
@@ -47,6 +82,14 @@ struct HoldableMessage<Bubble: View>: View {
                     if let onReply = actions.onReply { Button("Reply", action: onReply) }
                     if let onEdit = actions.onEdit { Button("Edit", action: onEdit) }
                     Button("Copy") { UIPasteboard.general.string = actions.text }
+                    if let onCopyLink = actions.onCopyLink { Button("Copy link", action: onCopyLink) }
+                    if let text = readAloudText {
+                        Button {
+                            toggleReadAloud(text, messageId: actions.messageId)
+                        } label: {
+                            session.readAloud.isReading(actions.messageId) ? Text("Stop reading") : Text("Read aloud")
+                        }
+                    }
                     Button("Select") { selectingText = SelectingText(text: actions.text) }
                     if let onReact = actions.onReact {
                         ForEach(Reactions.palette, id: \.self) { emoji in
@@ -62,6 +105,7 @@ struct HoldableMessage<Bubble: View>: View {
             .task {
                 guard let actions, appModel.isDemo, let screen = DemoOptions.screen else { return }
                 let isOpening = (screen == "message-actions" && actions.messageId == "m04") || (screen == "chat-message-actions" && actions.messageId == "c10")
+                    || SpeechDemo.messageToHold(screen) == actions.messageId
                 if isOpening || (screen == "select-text" && actions.messageId == "m04") {
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
                     if isOpening { present() } else { selectingText = SelectingText(text: actions.text) }
@@ -73,6 +117,13 @@ struct HoldableMessage<Bubble: View>: View {
         guard var actions else { return }
         let text = actions.text
         actions.onSelect = { selectingText = SelectingText(text: text) }
+        if let spokenText = readAloudText {
+            let messageId = actions.messageId
+            actions.onReadAloud = { toggleReadAloud(spokenText, messageId: messageId) }
+            actions.isReadingAloud = session.readAloud.isReading(messageId)
+        } else {
+            actions.onReadAloud = nil
+        }
         MessageActionsPresenter.present(actions, bubble: AnyView(bubble), bubbleWidth: bubbleWidth, appModel: appModel, session: session)
     }
 }
@@ -265,6 +316,17 @@ struct MessageActionsView: View {
             row("Copy", systemImage: "doc.on.doc") {
                 UIPasteboard.general.string = actions.text
                 onClose(nil)
+            }
+            if let onCopyLink = actions.onCopyLink {
+                Divider()
+                row("Copy link", systemImage: "link") { onClose { onCopyLink() } }
+            }
+            if let onReadAloud = actions.onReadAloud {
+                Divider()
+                row(actions.isReadingAloud ? "Stop reading" : "Read aloud", systemImage: actions.isReadingAloud ? "speaker.slash" : "speaker.wave.2") {
+                    onClose { onReadAloud() }
+                }
+                .accessibilityIdentifier("readAloudAction")
             }
             Divider()
             row("Select", systemImage: "selection.pin.in.out") { onClose { actions.onSelect() } }

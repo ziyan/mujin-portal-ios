@@ -40,6 +40,10 @@ final class DemoState: @unchecked Sendable {
         var comments: [String: [[String: Any]]] = [:]
         var sockets: [DemoSocket] = []
         var nextNumber = 1
+        /// How many times the demo was asked to send feedback, for the screen that refuses the first.
+        var feedbackSendCount = 0
+        /// The controllers left out of site views, for the screens that have the feature.
+        var excludedControllerIds: Set<String> = []
         var virtualControllerName = "Training cell"
         var virtualControllerSize = "medium"
         var isVirtualControllerPaused = false
@@ -60,7 +64,7 @@ final class DemoState: @unchecked Sendable {
             ]
         }
         data.conversations = [
-            conversation("conversation02", "Restart the planner on controller01", "Waiting for your approval.", 120, running: true),
+            conversation("conversation02", "Restart the planner on controller1", "Waiting for your approval.", 120, running: true),
             conversation("conversation01", "Weekly status summary", "Three sites are healthy, one needs attention.", 3_600),
             conversation("conversation03", "Questions about site01", "Pallet counts match the last shift.", 90_000),
             conversation("conversation04", "Throughput by site", "Site01 leads this week.", 1_800),
@@ -103,7 +107,7 @@ final class DemoState: @unchecked Sendable {
 
                     - **site01** is healthy, with no alarms.
                     - **site02** is healthy.
-                    - **site03** had two short network drops on `controller02`.
+                    - **site03** had two short network drops on `controller2`.
 
                     ## Next steps
 
@@ -129,7 +133,7 @@ final class DemoState: @unchecked Sendable {
             [
                 "id": "m05", "role": "assistant", "createdAt": stamp(2_900),
                 "content": """
-                    The longer view, from `controller02`:
+                    The longer view, from `controller2`:
 
                     | Station | Operator | Last pick | Picks today | Average cycle | Drops | Note |
                     | --- | --- | --- | ---: | ---: | ---: | --- |
@@ -149,7 +153,7 @@ final class DemoState: @unchecked Sendable {
 
                     [Assistant ticket](https://demo.example.test/ticket/1)
 
-                    [controller03](/controller/controller03)
+                    [controller3](/controller/controller3)
 
                     [[site/site01/docks#2]]
 
@@ -165,10 +169,10 @@ final class DemoState: @unchecked Sendable {
             ])
         }
         data.messages["conversation02"] = [
-            ["id": "m10", "role": "user", "content": "Restart the planner on controller01.", "createdAt": stamp(200)],
+            ["id": "m10", "role": "user", "content": "Restart the planner on controller1.", "createdAt": stamp(200)],
             [
                 "id": "m11", "role": "assistant", "content": "I will check the planner status first.", "createdAt": stamp(190),
-                "toolCalls": [["id": "call01", "function": ["name": "controllers", "arguments": "{\"action\":\"status\",\"controller\":\"controller01\"}"]]],
+                "toolCalls": [["id": "call01", "function": ["name": "controllers", "arguments": "{\"action\":\"status\",\"controller\":\"controller1\"}"]]],
             ],
             ["id": "m12", "role": "tool", "toolCallId": "call01", "toolName": "controllers", "content": "planner: running, uptime 12 days", "createdAt": stamp(185)],
         ]
@@ -191,6 +195,19 @@ final class DemoState: @unchecked Sendable {
             return ["id": id, "role": "tool", "toolCallId": callId, "toolName": name, "content": content, "metadata": metadata, "createdAt": stamp(secondsAgo)]
         }
         func call(_ id: String, _ name: String, _ arguments: String) -> [String: Any] { ["id": id, "function": ["name": name, "arguments": arguments]] }
+        // A turn at work between two of its steps: it said what it is doing, one step is done and the next is still running.
+        if DemoOptions.screen == "conversation:conversation-working" {
+            data.conversations.append(conversation("conversation-working", "Pick rates this week", "Comparing the two cells.", 20, running: true))
+            data.messages["conversation-working"] = [
+                ["id": "m70", "role": "user", "content": "Compare the pick rates of the two cells on site01 this week.", "createdAt": stamp(40)],
+                [
+                    "id": "m71", "role": "assistant", "content": "I'll read this week's pick rates for both cells first.", "createdAt": stamp(36),
+                    "toolCalls": [call("call70", "controllers", "{\"action\":\"telemetry\",\"cell\":\"cell01\"}")],
+                ],
+                toolMessage("m72", "call70", "controllers", "pick rate: 412 per hour", note: "Read the pick rates of Pick cell A", durationMS: 1_400, 34),
+                ["id": "m73", "role": "assistant", "content": "", "createdAt": stamp(30), "toolCalls": [call("call71", "controllers", "{\"action\":\"telemetry\",\"cell\":\"cell02\"}")]],
+            ]
+        }
         func ticket(_ id: String, _ sequence: Int, _ title: String, _ status: String, _ priority: String, requester: String, organization: String, secondsAgo: TimeInterval) -> [String: Any] {
             [
                 "id": id, "sequence": sequence, "title": title, "status": status, "priority": priority, "siteId": "site01", "organizationId": organization,
@@ -227,6 +244,18 @@ final class DemoState: @unchecked Sendable {
                 member("user03", "Robin Demo", "organization01", "Example Logistics"),
                 member("user04", "Jordan Placeholder", "organization01", "Example Logistics"),
             ]),
+            chatRow("chatsite01", "chat-site", "site", "Plant North · Example Logistics", "The dock door sensor is back.", "Robin Demo", unread: 0, secondsAgo: 9_000, members: [
+                member("user01", "Alex Example", "organization01", "Example Logistics"),
+                member("user02", "Sam Sample", "organization00", "Support", staff: true),
+                member("user03", "Robin Demo", "organization01", "Example Logistics"),
+                member("user04", "Jordan Placeholder", "organization01", "Example Logistics"),
+                member("user05", "Casey Trial", "organization01", "Example Logistics"),
+                member("user06", "Morgan Mock", "organization01", "Example Logistics"),
+                member("user07", "Taylor Test", "organization01", "Example Logistics"),
+                member("user08", "Riley Stub", "organization00", "Support", staff: true),
+                member("user09", "Quinn Fixture", "organization01", "Example Logistics"),
+                member("user10", "Avery Draft", "organization01", "Example Logistics"),
+            ]),
         ]
         func said(_ id: String, _ author: String, _ name: String, _ text: String, _ secondsAgo: TimeInterval, role: String = "user", extra: [String: Any] = [:]) -> [String: Any] {
             var row: [String: Any] = [
@@ -261,8 +290,8 @@ final class DemoState: @unchecked Sendable {
                 said("l5", "user02", "Sam Sample", "- [List checklist](https://example.test/docs/list)\n- A plain item", 360),
                 said("l6", "user02", "Sam Sample", "> [Quote checklist](https://example.test/docs/quote)", 350),
                 // The assistant writes a Portal page as a path, with no server in it.
-                said("l7", "assistant", "Mujin AI", "[controller01](/controller/controller01)", 340, role: "assistant"),
-                said("l8", "assistant", "Mujin AI", "- [controller02](/controller/controller02) has an open alarm.\n- Another plain item", 330, role: "assistant"),
+                said("l7", "assistant", "Mujin AI", "[controller1](/controller/controller1)", 340, role: "assistant"),
+                said("l8", "assistant", "Mujin AI", "- [controller2](/controller/controller2) has an open alarm.\n- Another plain item", 330, role: "assistant"),
                 said("l9", "assistant", "Mujin AI", "[Site by path](/site/site01)", 320, role: "assistant"),
                 said("l10", "assistant", "Mujin AI", "[Ticket by path](/ticket/1)", 310, role: "assistant"),
             ])
@@ -275,13 +304,26 @@ final class DemoState: @unchecked Sendable {
             data.chats.append(CallDemo.chatRow(stamp: stamp))
             data.messages["chatconv03"] = CallDemo.messages(screen: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] ?? "", stamp: stamp)
         }
+        if ThreadDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
+            data.chats.append(ThreadDemo.chatRow(stamp: stamp))
+            data.conversations.append(ThreadDemo.assistantRow(stamp: stamp))
+            data.messages[ThreadDemo.chatConversationId] = ThreadDemo.chatMessages(
+                isAssistantWorking: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "thread-chat-working",
+                hasMedia: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]?.hasPrefix("thread-chat-media") == true, stamp: stamp)
+            data.messages[ThreadDemo.assistantConversationId] = ThreadDemo.assistantMessages(stamp: stamp)
+        }
         data.tickets = [
             ticket("ticket01", 1, "Gripper drops boxes at pick station 3", "open", "high", requester: "user01", organization: "organization01", secondsAgo: 7_200),
-            ticket("ticket02", 2, "Network drops on controller02", "pending", "normal", requester: "user03", organization: "organization02", secondsAgo: 20_000),
+            ticket("ticket02", 2, "Network drops on controller2", "pending", "normal", requester: "user03", organization: "organization02", secondsAgo: 20_000),
             ticket("ticket03", 3, "Label printer jams on the packing line", "new", "normal", requester: "user01", organization: "organization01", secondsAgo: 900),
             ticket("ticket04", 4, "Camera view is rotated", "solved", "low", requester: "user01", organization: "organization01", secondsAgo: 200_000),
             ticket("ticket05", 5, "Planner restart request", "closed", "normal", requester: "user03", organization: "organization02", secondsAgo: 900_000),
         ]
+        if SiteViewDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) { data.excludedControllerIds = SiteViewDemo.initiallyExcludedControllerIds }
+        if FeedbackDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]), !FeedbackDemo.hasNoFeedback(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
+            data.tickets += FeedbackDemo.tickets(stamp: stamp)
+            data.comments.merge(FeedbackDemo.comments(stamp: stamp)) { _, new in new }
+        }
         data.comments["ticket01"] = [
             [
                 "id": "comment01", "authorUserId": "user01", "isOriginalRequest": true, "isInternal": false, "createdAt": stamp(10_800),
@@ -373,30 +415,38 @@ final class DemoState: @unchecked Sendable {
     }
 
     /// Plays an assistant answer through the feeds, then stores it.
-    func playAnswer(conversationId: String, text: String) {
+    func playAnswer(conversationId: String, text: String, threadRootMessageId: String? = nil) {
         let messageId = withData { data -> String in
             data.nextNumber += 1
             return "demo-message-\(data.nextNumber)"
         }
         Task {
+            // Every event of a run answering in a thread says which.
+            let threadFields: [String: Any] = threadRootMessageId.map { ["threadRootMessageId": $0] } ?? [:]
             try? await Task.sleep(nanoseconds: 300_000_000)
             var spoken = ""
             for word in text.split(separator: " ", omittingEmptySubsequences: false) {
                 spoken += (spoken.isEmpty ? "" : " ") + word
                 broadcast(
                     conversationId: conversationId,
-                    event: ["type": "text_delta", "runId": "run-demo", "textDelta": ["messageId": messageId, "text": (spoken == word ? "" : " ") + word]])
+                    event: ["type": "text_delta", "runId": "run-demo", "textDelta": ["messageId": messageId, "text": (spoken == word ? "" : " ") + word]]
+                        .merging(threadFields) { current, _ in current })
                 try? await Task.sleep(nanoseconds: 90_000_000)
             }
             withData { data in
-                data.messages[conversationId, default: []].append([
-                    "id": messageId, "role": "assistant", "content": text, "createdAt": ISO8601DateFormatter().string(from: Date()),
-                ])
+                let createdAt = ISO8601DateFormatter().string(from: Date())
+                data.messages[conversationId, default: []].append(
+                    ["id": messageId, "role": "assistant", "content": text, "createdAt": createdAt].merging(threadFields) { current, _ in current })
+                if let threadRootMessageId {
+                    ThreadDemo.countReply(under: threadRootMessageId, at: createdAt, in: &data.messages[conversationId, default: []])
+                }
                 if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
                     data.conversations[index]["activeRunId"] = NSNull()
                 }
             }
-            broadcast(conversationId: conversationId, event: ["type": "run_complete", "runId": "run-demo", "runComplete": ["stopReason": "end_turn"]])
+            broadcast(
+                conversationId: conversationId,
+                event: ["type": "run_complete", "runId": "run-demo", "runComplete": ["stopReason": "end_turn"]].merging(threadFields) { current, _ in current })
             // As on the server: the title it writes from the first exchange comes a few seconds after the turn ends, as an event.
             if conversationId.hasPrefix("conversation-new-") {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -438,6 +488,10 @@ struct DemoTransport: HTTPTransport {
             // A browser's recording, which the phone cannot play.
             return (Data(), HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "audio/webm;codecs=opus"])!)
         }
+        if request.httpMethod == "POST", request.url?.path == "/api/v1/attachment" {
+            // An upload: the demo keeps nothing and names every file the same.
+            return (Data(#"{"id":"upload-demo-01"}"#.utf8), HTTPURLResponse(url: request.url!, statusCode: 201, httpVersion: nil, headerFields: nil)!)
+        }
         if let path = request.url?.path, path.hasPrefix("/api/v1/user/") || path.hasPrefix("/api/v1/organization/") || path.hasPrefix("/api/v1/attachment/") {
             // Two demo people and one organization have a picture; everyone else gets a 404 and keeps their initials.
             let image = DemoPictures.jpeg(forPath: path)
@@ -458,9 +512,64 @@ struct DemoTransport: HTTPTransport {
         if operation == "ListConversations", let delay = ProcessInfo.processInfo.environment["PORTAL_DEMO_LIST_DELAY_SECONDS"].flatMap(UInt64.init) {
             try await Task.sleep(nanoseconds: delay * 1_000_000_000)
         }
+        if operation == "ListPortalFeedback", FeedbackDemo.failsToList(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
+            let refusal = try JSONSerialization.data(withJSONObject: ["errors": [["message": FeedbackDemo.listFailureMessage]]])
+            return (refusal, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        if operation == "SubmitPortalFeedback", FeedbackDemo.failsFirstSend(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]),
+            state.withData({ data in
+                data.feedbackSendCount += 1
+                return data.feedbackSendCount
+            }) == 1
+        {
+            let refusal = try JSONSerialization.data(withJSONObject: ["errors": [["message": FeedbackDemo.failureMessage]]])
+            return (refusal, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        if let message = PagesDemo.refusal(operation: operation, screen: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
+            let refusal = try JSONSerialization.data(withJSONObject: ["errors": [["message": message]]])
+            return (refusal, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
         let answer = respond(operation: operation, variables: variables)
         let payload = try JSONSerialization.data(withJSONObject: ["data": answer])
         return (payload, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+    }
+
+    /// The answers of the screens for a controller left out of site views, a site's telemetry source and the alarm levels.
+    private func siteViewAnswer(operation: String, variables: [String: Any]) -> [String: Any]? {
+        let screen = ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]
+        let excluded = state.withData { $0.excludedControllerIds }
+        let cellId = variables["cellId"] as? String
+        switch operation {
+        case "ListControllers":
+            let ids = SiteViewDemo.controllerIds(inCell: cellId)
+            let rows = SiteViewDemo.controllerRows(excluded: excluded).filter { ids == nil || ids!.contains($0["id"] as? String ?? "") }
+            return ["ListControllers": ["controllers": rows, "meta": ["totalCount": rows.count]]]
+        case "GetController":
+            let row = SiteViewDemo.controllerRows(excluded: excluded).first { ($0["id"] as? String) == (variables["controllerId"] as? String) }
+            return ["GetController": row ?? NSNull()]
+        case "ListCells":
+            return ["ListCells": ["cells": SiteViewDemo.cells.map { ["id": $0.id, "name": $0.name, "controllerIds": $0.controllerIds, "virtualControllerIds": [], "cameraIds": []] as [String: Any] }]]
+        case "ListControllerTelemetrySummaries":
+            return ["ListControllerTelemetrySummaries": SiteViewDemo.telemetrySummaries(requested: variables["controllerIds"] as? [String])]
+        case "ListSiteExcludedControllerIDs":
+            let ids = SiteViewDemo.controllerIds(inCell: cellId)
+            return ["ListSiteExcludedControllerIDs": excluded.sorted().filter { ids == nil || ids!.contains($0) }]
+        case "ModifyControllerExclusion":
+            let controllerId = variables["controllerId"] as? String ?? ""
+            let isExcluded = (variables["controller"] as? [String: Any])?["isExcludedFromSiteViews"] as? Bool ?? false
+            state.withData { data in
+                if isExcluded { data.excludedControllerIds.insert(controllerId) } else { data.excludedControllerIds.remove(controllerId) }
+            }
+            return ["ModifyController": ["controller": ["id": controllerId, "isExcludedFromSiteViews": isExcluded]]]
+        case "ListSiteActiveAlarms" where SiteViewDemo.alarmLevelScreens.contains(screen ?? ""):
+            let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
+            return [
+                "ListSiteActiveAlarms": DemoCells.narrow(
+                    [["controllerId": "controller1", "isAvailable": true, "alarms": ["alarms": SiteViewDemo.levelAlarms(screen: screen, stamp: stamp)]]], variables: variables)
+            ]
+        default:
+            return nil
+        }
     }
 
     /// The demo's one virtual controller, as the server describes it now.
@@ -476,8 +585,11 @@ struct DemoTransport: HTTPTransport {
     private func respond(operation: String, variables: [String: Any]) -> [String: Any] {
         if let answer = AccountDemo.respond(operation: operation, variables: variables) { return answer }
         if let answer = PlatformDemo.respond(operation: operation, variables: variables) { return answer }
+        if let answer = ThreadDemo.respondToCalls(operation: operation, variables: variables, stamp: { ISO8601DateFormatter().string(from: Date().addingTimeInterval(-$0)) }) { return answer }
         if let answer = CallDemo.respond(operation: operation, variables: variables) { return answer }
         if let answer = SearchDemo.respond(operation: operation, variables: variables) { return answer }
+        if let answer = PagesDemo.respond(operation: operation, variables: variables, screen: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) { return answer }
+        if SiteViewDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]), let answer = siteViewAnswer(operation: operation, variables: variables) { return answer }
         let conversationId = variables["conversationId"] as? String ?? ""
         switch operation {
         case "Me":
@@ -492,22 +604,62 @@ struct DemoTransport: HTTPTransport {
         case "ServerCapabilities":
             // The call screens are shot against a server that has voice messages and calls; the others against one that does not.
             let hasCalls = CallDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
-            return [
+            // The thread screens are shot against a server that reads one thread or the main history without replies.
+            let hasThreads = ThreadDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            // Dictation and reading aloud are shot against a server whose voice setting says whether each is set up.
+            let hasSpeech = SpeechDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            let hasCallHistory = ThreadDemo.isCallHistoryScreen(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            var queryFields: [[String: Any]] = [
+                ["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"],
+                ["name": "globalSearch"],
+                ["name": "listConversationMessages", "args": hasThreads ? [["name": "threadRootMessageId"]] : []],
+            ]
+            if hasCallHistory { queryFields.append(["name": "listChatCalls"]) }
+            var mutationFields: [[String: Any]] = [
+                ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"], ["name": "openSiteChat"],
+            ]
+            if hasCalls { mutationFields += [["name": "startChatCall"], ["name": "joinChatCallMedia"]] }
+            mutationFields.append(["name": "setMainConversation"])
+            // Feedback about Portal is shot against a server that has it; every other screen is not.
+            if FeedbackDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) { mutationFields.append(["name": "submitPortalFeedback"]) }
+            // Leaving a controller out of site views, the site's telemetry source and the alarm levels come with one server release.
+            let hasSiteViewRules = SiteViewDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            if hasSiteViewRules { queryFields.append(["name": "listSiteExcludedControllerIDs", "args": [["name": "siteId"], ["name": "cellId"]]]) }
+            if hasThreads { mutationFields.append(["name": "openChatMessage"]) }
+            // Documentation pages are shot against a server that has them.
+            let hasPages = PagesDemo.owns(ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
+            if hasPages {
+                queryFields += ["listPages", "getPage", "getPageRevision", "listPageRevisions"].map { ["name": $0] }
+                mutationFields += ["createPage", "modifyPage", "publishPage"].map { ["name": $0] }
+            }
+            var schemaAnswer: [String: Any] = [
                 "__schema": [
-                    "queryType": ["fields": [["name": "listTickets"], ["name": "listSites"], ["name": "listConversationWaiting"], ["name": "listChatCandidates"], ["name": "listControllerWebApps"], ["name": "globalSearch"]]],
-                    "mutationType": [
-                        "fields": [
-                            ["name": "sendMessage", "args": hasCalls ? [["name": "voiceMessage"]] : []], ["name": "registerPushDevice"], ["name": "startDirectChat"],
-                        ] + (hasCalls ? [["name": "startChatCall"], ["name": "joinChatCallMedia"]] : [])
-                    ],
+                    "queryType": ["fields": queryFields],
+                    "mutationType": ["fields": mutationFields],
                     "subscriptionType": ["fields": [["name": "onConversationEvent"]] + (hasCalls ? [["name": "onChatCallEvent"], ["name": "onChatCallSignal"]] : [])],
                 ]
             ]
+            let voiceSettingFields = hasSpeech ? SpeechDemo.voiceSettingFieldNames : ["speechVoice", "speechVoices", "defaultSpeechVoice", "previewText"]
+            schemaAnswer["voiceSetting"] = ["fields": voiceSettingFields.map { ["name": $0] }]
+            schemaAnswer["siteType"] = ["fields": (hasSiteViewRules ? ["id", "name", "telemetrySourceControllerId"] : ["id", "name"]).map { ["name": $0] }]
+            if hasPages {
+                let pageFields = ["id", "siteId", "parentPageId", "position", "currentRevisionId", "title", "icon", "isPublished", "draftTitle", "draftContent", "viewerCapabilities"]
+                schemaAnswer["pageType"] = ["fields": pageFields.map { ["name": $0] }]
+            }
+            return schemaAnswer
         case "GetMainAgent":
             return ["GetMainAgent": ["id": "agent01", "name": "Assistant", "isMain": true]]
         case "ListConversations":
             if variables["conversationKind"] as? String == "chat" {
-                return ["ListConversations": ["conversations": state.withData { $0.chats }, "meta": ["totalCount": 2]]]
+                // A list leaves out who is in a site chat, as a real server does.
+                let rows = state.withData { $0.chats }.map { row -> [String: Any] in
+                    guard var room = row["chat"] as? [String: Any], room["chatKind"] as? String == "site" else { return row }
+                    room["members"] = [[String: Any]]()
+                    var listed = row
+                    listed["chat"] = room
+                    return listed
+                }
+                return ["ListConversations": ["conversations": rows, "meta": ["totalCount": 3]]]
             }
             return ["ListConversations": ["conversations": state.withData { $0.conversations }, "meta": ["totalCount": 7]]]
         case "GetConversation":
@@ -535,6 +687,22 @@ struct DemoTransport: HTTPTransport {
             return ["StartDirectChat": ["chat": ["id": "chat01"], "conversation": ["id": "chatconv01"]]]
         case "CreateGroupChat":
             return ["CreateGroupChat": ["chat": ["id": "chat02"], "conversation": ["id": "chatconv02"]]]
+        case "ListSiteChatPeople":
+            let people: [[String: Any]] = [("user01", "Alex Example"), ("user02", "Sam Sample"), ("user03", "Robin Demo"), ("user11", "Drew Sample")].map {
+                ["userId": $0.0, "userName": $0.1, "organizationId": "organization01", "organizationName": "Example Logistics", "isMujinUser": false]
+            }
+            return ["ListSiteChatPeople": people]
+        case "OpenChatMessage":
+            // A link to a message opens the reader's own conversation of the chat; a message the demo does not hold is not found.
+            let messageId = variables["messageId"] as? String ?? ""
+            let isHeld = state.withData { $0.messages[ThreadDemo.chatConversationId]?.contains { ($0["id"] as? String) == messageId } ?? false }
+            return isHeld ? ["OpenChatMessage": ["conversation": ["id": ThreadDemo.chatConversationId]]] : ["OpenChatMessage": NSNull()]
+        case "GetMessageThreadRoot":
+            let messageId = variables["messageId"] as? String ?? ""
+            let root = state.withData { $0.messages[conversationId]?.first { ($0["id"] as? String) == messageId }?["threadRootMessageId"] }
+            return ["GetMessageThreadRoot": ["threadRootMessageId": root ?? NSNull()]]
+        case "OpenSiteChat":
+            return ["OpenSiteChat": ["chat": ["id": "chat-site"], "conversation": ["id": "chatsite01"]]]
         case "AddChatMembers":
             // As on the server: the people join the same chat, and a direct chat becomes a group of everyone, its two people administrators.
             let chatId = variables["chatId"] as? String ?? ""
@@ -573,6 +741,8 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListMessageLinkPreviews": ids.compactMap { id -> [String: Any]? in
                     switch id {
+                    case "t10":
+                        return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash05", "linkKind": "external", "url": "https://example.test/docs/door-wiring", "title": "Dock door wiring guide", "description": "Where the sensor cable runs and how to seat it.", "siteName": "example.test"]]]
                     case "c2":
                         return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash01", "linkKind": "ticket", "resourceId": "ticket01", "title": "Gripper drops boxes at pick station 3", "description": "Ticket #1", "statusText": "open", "path": "/ticket/1"]]]
                     case "sc1":
@@ -586,10 +756,20 @@ struct DemoTransport: HTTPTransport {
                     }
                 }
             ]
-        case "SetChatTyping", "MarkChatRead", "EditChatMessage", "DeleteChatMessage", "RemoveMessageLinkPreviews":
+        case "MarkChatRead":
+            let chatId = variables["chatId"] as? String
+            state.withData { data in
+                for index in data.chats.indices where (data.chats[index]["chatId"] as? String) == chatId {
+                    guard var room = data.chats[index]["chat"] as? [String: Any] else { continue }
+                    room["readerUnreadMessageCount"] = 0
+                    data.chats[index]["chat"] = room
+                }
+            }
+            return [operation: NSNull()]
+        case "SetChatTyping", "EditChatMessage", "DeleteChatMessage", "RemoveMessageLinkPreviews":
             return [operation: NSNull()]
         case "ListConversationMessages":
-            return ["ListConversationMessages": state.withData { $0.messages[conversationId] ?? [] }]
+            return ["ListConversationMessages": ThreadDemo.messages(state.withData { $0.messages[conversationId] ?? [] }, variables: variables)]
         case "ListSites":
             let all: [[String: Any]] = [
                 ["id": "site01", "name": "site01", "organizationId": "organization01", "isArchived": false, "viewerCapabilities": ["virtual_controller:create"]],
@@ -601,7 +781,7 @@ struct DemoTransport: HTTPTransport {
             ]
             // A customer sees its own organization's sites; a Mujin user sees them all, or one organization's when asked.
             let scope = variables["organizationId"] as? String ?? (DemoOptions.isStaff ? nil : "organization01")
-            let shown = all.filter { scope == nil || ($0["organizationId"] as? String) == scope }
+            let shown = SiteViewDemo.sites(all.filter { scope == nil || ($0["organizationId"] as? String) == scope }, screen: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"])
             return ["ListSites": ["sites": shown, "meta": ["totalCount": shown.count]]]
         case "ListOrganizations":
             return ["ListOrganizations": ["organizations": [["id": "organization01", "name": "Example Logistics", "isMujin": false, "isActive": true, "hasLogo": true, "modifiedAt": "2026-01-01T00:00:00Z"], ["id": "organization02", "name": "Sample Foods", "isMujin": false, "isActive": true], ["id": "organization00", "name": "Support", "isMujin": true, "isActive": true]], "meta": ["totalCount": 2]]]
@@ -614,13 +794,13 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListSiteActiveAlarms": DemoCells.narrow([
                     [
-                        "controllerId": "controller01", "isAvailable": true,
+                        "controllerId": "controller1", "isAvailable": true,
                         "alarms": ["alarms": [
                             ["logEntryId": "alarmEntry01", "alarmLevel": "error", "alarmMessage": "Gripper suction pressure is low", "alarmStatus": "active", "occurredAt": stamp(1_200), "originLabel": "Pick station gripper"],
-                            ["logEntryId": "alarmEntry02", "alarmLevel": "warning", "alarmMessage": "Conveyor 2 is running slowly", "alarmStatus": "active", "occurredAt": stamp(5_400), "originLabel": "controller01"],
+                            ["logEntryId": "alarmEntry02", "alarmLevel": "warning", "alarmMessage": "Conveyor 2 is running slowly", "alarmStatus": "active", "occurredAt": stamp(5_400), "originLabel": "controller1"],
                         ]],
                     ],
-                    ["controllerId": "controller02", "isAvailable": false, "alarms": NSNull()],
+                    ["controllerId": "controller2", "isAvailable": false, "alarms": NSNull()],
                 ], variables: variables)
             ]
         case "GetAlarmDetail":
@@ -629,9 +809,10 @@ struct DemoTransport: HTTPTransport {
             controllerClock.timeZone = TimeZone(secondsFromGMT: -4 * 3600) ?? .current
             return [
                 "GetAlarmDetail": [
-                    "logEntryId": variables["logEntryId"] as? String ?? "alarmEntry01", "alarmStatus": "active", "alarmLevel": "error",
+                    "logEntryId": variables["logEntryId"] as? String ?? "alarmEntry01", "alarmStatus": "active",
+                    "alarmLevel": ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"] == "alarm-levels-critical" ? "critical" : "error",
                     "alarmMessage": "Gripper suction pressure is low", "occurredAt": controllerClock.string(from: Date().addingTimeInterval(-1_200)),
-                    "originKind": "device", "originControllerId": "controller01",
+                    "originKind": "device", "originControllerId": "controller1",
                     "originFields": [["key": "deviceName", "value": "gripper_1"], ["key": "zoneName", "value": "pick_zone_a"]],
                     "metadata": [
                         ["key": "alarmCode", "value": "E1042"], ["key": "pressureKPa", "value": "38.5"], ["key": "thresholdKPa", "value": "60"],
@@ -645,7 +826,7 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListSiteMobileRobots": DemoCells.narrow([
                     [
-                        "controllerId": "controller01", "isAvailable": true,
+                        "controllerId": "controller1", "isAvailable": true,
                         "mobileRobots": ["robots": [
                             ["name": "robot_1", "status": "Running", "isOnline": true, "hasError": false, "powerLevel": 0.82, "isCharging": false, "isLoaded": true],
                             ["name": "robot_2", "status": "Paused", "isOnline": true, "hasError": true, "error": "Lost localization near aisle 4", "powerLevel": 0.4, "isCharging": false, "isLoaded": false],
@@ -656,27 +837,27 @@ struct DemoTransport: HTTPTransport {
             ]
         case "ListControllers":
             let controllers: [[String: Any]] = [
-                ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write", "controller:edit", "backup:delete"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
-                ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
-                ["id": "controller03", "comment": "Palletizer controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": ["id": "connection03"], "hypervisorState": ["version": "2026.10.2"]],
+                ["id": "controller1", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write", "controller:edit", "backup:delete"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
+                ["id": "controller2", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
+                ["id": "controller3", "comment": "Palletizer controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": ["id": "connection03"], "hypervisorState": ["version": "2026.10.2"]],
             ]
             let shown = DemoCells.narrow(controllers, key: "id", variables: variables)
             return ["ListControllers": ["controllers": shown, "meta": ["totalCount": shown.count]]]
         case "GetController":
             let controllerId = variables["controllerId"] as? String ?? ""
             let known: [[String: Any]] = [
-                ["id": "controller01", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write", "controller:edit", "backup:delete"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
-                ["id": "controller02", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
-                ["id": "controller03", "comment": "Palletizer controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": ["id": "connection03"], "hypervisorState": ["version": "2026.10.2"]],
+                ["id": "controller1", "comment": "Pick station controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect", "controller:write", "controller:edit", "backup:delete"], "releaseId": "release01", "releaseImageId": "image01", "connection": ["id": "connection01"], "hypervisorState": ["version": "2026.10.2"]],
+                ["id": "controller2", "comment": "Packing line controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": NSNull(), "hypervisorState": ["version": "2026.9.4"]],
+                ["id": "controller3", "comment": "Palletizer controller", "siteId": "site01", "organizationId": "organization01", "region": "us-1", "viewerCapabilities": ["controller:connect"], "releaseId": "release01", "connection": ["id": "connection03"], "hypervisorState": ["version": "2026.10.2"]],
             ]
             if let controller = known.first(where: { ($0["id"] as? String) == controllerId }) { return ["GetController": controller] }
             return ["GetController": NSNull()]
         case "ListControllerTelemetrySummaries":
             let requestedIds = variables["controllerIds"] as? [String]
             let summaries: [[String: Any]] = [
-                ["controllerId": "controller01", "isAvailable": true, "activeAlarmCount": 1, "totals": ["pickOperationCount": 1_480, "pickedPartCount": 1_392, "humanInterventionCount": 21, "directRobotThroughputPartsPerHour": 58.0]],
-                ["controllerId": "controller02", "isAvailable": false],
-                ["controllerId": "controller03", "isAvailable": true, "activeAlarmCount": 0, "totals": ["pickOperationCount": 620, "pickedPartCount": 604, "humanInterventionCount": 3, "directRobotThroughputPartsPerHour": 31.5]],
+                ["controllerId": "controller1", "isAvailable": true, "activeAlarmCount": 1, "totals": ["pickOperationCount": 1_480, "pickedPartCount": 1_392, "humanInterventionCount": 21, "directRobotThroughputPartsPerHour": 58.0]],
+                ["controllerId": "controller2", "isAvailable": false],
+                ["controllerId": "controller3", "isAvailable": true, "activeAlarmCount": 0, "totals": ["pickOperationCount": 620, "pickedPartCount": 604, "humanInterventionCount": 3, "directRobotThroughputPartsPerHour": 31.5]],
             ]
             return ["ListControllerTelemetrySummaries": summaries.filter { requestedIds == nil || requestedIds!.contains($0["controllerId"] as? String ?? "") }]
         case "ListCells":
@@ -685,16 +866,27 @@ struct DemoTransport: HTTPTransport {
             return [
                 "ListSiteOrchestrators": DemoCells.narrow([
                     [
-                        "controllerId": "controller01", "isAvailable": true,
+                        "controllerId": "controller1", "isAvailable": true,
                         "orchestrators": ["activeRunModeName": "Normal", "orchestrators": [
                             ["orchestratorId": "orchestrator01", "orchestratorType": "productioncycle", "runStatus": "Idle", "processStatus": "Started", "hasError": false, "state": ["productionCycleStatus": "Running"]],
                             ["orchestratorId": "orchestrator02", "orchestratorType": "warehouseexecution", "runStatus": "Working", "processStatus": "Started", "hasError": false, "state": ["warehouseExecutionState": ["warehouseExecutionStatus": "Paused"]]],
                             ["orchestratorId": "orchestrator03", "orchestratorType": "packing_line", "runStatus": "Idle", "hasError": true, "statusMessage": "Label printer not responding", "state": ["printerIsReady": false]],
                         ]],
                     ],
-                    ["controllerId": "controller02", "isAvailable": false],
+                    ["controllerId": "controller2", "isAvailable": false],
                 ], variables: variables)
             ]
+        case "ListControllerAlarms", "ListControllerOrchestrators", "ListControllerMobileRobots":
+            // A controller's own reads answer with its row of the site's, which is what the site's read held before the controller's own existed.
+            let siteOperation = ["ListControllerAlarms": "ListSiteActiveAlarms", "ListControllerOrchestrators": "ListSiteOrchestrators", "ListControllerMobileRobots": "ListSiteMobileRobots"][operation] ?? ""
+            let field = ["ListControllerAlarms": "alarms", "ListControllerOrchestrators": "orchestrators", "ListControllerMobileRobots": "mobileRobots"][operation] ?? ""
+            let rows = respond(operation: siteOperation, variables: [:])[siteOperation] as? [[String: Any]] ?? []
+            let row = rows.first { ($0["controllerId"] as? String) == (variables["controllerId"] as? String) }
+            let answerName = ["ListControllerAlarms": "ListControllerActiveAlarms", "ListControllerOrchestrators": "ListControllerOrchestrators", "ListControllerMobileRobots": "ListControllerMobileRobots"][operation] ?? ""
+            if let own = row?[field] as? [String: Any] { return [answerName: own] }
+            if operation == "ListControllerAlarms" { return [answerName: ["alarms": [[String: Any]]()]] }
+            if operation == "ListControllerMobileRobots" { return [answerName: ["robots": [[String: Any]]()]] }
+            return [answerName: NSNull()]
         case "ListControllerWebApps":
             return ["ListControllerWebApps": DemoWebApps.list(controllerId: variables["controllerId"] as? String, virtualControllerId: variables["virtualControllerId"] as? String)]
         case "ListSiteUserIDs":
@@ -715,7 +907,7 @@ struct DemoTransport: HTTPTransport {
                     "createdAt": "2026-10-20T09:00:00Z",
                     "description": [["locale": "en", "text": "Faster picking and steadier packing lines."], ["locale": "ja-JP", "text": "ピッキングが速くなり、梱包ラインが安定します。"]],
                     "changelog": [
-                        ["locale": "en", "text": "## Improvements\n\n- Pick cycles are about 8 percent shorter on mixed trays.\n- The packing line planner recovers from a label printer fault without a restart.\n\n## Fixes\n\n- Alarms no longer repeat after a network drop."],
+                        ["locale": "en", "text": "## Data entry\n\nA long first paragraph, as a real release note has, that says what changed for the people on the floor and why, so that it wraps over several lines on a phone and takes fewer on a wide screen. It goes on for a while so that the height of the row depends on the width it is measured at.\n\n<img src=\"attachment:imagedemo02\" height=\"500px\" alt=\"The screen asking for data\" />\n\nAnother paragraph follows the picture and is about as long, so the row holds words, then a picture, then words, as a real note does, and the picture sits in the middle of it rather than at either end.\n\n![camera-01.jpg](attachment:imagedemo02)\n\n## Improvements\n\n- Pick cycles are about 8 percent shorter on mixed trays.\n- The packing line planner recovers from a label printer fault without a restart.\n\n## Fixes\n\n- Alarms no longer repeat after a network drop."],
                         ["locale": "ja-JP", "text": "## 改善\n\n- 混在トレイのピッキングサイクルが約8%短縮されました。\n- 梱包ラインのプランナーが、ラベルプリンターの障害から再起動なしで復旧します。\n\n## 修正\n\n- ネットワーク切断後にアラームが繰り返されなくなりました。"],
                     ],
                     "images": [["id": "image01", "tag": "2026.10.2", "labelVersion": "2026.10.2"]],
@@ -736,7 +928,7 @@ struct DemoTransport: HTTPTransport {
         case "GetReleaseImage":
             return ["GetReleaseImage": ["id": "image01", "releaseId": "release01", "registry": "registry.example.test", "repository": "controller/base", "tag": "2026.10.2", "digest": "sha256:0123abcd", "labelVersion": "2026.10.2", "labelProject": "appcontroller", "labelPreset": "standard", "labelHardwares": ["hw-a", "hw-b"], "labelBuild": "1042", "createdAt": "2026-10-20T09:00:00Z"]]
         case "ListControllersUsingRelease":
-            return ["ListControllersUsingRelease": [["id": "controller01", "comment": "Pick station controller", "releaseId": "release01", "releaseImageId": "image01"], ["id": "controller02", "releaseId": "release01"]]]
+            return ["ListControllersUsingRelease": [["id": "controller1", "comment": "Pick station controller", "releaseId": "release01", "releaseImageId": "image01"], ["id": "controller2", "releaseId": "release01"]]]
         case "ListVirtualControllerSnapshots":
             return ["ListVirtualControllerSnapshots": ["snapshots": [
                 ["id": "snapshot01", "virtualControllerId": "virtual01", "comment": "Before the planner update", "status": "ready", "createdAt": "2026-10-28T08:00:00Z"],
@@ -752,18 +944,18 @@ struct DemoTransport: HTTPTransport {
             return ["CreateVirtualController": ["virtualController": Self.virtualControllerRow(DemoState.Data())]]
         case "ListBackups":
             return ["ListBackups": ["backups": [
-                ["id": "backup01", "controllerId": "controller01", "label": "Nightly", "createdAt": "2026-10-30T02:00:00Z", "sizeBytes": 48_000_000, "sourceVersion": "2026.10.2"],
-                ["id": "backup02", "controllerId": "controller01", "label": "Before the planner update", "createdAt": "2026-10-27T14:30:00Z", "sizeBytes": 47_500_000, "sourceVersion": "2026.9.4"],
+                ["id": "backup01", "controllerId": "controller1", "label": "Nightly", "createdAt": "2026-10-30T02:00:00Z", "sizeBytes": 48_000_000, "sourceVersion": "2026.10.2"],
+                ["id": "backup02", "controllerId": "controller1", "label": "Before the planner update", "createdAt": "2026-10-27T14:30:00Z", "sizeBytes": 47_500_000, "sourceVersion": "2026.9.4"],
             ], "meta": ["totalCount": 2]]]
         case "GetControllerSyncProgress":
             return ["GetControllerSyncProgress": ["retrievedAt": "2026-10-31T09:00:00Z", "syncState": ["reportedAt": "2026-10-31T09:00:00Z", "progress": [
                 ["resourceType": "tickets", "pushedCount": 320, "totalCount": 400], ["resourceType": "pages", "pushedCount": 90, "totalCount": 90],
             ]]]]
         case "ModifyController", "AssignControllersToSite", "DeleteBackup":
-            return [operation: ["controller": ["id": "controller01"], "backupId": "backup01", "controllerIds": ["controller01"]]]
+            return [operation: ["controller": ["id": "controller1"], "backupId": "backup01", "controllerIds": ["controller1"]]]
         case "ListAlarmSubscriptions":
             return ["ListAlarmSubscriptions": ["alarmSubscriptions": [
-                ["id": "alarm01", "name": "Pick station", "isEnabled": true, "minimumAlarmLevel": "warning", "controllerIds": ["controller01"], "virtualControllerIds": []],
+                ["id": "alarm01", "name": "Pick station", "isEnabled": true, "minimumAlarmLevel": "warning", "controllerIds": ["controller1"], "virtualControllerIds": []],
             ], "meta": ["totalCount": 1]]]
         case "CreateAlarmSubscription", "ModifyAlarmSubscription", "DeleteAlarmSubscription":
             return [operation: NSNull()]
@@ -771,13 +963,13 @@ struct DemoTransport: HTTPTransport {
             let rows = state.withData { data -> [[String: Any]] in data.isVirtualControllerDestroyed ? [] : [Self.virtualControllerRow(data)] }
             return ["ListVirtualControllers": ["virtualControllers": rows, "meta": ["totalCount": rows.count]]]
         case "RetrieveControllerLink":
-            return ["RetrieveControllerLink": ["id": "controller09", "comment": "New pick station", "viewerCapabilities": []]]
+            return ["RetrieveControllerLink": ["id": "controller9", "comment": "New pick station", "viewerCapabilities": []]]
         case "ApproveControllerLink":
-            return ["ApproveControllerLink": ["controller": ["id": "controller09"]]]
+            return ["ApproveControllerLink": ["controller": ["id": "controller9"]]]
         case "GetControllerSettings":
-            return ["GetController": ["id": "controller01", "isSyncEnabled": true, "syncIntervalSeconds": 3_600, "isBackupEnabled": true, "backupIntervalSeconds": 86_400]]
+            return ["GetController": ["id": "controller1", "isSyncEnabled": true, "syncIntervalSeconds": 3_600, "isBackupEnabled": true, "backupIntervalSeconds": 86_400]]
         case "SetControllerSyncSettings", "SetControllerBackupSettings":
-            return [operation: ["controller": ["id": "controller01"]]]
+            return [operation: ["controller": ["id": "controller1"]]]
         case "ListVirtualControllerAlarms":
             return ["ListControllerActiveAlarms": ["alarms": [["alarmLevel": "warning", "alarmMessage": "Disk usage above 80 percent", "alarmStatus": "active", "occurredAt": "2026-10-31T08:00:00Z"]]]]
         case "ListSiteVirtualControllers":
@@ -806,13 +998,13 @@ struct DemoTransport: HTTPTransport {
         case "ListVirtualControllersUsingRelease":
             return ["ListVirtualControllersUsingRelease": [["id": "virtual01", "name": "Training cell", "status": "running", "releaseId": "release01"]]]
         case "ListControllerSyncedUserCounts":
-            return ["ListControllerSyncedUserCounts": [["controllerId": "controller01", "count": 3, "isAvailable": true], ["controllerId": "controller02", "count": 0, "isAvailable": true]]]
+            return ["ListControllerSyncedUserCounts": [["controllerId": "controller1", "count": 3, "isAvailable": true], ["controllerId": "controller2", "count": 0, "isAvailable": true]]]
         case "ListIncidents":
             let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
             return [
                 "ListIncidents": [
                     "incidents": [
-                        ["id": "incident01", "title": "Person near the conveyor", "description": "A person stood inside the marked zone while the conveyor ran.", "kind": "safety", "siteId": "site01", "cellId": "cell01", "controllerId": "controller01", "organizationId": "organization01", "reviewStatus": "new", "activityStatus": "active", "detectedAt": stamp(2_400), "confidence": 0.87],
+                        ["id": "incident01", "title": "Person near the conveyor", "description": "A person stood inside the marked zone while the conveyor ran.", "kind": "safety", "siteId": "site01", "cellId": "cell01", "controllerId": "controller1", "organizationId": "organization01", "reviewStatus": "new", "activityStatus": "active", "detectedAt": stamp(2_400), "confidence": 0.87],
                         ["id": "incident02", "title": "Pallet left in aisle", "kind": "obstruction", "siteId": "site01", "organizationId": "organization01", "reviewStatus": "confirmed", "activityStatus": "cleared", "detectedAt": stamp(90_000), "confidence": 0.74],
                     ], "meta": ["totalCount": 2],
                 ]
@@ -825,20 +1017,20 @@ struct DemoTransport: HTTPTransport {
             return ["TransitionIncident": ["incident": ["id": variables["incidentId"] as? String ?? "", "reviewStatus": variables["reviewStatus"] as? String ?? ""]]]
         case "ListNotifications":
             let stamp = { (secondsAgo: TimeInterval) in ISO8601DateFormatter().string(from: Date().addingTimeInterval(-secondsAgo)) }
-            return [
-                "ListNotifications": [
-                    "notifications": [
-                        ["id": "notification01", "kind": "ticket_comment", "createdAt": stamp(900), "ticketId": "ticket01", "ticket": ["id": "ticket01", "sequence": 1, "title": "Gripper drops boxes at pick station 3"]],
-                        ["id": "notification02", "kind": "incident", "createdAt": stamp(2_400), "incidentId": "incident01", "incident": ["id": "incident01", "title": "Person near the conveyor"]],
-                        ["id": "notification03", "kind": "alarm", "createdAt": stamp(5_000), "readAt": stamp(4_000), "alarmMessage": "Gripper suction pressure is low", "controllerId": "controller01", "siteName": "site01"],
-                        ["id": "notification04", "kind": "agent_job_failed", "createdAt": stamp(20_000), "readAt": stamp(19_000), "agentJobName": "Watch controller01 planner", "agentJobFailureMessage": "The controller did not answer."],
-                        ["id": "notification05", "kind": "agent_message", "createdAt": stamp(30_000), "readAt": stamp(29_000), "agentMessageConversationId": "conversation-main", "agentMessageExcerpt": "Main chat has a new answer"],
-                        ["id": "notification06", "kind": "chat_message", "createdAt": stamp(40_000), "readAt": stamp(39_000), "chatConversationId": "chatconv01", "chatId": "chat01", "chatName": "Sam Sample", "chatAuthorName": "Sam Sample", "chatMessageExcerpt": "A new message in the chat"],
-                    ], "meta": ["totalCount": 6],
-                ]
+            let rows: [[String: Any]] = [
+                ["id": "notification01", "kind": "ticket_comment", "createdAt": stamp(900), "ticketId": "ticket01", "ticket": ["id": "ticket01", "sequence": 1, "title": "Gripper drops boxes at pick station 3"]],
+                ["id": "notification02", "kind": "incident", "createdAt": stamp(2_400), "incidentId": "incident01", "incident": ["id": "incident01", "title": "Person near the conveyor"]],
+                ["id": "notification03", "kind": "alarm", "createdAt": stamp(5_000), "readAt": stamp(4_000), "alarmMessage": "Gripper suction pressure is low", "controllerId": "controller1", "siteName": "site01"],
+                ["id": "notification04", "kind": "agent_job_failed", "createdAt": stamp(20_000), "readAt": stamp(19_000), "agentJobName": "Watch controller1 planner", "agentJobFailureMessage": "The controller did not answer."],
+                ["id": "notification05", "kind": "agent_message", "createdAt": stamp(30_000), "agentMessageConversationId": "conversation-main", "agentMessageExcerpt": "Main chat has a new answer"],
+                ["id": "notification06", "kind": "chat_message", "createdAt": stamp(40_000), "chatConversationId": "chatconv01", "chatId": "chat01", "chatName": "Sam Sample", "chatAuthorName": "Sam Sample", "chatMessageExcerpt": "A new message in the chat"],
             ]
+            let aggregations = (variables["options"] as? [String: Any])?["aggregations"] as? [[String: Any]]
+            let status = (aggregations?.first?["filter"] as? [String: Any])?["value"] as? String
+            let shown = rows.filter { status == nil || ($0["readAt"] != nil) == (status == "read") }
+            return ["ListNotifications": ["notifications": shown, "meta": ["totalCount": shown.count]]]
         case "CountUnreadNotifications":
-            return ["CountUnreadNotifications": 2]
+            return ["CountUnreadNotifications": 4]
         case "MarkNotificationRead", "MarkAllNotificationsRead":
             return [operation: NSNull()]
         case "NotificationPreferences":
@@ -876,6 +1068,24 @@ struct DemoTransport: HTTPTransport {
             ]
             state.withData { $0.comments[ticketId, default: []].append(comment) }
             return ["CreateTicketComment": ["ticketComment": comment]]
+        case "ListPortalFeedback":
+            let requesterUserId = variables["requesterUserId"] as? String ?? ""
+            let rows = state.withData { data in data.tickets.filter { ($0["isPortalFeedback"] as? Bool) == true && ($0["requesterUserId"] as? String) == requesterUserId } }
+            return ["ListTickets": ["tickets": rows, "meta": ["totalCount": rows.count]]]
+        case "SubmitPortalFeedback":
+            let feedbackText = variables["feedbackText"] as? String ?? ""
+            let created: [String: Any] = state.withData { data in
+                data.nextNumber += 1
+                let row: [String: Any] = [
+                    "id": "feedback-new-\(data.nextNumber)", "sequence": 100 + data.nextNumber, "title": "Portal feedback: " + feedbackText, "status": "new",
+                    "priority": "normal", "organizationId": "organization01", "requesterUserId": "user01", "authorUserId": "user01", "description": feedbackText,
+                    "createdAt": ISO8601DateFormatter().string(from: Date()), "modifiedAt": ISO8601DateFormatter().string(from: Date()), "isPortalFeedback": true,
+                    "viewerCapabilities": [],
+                ]
+                data.tickets.insert(row, at: 0)
+                return row
+            }
+            return ["SubmitPortalFeedback": ["ticket": created]]
         case "CreateTicket":
             let input = variables["ticket"] as? [String: Any] ?? [:]
             let created: [String: Any] = state.withData { data in
@@ -897,8 +1107,8 @@ struct DemoTransport: HTTPTransport {
                     for (conversationId, cards) in data.approvals {
                         for card in cards {
                             rows.append([
-                                "conversationId": conversationId, "conversationTitle": "Restart the planner on controller01", "waitingKind": "approval",
-                                "interactionId": card["id"] ?? "", "promptText": "The assistant wants to restart the planner on controller01.", "toolName": "shell",
+                                "conversationId": conversationId, "conversationTitle": "Restart the planner on controller1", "waitingKind": "approval",
+                                "interactionId": card["id"] ?? "", "promptText": "The assistant wants to restart the planner on controller1.", "toolName": "shell",
                                 "toolRisk": "high", "askedAt": card["requestedAt"] ?? NSNull(),
                             ])
                         }
@@ -906,7 +1116,7 @@ struct DemoTransport: HTTPTransport {
                     for (conversationId, cards) in data.questions {
                         for card in cards {
                             rows.append([
-                                "conversationId": conversationId, "conversationTitle": "Restart the planner on controller01", "waitingKind": "question",
+                                "conversationId": conversationId, "conversationTitle": "Restart the planner on controller1", "waitingKind": "question",
                                 "interactionId": card["id"] ?? "", "promptText": card["question"] ?? "", "askedAt": card["askedAt"] ?? NSNull(),
                             ])
                         }
@@ -915,7 +1125,7 @@ struct DemoTransport: HTTPTransport {
                 }
             ]
         case "CountConversationMessages":
-            let loaded = state.withData { $0.messages[conversationId]?.count ?? 0 }
+            let loaded = ThreadDemo.messages(state.withData { $0.messages[conversationId] ?? [] }, variables: variables).count
             return ["CountConversationMessages": ["messageCount": conversationId == "conversation04" ? loaded + 12 : loaded]]
         case "RenameConversation":
             let title = variables["title"] as? String ?? ""
@@ -958,7 +1168,7 @@ struct DemoTransport: HTTPTransport {
                         ["occurrenceKind": "job", "occursAt": at(Date(), 17), "subjectId": "job02", "title": "End of shift report", "jobType": "recurring", "conversationId": "conversation05"],
                         ["occurrenceKind": "job", "occursAt": at(tomorrow, 7), "subjectId": "job01", "title": "Morning check", "jobType": "recurring", "conversationId": "conversation05"],
                         ["occurrenceKind": "goal_check_in", "occursAt": at(tomorrow, 9), "subjectId": "goal01", "title": "Reduce dock wait time"],
-                        ["occurrenceKind": "job", "occursAt": at(tomorrow, 15), "subjectId": "job03", "title": "Watch controller01 planner", "jobType": "monitor"],
+                        ["occurrenceKind": "job", "occursAt": at(tomorrow, 15), "subjectId": "job03", "title": "Watch controller1 planner", "jobType": "monitor"],
                     ], "unreadableJobCount": 0,
                 ]
             ]
@@ -973,7 +1183,7 @@ struct DemoTransport: HTTPTransport {
                             "endedAt": stamp(7_100), "costMicroMinorUnits": 12_300_000, "costCurrency": "USD", "conversationId": "conversation05",
                         ],
                         [
-                            "id": "activity03", "activityKind": "monitor", "activityStatus": "failed", "title": "Watch controller01 planner", "startedAt": stamp(20_000),
+                            "id": "activity03", "activityKind": "monitor", "activityStatus": "failed", "title": "Watch controller1 planner", "startedAt": stamp(20_000),
                             "endedAt": stamp(19_900), "errorMessage": "The controller did not answer.",
                         ],
                         [
@@ -1005,19 +1215,34 @@ struct DemoTransport: HTTPTransport {
             return ["CreateConversation": ["conversation": created]]
         case "SendMessage" where conversationId.hasPrefix("chatconv"):
             let message = variables["message"] as? String ?? ""
-            let row: [String: Any] = [
+            var row: [String: Any] = [
                 "id": "demo-chat-\(Int.random(in: 1000...9999))", "role": "user", "content": message, "createdAt": ISO8601DateFormatter().string(from: Date()), "isChatMessage": true,
                 "authorUserId": "user01", "authorName": "Alex Example", "replyToMessageId": variables["replyToMessageId"] ?? NSNull(),
             ]
-            state.withData { $0.messages[conversationId, default: []].append(row) }
+            state.withData { data in
+                // On the screens with threads a reply goes in the thread of the message it answers.
+                if ThreadDemo.owns(DemoOptions.screen), let root = ThreadDemo.threadRoot(replyingTo: variables["replyToMessageId"] as? String, in: data.messages[conversationId] ?? []) {
+                    row["threadRootMessageId"] = root
+                    ThreadDemo.countReply(under: root, at: row["createdAt"] as? String ?? "", in: &data.messages[conversationId, default: []])
+                }
+                data.messages[conversationId, default: []].append(row)
+            }
             return ["SendMessage": ["runId": "", "message": row]]
         case "SendMessage":
             let message = variables["message"] as? String ?? ""
+            var threadRootMessageId: String?
             state.withData { data in
                 data.nextNumber += 1
-                data.messages[conversationId, default: []].append([
+                var row: [String: Any] = [
                     "id": "demo-user-\(data.nextNumber)", "role": "user", "content": message, "createdAt": ISO8601DateFormatter().string(from: Date()),
-                ])
+                ]
+                // On the screens with threads a reply goes in the thread of the message it answers, and so does the answer.
+                if ThreadDemo.owns(DemoOptions.screen), let root = ThreadDemo.threadRoot(replyingTo: variables["replyToMessageId"] as? String, in: data.messages[conversationId] ?? []) {
+                    row["threadRootMessageId"] = root
+                    threadRootMessageId = root
+                    ThreadDemo.countReply(under: root, at: row["createdAt"] as? String ?? "", in: &data.messages[conversationId, default: []])
+                }
+                data.messages[conversationId, default: []].append(row)
                 if let index = data.conversations.firstIndex(where: { ($0["id"] as? String) == conversationId }) {
                     data.conversations[index]["activeRunId"] = "run-demo"
                 }
@@ -1031,7 +1256,8 @@ struct DemoTransport: HTTPTransport {
             }
             state.playAnswer(
                 conversationId: conversationId,
-                text: "This is a demo answer. Your real assistant would look this up and reply here, one word at a time.")
+                text: "This is a demo answer. Your real assistant would look this up and reply here, one word at a time.",
+                threadRootMessageId: threadRootMessageId)
             return ["SendMessage": ["runId": "run-demo"]]
         case "AnswerQuestion":
             state.withData { data in
@@ -1043,6 +1269,8 @@ struct DemoTransport: HTTPTransport {
                 for (key, rows) in data.approvals { data.approvals[key] = rows.filter { ($0["id"] as? String) != (variables["approvalId"] as? String) } }
             }
             return ["ResolveToolApproval": NSNull()]
+        case "SetMainConversation":
+            return ["SetMainConversation": ["conversation": ["id": conversationId, "isMain": true]]]
         case "ArchiveConversation":
             state.withData { data in data.conversations.removeAll { ($0["id"] as? String) == conversationId } }
             return ["ArchiveConversation": ["conversation": ["id": conversationId, "archivedAt": ISO8601DateFormatter().string(from: Date())]]]
@@ -1149,7 +1377,13 @@ struct DemoTransport: HTTPTransport {
         case "GetAgentMemorySetting":
             return ["GetAgentMemorySetting": ["isFilingEnabledForUser": true, "isFilingEnabledForOrganization": true, "canManageOrganization": true]]
         case "GetAgentVoiceSetting":
-            return ["GetAgentVoiceSetting": ["speechVoice": "", "defaultSpeechVoice": "alloy", "speechVoices": ["alloy", "ash", "coral", "nova", "sage"]]]
+            var voiceSetting: [String: Any] = ["speechVoice": "", "defaultSpeechVoice": "alloy", "speechVoices": ["alloy", "ash", "coral", "nova", "sage"]]
+            // Dictation and reading aloud are set up on the screens that show them, and on no other.
+            if SpeechDemo.owns(DemoOptions.screen) {
+                voiceSetting["isDictationAvailable"] = true
+                voiceSetting["isReadAloudAvailable"] = true
+            }
+            return ["GetAgentVoiceSetting": voiceSetting]
         case "GetAgentBackgroundSetting":
             return ["GetAgentBackgroundSetting": ["areGoalsEnabled": true, "areFoundIdeasEnabled": true, "isSpeakFirstEnabled": true, "canManageOrganization": true]]
         case "ListMemoryFilings":
@@ -1363,7 +1597,7 @@ enum DemoWebApps {
     /// and the offline one has none to offer.
     static func list(controllerId: String?, virtualControllerId: String?) -> [String: Any] {
         let isVirtual = virtualControllerId != nil
-        if controllerId == "controller02" { return ["isAvailable": false, "source": NSNull(), "webApps": []] }
+        if controllerId == "controller2" { return ["isAvailable": false, "source": NSNull(), "webApps": []] }
         let shown = isVirtual ? apps.filter { ["pick-monitor", "station-setup", "device-console", "calibration-helper"].contains($0.id) } : apps
         let prefix = isVirtual ? "/api/v1/virtualcontroller/\(virtualControllerId ?? "")" : "/api/v1/controller/\(controllerId ?? "")"
         return [

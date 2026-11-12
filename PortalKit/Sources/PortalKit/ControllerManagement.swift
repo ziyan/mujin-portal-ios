@@ -163,7 +163,9 @@ extension Connection {
     }
 }
 
-/// ControllerLive narrows what a site reports to one controller.
+/// ControllerLive narrows incidents to one controller. A controller's alarms, orchestrators and robots are read from the controller
+/// (`controllerAlarms` and the like), never filtered from the site's reads, which leave out an excluded controller and may hold only
+/// the site's telemetry source.
 public enum ControllerLive {
     public static func alarms(_ alarms: [SiteAlarm], controllerId: String) -> [SiteAlarm] {
         alarms.filter { $0.controllerId == controllerId }.sorted { $0.severityRank < $1.severityRank }
@@ -242,10 +244,19 @@ public struct ControllerSettings: Decodable, Equatable, Sendable {
     /// The intervals the pickers offer, in seconds: five minutes, an hour, six hours, a day, a week.
     public static let intervalChoices: [Int64] = [300, 3_600, 21_600, 86_400, 604_800]
 
+    /// The intervals a backup may run at, which the server holds to: six hours, a day, a week.
+    public static let backupIntervalChoices: [Int64] = [21_600, 86_400, 604_800]
+
     /// The nearest offered interval, so a value the server holds that the pickers do not list still shows as chosen.
     public static func nearestChoice(to seconds: Int64?) -> Int64 {
         guard let seconds else { return intervalChoices[1] }
         return intervalChoices.min { abs($0 - seconds) < abs($1 - seconds) } ?? intervalChoices[1]
+    }
+
+    /// The same among the backup intervals, a day when none was chosen yet.
+    public static func nearestBackupChoice(to seconds: Int64?) -> Int64 {
+        guard let seconds, seconds > 0 else { return backupIntervalChoices[1] }
+        return backupIntervalChoices.min { abs($0 - seconds) < abs($1 - seconds) } ?? backupIntervalChoices[1]
     }
 }
 

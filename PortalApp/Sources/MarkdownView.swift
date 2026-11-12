@@ -6,6 +6,10 @@ import SwiftUI
 struct MarkdownView: View {
     let markdown: String
     var isSelectable = true
+    /// The names of the people and agents mentioned, which read as chips in the words. Code is left as typed.
+    var mentionNames: [String] = []
+    /// Whether the words sit on the accent color, which the chips then lighten instead of tint.
+    var isOnAccent = false
 
     @ViewBuilder
     var body: some View {
@@ -29,7 +33,7 @@ struct MarkdownView: View {
     private func view(for block: MarkdownBlock) -> some View {
         switch block {
         case .paragraph(let text):
-            Text(Self.inline(text))
+            Text(Self.chips(Self.inline(text), names: mentionNames, isOnAccent: isOnAccent))
         case .heading(let level, let text):
             Text(Self.inline(text))
                 .font(level == 1 ? .title2.bold() : level == 2 ? .title3.bold() : .headline)
@@ -79,6 +83,19 @@ struct MarkdownView: View {
         return styledLinks(result)
     }
 
+    /// The names of the people mentioned as chips: semibold on a tint. Words in code are left as they are.
+    static func chips(_ text: AttributedString, names: [String], isOnAccent: Bool) -> AttributedString {
+        guard !names.isEmpty else { return text }
+        var result = text
+        for span in Mentions.spans(in: String(text.characters), names: names) {
+            guard let start = AttributedString.Index(span.lowerBound, within: result), let end = AttributedString.Index(span.upperBound, within: result) else { continue }
+            if result[start..<end].runs.contains(where: { $0.inlinePresentationIntent?.contains(.code) == true }) { continue }
+            result[start..<end].font = .body.weight(.semibold)
+            result[start..<end].backgroundColor = isOnAccent ? Color.onAccent.opacity(0.25) : Color.accentColor.opacity(0.18)
+        }
+        return result
+    }
+
     /// Text as it was written, whose web addresses are links.
     static func plain(_ text: String) -> AttributedString {
         styledLinks(BareLinks.linked(plainText: text))
@@ -106,14 +123,36 @@ private struct MarkdownTableView: View {
     let columnAlignments: [MarkdownColumnAlignment]
     let bodyRows: [[String]]
 
+    /// The rows drawn at a time. The grid lays out every cell it holds at once, which a table of hundreds of rows would make the
+    /// screen wait for, so a long table starts with this many and adds as many again on a tap.
+    private static let rowsPerPart = 100
+
+    @State private var shownRowCount = Self.rowsPerPart
+
+    /// The width of the row the table sits in, which a table narrower than it fills.
+    @State private var rowWidth: CGFloat = 0
+
     var body: some View {
-        // A table that fits fills the width; one that does not scrolls sideways.
-        ViewThatFits(in: .horizontal) {
-            grid.frame(maxWidth: .infinity)
-            ScrollView(.horizontal, showsIndicators: false) { grid }
+        VStack(alignment: .leading, spacing: 8) {
+            // The table fills the row, and scrolls sideways when it is wider. Asking first whether it fits drew a wide table on a
+            // wide screen as fitting and then wider than its row, which pushed the words around it off the screen.
+            ScrollView(.horizontal, showsIndicators: false) {
+                grid.frame(minWidth: rowWidth, idealWidth: rowWidth, maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in rowWidth = width }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
+            if shownRowCount < bodyRows.count {
+                Button {
+                    shownRowCount += Self.rowsPerPart
+                } label: {
+                    Text("Show more (\(shownRowCount) of \(bodyRows.count) rows)")
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("markdownTableShowMoreButton")
+            }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
     }
 
     private var grid: some View {
@@ -124,7 +163,7 @@ private struct MarkdownTableView: View {
                             .background { Rectangle().fill(Color(.tertiarySystemFill)) }
                     }
                 }
-                ForEach(Array(bodyRows.enumerated()), id: \.offset) { rowIndex, row in
+                ForEach(Array(bodyRows.prefix(shownRowCount).enumerated()), id: \.offset) { rowIndex, row in
                     Divider()
                     GridRow {
                         ForEach(Array(row.enumerated()), id: \.offset) { column, cell in

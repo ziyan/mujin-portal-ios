@@ -56,8 +56,8 @@ struct CallScreen: View {
     private func screen(_ call: ChatCallSession) -> some View {
         VStack(spacing: 12) {
             topBar(call)
-            if let notice = call.transcriptionNotice {
-                TranscriptionNotice(text: notice) { call.dismissTranscriptionNotice() }
+            if let notice = call.recordingNotice {
+                TranscriptionNotice(text: notice)
             }
             if let error = call.errorText {
                 HStack(spacing: 8) {
@@ -123,7 +123,7 @@ struct CallScreen: View {
                     .opacity(call.isCameraOn ? 1 : 0.4)
                 GlassIconButton(symbol: call.routeSymbol, label: "Audio output", size: 56) { trigger.present() }
                     .background { RoutePickerHost(trigger: trigger).frame(width: 56, height: 56) }
-                GlassIconButton(symbol: call.isTranscriptionOn ? "captions.bubble.fill" : "captions.bubble", label: call.isTranscriptionOn ? "Turn transcription off" : "Turn transcription on", isOn: call.isTranscriptionOn, size: 56) {
+                GlassIconButton(symbol: call.isTranscriptionOn ? "captions.bubble.fill" : "captions.bubble", label: call.isTranscriptionOn ? "Stop recording" : "Record and transcribe", isOn: call.isTranscriptionOn, size: 56) {
                     call.setTranscription(!call.isTranscriptionOn)
                 }
             }
@@ -173,19 +173,15 @@ struct GlassIconButton: View {
     }
 }
 
-/// TranscriptionNotice names who turned transcription on. The person may dismiss it; nobody is asked first.
+/// TranscriptionNotice says the call is being recorded and transcribed, for as long as it is. It stays: everyone on the call should know.
 struct TranscriptionNotice: View {
     let text: String
-    let onDismiss: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "captions.bubble.fill").accessibilityHidden(true)
+            Image(systemName: "record.circle").foregroundStyle(Color.statusError).accessibilityHidden(true)
             Text(text).font(.footnote).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            Button(action: onDismiss) { Image(systemName: "xmark.circle.fill").font(.body) }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Dismiss")
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)

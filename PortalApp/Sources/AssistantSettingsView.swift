@@ -14,6 +14,7 @@ struct AssistantSettingsView: View {
     @State private var background: AgentBackgroundSetting?
     @State private var phase = LoadPhase.loading
     @State private var errorText: String?
+    @AppStorage(AssistantDisplay.showWorkingNotesKey) private var showToolCallDetails = false
 
     private var connection: Connection { appModel.connection(for: session.account) }
 
@@ -42,6 +43,14 @@ struct AssistantSettingsView: View {
     private var form: some View {
         Form {
             PortalRows {
+                Section {
+                    Toggle(isOn: $showToolCallDetails) {
+                        Label("Show tool call details", systemImage: "list.bullet.rectangle").foregroundStyle(.primary)
+                    }
+                    .accessibilityIdentifier("showToolCallDetailsToggle")
+                } footer: {
+                    Text("Shows a \"What it did\" row under each answer with a short note for every step the assistant took.")
+                }
                 if let speakFirst { speakFirstSection(speakFirst) }
                 if let memory {
                     Section("Memory") {
@@ -191,4 +200,10 @@ struct OrganizationAssistantSettingsView: View {
             }
         }
     }
+}
+
+/// AssistantDisplay is how much of the assistant's work this device shows. The "What it did" rows are off until the person turns
+/// them on, as on the web, where the same switch is called "Show tool call details".
+enum AssistantDisplay {
+    static let showWorkingNotesKey = "showToolCallDetails"
 }

@@ -42,6 +42,9 @@ import Testing
         #expect(payload.action(forButton: PushCategory.approveAction, text: nil) == .resolveApproval(id: "a1", isApproved: true))
         #expect(payload.action(forButton: PushCategory.denyAction, text: nil) == .resolveApproval(id: "a1", isApproved: false))
         #expect(payload.route == .conversation(id: "c1"))
+        let reply = PushPayload(userInfo: Self.userInfo(["userId": "u1", "kind": "ticket_comment", "ticketId": "t1"]))
+        #expect(reply?.route == .ticket(id: "t1"))
+        #expect(PushPayload(userInfo: Self.userInfo(["userId": "u1", "kind": "ticket_comment"]))?.route == .notifications)
     }
 
     @Test func aMessagePushRepliesIntoItsConversation() throws {
@@ -202,7 +205,7 @@ import Testing
         let connection = Connection(account: makeAccount(), transport: transport)
         _ = try await connection.sendMessage(conversationId: "c1", text: "Hi", pageTitle: "Weekly status")
         let viewing = sentVariables(try #require(transport.requests.last))["viewing"] as? [String: Any]
-        #expect(viewing?["page"] as? String == "/agent/c1")
+        #expect(viewing?["page"] as? String == "/chat/c1")
         #expect(viewing?["pageTitle"] as? String == "Weekly status")
         #expect(viewing?["kind"] == nil)
     }

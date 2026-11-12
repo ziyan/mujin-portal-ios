@@ -26,7 +26,7 @@ enum DemoShare {
             SharedFile(id: "file02", filename: "pick-log.pdf", contentType: "application/pdf", storedName: "file02", byteCount: 310_000),
         ]
         let model = ShareModel(
-            backend: Backend(), jobId: "demo-job", text: "The gripper on controller01 stops after the second pick.\n\nhttps://example.test/status", files: files)
+            backend: Backend(), jobId: "demo-job", text: "The gripper on controller1 stops after the second pick.\n\nhttps://example.test/status", files: files)
         if ticket {
             model.destination = .ticket
             model.siteId = "site01"

@@ -66,16 +66,16 @@ import Testing
 
     @Test func theFailureIsFoundWithOneGetToThePlaybackRoute() async {
         let page = ScriptedTransport { _ in (200, Data("<html></html>".utf8)) }
-        #expect(await Connection(account: makeAccount(), transport: page).playbackFailure(controllerId: "controller01", cameraId: "nvrcamera01") == .unsupported)
+        #expect(await Connection(account: makeAccount(), transport: page).playbackFailure(controllerId: "controller1", cameraId: "nvrcamera01") == .unsupported)
         #expect(page.requests.count == 1)
-        #expect(page.requests.first?.url?.path == "/api/v1/unifiprotect/controller01/playback/nvrcamera01")
+        #expect(page.requests.first?.url?.path == "/api/v1/unifiprotect/controller1/playback/nvrcamera01")
         let refused = ScriptedTransport { _ in (401, Data()) }
-        #expect(await Connection(account: makeAccount(refreshToken: ""), transport: refused).playbackFailure(controllerId: "controller01", cameraId: "nvrcamera01") == .notAllowed)
+        #expect(await Connection(account: makeAccount(refreshToken: ""), transport: refused).playbackFailure(controllerId: "controller1", cameraId: "nvrcamera01") == .notAllowed)
         let down = ScriptedTransport { _ in (502, Data()) }
-        #expect(await Connection(account: makeAccount(), transport: down).playbackFailure(controllerId: "controller01", cameraId: "nvrcamera01") == .unreachable)
+        #expect(await Connection(account: makeAccount(), transport: down).playbackFailure(controllerId: "controller1", cameraId: "nvrcamera01") == .unreachable)
         // A route that exists answers a plain GET with 400, which never says the controller is offline.
         let exists = ScriptedTransport { _ in (400, Data()) }
-        #expect(await Connection(account: makeAccount(), transport: exists).playbackFailure(controllerId: "controller01", cameraId: "nvrcamera01") == .undetermined)
+        #expect(await Connection(account: makeAccount(), transport: exists).playbackFailure(controllerId: "controller1", cameraId: "nvrcamera01") == .undetermined)
     }
 
     @Test func aRefusedOrMissingLiveRouteIsFinal() {

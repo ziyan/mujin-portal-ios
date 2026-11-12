@@ -265,6 +265,10 @@ public struct Transcript: Equatable, Sendable {
 
     public private(set) var entries: [TranscriptEntry] = []
     public private(set) var isRunning = false
+    /// The thread this transcript lists, by the id of the message it hangs from. Nil for the main history.
+    public let threadRootMessageId: String?
+    /// The thread the run at work answers in, when an event said; nil for a run answering in the main history.
+    public private(set) var workingThreadRootMessageId: String?
 
     /// Whether a message the person sent has not come back from the server yet.
     public var hasPendingUser: Bool { !pendingUserTexts.isEmpty }
@@ -278,6 +282,8 @@ public struct Transcript: Equatable, Sendable {
     /// Why the assistant spoke first, by the message that carries "Not now" and "Stop these": its first answer.
     private var speakFirstReasons: [String: String] = [:]
     private var persistedReactions: [String: [Reaction]] = [:]
+    private var threadSummaries: [String: ThreadSummary] = [:]
+    private var threadRoots: [String: String] = [:]
     /// Reactions changed on this phone or by an event. They win over what a
     /// reload brings, because the transcript is read from a replica that can
     /// still lack a reaction written a moment ago.
@@ -288,7 +294,33 @@ public struct Transcript: Equatable, Sendable {
         let changedAt: Date
     }
 
-    public init() {}
+    public init(threadRootMessageId: String? = nil) {
+        self.threadRootMessageId = ThreadRouting.normalized(threadRootMessageId)
+    }
+
+    public var isThread: Bool { threadRootMessageId != nil }
+
+    /// Whether this transcript shows a run at work: the thread it answers in, or on the main history a run answering in no thread.
+    public var isRunningInView: Bool {
+        ThreadRouting.isViewRunning(
+            isRunning: isRunning, workingThreadRootMessageId: workingThreadRootMessageId, viewThreadRootMessageId: threadRootMessageId)
+    }
+
+    /// The thread a tap on a message opens: the one it is a reply in, else its own when it has replies.
+    public func threadToOpen(forMessage messageId: String) -> String? {
+        ThreadRouting.threadToOpen(messageId: messageId, threadRootMessageId: threadRoots[messageId], replyCount: threadSummaries[messageId]?.replyCount ?? 0)
+    }
+
+    /// The thread a message is part of: the one it is a reply in, else its own when it has replies.
+    public func threadKey(ofMessage messageId: String) -> String? {
+        threadRoots[messageId] ?? ((threadSummaries[messageId]?.replyCount ?? 0) > 0 ? messageId : nil)
+    }
+
+    /// The thread a message is a reply in, or nil for a message that is not.
+    public func replyThreadRoot(of messageId: String) -> String? { threadRoots[messageId] }
+
+    /// The replies a message's thread holds, for the count under it in the main history.
+    public func threadSummary(for messageId: String) -> ThreadSummary? { threadSummaries[messageId] }
 
     // MARK: history
 
@@ -301,10 +333,17 @@ public struct Transcript: Equatable, Sendable {
         persistedToolCallIds = Set(messages.compactMap { $0.role == "tool" ? $0.toolCallId : nil })
         persistedReactions = [:]
         replyQuotes = [:]
+        threadSummaries = [:]
+        threadRoots = [:]
         for message in messages {
-            if let replyId = message.replyToMessageId, !replyId.isEmpty, let excerpt = message.replyToExcerpt, !excerpt.isEmpty {
+            if let root = ThreadRouting.normalized(message.threadRootMessageId) { threadRoots[message.id] = root }
+            // A thread's replies answer its root, which sits at the top of the screen: the quote would only repeat it.
+            if let replyId = message.replyToMessageId, !replyId.isEmpty, replyId != threadRootMessageId, let excerpt = message.replyToExcerpt,
+                !excerpt.isEmpty
+            {
                 replyQuotes[message.id] = ReplyReference(messageId: replyId, authorName: message.replyToAuthorName ?? "", excerpt: excerpt)
             }
+            if let summary = ThreadSummary(message) { threadSummaries[message.id] = summary }
         }
         for message in messages where !(message.reactions ?? []).isEmpty { persistedReactions[message.id] = message.reactions }
 
@@ -406,6 +445,8 @@ public struct Transcript: Equatable, Sendable {
         pendingUserTexts.append(text)
         entries.append(.user(id: "pending:\(text)", text: text, viewing: viewing))
         isRunning = true
+        // The answer to a message sent here comes in this thread; on the main history, a plain message is answered in the main history.
+        workingThreadRootMessageId = threadRootMessageId
     }
 
     /// Takes back a message that could not be sent.
@@ -448,6 +489,13 @@ public struct Transcript: Equatable, Sendable {
     public func replyQuote(for messageId: String) -> ReplyReference? {
         guard let quote = replyQuotes[messageId] else { return nil }
         let displayed = displayEntries
+        let isRootShown = displayed.contains { entry in
+            switch entry {
+            case .assistant(let id, _, _), .user(let id, _, _): id == quote.messageId
+            default: false
+            }
+        }
+        if ThreadRouting.quoteRepeatsRoot(replyToMessageId: quote.messageId, threadRootMessageId: threadRoots[messageId], isRootShown: isRootShown) { return nil }
         if let index = displayed.firstIndex(where: { $0.id == "user:\(messageId)" }), index > 0 {
             switch displayed[index - 1] {
             case .assistant(let id, _, _), .user(let id, _, _): if id == quote.messageId { return nil }
@@ -482,6 +530,14 @@ public struct Transcript: Equatable, Sendable {
 
     /// Folds one event from the feed in.
     public mutating func apply(_ event: ConversationEvent, now: Date = Date()) {
+        // What a run says as it works belongs to the thread it answers in, which a screen of another thread or of the main history
+        // does not list. Which thread is at work is still told to all of them, for the count under the message it hangs from.
+        if ThreadRouting.isRunContent(event) { workingThreadRootMessageId = ThreadRouting.workingThreadRootMessageId(of: event) }
+        guard ThreadRouting.isEventForView(event, viewThreadRootMessageId: threadRootMessageId) else {
+            // A run is at work, though not where this screen looks: its stop button and the count under the message still follow it.
+            if event.kind == .textDelta || event.kind == .toolCall || event.kind == .modelSwitch { isRunning = true }
+            return
+        }
         switch event.kind {
         case .textDelta:
             guard let delta = event.textDelta, !delta.messageId.isEmpty, !delta.text.isEmpty else { return }
@@ -532,19 +588,24 @@ public struct Transcript: Equatable, Sendable {
         case .runComplete:
             finishStreaming()
             isRunning = false
+            workingThreadRootMessageId = nil
             let sentence = event.runComplete?.turnEndReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let structured = TurnEndReason(kind: event.runComplete?.reasonKind, parameters: event.runComplete?.reasonParameters)
-            if let structured, structured.kind != "failed" || !sentence.isEmpty {
+            // The line about how a turn ended belongs where the turn was.
+            let isHere = isRunOfThisView(event)
+            if isHere, let structured, structured.kind != "failed" || !sentence.isEmpty {
                 appendLiveTurnEnd(kind: structured.turnEndKind, text: sentence, reason: structured, runId: event.runId)
-            } else if !sentence.isEmpty, let kind = TurnEndKind(stopReason: event.runComplete?.stopReason) {
+            } else if isHere, !sentence.isEmpty, let kind = TurnEndKind(stopReason: event.runComplete?.stopReason) {
                 appendLiveTurnEnd(kind: kind, text: sentence, reason: nil, runId: event.runId)
             }
         case .runError:
             finishStreaming()
             isRunning = false
+            workingThreadRootMessageId = nil
             // The operator's text is not for the person; the bounded sentence is.
             let sentence = event.runError?.turnEndReason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let structured = TurnEndReason(kind: event.runError?.reasonKind, parameters: event.runError?.reasonParameters)
+            guard isRunOfThisView(event) else { return }
             appendLiveTurnEnd(kind: structured?.turnEndKind ?? .failed, text: sentence, reason: structured, runId: event.runId)
         case .roundRetry:
             // The round starts over: the text it streamed is dropped.
@@ -570,6 +631,12 @@ public struct Transcript: Equatable, Sendable {
             // Chat events belong to ChatTimeline.
             return
         }
+    }
+
+    /// Whether the run an event ends is shown here: any run on the main history, and on a thread the run that answered in it.
+    private func isRunOfThisView(_ event: ConversationEvent) -> Bool {
+        guard let threadRootMessageId else { return true }
+        return ThreadRouting.normalized(event.threadRootMessageId) == threadRootMessageId
     }
 
     private mutating func appendLiveTurnEnd(kind: TurnEndKind, text: String, reason: TurnEndReason?, runId: String?) {

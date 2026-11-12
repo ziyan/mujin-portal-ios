@@ -4,7 +4,7 @@ import PortalKit
 /// SearchDemo is the demo's global search: invented rows, and the screens the screenshots show (recents and suggestions, a
 /// controller id typed, a controller and one of its pages, a word that matches shortcuts, and a word that matches nothing).
 enum SearchDemo {
-    static let screens: Set<String> = ["search", "search-controller", "search-subpage", "search-shortcuts", "search-no-results"]
+    static let screens: Set<String> = ["search", "search-controller", "search-subpage", "search-shortcuts", "search-no-results", "site-pages-search"]
 
     static func owns(_ screen: String?) -> Bool { screen.map { screens.contains($0) || $0.hasPrefix(queryPrefix) } ?? false }
 
@@ -15,10 +15,11 @@ enum SearchDemo {
     static func query(for screen: String?) -> String {
         if let screen, screen.hasPrefix(queryPrefix) { return String(screen.dropFirst(queryPrefix.count)) }
         return switch screen {
-        case "search-controller": "controller01"
-        case "search-subpage": "controller01 backups"
+        case "search-controller": "controller1"
+        case "search-subpage": "controller1 backups"
         case "search-shortcuts": "notifications"
         case "search-no-results": "zzqx"
+        case "site-pages-search": "operating guide"
         default: ""
         }
     }
@@ -69,7 +70,7 @@ enum SearchDemo {
         shortcut("page.controllers", "Controllers", "Pages", "/controller", "controllers"),
         shortcut("page.tickets", "Tickets", "Pages", "/ticket", "tickets"),
         shortcut("page.incidents", "Incidents", "Pages", "/incident", "incidents"),
-        shortcut("page.assistant", "Assistant chats", "Assistant", "/agent", "assistant"),
+        shortcut("page.assistant", "Assistant chats", "Assistant", "/chat", "assistant"),
         shortcut("settings.notifications", "Notification preferences", "Account", "/settings/notifications", "notifications"),
         shortcut("settings.hub", "Settings", "Account", "/settings", "settings"),
         shortcut("page.help", "Help", "Pages", "/help", "help"),
@@ -79,31 +80,32 @@ enum SearchDemo {
     private static let rows: [Row] = [
         shortcut("page.notificationInbox", "Notification inbox", "Pages", "/notification", "notifications", "notifications bell unread mentions inbox"),
         shortcut("page.help", "Help", "Pages", "/help", "help", "help documentation guides"),
-        shortcut("assistant.dreams", "Dreams", "Assistant", "/agent/knowledge?view=dreams", "knowledge", "dreaming memory consolidation"),
+        shortcut("assistant.dreams", "Dreams", "Assistant", "/settings/memory?view=dreams", "knowledge", "dreaming memory consolidation"),
         shortcut("settings.notifications", "Notification preferences", "Account", "/settings/notifications", "notifications", "notifications email push alerts mute digest"),
         shortcut("settings.alarms", "Alarm subscriptions", "Account", "/settings/alarms", "alarms", "alarm notifications alarm alerts controller alarms"),
         shortcut("settings.incidents", "Incident subscriptions", "Account", "/settings/incidents", "incidents", "incident notifications incident alerts"),
         shortcut("settings.tokens", "API tokens", "Security and access", "/settings/tokens", "tokens", "tokens access tokens api keys"),
         shortcut("settings.sessions", "Sessions", "Security and access", "/settings/sessions", "sessions", "devices sign out"),
-        Row(kind: "controller", id: "controller01", title: "controller01", subtitle: "Example Yard", path: "/controller/controller01"),
-        shortcut("controller.alarms:controller01", "Alarms", "controller01", "/controller/controller01/alarms", "alarms", "controller01 alarms"),
-        shortcut("controller.telemetry:controller01", "Telemetry", "controller01", "/controller/controller01/telemetry", "telemetry", "controller01 telemetry"),
-        shortcut("controller.backups:controller01", "Backups", "controller01", "/controller/controller01/backups", "backups", "controller01 backups"),
-        shortcut("controller.sync:controller01", "Sync", "controller01", "/controller/controller01/sync", "sync", "controller01 sync"),
-        Row(kind: "virtualController", id: "virtual01", title: "Training cell", subtitle: "Copy of controller01", path: "/virtualcontroller/virtual01"),
+        Row(kind: "controller", id: "controller1", title: "controller1", subtitle: "Example Yard", path: "/controller/controller1"),
+        shortcut("controller.alarms:controller1", "Alarms", "controller1", "/controller/controller1/alarms", "alarms", "controller1 alarms"),
+        shortcut("controller.telemetry:controller1", "Telemetry", "controller1", "/controller/controller1/telemetry", "telemetry", "controller1 telemetry"),
+        shortcut("controller.backups:controller1", "Backups", "controller1", "/controller/controller1/backups", "backups", "controller1 backups"),
+        shortcut("controller.sync:controller1", "Sync", "controller1", "/controller/controller1/sync", "sync", "controller1 sync"),
+        Row(kind: "virtualController", id: "virtual01", title: "Training cell", subtitle: "Copy of controller1", path: "/virtualcontroller/virtual01"),
         Row(kind: "site", id: "site01", title: "Example Yard", subtitle: "Example Logistics", path: "/site/site01"),
         Row(kind: "camera", id: "camera01", title: "Dock door 2", subtitle: "Example Yard", path: "/surveillance/camera01"),
         Row(kind: "person", id: "user03", title: "Robin Demo", subtitle: "Example Logistics", path: "/user/user03"),
-        Row(kind: "groupChat", id: "chatconv02", title: "Pick station team", subtitle: "3 people", path: "/agent/chatconv02"),
-        Row(kind: "conversation", id: "conversation02", title: "Restart the planner on controller01", subtitle: "", path: "/agent/conversation02"),
+        Row(kind: "groupChat", id: "chatconv02", title: "Pick station team", subtitle: "3 people", path: "/chat/chatconv02"),
+        Row(kind: "conversation", id: "conversation02", title: "Restart the planner on controller1", subtitle: "", path: "/chat/conversation02"),
         Row(
             kind: "ticket", id: "1", title: "Gripper drops boxes at pick station 3", subtitle: "Open, high priority", path: "/ticket/1",
-            keywords: "controller01"),
+            keywords: "controller1"),
         Row(
-            kind: "ticket", id: "4", title: "Planner restarts on controller01 every night", subtitle: "Open", path: "/ticket/4",
+            kind: "ticket", id: "4", title: "Planner restarts on controller1 every night", subtitle: "Open", path: "/ticket/4",
             organizationId: "organization02", organizationName: "Example Freight"),
         Row(kind: "release", id: "release01", title: "Release 4.2", subtitle: "Stable", path: "/release/release01"),
-        Row(kind: "incident", id: "incident01", title: "Person near the conveyor", subtitle: "controller01, Example Yard", path: "/incident/incident01"),
+        Row(kind: "page", id: "page01", title: "Pick station operating guide", subtitle: "Operating guides", path: "/site/site01/page/page01"),
+        Row(kind: "incident", id: "incident01", title: "Person near the conveyor", subtitle: "controller1, Example Yard", path: "/incident/incident01"),
     ]
 
     static func respond(operation: String, variables: [String: Any]) -> [String: Any]? {

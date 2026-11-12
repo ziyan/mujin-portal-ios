@@ -115,6 +115,17 @@ struct MainTabsView: View {
             if appModel.isDemo, let screen = DemoOptions.screen, CallDemo.owns(screen), screen.hasPrefix("call-"), screen != "call-picker" {
                 appModel.callCenter.showDemo(CallDemo.session(for: screen), isScreenShown: screen != "call-minimized")
             }
+            if appModel.isDemo, DemoOptions.screen == "chat-in-call" {
+                appModel.callCenter.showDemo(CallDemo.session(for: "chat-in-call"), isScreenShown: false)
+            }
+            // A notification about a reply in a thread, as if it had launched the app: the chat opens on that thread.
+            if appModel.isDemo, DemoOptions.screen == "thread-push" {
+                newSession.open(.chatThread(conversationId: ThreadDemo.chatConversationId, threadRootMessageId: ThreadDemo.chatThreadRootMessageId))
+            }
+            // A link to a message of the chat that is in a thread: the chat opens on the thread, at that message.
+            if appModel.isDemo, DemoOptions.screen == "thread-link" {
+                Task { await newSession.openChatMessage(chatId: "chat-thread", messageId: "t03") }
+            }
             // A notification tapped a few seconds after launch, for a test that sends the app away first.
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("push:") {
                 let conversationId = String(screen.dropFirst("push:".count))
@@ -123,8 +134,31 @@ struct MainTabsView: View {
                     appModel.pendingRoute = AppModel.PendingRoute(userId: account.userId, route: .conversation(id: conversationId))
                 }
             }
+            // The screenshot a person takes, as the system announces it: the demo has no side buttons to press.
+            if appModel.isDemo, FeedbackDemo.postsScreenshot(DemoOptions.screen) {
+                if DemoOptions.screen == "feedback-in-call" {
+                    appModel.callCenter.showDemo(CallDemo.session(for: "call-voice"), isScreenShown: false)
+                }
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    NotificationCenter.default.post(name: UIApplication.userDidTakeScreenshotNotification, object: nil)
+                }
+            }
             if appModel.isDemo, let screen = DemoOptions.screen, screen.hasPrefix("link-") {
                 appModel.linkRequest = ControllerLinkRequest(code: screen == "link-confirm" ? DemoServer.linkCode : nil)
+            }
+            // Once the first tab has settled: choosing a tab closes what is over it, as it does for a person.
+            if appModel.isDemo, DemoOptions.screen == "site-from-link" {
+                Task { [appModel = self.appModel] in
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    appModel.openedLink = OpenedLink(link: .site(id: "site03"))
+                }
+            }
+            if appModel.isDemo, DemoOptions.screen == "notifications" || DemoOptions.screen == "notifications-past" {
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    newSession.isShowingNotifications = true
+                }
             }
             if appModel.isDemo, DemoOptions.screen == "ask" || DemoOptions.screen == "ask-site" || DemoOptions.screen == "conversation-reply" || DemoOptions.screen == "conversation-composer" || DemoOptions.screen == "main-chat" {
                 if DemoOptions.screen == "ask-site" {
@@ -166,6 +200,7 @@ struct MainTabsView: View {
         appModel.openedLink = nil
         switch resolution {
         case .conversation(let id): session.open(.conversation(id: id))
+        case .chatMessage(let chatId, let messageId): Task { await session.openChatMessage(chatId: chatId, messageId: messageId) }
         case .tab(let section): session.selectedSection = section
         case .notifications: session.isShowingNotifications = true
         case .web:
@@ -173,6 +208,15 @@ struct MainTabsView: View {
             Task { await appModel.openInApp(address, account: account) }
         case .screen, .lookup: break
         }
+    }
+
+    /// A screenshot was taken. The notification carries no picture, so the app draws its own window. Nothing opens on a server without
+    /// feedback, when the person turned it off, during a call, or while the sheet is already up. Nothing is sent until Send is pressed.
+    private func offerFeedback(after session: SessionModel) {
+        guard session.capabilities.offersPortalFeedback, FeedbackPreference.shouldAskAfterScreenshot, session.feedbackRequest == nil,
+            !appModel.callCenter.isInCall, appModel.activeAccount != nil
+        else { return }
+        session.feedbackRequest = FeedbackRequest(pictureData: ScreenPicture.captureKeyWindow(), screenName: session.selectedSection.rawValue)
     }
 
     private func closeSheets(_ session: SessionModel) {
@@ -204,6 +248,9 @@ struct MainTabsView: View {
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
         .environment(session)
+        .alert(
+            "That message could not be found.", isPresented: Binding(get: { session.linkNotice != nil }, set: { if !$0 { session.linkNotice = nil } }),
+            actions: { Button("OK", role: .cancel) {} })
     }
 
     private func tabs(_ session: SessionModel) -> some View {
@@ -218,7 +265,7 @@ struct MainTabsView: View {
             if !sections.contains(session.selectedSection) { session.selectedSection = .more }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            if let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded {
+            if let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded, appModel.callCenter.chatIdOnScreen != call.chatId {
                 CallBar(center: appModel.callCenter, call: call)
             }
         }
@@ -243,6 +290,14 @@ struct MainTabsView: View {
         .topPresentation(item: Binding(get: { appModel.openedCitation.map(IdentifiableCitation.init) }, set: { appModel.openedCitation = $0?.citation }), style: .pageSheet) { [appModel = self.appModel] item in
             MemoryCitationSheet(citation: item.citation)
                 .modifier(HostedEnvironment(appModel: appModel, session: session))
+        }
+        // A screenshot opens the feedback sheet, over whatever is on top of the app.
+        .topPresentation(item: Binding(get: { session.feedbackRequest }, set: { session.feedbackRequest = $0 }), style: .pageSheet) { [appModel = self.appModel] request in
+            FeedbackView(request: request)
+                .modifier(HostedEnvironment(appModel: appModel, session: session))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
+            offerFeedback(after: session)
         }
         // The person asked to go to a tab or a conversation, such as "Ask about" on a page in a sheet: the sheet is over it.
         .onChange(of: session.selectedSection) { _, _ in closeSheets(session) }
@@ -292,16 +347,18 @@ private struct SectionContent: View {
 /// DestinationTab is a screen of More shown as a tab: the same screen, with the same screens it pushes.
 private struct DestinationTab: View {
     let root: MoreDestination
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             MoreDestinationView(destination: root, isTabRoot: true)
                 .portalDestinations()
                 .navigationDestination(for: MoreDestination.self) { destination in
                     MoreDestinationView(destination: destination)
-                        .toolbarVisibility(.hidden, for: .tabBar)
+                        .hidesTabBarWhenCompact()
                 }
         }
+        .pushesRoutes { route in path.append(route) }
     }
 }
 

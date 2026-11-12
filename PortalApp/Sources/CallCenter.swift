@@ -22,6 +22,8 @@ final class CallCenter: CallKitHandling {
     }
     /// What the last attempt to start a call said, for the screen that asked.
     var startErrorText: String?
+    /// The chat on screen now, if any. While it is the call's own chat, the chat shows the call itself and the app-wide bar steps aside.
+    var chatIdOnScreen: String?
 
     @ObservationIgnored weak var appModel: AppModel?
     @ObservationIgnored private let callKit: CallKitController?

@@ -1,8 +1,11 @@
 import PortalKit
 import SwiftUI
+import UIKit
 
 /// ConversationView is one conversation: the transcript with the answer
-/// streaming in, question and approval cards, and the composer.
+/// streaming in, question and approval cards, and the composer. On a server with message threads a reply goes in a thread: the
+/// transcript shows how many replies a message has, and a tap opens the thread as a screen of its own, which is this same view with
+/// a `threadRootMessageId`.
 struct ConversationView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(SessionModel.self) private var session
@@ -11,36 +14,113 @@ struct ConversationView: View {
     let title: String?
     /// Told when the server gives the conversation a new title, so the list shows it too.
     var onTitleChanged: ((String) -> Void)?
+    /// The message whose thread this screen shows alone, with its own composer. Nil for the whole conversation.
+    var threadRootMessageId: String?
+    /// A thread a notification asks this conversation to open on, which this view takes and clears.
+    var requestedThreadRootMessageId: Binding<String?> = .constant(nil)
 
     @State private var model: ConversationModel?
+    @State private var openedThreadRootId: String?
     @State private var voice: VoiceCallController?
+    @State private var dictation = DictationController()
     @State private var draft = ""
     @State private var isRenaming = false
     @State private var renameDraft = ""
     @State private var fullArtifact: ArtifactReference?
+    @AppStorage(AssistantDisplay.showWorkingNotesKey) private var showWorkingNotes = false
     @State private var isShowingArtifacts = false
-    @State private var isAddingPeople = false
     @State private var drafts = AttachmentDrafts()
     @State private var isOnScreen = false
     /// Whether the top of the thread is in view, where earlier messages load.
     @State private var isTopInView = false
 
+    private var isThread: Bool { threadRootMessageId != nil }
+    /// Where the call's stage ends on screen, and where the conversation's content begins, so the messages start below the stage.
+    @State private var callStageBottom: CGFloat = 0
+    @State private var contentTop: CGFloat = 0
+
+    /// Whether a call with the assistant is going or being set up: the conversation shows it on its stage.
+    private var isCallStaged: Bool {
+        guard let voice else { return false }
+        return voice.isActive || voice.phase != .idle
+    }
+
+    /// Starts a call. A call and dictation both want the microphone, and a call wins.
+    private func startCall() {
+        guard let voice else { return }
+        dictation.abort()
+        session.readAloud.stop()
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        Task { await voice.start() }
+    }
+
+    /// The assistant large over the conversation while the call goes, with what the call is doing under its name, and leave and
+    /// mute at the top right. A tap on the picture cuts a playing answer short where that is possible.
+    private func assistantCallStage(_ voice: VoiceCallController, isThinking: Bool) -> some View {
+        CallStage(
+            name: String(localized: "Assistant"), status: Self.callStatus(voice, isThinking: isThinking),
+            isSpeaking: voice.phase == .speaking, isMuted: voice.isMuted,
+            onMute: voice.isActive ? { voice.toggleMute() } : nil,
+            leaveSymbol: voice.isActive ? "phone.down.fill" : "xmark", leaveLabel: voice.isActive ? "End the call" : "Close",
+            onLeave: { voice.end() }, onStageBottom: { callStageBottom = $0 },
+            onAvatarTap: voice.canCutIn ? { voice.cutAnswer() } : nil, avatarTapLabel: "Stop the answer"
+        ) { size in
+            AssistantCallAvatar(size: size)
+        }
+        .sensoryFeedback(trigger: voice.phase) { _, new in new == .listening ? .impact(weight: .light) : nil }
+    }
+
+    /// Only the state, or a problem.
+    private static func callStatus(_ voice: VoiceCallController, isThinking: Bool) -> String {
+        switch voice.phase {
+        case .idle: ""
+        case .connecting: String(localized: "Connecting\u{2026}")
+        case .failed(let message): message
+        case .speaking: String(localized: "Speaking")
+        case .listening:
+            if let notice = voice.notice { notice }
+            else if voice.isMuted { String(localized: "Muted") }
+            else if isThinking { String(localized: "Thinking") }
+            else { String(localized: "Listening") }
+        }
+    }
+
     var body: some View {
         Group {
             if let model {
                 content(model)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { contentTop = $0 }
+                    .overlay { if let voice, isCallStaged { assistantCallStage(voice, isThinking: model.isRunning) } }
             } else {
                 ProgressView()
             }
         }
-        .conversationBar(title: shownTitle)
+        .conversationBar(title: isThread ? "\(String(localized: "Thread")) \u{00B7} \(shownTitle)" : shownTitle, isCallStageShown: isCallStaged)
+        .navigationDestination(item: $openedThreadRootId) { rootId in
+            ConversationView(account: account, conversationId: conversationId, title: title, threadRootMessageId: rootId)
+        }
+        .onChange(of: requestedThreadRootMessageId.wrappedValue, initial: true) { _, rootId in
+            guard !isThread, let rootId else { return }
+            openedThreadRootId = rootId
+            requestedThreadRootMessageId.wrappedValue = nil
+        }
         .toolbar {
+            if !isThread, !isCallStaged {
+            // The call sits beside the conversation's menu, in the same capsule.
+            if voice != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { startCall() } label: { Label("Call the assistant", systemImage: "phone") }
+                        .accessibilityIdentifier("assistantCallButton")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button {
-                        isAddingPeople = true
-                    } label: {
-                        Label("Add people", systemImage: "person.badge.plus")
+                    if !isMainChat, session.capabilities.offersMainChatChoice {
+                        Button {
+                            Task { await makeMainChat() }
+                        } label: {
+                            Label("Make main chat", systemImage: "star")
+                        }
                     }
                     if !isMainChat {
                         Button {
@@ -59,6 +139,7 @@ struct ConversationView: View {
                     Label("Conversation options", systemImage: "ellipsis.circle")
                 }
             }
+            }
         }
         .alert("Rename conversation", isPresented: $isRenaming) {
             TextField("Title", text: $renameDraft)
@@ -66,9 +147,6 @@ struct ConversationView: View {
             Button("Cancel", role: .cancel) {}
         }
         .attachmentPickers(drafts)
-        .sheet(isPresented: $isAddingPeople) {
-            ComposeMessageView(onSent: { session.open(.chat(conversationId: $0)) }, reference: (conversationId, shownTitle))
-        }
         .sheet(isPresented: $isShowingArtifacts) {
             ArtifactListSheet(conversationId: conversationId, connection: appModel.connection(for: account)) { artifact in
                 isShowingArtifacts = false
@@ -88,22 +166,33 @@ struct ConversationView: View {
         .task(id: conversationId) {
             // The task runs again each time the screen comes back: the messages stay while `onAppear` reads them again.
             if let model, model.conversationId == conversationId {
-                voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
+                // A call is made from the whole conversation, not from one of its threads.
+                if !isThread { voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory) }
                 return
             }
             let conversationModel = ConversationModel(
                 conversationId: conversationId, currentUserId: account.userId, connection: appModel.connection(for: account),
-                socketFactory: appModel.socketFactory,
+                socketFactory: appModel.socketFactory, threadRootMessageId: threadRootMessageId,
+                offersMessageThreads: session.capabilities.offersMessageThreads,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             conversationModel.onTitleChanged = { onTitleChanged?($0) }
             model = conversationModel
             takeReference()
             voice?.end()
-            voice = VoiceCallController(
-                model: conversationModel, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
+            if !isThread {
+                voice = VoiceCallController(
+                    model: conversationModel, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
+            }
             conversationModel.start()
             if appModel.isDemo, DemoOptions.screen == "voice" { voice?.startDemo() }
             if appModel.isDemo, DemoOptions.screen == "conversation-composer" { drafts.stageDemo() }
+            if appModel.isDemo, SpeechDemo.stagesListening(DemoOptions.screen, isThread: isThread) { dictation.stageListening(captionText: DemoSpeech.firstCaption) }
+            if appModel.isDemo, SpeechDemo.stagesWords(DemoOptions.screen) { draft = DemoSpeech.dictatedWords }
+            if appModel.isDemo, let messageId = SpeechDemo.messageToPlay(DemoOptions.screen, isThread: isThread) {
+                // The chat or conversation under a thread stops any reading as it is covered, so the thread stages its own afterwards.
+                if isThread { try? await Task.sleep(for: .seconds(2)) }
+                session.readAloud.stageDemo(messageId: messageId)
+            }
             if appModel.isDemo, DemoOptions.screen == "conversation-reply" {
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 conversationModel.replyTarget = ReplyReference(
@@ -119,13 +208,16 @@ struct ConversationView: View {
             model?.stop()
             voice?.end()
         }
+        .speechLifecycle(dictation)
         .onCoveredChange { isCovered in
             guard isOnScreen, let model else { return }
             if isCovered {
                 model.stop()
                 voice?.end()
+                dictation.abort()
+                session.readAloud.stop()
             } else {
-                voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
+                if !isThread { voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory) }
                 model.start()
             }
         }
@@ -133,7 +225,7 @@ struct ConversationView: View {
 
     /// Puts the reference an Ask button named into the composer, once the model exists.
     private func takeReference() {
-        guard let model, let pending = session.referenceHandoff.conversationId == conversationId ? session.referenceHandoff.pending : nil else { return }
+        guard !isThread, let model, let pending = session.referenceHandoff.conversationId == conversationId ? session.referenceHandoff.pending : nil else { return }
         _ = session.referenceHandoff.take(for: conversationId)
         model.viewingReference = (pending.viewing, pending.subject)
     }
@@ -146,6 +238,16 @@ struct ConversationView: View {
     }
 
     /// The main chat is named by the app, in the person's language, and cannot be renamed.
+    private func makeMainChat() async {
+        do {
+            try await appModel.connection(for: account).setMainConversation(id: conversationId)
+            model?.becameMain()
+            session.noteMainChat(conversationId: conversationId)
+        } catch {
+            appModel.handle(error, account: account)
+        }
+    }
+
     private var isMainChat: Bool { model?.isMain == true || session.knownMainConversationId == conversationId }
 
 
@@ -156,7 +258,7 @@ struct ConversationView: View {
             ProgressView()
         case .failed(let message):
             ContentUnavailableView {
-                Label("Could not load this conversation", systemImage: "wifi.exclamationmark")
+                Label(isThread ? LocalizedStringKey("Could not load this thread") : LocalizedStringKey("Could not load this conversation"), systemImage: "wifi.exclamationmark")
             } description: {
                 Text(message)
             } actions: {
@@ -164,8 +266,13 @@ struct ConversationView: View {
             }
         case .loaded:
             transcript(model)
+                // At rest the messages start below the call's stage; scrolled up, they fade out behind it. Reserved as a safe area
+                // rather than a content margin: a margin pushed a short conversation, which sits at the bottom, down under the composer.
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if isCallStaged { Color.clear.frame(height: max(callStageBottom - contentTop, 0)) }
+                }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    ComposerBar(model: model, voice: voice, drafts: drafts, draft: $draft)
+                    ComposerBar(model: model, voice: voice, dictation: dictation, drafts: drafts, draft: $draft)
                 }
         }
     }
@@ -188,7 +295,7 @@ struct ConversationView: View {
                                 if isTopInView { Task { await model.loadEarlier() } }
                             }
                     }
-                    if model.transcript.entries.isEmpty {
+                    if model.transcript.entries.isEmpty, !model.isThread {
                         ContentUnavailableView {
                             Label("Ask anything", systemImage: "sparkles")
                         } description: {
@@ -196,19 +303,36 @@ struct ConversationView: View {
                         }
                         .padding(.top, 48)
                     }
-                    ForEach(model.transcript.displayEntries.filter(Self.isShown)) { entry in
+                    let shownEntries = model.transcript.displayEntries.filter { Self.isShown($0, showWorkingNotes: showWorkingNotes) }
+                    let threadKeys = Self.threadKeys(of: shownEntries, in: model.transcript)
+                    ForEach(Array(shownEntries.enumerated()), id: \.element.id) { index, entry in
                         TranscriptRow(
                             entry: entry, model: model,
-                            openArtifact: { fullArtifact = $0 }
+                            openArtifact: { fullArtifact = $0 },
+                            onOpenThread: threadOpener(model),
+                            commentLine: commentLine(
+                                for: entry, previous: shownEntries[..<index].last { Self.messageId(of: $0) != nil }, entries: shownEntries, model: model)
                         )
+                        .threadBar(
+                            isShown: model.canOpenThreads && threadKeys[index] != nil,
+                            joinsBelow: index + 1 < threadKeys.count && threadKeys[index + 1] == threadKeys[index], gap: 16)
                         .id(entry.id)
+                        // The replies of a thread follow its root, which says how many there are.
+                        if let rootId = model.threadRootMessageId, entry.id == "user:\(rootId)" || entry.id == "assistant:\(rootId)" {
+                            ThreadRepliesDivider(
+                                replyCount: max(
+                                    model.transcript.threadSummary(for: rootId)?.replyCount ?? 0,
+                                    shownEntries.filter { Self.isReply(in: $0, root: rootId) }.count))
+                        }
                     }
-                    // From the send until the first words or a tool row: typing dots in the assistant's bubble.
-                    if model.isRunning, model.isAwaitingFirstWords {
+                    // The one sign of a turn at work: typing dots below everything, until the answer is done.
+                    if model.isShowingTypingDots {
                         TypingBubble().id("typing")
                     }
-                    ForEach(model.backgroundWork) { work in
-                        BackgroundWorkBanner(work: work) { Task { await model.stopBackgroundWork(work) } }
+                    if !model.isThread {
+                        ForEach(model.backgroundWork) { work in
+                            BackgroundWorkBanner(work: work) { Task { await model.stopBackgroundWork(work) } }
+                        }
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
@@ -228,8 +352,16 @@ struct ConversationView: View {
             .onChange(of: model.transcript.entries.last) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
+            // The call's stage taking or giving back room at the top keeps the newest message in view above the composer. The
+            // scroll waits for the layout that applies the new margin: made at once, it scrolls to where the end was before.
+            .onChange(of: callStageBottom) { _, _ in
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(100))
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
             .overlay(alignment: .top) {
-                if !model.isFeedLive {
+                if model.isFeedLost {
                     Label("Reconnecting", systemImage: "arrow.triangle.2.circlepath")
                         .font(.footnote)
                         .padding(.horizontal, 12)
@@ -244,11 +376,68 @@ struct ConversationView: View {
 
     static let readableWidth: CGFloat = 720
 
+    /// The thread each entry is part of, which the bar beside it follows. What the assistant does after a message of a thread (its
+    /// tool calls, a failed turn) is part of that thread until the next message.
+    private static func threadKeys(of entries: [TranscriptEntry], in transcript: Transcript) -> [String?] {
+        var current: String?
+        return entries.map { entry in
+            if let id = messageId(of: entry) { current = transcript.threadKey(ofMessage: id) }
+            return current
+        }
+    }
+
+    /// The message id of an entry that is a message, else nil.
+    private static func messageId(of entry: TranscriptEntry?) -> String? {
+        switch entry {
+        case .user(let id, _, _)?: id
+        case .assistant(let id, _, _)?: id
+        default: nil
+        }
+    }
+
+    /// The line above the first reply of a run in the main history: which message it comments on. Not shown when the message above
+    /// it, passing over any step rows between them, is the root or another reply of the same thread.
+    private func commentLine(for entry: TranscriptEntry, previous: TranscriptEntry?, entries: [TranscriptEntry], model: ConversationModel) -> CommentLine? {
+        guard model.canOpenThreads, let id = Self.messageId(of: entry), let root = model.transcript.replyThreadRoot(of: id) else { return nil }
+        if let previousId = Self.messageId(of: previous), previousId == root || model.transcript.replyThreadRoot(of: previousId) == root { return nil }
+        for candidate in entries {
+            switch candidate {
+            case .user(let rootId, let text, _) where rootId == root:
+                return CommentLine(rootMessageId: root, author: nil, excerpt: ThreadExcerpt.start(of: text))
+            case .assistant(let rootId, let text, _) where rootId == root:
+                return CommentLine(rootMessageId: root, author: String(localized: "Assistant"), excerpt: ThreadExcerpt.start(of: text))
+            default: continue
+            }
+        }
+        return nil
+    }
+
+    /// Opens the thread of a message, on a server with threads and on the main history; nowhere else a reply opens one.
+    private func threadOpener(_ model: ConversationModel) -> ((String) -> Void)? {
+        guard model.canOpenThreads else { return nil }
+        return { openedThreadRootId = $0 }
+    }
+
+    /// Whether an entry of a thread's transcript is something said in reply: what the person or the assistant wrote after the root.
+    private static func isReply(in entry: TranscriptEntry, root: String) -> Bool {
+        switch entry {
+        case .user(let id, _, _): id != root
+        case .assistant(let id, _, _): id != root
+        default: false
+        }
+    }
+
     /// Bookkeeping notes are not drawn, so they leave no gap either.
-    private static func isShown(_ entry: TranscriptEntry) -> Bool {
-        if case .note(_, let note) = entry, case .backgroundNotice = note { return true }
-        if case .note = entry { return false }
-        return true
+    /// Whether a row of the transcript is drawn. The "What it did" rows only when the person turned them on in the assistant settings.
+    private static func isShown(_ entry: TranscriptEntry, showWorkingNotes: Bool) -> Bool {
+        switch entry {
+        case .note(_, let note):
+            if case .backgroundNotice = note { return true }
+            return false
+        case .tool(let activity): return showWorkingNotes || activity.isThinkingHarder
+        case .toolGroup: return showWorkingNotes
+        default: return true
+        }
     }
 
     private static func isStreamingOrCard(_ entry: TranscriptEntry) -> Bool {
@@ -268,21 +457,57 @@ private struct AssistantBubbleKey: Equatable {
     let reactions: [Reaction]
     let speakFirstReason: String?
     let speakFirstOutcome: String?
+    let threadRoot: String?
 }
 
 private struct TranscriptRow: View {
     /// Bubbles stop growing here, so a wide iPad window keeps readable lines.
     static let bubbleWidth: CGFloat = 620
+    @Environment(AppModel.self) private var appModel
     let entry: TranscriptEntry
     let model: ConversationModel
     let openArtifact: (ArtifactReference) -> Void
+    /// Opens the thread of a message. Nil where a reply is quoted instead: in a thread, and on a server without threads.
+    var onOpenThread: ((String) -> Void)?
+    var commentLine: CommentLine?
+
+    /// The line above a reply that says which message it comments on.
+    @ViewBuilder
+    private var commentLineView: some View {
+        if let commentLine, let onOpenThread {
+            ThreadCommentLine(author: commentLine.author, excerpt: commentLine.excerpt) { onOpenThread(commentLine.rootMessageId) }
+        }
+    }
+
+    /// The count of replies under a message, or that the assistant is answering in its thread. A turn whose answer this screen shows
+    /// has the typing dots at the end of the history, so the message does not say it again.
+    @ViewBuilder
+    private func threadControl(for id: String) -> some View {
+        let isWorking = model.isRunning && !model.isRunningHere && model.transcript.workingThreadRootMessageId == id
+        let summary = model.transcript.threadSummary(for: id)
+        if let onOpenThread, summary?.isCountShown == true || isWorking {
+            ThreadReplyControl(summary: summary, isWorking: isWorking) { onOpenThread(id) }
+        }
+    }
+
+    /// The thread a tap on a message opens, when it belongs to one.
+    private func threadToOpen(for id: String) -> String? {
+        onOpenThread == nil ? nil : model.transcript.threadToOpen(forMessage: id)
+    }
+
+    /// Copies the address of a message: `/chat/<conversationId>#message-<messageId>` on the account's server. Nil until it is stored.
+    private func copyLinkAction(for id: String) -> (() -> Void)? {
+        guard !id.hasPrefix("pending:"), let server = appModel.activeAccount?.server else { return nil }
+        let address = MessagePermalink.assistantMessage(server: server, conversationId: model.conversationId, messageId: id).absoluteString
+        return { UIPasteboard.general.string = address }
+    }
 
     /// What a long press on the person's own message offers: answering it and working with its words.
     private func userActions(id: String, text: String) -> MessageActions {
         MessageActions(
             messageId: id, text: text, isTrailing: true, ownReaction: nil, onReact: nil,
-            onReply: { model.replyTarget = ReplyReference(messageId: id, authorName: "", excerpt: text, isOwn: true) },
-            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil)
+            onReply: { if let onOpenThread { onOpenThread(threadToOpen(for: id) ?? id) } else { model.replyTarget = ReplyReference(messageId: id, authorName: "", excerpt: text, isOwn: true) } },
+            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil, onCopyLink: copyLinkAction(for: id), readAloudText: text)
     }
 
     /// What a long press on an answer offers: reacting to it, answering it and working with its words.
@@ -291,8 +516,10 @@ private struct TranscriptRow: View {
             messageId: id, text: text, isTrailing: false,
             ownReaction: Reactions.summaries(model.transcript.reactions(for: id), currentUserId: model.currentUserId).first { $0.isMine }?.emoji,
             onReact: { emoji in Task { await model.react(messageId: id, emoji: emoji) } },
-            onReply: { model.replyTarget = ReplyReference(messageId: id, authorName: String(localized: "Assistant"), excerpt: text) },
-            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil)
+            onReply: {
+                if let onOpenThread { onOpenThread(threadToOpen(for: id) ?? id) } else { model.replyTarget = ReplyReference(messageId: id, authorName: String(localized: "Assistant"), excerpt: text) }
+            },
+            onEdit: nil, onRemoveLinkPreviews: nil, onDelete: nil, onCopyLink: copyLinkAction(for: id), readAloudText: text)
     }
 
     /// The cards under a message that holds a link, as under a message in a people chat.
@@ -312,7 +539,8 @@ private struct TranscriptRow: View {
         switch entry {
         case .user(let id, let text, let viewing):
             VStack(alignment: .trailing, spacing: 4) {
-                if let quote = model.transcript.replyQuote(for: id) {
+                commentLineView
+                if let quote = model.transcript.replyQuote(for: id), !(commentLine != nil && quote.messageId == commentLine?.rootMessageId) {
                     SentQuote(authorName: quote.authorName, excerpt: quote.excerpt)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
@@ -325,19 +553,23 @@ private struct TranscriptRow: View {
                             .padding(.vertical, 10)
                             .background(Color.accentColor.opacity(0.2), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                     }
+                    .modifier(OpensThread(root: threadToOpen(for: id), onOpen: onOpenThread))
                     .reactionCorner(model.transcript.reactions(for: id), currentUserId: model.currentUserId, isLeading: false, onTap: nil)
                 }
                 if let viewing {
                     ViewingChip(viewing: viewing)
                 }
                 linkCards(for: id)
+                threadControl(for: id)
             }
             .frame(maxWidth: Self.bubbleWidth, alignment: .trailing)
             .frame(maxWidth: .infinity, alignment: .trailing)
         case .assistant(let id, let text, let isStreaming):
+            VStack(alignment: .leading, spacing: 4) {
+            commentLineView
             HStack {
                 let speakFirstReason = model.isOwnConversation ? model.transcript.speakFirstReason(for: id) : nil
-                StableBubble(key: AssistantBubbleKey(id: id, text: text, isStreaming: isStreaming, reactions: model.transcript.reactions(for: id), speakFirstReason: speakFirstReason, speakFirstOutcome: model.speakFirstOutcome)) {
+                StableBubble(key: AssistantBubbleKey(id: id, text: text, isStreaming: isStreaming, reactions: model.transcript.reactions(for: id), speakFirstReason: speakFirstReason, speakFirstOutcome: model.speakFirstOutcome, threadRoot: threadToOpen(for: id))) {
                 HoldableMessage(actions: isStreaming ? nil : assistantActions(id: id, text: text)) {
                     VStack(alignment: .leading, spacing: 6) {
                         RichBodyView(markdown: text, connection: model.connection, isSelectable: false)
@@ -347,12 +579,15 @@ private struct TranscriptRow: View {
                         .padding(.vertical, 10)
                         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
+                .modifier(OpensThread(root: threadToOpen(for: id), onOpen: onOpenThread))
                 .reactionCorner(isStreaming ? [] : model.transcript.reactions(for: id), currentUserId: model.currentUserId, isLeading: false) { emoji in
                     Task { await model.react(messageId: id, emoji: emoji) }
                 }
                 }
                 .equatable()
                 Spacer(minLength: 24)
+            }
+            threadControl(for: id)
             }
             .frame(maxWidth: Self.bubbleWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -381,11 +616,26 @@ private struct TranscriptRow: View {
                 .font(.footnote)
                 .foregroundStyle(isError ? AnyShapeStyle(Color.statusError) : AnyShapeStyle(.secondary))
         case .turnEnd(_, let kind, let text, let reason):
-            TurnEndLine(kind: kind, text: text, reason: reason)
+            TurnEndLine(kind: kind, text: text, reason: reason).frame(maxWidth: .infinity, alignment: .trailing)
         case .note(_, let note):
             NoteLine(note: note)
         case .goalNeedsYou(_, let goalId, let title, let question):
             GoalNeedsYouCard(goalId: goalId, title: title, question: question)
+        }
+    }
+}
+
+/// OpensThread makes a message that belongs to a thread open it when tapped. Links and buttons inside the message keep working.
+private struct OpensThread: ViewModifier {
+    let root: String?
+    let onOpen: ((String) -> Void)?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let root, let onOpen {
+            content.onTapGesture { onOpen(root) }
+        } else {
+            content
         }
     }
 }
@@ -456,14 +706,8 @@ private struct ToolGroupRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 4)
         } label: {
+            // No spinner here: the typing dots alone say the turn is at work.
             HStack(spacing: 8) {
-                if tools.contains(where: \.isRunning) {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Image(systemName: "checkmark.circle")
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                }
                 Text("What it did")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -567,7 +811,7 @@ private struct BackgroundWorkBanner: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ProgressView().controlSize(.small)
+            TypingDots(dotSize: 6)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Working in the background")
                     .font(.footnote.weight(.semibold))
@@ -719,16 +963,43 @@ private struct ComposerBar: View {
         }
     }
 
+    @Environment(AppModel.self) private var appModel
+    @Environment(SessionModel.self) private var session
     let model: ConversationModel
     let voice: VoiceCallController?
+    let dictation: DictationController
     let drafts: AttachmentDrafts
     @Binding var draft: String
+
+    private var placeholder: LocalizedStringKey {
+        if model.activeQuestion != nil { return LocalizedStringKey("Your answer") }
+        return model.isThread ? LocalizedStringKey("Reply in thread…") : LocalizedStringKey("Message")
+    }
 
     private var isDraftEmpty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var canSend: Bool { !isDraftEmpty || !drafts.items.isEmpty }
 
+    /// The microphone button, when the server has dictation set up for this person.
+    private var dictationControl: DictationControl? {
+        guard session.voiceAvailability.isDictationAvailable else { return nil }
+        return DictationControl(isListening: dictation.isListening, isEnabled: dictation.phase != .finishing) { toggleDictation() }
+    }
+
+    private func toggleDictation() {
+        if appModel.callCenter.isInCall || voice?.isActive == true {
+            dictation.report(String(localized: "You cannot dictate during a call."))
+            return
+        }
+        session.readAloud.stop()
+        dictation.toggle(place: .agent, connection: model.connection, isDemo: appModel.isDemo) { words in
+            draft = DictationText.appending(words, to: draft)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 6) {
+            if session.readAloud.isShowingBar { ReadAloudBar(readAloud: session.readAloud) }
+            if dictation.isShowingStatus { DictationStatus(dictation: dictation) }
             if let error = model.actionError {
                 HStack(spacing: 8) {
                     Text(error)
@@ -750,11 +1021,9 @@ private struct ComposerBar: View {
                 }
                 .padding(.horizontal, 12)
             }
-            // While a call is on, its bar takes the composer's place and the keyboard stays down.
+            // While a call is on, the conversation's stage shows it and the composer and keyboard stay down.
             if let voice, voice.isActive || voice.phase != .idle {
-                VoiceCallBar(voice: voice, isThinking: model.isRunning)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 8)
+                EmptyView()
             } else {
             AttachmentStrip(drafts: drafts)
                 .padding(.horizontal, 16)
@@ -762,9 +1031,10 @@ private struct ComposerBar: View {
                 Text(attachError).font(.footnote).foregroundStyle(Color.statusError).padding(.horizontal, 20)
             }
             ComposerCard(
-                placeholder: model.activeQuestion == nil ? LocalizedStringKey("Message") : LocalizedStringKey("Your answer"), text: $draft, drafts: drafts,
-                canSend: canSend, onVoice: voice.map { voice in { Task { await voice.start() } } },
-                onStop: model.isRunning ? { Task { await model.cancelRun() } } : nil,
+                placeholder: placeholder, text: $draft, drafts: drafts,
+                canSend: canSend,
+                onVoice: nil,
+                onStop: model.isRunning ? { Task { await model.cancelRun() } } : nil, dictation: dictationControl,
                 onEscape: {
                     guard draft.isEmpty, model.replyTarget != nil else { return false }
                     model.replyTarget = nil
@@ -776,11 +1046,14 @@ private struct ComposerBar: View {
         .padding(.top, 6)
         .onChange(of: voice?.isActive ?? false) { _, isActive in
             // The keyboard goes down when a call starts.
+            if isActive { dictation.abort() }
             if isActive { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
         }
     }
 
     private func send() {
+        // What is still being said belongs to the message that was sent, not to the next one.
+        dictation.abort()
         let text = draft
         draft = ""
         Task {
@@ -852,91 +1125,6 @@ private struct SpeakFirstChoicesView: View {
                 .padding(.vertical, -10)
                 .padding(.trailing, -10)
             }
-        }
-    }
-}
-
-/// VoiceCallBar is the call in progress: what is heard, whether the answer is
-/// being read, and the buttons to mute and end it.
-private struct VoiceCallBar: View {
-    let voice: VoiceCallController
-    let isThinking: Bool
-
-    var body: some View {
-        HStack(spacing: 12) {
-            levelMeter
-            Text(state)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if voice.isActive {
-                Button {
-                    voice.toggleMute()
-                } label: {
-                    Image(systemName: voice.isMuted ? "mic.slash.fill" : "mic.fill")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(voice.isMuted ? Color.white : Color.accentColor)
-                        .frame(width: 44, height: 44)
-                        .background(voice.isMuted ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color(.tertiarySystemFill)), in: .circle)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(voice.isMuted ? "Unmute" : "Mute")
-            }
-            Button {
-                voice.end()
-            } label: {
-                Image(systemName: voice.isActive ? "phone.down.fill" : "xmark")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(voice.isActive ? Color.statusError : Color.secondary, in: .circle)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(voice.isActive ? "End the call" : "Close")
-        }
-        .padding(.leading, 16)
-        .padding(.trailing, 8)
-        .padding(.vertical, 8)
-        .background(Color.portalCard.opacity(0.92), in: .rect(cornerRadius: 30, style: .continuous))
-        .glassEffect(.regular, in: .rect(cornerRadius: 30, style: .continuous))
-        .accessibilityElement(children: .contain)
-        .sensoryFeedback(trigger: voice.phase) { _, new in new == .listening ? .impact(weight: .light) : nil }
-    }
-
-    /// How loud the microphone is; a tap cuts a playing answer short where that is possible, and does nothing otherwise.
-    private var levelMeter: some View {
-        Button {
-            voice.cutAnswer()
-        } label: {
-            ZStack {
-                Circle().fill(Color(.tertiarySystemFill))
-                Circle()
-                    .fill(Color.accentColor.opacity(0.35))
-                    .scaleEffect(voice.isMuted ? 0.3 : 0.35 + 0.65 * CGFloat(voice.inputLevel))
-                    .animation(.easeOut(duration: 0.1), value: voice.inputLevel)
-                Image(systemName: voice.phase == .speaking ? "speaker.wave.2.fill" : "waveform")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(voice.isMuted ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
-            }
-            .frame(width: 44, height: 44)
-        }
-        .buttonStyle(.plain)
-        .disabled(!voice.canCutIn)
-        .accessibilityLabel(voice.canCutIn ? Text("Stop the answer") : Text(state))
-    }
-
-    /// Only the state, or a problem.
-    private var state: LocalizedStringKey {
-        switch voice.phase {
-        case .idle: ""
-        case .connecting: "Connecting\u{2026}"
-        case .failed(let message): LocalizedStringKey(message)
-        case .speaking: "Speaking"
-        case .listening:
-            if let notice = voice.notice { LocalizedStringKey(notice) }
-            else if voice.isMuted { "Muted" }
-            else if isThinking { "Thinking" }
-            else { "Listening" }
         }
     }
 }

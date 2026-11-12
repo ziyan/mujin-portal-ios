@@ -19,6 +19,10 @@ final class SessionModel {
     private(set) var phase = Phase.loading
     private(set) var profile: Profile?
     private(set) var capabilities = ServerCapabilities()
+    /// Which of dictation and reading aloud the server has set up for this person. Neither, until the server says.
+    private(set) var voiceAvailability = VoiceAvailability.unavailable
+    /// The one message being read aloud, whichever screen asked.
+    let readAloud: ReadAloudController
     /// Questions and approvals that wait for the person, in any conversation.
     private(set) var waiting: [WaitingItem] = []
     /// The tab in front. Screens change it to take the person elsewhere.
@@ -27,8 +31,16 @@ final class SessionModel {
     var conversationToOpen: String?
     /// A chat's conversation the Chats tab should open, from a notification.
     var chatToOpen: String?
+    /// The thread the conversation named by `chatToOpen` or `conversationToOpen` should open on, from a notification about a reply.
+    var threadToOpen: ThreadToOpen?
+    /// A message a link points at, which the chat it is in scrolls to and marks for a moment.
+    var messageToFocus: MessageFocus?
+    /// Why a link to a message could not be opened, shown in a short alert.
+    var linkNotice: String?
     /// Unread messages across the person's chats.
     private(set) var chatUnreadCount = 0
+    /// The chat last read to its end, which the chat lists clear from their rows.
+    private(set) var lastReadChat: ChatReadMark?
     /// The going calls of the person's chats, kept current by the call feed.
     private(set) var callBook = ChatCallBook()
     /// Whether a media host is alive. False hides the call buttons.
@@ -40,9 +52,11 @@ final class SessionModel {
     var onRingStopped: ((String) -> Void)?
     /// A ticket the Tickets tab should open, from a notification.
     var ticketToOpen: String?
+    /// The feedback sheet a screenshot opened, nil while none is up.
+    var feedbackRequest: FeedbackRequest?
     /// Set when a notification asks More to show the Automations screen.
     var automationsRequested = false
-    var isShowingNotifications = DemoOptions.screen == "notifications"
+    var isShowingNotifications = false
     /// Entries in the inbox not read yet.
     private(set) var unreadCount = 0
     /// Counts up whenever the server says a notification was created, so an open inbox reads again.
@@ -74,6 +88,7 @@ final class SessionModel {
         self.account = account
         self.connection = connection
         self.onError = onError
+        self.readAloud = ReadAloudController(connection: connection)
         let directory = Self.avatarDirectory(accountKey: account.accountKey)
         self.avatars = AvatarStore(connection: connection, directory: directory)
         self.surveillance = SurveillanceModel(connection: connection, cache: cache, accountKey: account.accountKey)
@@ -111,6 +126,8 @@ final class SessionModel {
         if let existing = siteModels[key] { return existing }
         let model = SiteModel(connection: connection, organizationId: organizationId, pinnedSiteId: siteId, cellId: cellId, cache: cache, accountKey: account.accountKey, onError: onError)
         model.viewerIsMujinUser = isStaff
+        model.offersSiteExclusion = capabilities.offersSiteExclusion
+        model.offersTelemetrySource = capabilities.offersTelemetrySource
         model.viewerPermissions = profile?.me.permissions ?? []
         model.viewerOrganizationId = self.organizationId
         siteModels[key] = model
@@ -122,7 +139,7 @@ final class SessionModel {
     func ticketsModel(for organizationId: String?) -> TicketsModel {
         let key = organizationId ?? ""
         if let existing = ticketModels[key] { return existing }
-        let model = TicketsModel(connection: connection, organizationId: organizationId, cache: cache, accountKey: account.accountKey, onError: onError)
+        let model = TicketsModel(connection: connection, organizationId: organizationId, includesPortalFeedbackFlag: capabilities.offersPortalFeedback, cache: cache, accountKey: account.accountKey, onError: onError)
         ticketModels[key] = model
         return model
     }
@@ -192,6 +209,21 @@ final class SessionModel {
                 ((try? await organizations) ?? []).map { ($0.id, $0.name ?? "") }, uniquingKeysWith: { first, _ in first })
             return loaded
         })
+    }
+
+    /// A chat was read to its end. The lists update from this, not from a new read, which a replica could answer with the old count.
+    func noteChatRead(conversationId: String) {
+        lastReadChat = ChatReadMark(conversationId: conversationId)
+        // The server marks the chat's notifications read with it. A replica answers a moment behind that.
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            await refreshUnreadCount()
+        }
+    }
+
+    /// The count a chat list worked out after clearing a row.
+    func setChatUnreadCount(_ count: Int) {
+        chatUnreadCount = count
     }
 
     /// Reads what waits for the person. The web app asks every 30 seconds too.
@@ -285,17 +317,44 @@ final class SessionModel {
         case .conversation(let id):
             conversationToOpen = id
             selectedSection = .assistant
+        case .conversationThread(let id, let threadRootMessageId):
+            threadToOpen = ThreadToOpen(conversationId: id, threadRootMessageId: threadRootMessageId)
+            conversationToOpen = id
+            selectedSection = .assistant
         case .chat(let conversationId):
+            chatToOpen = conversationId
+            selectedSection = .assistant
+        case .chatThread(let conversationId, let threadRootMessageId):
+            threadToOpen = ThreadToOpen(conversationId: conversationId, threadRootMessageId: threadRootMessageId)
             chatToOpen = conversationId
             selectedSection = .assistant
         case .goal(let id):
             goalToOpen = id
             selectedSection = .more
+        case .ticket(let id):
+            ticketToOpen = id
+            selectedSection = tabSections.contains(.tickets) ? .tickets : .more
         case .automations:
             automationsRequested = true
             selectedSection = .more
         case .notifications:
             isShowingNotifications = true
+        }
+    }
+
+    /// Opens a link to a message of a chat: the person's own conversation of it, in the thread the message is in when it is in one.
+    func openChatMessage(chatId: String, messageId: String) async {
+        do {
+            let conversationId = try await connection.openChatMessage(chatId: chatId, messageId: messageId)
+            let root = await connection.messageThreadRoot(conversationId: conversationId, messageId: messageId)
+            messageToFocus = MessageFocus(conversationId: conversationId, messageId: messageId, threadRootMessageId: root)
+            if let root {
+                open(.chatThread(conversationId: conversationId, threadRootMessageId: root))
+            } else {
+                open(.chat(conversationId: conversationId))
+            }
+        } catch {
+            linkNotice = String(localized: "That message could not be found.")
         }
     }
 
@@ -342,6 +401,13 @@ final class SessionModel {
     var referenceHandoff = ReferenceHandoff()
     /// The id of the main chat once the list or an Ask button has seen it.
     private(set) var knownMainConversationId: String?
+    /// Counts the times the person chose another main chat, which the list reads again for.
+    private(set) var mainChatRevision = 0
+
+    func noteMainChat(conversationId: String) {
+        knownMainConversationId = conversationId
+        mainChatRevision += 1
+    }
 
     /// A new message the person asked for from a screen: its reference or its words are held here, and
     /// nothing exists on the server until the first send.
@@ -391,10 +457,17 @@ final class SessionModel {
             let (newProfile, newCapabilities) = try await (loadedProfile, loadedCapabilities)
             profile = newProfile
             capabilities = newCapabilities
+            // Active alarms are listed by level where the server does, and all together where it does not.
+            AlarmLevelPreference.shared.isAvailable = newCapabilities.offersSiteExclusion
             // A server with voice messages or calls takes their fields of a chat message; an older one refuses them.
             await connection.setChatMedia(hasVoice: newCapabilities.offersVoiceMessages, hasCalls: newCapabilities.offersChatCalls)
-            await refreshCalls()
+            // A server with message threads takes their fields and arguments; an older one refuses them.
+            await connection.setMessageThreads(newCapabilities.offersMessageThreads)
+            // Asked only of a server whose schema has the fields; an older one has neither feature.
+            voiceAvailability = await connection.voiceAvailability(capabilities: newCapabilities)
+            // The first screen needs none of what follows, so a slow network does not hold it back.
             phase = .loaded
+            await refreshCalls()
             await refreshWaiting()
             await loadPlaces()
         } catch {
@@ -411,17 +484,40 @@ enum DemoOptions {
     /// The raw screen name, such as `conversation:conversation02` or `section:tickets`.
     static var screen: String? { environment["PORTAL_DEMO_SCREEN"] }
 
+    /// Whether a demo run turns the iPad to landscape, from `PORTAL_DEMO_LAYOUT` naming `landscape`.
+    static var isLandscape: Bool { environment["PORTAL_DEMO_LAYOUT"]?.contains("landscape") == true }
+
+    /// Whether a demo run hides the list beside a conversation, from `PORTAL_DEMO_LAYOUT` naming `list-hidden`.
+    static var isListHidden: Bool { environment["PORTAL_DEMO_LAYOUT"]?.contains("list-hidden") == true }
+
+    /// The update a demo run offers, from `PORTAL_DEMO_UPDATE` as `<version>:<build>`, or on its own screens.
+    static var update: AppUpdate? {
+        if let text = environment["PORTAL_DEMO_UPDATE"] {
+            let parts = text.split(separator: ":")
+            guard parts.count == 2, let build = Int(parts[1]) else { return nil }
+            return AppUpdate(channel: .testFlight, version: String(parts[0]), build: build)
+        }
+        switch screen {
+        case "update-available", "settings-update": return AppUpdate(channel: .testFlight, version: "1.0", build: 310)
+        case "update-available-store": return AppUpdate(channel: .appStore, version: "1.1")
+        default: return nil
+        }
+    }
+
     /// The tab to open on, from `section:<name>`.
     static var section: AppSection? {
         guard let screen else { return nil }
         if SearchDemo.owns(screen) { return .search }
+        if FeedbackDemo.owns(screen) { return FeedbackDemo.section(for: screen) }
+        if SiteViewDemo.owns(screen) { return SiteViewDemo.section }
         if screen.hasPrefix("more-") { return .more }
+        if screen.hasPrefix("update-available") { return .assistant }
         if screen.hasPrefix("section:") { return AppSection(rawValue: String(screen.dropFirst("section:".count))) }
         if AccountDemo.owns(screen) || PlatformDemo.owns(screen) { return .more }
         // Screens that live under More.
-        if ["automations", "notifications", "about", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image", "accounts", "tab-bar-edit"].contains(where: { screen.hasPrefix($0) }) { return .more }
+        if ["automations", "notifications", "about", "settings-update", "settings", "goal", "ideas", "knowledge", "memory-page", "dreams", "assistant-settings", "release", "incidents", "release-image", "accounts", "tab-bar-edit"].contains(where: { screen.hasPrefix($0) }) { return .more }
         if screen.hasPrefix("ticket") || screen.hasPrefix("attachment-viewer") { return .tickets }
-        if screen.hasPrefix("chat") { return .chats }
+        if screen.hasPrefix("chat") || screen.hasPrefix("thread-") { return .chats }
         if screen.hasPrefix("site-staff") || screen == "sites-staff" || screen == "surveillance-staff" { return .site }
         if screen == "surveillance" { return .more }
         if screen == "surveillance-tab" || screen == "surveillance-many" || screen == "surveillance-many-scrolled" { return .surveillance }
@@ -434,7 +530,8 @@ enum DemoOptions {
         switch screen ?? "" {
         case let name where name.hasPrefix("automations"): [.automations]
         case "about": [.about]
-        case "settings", "accounts": [.settings]
+        case "settings", "settings-update", "accounts", "feedback-form", "feedback-form-open": [.settings]
+        case "feedback-list", "feedback-list-empty", "feedback-list-error": [.settings, .myFeedback]
         case "tab-bar-edit": [.settings, .tabBarEditor]
         case "goals": [.goals]
         case "goal": [.goals, .goal("goal01")]
@@ -464,4 +561,23 @@ enum DemoOptions {
 
     /// Whether the demo person works for the administrator organization.
     static var isStaff: Bool { environment["PORTAL_DEMO_PERSONA"] == "staff" }
+}
+
+/// ChatReadMark says a chat was read to its end. Each is new, so reading the same chat again is seen as a change.
+struct ChatReadMark: Equatable {
+    let conversationId: String
+    let id = UUID()
+}
+
+/// MessageFocus is the message a link points at, and the thread it is in when it is in one.
+struct MessageFocus: Equatable {
+    let conversationId: String
+    let messageId: String
+    let threadRootMessageId: String?
+}
+
+/// ThreadToOpen is a thread a notification asked for: the conversation it is in and the message it hangs from.
+struct ThreadToOpen: Equatable {
+    let conversationId: String
+    let threadRootMessageId: String
 }

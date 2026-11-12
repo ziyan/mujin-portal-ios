@@ -4,9 +4,9 @@ import XCTest
 /// same one the screenshots job passes as PORTAL_DEMO_SCREEN.
 @MainActor
 enum DemoApp {
-    static func launch(screen: String, persona: String? = nil, environment: [String: String] = [:]) -> XCUIApplication {
+    static func launch(screen: String, persona: String? = nil, environment: [String: String] = [:], arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-demo"]
+        app.launchArguments = ["-demo"] + arguments
         app.launchEnvironment["PORTAL_DEMO_SCREEN"] = screen
         if let persona { app.launchEnvironment["PORTAL_DEMO_PERSONA"] = persona }
         app.launchEnvironment.merge(environment) { _, new in new }
@@ -53,6 +53,26 @@ enum DemoApp {
         return false
     }
 
+    /// Whether the element appears within the timeout. Unlike `waitForExistence`, a query whose snapshot times out while the app
+    /// is still busy launching is asked again rather than failing the test.
+    static func waitUntilExists(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"), object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    /// Whether the element's label comes to contain the text within the timeout: a label that follows a tap or a save is read once it has
+    /// settled, not at the first frame after it.
+    static func waitUntilLabel(_ element: XCUIElement, contains text: String, timeout: TimeInterval = 20) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", text), object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    /// Whether the element's value comes to contain the text within the timeout, for a field filled after it appears.
+    static func waitUntilValue(_ element: XCUIElement, contains text: String, timeout: TimeInterval = 20) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS %@", text), object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
+
     /// Whether the system reports the element hittable within the timeout. A predicate keeps a snapshot that fails while the
     /// page is still moving from failing the test: it is evaluated again until the timeout.
     static func waitUntilHittable(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
@@ -86,8 +106,14 @@ enum DemoApp {
         start.press(forDuration: 0.05, thenDragTo: end)
     }
 
-    /// Goes back one screen with the back button of the screen on top.
+    /// Goes back one screen with the back button of the screen on top. It is asked for by name because the system adds it to the
+    /// bar after the screen's own buttons, so for a moment the first button of the bar can be another one.
     static func goBack(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        let systemBackButton = app.navigationBars.buttons["BackButton"]
+        if systemBackButton.waitForExistence(timeout: 10) {
+            systemBackButton.tap()
+            return
+        }
         let backButton = app.navigationBars.element(boundBy: 0).buttons.element(boundBy: 0)
         XCTAssertTrue(backButton.waitForExistence(timeout: 10), "There is no back button", file: file, line: line)
         backButton.tap()

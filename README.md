@@ -162,12 +162,92 @@ to the discovery document's `revocation_endpoint`, which ends the whole grant.
 - **Video selection.** The phone sends one video track in two simulcast layers (rid `small` at a quarter size, 150 kbps, 15 fps; rid `full` up to 720p, 1.5 Mbps, 30 fps), VP8 preferred, H.264 allowed. It tells the server how much of each person's video it wants (`SetChatCallVideoSubscriptions`): full for the main stage, small for strip tiles in view, off for tiles scrolled out and for everyone while the call is minimized. The plan is sent once the media is up, again after a reconnect, and after every change, debounced by 300 ms. A call's size limit comes from `GetChatCallMaximumPersonCount`.
 - **Without a server that has them**, none of it shows: `ServerCapabilities` reads the schema once per sign-in.
 
+## Dictation and reading aloud
+
+- **Dictate.** A plain microphone button in the composer of a chat with people and of a conversation with the assistant, threads
+  included. It opens the voice socket a call uses, with `purpose: dictation` and `dictationPlace` (`chat` or `agent`), and streams
+  the microphone as 16-bit mono PCM in the format the `ready` event names. The live words show above the box; each final
+  transcript is added to the end of the box with a space before it, and nothing is sent. It stops by itself after 30 seconds with no
+  words, when the message is sent, the screen goes away, the app goes to the background or a call starts, and a tap on stop waits up
+  to 3 seconds for the words still being said. The audio session it changed is put back.
+- **Read aloud.** An action beside Copy link on a message of text (not a voice message, not a message still being written). The text
+  is made speakable (`ReadAloudText`, after the web app: no images, code blocks, formulas or bare addresses, link text kept, a table
+  as commas), cut into pieces of whole sentences of at most 4,096 characters, and spoken through `Connection.synthesize` with the
+  person's own voice. The next piece is fetched while one plays. One message plays at a time, with the ringer switch silent, and a call
+  or an interruption stops it. A billing limit (402) or no speech provider (404) is said in words.
+- **Without a server that has them**, neither shows: `GetAgentVoiceSetting` gains `isDictationAvailable` and
+  `isReadAloudAvailable`, and the app asks for them only when the schema's `AgentVoiceSetting` type has them.
+
+## Site and cell views
+
+- **Excluded controllers.** A controller can be left out of its site's and cells' merged views, as a simulation controller installed at a
+  site is. The server leaves it out of the merged alarms, orchestrators and mobile robots; the app drops it from the telemetry tiles it
+  adds up (`TelemetryScope`, `Connection.siteTelemetry`). A site or cell page says "Excluded from this view:" with each id opening its
+  controller, and the cell asks `ListSiteExcludedControllerIDs` with its `cellId`, so it names only what it leaves out. The controller
+  stays in the site's controller list with a badge, its own page keeps working, and a person with `controller:edit` can switch the
+  exclusion on its page (`ModifyController`).
+- **Telemetry source.** When the site names `telemetrySourceControllerId`, the site tiles read that controller alone and add the others
+  up only if it does not answer. In a cell the source is left out beside other physical controllers and kept when it is the only one.
+  The site page says where its totals come from, and the source's row says "Site total".
+- **Alarm levels.** Active alarm lists and the alarm counts show Critical and Error until the person turns on other levels, with a chip
+  per level and its count, kept on the phone. Levels compare without regard to case and an alarm of an unknown level always shows.
+- **A controller's own page** reads `ListControllerActiveAlarms`, `ListControllerOrchestrators` and `ListControllerMobileRobots`, never the
+  site's reads, which leave an excluded controller out and may hold only the source.
+- **Older servers.** Everything is gated on the query `ListSiteExcludedControllerIDs`, and the telemetry source also on the `Site`
+  type having the field. Without them the app asks for none of the new fields and lists every alarm level, as before.
+
+## Site documentation pages
+
+A site's **Documentation** row opens its documentation as a tree (`ListPages`, by `parentPageId` and `position`, the web's order). A page shows its
+title and content through the same Markdown, attachment and link views as chat and tickets. Links to `/site/<siteId>/page` and
+`/site/<siteId>/page/<pageId>` open these screens from chats, search and notifications, with no organization: a site of another
+organization is read by its id. The screens follow the web's draft rules: a page never published shows its draft; a published page
+shows its current revision (`GetPageRevision`), and a later draft waits for a publish. With `page:edit` on the page's
+`viewerCapabilities` a person can edit the title and content (`ModifyPage` keeps a draft) and add a page, and with `page:publish`
+publish (`PublishPage`). The history is read only. Moving, deleting and restoring stay on the web. The row, the screens and the editor
+show only when the server has the page operations and the `Page` fields `viewerCapabilities`, `isPublished`, `draftTitle`,
+`draftContent`, `currentRevisionId` and `parentPageId`.
+
+## Feedback about Portal
+
+A person can tell the Portal team what is wrong with the app, or what could be better, and follow what happens to it. It is a ticket
+the server marks as feedback about Portal itself; it is not a ticket about a site, and every screen says so.
+
+- **After a screenshot.** The system announces a screenshot without a picture, so the app draws its own window (no Photos access)
+  and opens a sheet with that picture attached, a box for the person's words, and Send and Cancel. Video and camera surfaces can come
+  out blank. The sheet does not open during a call, while it is already open, when asking is turned off, or on a server without the
+  feature. Nothing is sent until Send is pressed, and Send stays off until there are words.
+- **Settings.** The same form without a screenshot (pictures attach with the usual menu), "My feedback" with each piece's words,
+  status and date (a row opens the ticket), and the switch "Ask for feedback after a screenshot", on by default and kept per phone.
+- **What is sent.** The words, the uploaded pictures (at most 10), and the app version, the kind of phone (for example `iPhone17,1`,
+  never the name the person gave it), the system version and the name of the tab. The server writes the ticket's title and body.
+- **Older servers.** `ServerCapabilities.offersPortalFeedback` needs the `SubmitPortalFeedback` mutation and the `ListTickets` query.
+  Without it nothing shows and the ticket flag `isPortalFeedback` is not requested.
+
+## Message threads
+
+A reply goes in a thread, in chats with people and in conversations with the assistant. The main history shows every message in time
+order, replies included, and a reply keeps its quote of what it answers. A message that belongs to a thread opens it when tapped (a
+reply, or a message with replies), and a message with replies also says "N replies" and when the last came. Reply on a message opens its
+thread. A thread (`threadRootMessageId`) is a screen of its own, the root first, with its own composer; a reply sent from it goes to the
+message picked, else to the root. Every event reaches the main history, so the streaming text of a threaded run shows there and in the
+thread if it is open, and a thread shows only its own run. A push that carries `threadRootMessageId` opens that thread. A server without
+the argument and fields is sent none of them (`ServerCapabilities.offersMessageThreads`) and behaves as before.
+
 ## TestFlight
 
 TestFlight builds come from the `TestFlight` job of `.github/workflows/ios.yml`,
 which runs only when started by hand: Actions, iOS, Run workflow, with
 "Upload the build to TestFlight" on. The build number is the workflow run
 number and the version is `MARKETING_VERSION` in `Configuration/Base.xcconfig`.
+
+The app tells people when a newer build can be installed. It reads how it was
+installed from its receipt's name, and not from StoreKit's app transaction,
+which can prompt to sign in: a TestFlight copy reads `testflight.json` from the
+`update-feed` release, and an App Store copy asks Apple's public lookup. The
+feed holds the newest build public testers can install, so a build waiting for
+beta review is not announced. The build's own run writes it, and the
+`Update feed` workflow refreshes it on a schedule for reviews that finish later.
 
 The job needs these repository secrets:
 

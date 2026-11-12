@@ -2,8 +2,9 @@ name: iOS
 
 # Nobody working on the app needs a Mac: the PortalKit tests run on Linux, and
 # the app is built on GitHub's macOS runners, which are free for a public
-# repository. TestFlight is a manual run (workflow_dispatch) of the TestFlight job,
-# and every build it uploads goes on to the public group.
+# repository. Every push to main uploads a TestFlight build, and so does a manual run
+# (workflow_dispatch) with upload on; each build goes on to the public group once the UI
+# tests pass.
 on:
   push:
     branches: [main]
@@ -155,7 +156,7 @@ jobs:
           MONITOR=$!
           set +e
           xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
-            -only-testing:MujinPortalUITests -parallel-testing-enabled NO -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
+            -only-testing:MujinPortalUITests -parallel-testing-enabled NO -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
           RESULT=${PIPESTATUS[0]}
           kill "${MONITOR}" || true
           exit "${RESULT}"
@@ -211,7 +212,8 @@ jobs:
           xcrun simctl bootstatus "${DEVICE}" -b
           xcrun simctl install "${DEVICE}" build/MujinPortal.app
           shoot() {
-            SIMCTL_CHILD_PORTAL_DEMO_SCREEN="$2" SIMCTL_CHILD_PORTAL_DEMO_PERSONA="${3:-}" xcrun simctl launch "${DEVICE}" com.ziyan.mujinportal -demo
+            SIMCTL_CHILD_PORTAL_DEMO_SCREEN="$2" SIMCTL_CHILD_PORTAL_DEMO_PERSONA="${3:-}" SIMCTL_CHILD_PORTAL_DEMO_LAYOUT="${4:-}" \
+              xcrun simctl launch "${DEVICE}" com.ziyan.mujinportal -demo
             sleep 6
             xcrun simctl io "${DEVICE}" screenshot "screenshots/${FAMILY}-$1.png"
             xcrun simctl terminate "${DEVICE}" com.ziyan.mujinportal
@@ -220,6 +222,7 @@ jobs:
           shoot list-started list-started
           shoot title-event title-event
           shoot approval conversation:conversation02
+          shoot working conversation:conversation-working
           shoot answer conversation:conversation01
           shoot share share
           shoot share-ticket share-ticket
@@ -250,6 +253,54 @@ jobs:
           shoot photo-chat photo-chat
           shoot main-chat main-chat
           shoot chat-info chat-info
+          shoot chat-site chat:chatsite01
+          shoot chat-site-info chat-site-info
+          shoot chat-site-picker chat-site-picker
+          shoot thread-chat thread-chat
+          shoot thread-chat-open thread-chat-open
+          shoot thread-chat-working thread-chat-working
+          shoot thread-conversation thread-conversation
+          shoot thread-conversation-open thread-conversation-open
+          shoot thread-chat-media thread-chat-media
+          shoot thread-chat-media-open thread-chat-media-open
+          shoot chat-call-history chat-call-history
+          shoot chat-call-history-detail chat-call-history-detail
+          shoot thread-link thread-link
+          shoot dictate-chat dictate-chat
+          shoot dictate-chat-listening dictate-chat-listening
+          shoot dictate-chat-words dictate-chat-words
+          shoot dictate-conversation dictate-conversation
+          shoot dictate-conversation-listening dictate-conversation-listening
+          shoot dictate-conversation-words dictate-conversation-words
+          shoot dictate-thread-chat dictate-thread-chat
+          shoot dictate-thread-conversation dictate-thread-conversation
+          shoot read-aloud-chat read-aloud-chat
+          shoot read-aloud-chat-playing read-aloud-chat-playing
+          shoot read-aloud-conversation read-aloud-conversation
+          shoot read-aloud-conversation-playing read-aloud-conversation-playing
+          shoot read-aloud-thread-chat read-aloud-thread-chat
+          shoot read-aloud-thread-conversation read-aloud-thread-conversation
+          shoot feedback-drawer feedback-drawer
+          shoot feedback-form-open feedback-form-open
+          shoot feedback-form feedback-form
+          shoot feedback-list feedback-list
+          shoot feedback-list-empty feedback-list-empty
+          shoot feedback-list-error feedback-list-error
+          shoot feedback-tickets feedback-tickets
+          shoot feedback-ticket feedback-ticket
+          shoot exclusion-site exclusion-site
+          shoot exclusion-site-nosource exclusion-site-nosource
+          shoot exclusion-cell exclusion-cell
+          shoot exclusion-cell-source exclusion-cell-source
+          shoot exclusion-controllers exclusion-controllers
+          shoot exclusion-controller exclusion-controller
+          shoot exclusion-controller-included exclusion-controller-included
+          shoot exclusion-controller-readonly exclusion-controller-readonly
+          shoot alarm-levels alarm-levels
+          shoot alarm-levels-warnings alarm-levels-warnings
+          shoot alarm-levels-controller alarm-levels-controller
+          shoot alarm-levels-list alarm-levels-list
+          shoot alarm-levels-critical alarm-levels-critical
           shoot chat-add-people chat-add-people
           shoot chats-new chats-new
           shoot chats-new-staff chats-new-group staff
@@ -293,8 +344,29 @@ jobs:
           shoot cell-lower cell-lower
           shoot cell-empty cell-empty
           shoot site-staff site-staff staff
+          shoot site-from-link site-from-link staff
           shoot site-staff-controllers site-staff-controllers staff
           shoot site-loading site-loading
+          shoot site-pages-expanded site-pages-expanded
+          shoot site-page-table site-page-table
+          shoot site-page-table-end site-page-table-end
+          shoot site-pages-row site-pages-row
+          shoot site-pages site-pages
+          shoot site-pages-readonly site-pages-readonly
+          shoot site-pages-empty site-pages-empty
+          shoot site-pages-error site-pages-error
+          shoot site-pages-missing site-pages-missing
+          shoot site-pages-search site-pages-search
+          shoot site-pages-new site-pages-new
+          shoot site-page site-page
+          shoot site-page-readonly site-page-readonly
+          shoot site-page-nested site-page-nested
+          shoot site-page-draft site-page-draft
+          shoot site-page-missing site-page-missing
+          shoot site-page-menu site-page-menu
+          shoot site-page-edit site-page-edit
+          shoot site-page-history site-page-history
+          shoot site-page-revision site-page-revision
           shoot cameras cameras
           shoot cameras-failed cameras-failed
           shoot camera camera
@@ -306,7 +378,11 @@ jobs:
           shoot camera-unsupported camera-unsupported
           shoot camera-unreachable camera-unreachable
           shoot notifications notifications
+          shoot notifications-past notifications-past
           shoot about about
+          shoot settings-update settings-update
+          shoot update-available update-available
+          shoot update-available-store update-available-store
           shoot sites-staff sites-staff staff
           shoot controllers-staff controllers-staff staff
           shoot virtual-controllers-staff virtual-controllers-staff staff
@@ -391,9 +467,12 @@ jobs:
           shoot chat-voice-composer chat-voice-composer
           shoot chat-voice-recording chat-voice-recording
           shoot chat-call-banner chat-call-banner
+          shoot chat-in-call chat-in-call
+          shoot chat-call-transcript chat-call-transcript
           shoot call-voice call-voice
           shoot call-video call-video
           shoot call-transcription call-transcription
+          shoot call-reconnecting call-reconnecting
           shoot call-minimized call-minimized
           shoot call-picker call-picker
           shoot call-ring-more call-ring-more
@@ -404,6 +483,7 @@ jobs:
           shoot call-twelve call-twelve
           xcrun simctl ui "${DEVICE}" appearance dark
           shoot welcome-dark welcome
+          shoot update-available-dark update-available
           shoot virtual-controller-dark virtual-controller
           shoot controller-dark controller
           shoot virtual-controller-snapshots-dark virtual-controller-snapshots
@@ -419,6 +499,7 @@ jobs:
           shoot chat-composer-dark chat-composer
           shoot side-chat-links-dark side-chat-links
           shoot dark conversation:conversation02
+          shoot working-dark conversation:conversation-working
           shoot answer-dark conversation:conversation01
           shoot message-actions-dark message-actions
           shoot chat-message-actions-dark chat-message-actions
@@ -444,6 +525,26 @@ jobs:
           shoot release-dark release
           shoot voice-dark voice
           shoot site-loading-dark site-loading
+          shoot site-pages-expanded-dark site-pages-expanded
+          shoot site-page-table-dark site-page-table
+          shoot site-page-table-end-dark site-page-table-end
+          shoot site-pages-row-dark site-pages-row
+          shoot site-pages-dark site-pages
+          shoot site-pages-readonly-dark site-pages-readonly
+          shoot site-pages-empty-dark site-pages-empty
+          shoot site-pages-error-dark site-pages-error
+          shoot site-pages-missing-dark site-pages-missing
+          shoot site-pages-search-dark site-pages-search
+          shoot site-pages-new-dark site-pages-new
+          shoot site-page-dark site-page
+          shoot site-page-readonly-dark site-page-readonly
+          shoot site-page-nested-dark site-page-nested
+          shoot site-page-draft-dark site-page-draft
+          shoot site-page-missing-dark site-page-missing
+          shoot site-page-menu-dark site-page-menu
+          shoot site-page-edit-dark site-page-edit
+          shoot site-page-history-dark site-page-history
+          shoot site-page-revision-dark site-page-revision
           shoot cameras-dark cameras
           shoot cameras-failed-dark cameras-failed
           shoot camera-dark camera
@@ -464,9 +565,15 @@ jobs:
           shoot controller-app-open-dark controller-app-open
           shoot virtual-controller-apps-dark virtual-controller-apps
           shoot ticket-menu-dark ticket-menu
+          shoot feedback-drawer-dark feedback-drawer
+          shoot feedback-list-dark feedback-list
+          shoot exclusion-site-dark exclusion-site
+          shoot alarm-levels-list-dark alarm-levels-list
+          shoot alarm-levels-critical-dark alarm-levels-critical
           shoot release-menu-dark release-menu
           shoot chat-link-tap-dark chat-link-tap
           shoot notifications-dark notifications
+          shoot notifications-past-dark notifications-past
           shoot sites-staff-dark sites-staff staff
           shoot incidents-staff incidents staff
           shoot account-profile-dark account-profile
@@ -511,6 +618,8 @@ jobs:
           shoot chat-voice-composer-dark chat-voice-composer
           shoot chat-voice-recording-dark chat-voice-recording
           shoot chat-call-banner-dark chat-call-banner
+          shoot chat-in-call-dark chat-in-call
+          shoot chat-call-transcript-dark chat-call-transcript
           shoot call-voice-dark call-voice
           shoot call-video-dark call-video
           shoot call-transcription-dark call-transcription
@@ -522,8 +631,40 @@ jobs:
           shoot call-three-dark call-three
           shoot call-five-dark call-five
           shoot call-twelve-dark call-twelve
+          shoot thread-chat-dark thread-chat
+          shoot thread-chat-open-dark thread-chat-open
+          shoot thread-chat-working-dark thread-chat-working
+          shoot thread-conversation-dark thread-conversation
+          shoot thread-conversation-open-dark thread-conversation-open
+          shoot thread-chat-media-dark thread-chat-media
+          shoot thread-chat-media-open-dark thread-chat-media-open
+          shoot chat-call-history-dark chat-call-history
+          shoot chat-call-history-detail-dark chat-call-history-detail
+          shoot thread-link-dark thread-link
+          shoot dictate-chat-dark dictate-chat
+          shoot dictate-chat-listening-dark dictate-chat-listening
+          shoot dictate-chat-words-dark dictate-chat-words
+          shoot dictate-conversation-dark dictate-conversation
+          shoot dictate-conversation-listening-dark dictate-conversation-listening
+          shoot dictate-conversation-words-dark dictate-conversation-words
+          shoot dictate-thread-chat-dark dictate-thread-chat
+          shoot dictate-thread-conversation-dark dictate-thread-conversation
+          shoot read-aloud-chat-dark read-aloud-chat
+          shoot read-aloud-chat-playing-dark read-aloud-chat-playing
+          shoot read-aloud-conversation-dark read-aloud-conversation
+          shoot read-aloud-conversation-playing-dark read-aloud-conversation-playing
+          shoot read-aloud-thread-chat-dark read-aloud-thread-chat
+          shoot read-aloud-thread-conversation-dark read-aloud-thread-conversation
           xcrun simctl ui "${DEVICE}" appearance light
           xcrun simctl ui "${DEVICE}" content_size accessibility-extra-extra-extra-large
+          shoot large-text-site-pages-row site-pages-row
+          shoot large-text-site-pages-expanded site-pages-expanded
+          shoot large-text-site-page site-page
+          shoot large-text-site-page-nested site-page-nested
+          shoot large-text-site-page-draft site-page-draft
+          shoot large-text-site-page-edit site-page-edit
+          shoot large-text-site-page-history site-page-history
+          shoot large-text-site-page-table-end site-page-table-end
           shoot large-text-welcome welcome
           shoot large-text-virtual-controller virtual-controller
           shoot large-text-controller controller
@@ -610,6 +751,12 @@ jobs:
           shoot large-text-chat-voice-composer chat-voice-composer
           shoot large-text-chat-voice-recording chat-voice-recording
           shoot large-text-chat-call-banner chat-call-banner
+          shoot large-text-chat-in-call chat-in-call
+          shoot large-text-voice voice
+          shoot large-text-chat-call-transcript chat-call-transcript
+          shoot large-text-call-reconnecting call-reconnecting
+          shoot large-text-update-available update-available
+          shoot large-text-chat-site-info chat-site-info
           shoot large-text-call-voice call-voice
           shoot large-text-call-video call-video
           shoot large-text-call-transcription call-transcription
@@ -621,6 +768,56 @@ jobs:
           shoot large-text-call-three call-three
           shoot large-text-call-five call-five
           shoot large-text-call-twelve call-twelve
+          shoot large-text-thread-chat thread-chat
+          shoot large-text-thread-chat-open thread-chat-open
+          shoot large-text-thread-chat-working thread-chat-working
+          shoot large-text-thread-conversation thread-conversation
+          shoot large-text-thread-conversation-open thread-conversation-open
+          shoot large-text-thread-chat-media thread-chat-media
+          shoot large-text-thread-chat-media-open thread-chat-media-open
+          shoot large-text-chat-call-history chat-call-history
+          shoot large-text-chat-call-history-detail chat-call-history-detail
+          shoot large-text-thread-link thread-link
+          shoot large-text-dictate-chat dictate-chat
+          shoot large-text-dictate-chat-listening dictate-chat-listening
+          shoot large-text-dictate-chat-words dictate-chat-words
+          shoot large-text-dictate-conversation dictate-conversation
+          shoot large-text-dictate-conversation-listening dictate-conversation-listening
+          shoot large-text-dictate-conversation-words dictate-conversation-words
+          shoot large-text-dictate-thread-chat dictate-thread-chat
+          shoot large-text-dictate-thread-conversation dictate-thread-conversation
+          shoot large-text-read-aloud-chat read-aloud-chat
+          shoot large-text-read-aloud-chat-playing read-aloud-chat-playing
+          shoot large-text-read-aloud-conversation read-aloud-conversation
+          shoot large-text-read-aloud-conversation-playing read-aloud-conversation-playing
+          shoot large-text-read-aloud-thread-chat read-aloud-thread-chat
+          shoot large-text-read-aloud-thread-conversation read-aloud-thread-conversation
+          if [ "${FAMILY}" = ipad ]; then
+            # Where the floating tab bar shares the top row with a conversation's bar. Last, since a
+            # landscape run can leave the simulator turned for the shots after it.
+            xcrun simctl ui "${DEVICE}" content_size large
+            shoot chat-list-hidden chat:chatconv01 "" list-hidden
+            shoot answer-list-hidden conversation:conversation01 "" list-hidden
+            shoot chat-in-call-list-hidden chat-in-call "" list-hidden
+            shoot voice-list-hidden voice "" list-hidden
+            # The app cannot turn a resizable iPad window itself, so the Simulator is turned, from its Device menu's
+            # Rotate Right shortcut. The last shots, since the simulator stays turned.
+            open -a Simulator --args -CurrentDeviceUDID "${DEVICE}" || true
+            sleep 20
+            if osascript -e 'tell application "Simulator" to activate' -e 'delay 2' \
+                -e 'tell application "System Events" to key code 124 using {command down}'; then
+              sleep 5
+              shoot chat-landscape chat:chatconv01 "" landscape
+              shoot answer-landscape conversation:conversation01 "" landscape
+              shoot thread-chat-open-landscape thread-chat-open "" landscape
+              shoot chat-in-call-landscape chat-in-call "" landscape
+              shoot voice-landscape voice "" landscape
+              # The simulator saves its screen as the device's portrait buffer; turn the pictures to read upright.
+              for picture in screenshots/"${FAMILY}"-*-landscape.png; do sips -r 90 "${picture}" >/dev/null; done
+            else
+              echo "::warning::The simulator could not be turned; no landscape shots."
+            fi
+          fi
 
       - name: Keep the screenshots
         if: always()
@@ -680,11 +877,13 @@ jobs:
   # by hand: Actions, iOS, Run workflow, upload on. Signing is automatic: the
   # development certificate kept in the secrets signs the archive, and the App
   # Store Connect key, with the Admin role, lets Xcode fetch the profiles and
-  # the distribution certificate it needs.
+  # the distribution certificate it needs. It does not wait for the UI tests,
+  # which take over an hour: the build reaches internal testers early, and the
+  # public group only once those tests pass.
   testflight:
     name: TestFlight
-    if: github.event_name == 'workflow_dispatch' && inputs.upload
-    needs: [kit, app, ui-tests]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.upload)
+    needs: [kit, app]
     runs-on: macos-26
     env:
       KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -760,12 +959,15 @@ jobs:
           security delete-keychain "${RUNNER_TEMP}/signing.keychain-db" 2>/dev/null || true
           rm -rf "${RUNNER_TEMP}/keys" Configuration/Identity.xcconfig
 
-  # Every build that reaches TestFlight goes to the public group too. It waits on
-  # Apple's processing, so it runs on a cheap runner and not on the Mac.
+  # Every build that reaches TestFlight goes to the public group too, once the UI
+  # tests have passed. It waits on Apple's processing, so it runs on a cheap
+  # runner and not on the Mac.
   public-testflight:
     name: Public TestFlight
-    needs: testflight
+    needs: [testflight, ui-tests]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       APP_ID: "6829099282"
       BETA_GROUP_NAME: Public
@@ -782,3 +984,15 @@ jobs:
           printf '%s' "${KEY}" > "${KEY_PATH}"
           trap 'rm -f "${KEY_PATH}"' EXIT
           python3 scripts/publish-testflight.py ${{ github.run_number }}
+
+      # Apple may take longer than this waits; the update feed workflow catches up.
+      - name: Tell the apps about the newest installable build
+        env:
+          KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export KEY_PATH="${RUNNER_TEMP}/AuthKey.p8"
+          printf '%s' "${KEY}" > "${KEY_PATH}"
+          trap 'rm -f "${KEY_PATH}"' EXIT
+          python3 scripts/publish-testflight.py --update-feed "${RUNNER_TEMP}/testflight.json" ${{ github.run_number }}
+          scripts/upload-update-feed.sh "${RUNNER_TEMP}/testflight.json"

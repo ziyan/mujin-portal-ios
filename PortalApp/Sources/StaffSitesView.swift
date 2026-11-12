@@ -25,6 +25,7 @@ struct StaffSitesView: View {
     var body: some View {
         if embedsNavigation {
             NavigationStack(path: $path) { screen.portalDestinations() }
+                .pushesRoutes { route in path.append(route) }
         } else {
             screen
         }

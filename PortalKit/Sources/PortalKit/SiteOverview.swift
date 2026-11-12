@@ -149,12 +149,17 @@ extension Connection {
         let ids = Array(controllerIds.prefix(50))
         let virtualIds = Array(virtualControllerIds.prefix(max(0, 50 - ids.count)))
         guard !ids.isEmpty || !virtualIds.isEmpty else { return SiteTelemetry() }
-        struct Answer: Decodable, Sendable { let ListControllerTelemetrySummaries: [TelemetrySummary]? }
-        let rows = try await execute(
-            Documents.listControllerTelemetrySummaries,
-            variables: ["controllerIds": .array(ids.map { .string($0) }), "virtualControllerIds": .array(virtualIds.map { .string($0) })], as: Answer.self
-        ).ListControllerTelemetrySummaries ?? []
+        let rows = try await telemetrySummaries(controllerIds: ids, virtualControllerIds: virtualIds)
         return SiteTelemetry(summaries: rows, machinesTotal: ids.count + virtualIds.count)
+    }
+
+    /// The summaries of explicit machines, as the server answers them.
+    func telemetrySummaries(controllerIds: [String], virtualControllerIds: [String]) async throws -> [TelemetrySummary] {
+        struct Answer: Decodable, Sendable { let ListControllerTelemetrySummaries: [TelemetrySummary]? }
+        return try await execute(
+            Documents.listControllerTelemetrySummaries,
+            variables: ["controllerIds": .array(controllerIds.map { .string($0) }), "virtualControllerIds": .array(virtualControllerIds.map { .string($0) })], as: Answer.self
+        ).ListControllerTelemetrySummaries ?? []
     }
 
     public func cells(siteId: String) async throws -> [SiteCell] {

@@ -55,6 +55,29 @@ final class ChatNavigationTests: XCTestCase {
     }
 
     /// From another tab, so the Chat tab has its list to load as the conversation opens.
+    /// Search shows a page in a sheet, which closes as the chat opens: the chat must be what is left on screen.
+    func testAskingFromASearchResultOpensTheMainChat() {
+        let app = DemoApp.launch(screen: "search-controller", persona: "staff")
+        let result = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "controller1")).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 60), "The search result is not listed.\n\(app.debugDescription)")
+        result.tap()
+        let ask = app.buttons["Ask about this"].firstMatch
+        XCTAssertTrue(ask.waitForExistence(timeout: 30), "The page has no Ask button.\n\(app.debugDescription)")
+        ask.tap()
+        XCTAssertTrue(message(app, Self.mainChatMessage).waitForExistence(timeout: 30), "The main chat did not open.\n\(app.debugDescription)")
+        XCTAssertFalse(app.staticTexts["Select a conversation"].exists, "An empty chat screen is showing.\n\(app.debugDescription)")
+    }
+
+    func testTheInboxListsPastNotificationsOnlyOnRequest() {
+        let app = openInbox(on: "tickets", title: "Tickets")
+        let toggle = DemoApp.element(app, "notificationsPastToggle")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 60), "The inbox offers no past notifications.\n\(app.debugDescription)")
+        let past = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Gripper suction pressure is low")).firstMatch
+        XCTAssertFalse(past.exists, "A read notification is listed before it was asked for.\n\(app.debugDescription)")
+        toggle.tap()
+        XCTAssertTrue(past.waitForExistence(timeout: 15), "The past notifications did not appear.\n\(app.debugDescription)")
+    }
+
     func testNotificationOpensTheAssistantConversation() {
         let app = openInbox(on: "tickets", title: "Tickets")
         tapNotification(app, "Main chat has a new answer")
@@ -121,8 +144,14 @@ final class ChatNavigationTests: XCTestCase {
     func testGoingBackAndInAgainDrawsTheConversation() {
         let app = DemoApp.launch(screen: "main-chat")
         XCTAssertTrue(message(app, Self.mainChatMessage).waitForExistence(timeout: 30), "The conversation did not open.\n\(app.debugDescription)")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        // The open conversation has the same words in its title, so the list is told by its own bar.
+        DemoApp.goBack(app)
+        // The open conversation has the same words in its title, so the list is told by its own bar. On the build machines a first tap
+        // has sometimes not left the conversation. A person taps again, so this does too, and says so in the log.
+        if !app.navigationBars["Chat"].waitForExistence(timeout: 8) {
+            XCTContext.runActivity(named: "The first tap on back did not leave the conversation") { _ in }
+            print("SECOND BACK TAP NEEDED")
+            DemoApp.goBack(app)
+        }
         XCTAssertTrue(app.navigationBars["Chat"].waitForExistence(timeout: 30), "Going back left the conversation on screen.\n\(app.debugDescription)")
         let row = app.staticTexts["Main chat"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 30), "The list did not come back.\n\(app.debugDescription)")

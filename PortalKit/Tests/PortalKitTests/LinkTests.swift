@@ -17,11 +17,11 @@ import Testing
     }
 
     @Test func aPathIsAPageOfTheServer() {
-        let path = URL(string: "/controller/controller01")!
+        let path = URL(string: "/controller/controller1")!
         let address = LinkClassifier.absolute(path, server: server)
-        #expect(address.absoluteString == "https://portal.example.test/controller/controller01")
+        #expect(address.absoluteString == "https://portal.example.test/controller/controller1")
         #expect(LinkClassifier.classify(address, server: server) == .portal)
-        #expect(PortalLink(url: address, server: server) == .controller(id: "controller01"))
+        #expect(PortalLink(url: address, server: server) == .controller(id: "controller1"))
     }
 
     @Test func aPathKeepsItsQueryAndFragment() {
@@ -36,20 +36,20 @@ import Testing
     }
 
     @Test func theThreeProxyHostsAreControllers() {
-        #expect(kind("https://controller01-live.portal.example.test/") == .controller)
-        #expect(kind("https://controller01-cloud.portal.example.test/path?q=1") == .controller)
+        #expect(kind("https://controller1-live.portal.example.test/") == .controller)
+        #expect(kind("https://controller1-cloud.portal.example.test/path?q=1") == .controller)
         #expect(kind("https://virtual01-virtual.portal.example.test/") == .controller)
     }
 
     @Test func otherSubdomainsAndLookalikeHostsAreNotControllers() {
-        #expect(kind("https://controller01.portal.example.test/") == .external)
+        #expect(kind("https://controller1.portal.example.test/") == .external)
         #expect(kind("https://a.b.portal.example.test/path") == .external)
-        #expect(kind("https://controller01-other.portal.example.test/") == .external)
+        #expect(kind("https://controller1-other.portal.example.test/") == .external)
         #expect(kind("https://-live.portal.example.test/") == .external)
         #expect(kind("https://a-b-live.portal.example.test/") == .external)
-        #expect(kind("https://controller01-live.evil.test/") == .external)
-        #expect(kind("https://controller01-live.portal.example.test.evil.test/") == .external)
-        #expect(kind("https://x.controller01-live.portal.example.test/") == .external)
+        #expect(kind("https://controller1-live.evil.test/") == .external)
+        #expect(kind("https://controller1-live.portal.example.test.evil.test/") == .external)
+        #expect(kind("https://x.controller1-live.portal.example.test/") == .external)
     }
 
     @Test func lookalikesAreExternal() {
@@ -61,15 +61,15 @@ import Testing
 
     @Test func theClassificationFollowsTheAccountsServer() {
         let other = try! ServerAddress("https://portal.other.test")
-        #expect(kind("https://controller01-live.portal.other.test/", server: other) == .controller)
-        #expect(kind("https://controller01-live.portal.other.test/") == .external)
-        #expect(kind("https://controller01-live.portal.example.test/", server: other) == .external)
+        #expect(kind("https://controller1-live.portal.other.test/", server: other) == .controller)
+        #expect(kind("https://controller1-live.portal.other.test/") == .external)
+        #expect(kind("https://controller1-live.portal.example.test/", server: other) == .external)
     }
 
     @Test func aServerWithAPortHasTheSameBaseDomain() {
         let local = try! ServerAddress("http://localhost:8080")
         #expect(kind("http://localhost:8080/a", server: local) == .portal)
-        #expect(kind("http://controller01-live.localhost:8080/", server: local) == .controller)
+        #expect(kind("http://controller1-live.localhost:8080/", server: local) == .controller)
     }
 
     @Test func nonWebAddressesAreLeftToTheSystem() {
@@ -102,16 +102,16 @@ import Testing
     }
 
     @Test func aServerThatOffersItReturnsTheOneTimeAddress() async {
-        let url = await connection(offered: true, handoff: "https://portal.example.test/handoff/abc").webSessionHandoff(to: URL(string: "https://controller01-live.portal.example.test/")!)
+        let url = await connection(offered: true, handoff: "https://portal.example.test/handoff/abc").webSessionHandoff(to: URL(string: "https://controller1-live.portal.example.test/")!)
         #expect(url?.absoluteString == "https://portal.example.test/handoff/abc")
     }
 
     @Test func aServerWithoutItGivesNothingSoThePageOpensAsItIs() async {
-        #expect(await connection(offered: false, handoff: nil).webSessionHandoff(to: URL(string: "https://controller01-live.portal.example.test/")!) == nil)
+        #expect(await connection(offered: false, handoff: nil).webSessionHandoff(to: URL(string: "https://controller1-live.portal.example.test/")!) == nil)
     }
 
     @Test func aRefusalOrAnOddAddressGivesNothing() async {
-        let target = URL(string: "https://controller01.portal.example.test/")!
+        let target = URL(string: "https://controller1.portal.example.test/")!
         #expect(await connection(offered: true, handoff: nil).webSessionHandoff(to: target) == nil)
         #expect(await connection(offered: true, handoff: "javascript:alert(1)").webSessionHandoff(to: target) == nil)
     }
@@ -153,18 +153,18 @@ import Testing
     let server = try! ServerAddress("https://portal.example.test")
 
     func controller(online: Bool = true, capabilities: [String] = ["controller:connect", "controller:write"]) -> ControllerSummary {
-        ControllerSummary(id: "controller01", connection: online ? .init(id: "connection01") : nil, viewerCapabilities: capabilities)
+        ControllerSummary(id: "controller1", connection: online ? .init(id: "connection01") : nil, viewerCapabilities: capabilities)
     }
 
     @Test func liveAndCloudAndVirtualAddressesUseTheProxyHosts() {
-        #expect(ControllerLinks.liveURL(controllerId: "controller01", server: server)?.absoluteString == "https://controller01-live.portal.example.test/")
-        #expect(ControllerLinks.cloudURL(controllerId: "controller01", server: server)?.absoluteString == "https://controller01-cloud.portal.example.test/")
+        #expect(ControllerLinks.liveURL(controllerId: "controller1", server: server)?.absoluteString == "https://controller1-live.portal.example.test/")
+        #expect(ControllerLinks.cloudURL(controllerId: "controller1", server: server)?.absoluteString == "https://controller1-cloud.portal.example.test/")
         #expect(ControllerLinks.virtualURL(virtualControllerId: "virtual01", server: server)?.absoluteString == "https://virtual01-virtual.portal.example.test/")
     }
 
     @Test func theSchemeAndPortOfTheServerAreKept() {
         let local = try! ServerAddress("http://localhost:8080")
-        #expect(ControllerLinks.liveURL(controllerId: "controller01", server: local)?.absoluteString == "http://controller01-live.localhost:8080/")
+        #expect(ControllerLinks.liveURL(controllerId: "controller1", server: local)?.absoluteString == "http://controller1-live.localhost:8080/")
     }
 
     @Test func anIdentifierThatCouldChangeTheHostIsRefused() {
@@ -174,12 +174,12 @@ import Testing
     }
 
     @Test func theScreenPagesAreOnPortalsOwnHost() {
-        #expect(ControllerLinks.screenURL(controllerId: "controller01", server: server)?.absoluteString == "https://portal.example.test/screen/controller/controller01")
+        #expect(ControllerLinks.screenURL(controllerId: "controller1", server: server)?.absoluteString == "https://portal.example.test/screen/controller/controller1")
         #expect(ControllerLinks.virtualScreenURL(virtualControllerId: "virtual01", server: server)?.absoluteString == "https://portal.example.test/screen/virtualcontroller/virtual01")
     }
 
     @Test func liveOpensOnlyForAnOnlineControllerTheViewerMayConnectTo() {
-        #expect(controller().liveEntry(server: server) == .open(URL(string: "https://controller01-live.portal.example.test/")!))
+        #expect(controller().liveEntry(server: server) == .open(URL(string: "https://controller1-live.portal.example.test/")!))
         #expect(controller(online: false).liveEntry(server: server) == .blocked(.offline))
         #expect(controller(capabilities: []).liveEntry(server: server) == .blocked(.noConnectPermission))
     }
@@ -189,11 +189,11 @@ import Testing
         #expect(controller().cloudEntry(server: server, syncedUsers: nil) == .hidden)
         #expect(controller().cloudEntry(server: server, syncedUsers: SyncedUserCount(count: 0, isAvailable: false)) == .blocked(.syncedUsersUnavailable))
         #expect(controller().cloudEntry(server: server, syncedUsers: SyncedUserCount(count: 0)) == .blocked(.noSyncedUsers))
-        #expect(controller(online: false).cloudEntry(server: server, syncedUsers: SyncedUserCount(count: 2)) == .open(URL(string: "https://controller01-cloud.portal.example.test/")!))
+        #expect(controller(online: false).cloudEntry(server: server, syncedUsers: SyncedUserCount(count: 2)) == .open(URL(string: "https://controller1-cloud.portal.example.test/")!))
     }
 
     @Test func theScreenNeedsAnOnlineControllerAndWriteAccess() {
-        #expect(controller().screenEntry(server: server) == .open(URL(string: "https://portal.example.test/screen/controller/controller01")!))
+        #expect(controller().screenEntry(server: server) == .open(URL(string: "https://portal.example.test/screen/controller/controller1")!))
         #expect(controller(online: false).screenEntry(server: server) == .blocked(.offline))
         #expect(controller(capabilities: ["controller:connect"]).screenEntry(server: server) == .blocked(.noWritePermission))
     }
@@ -201,11 +201,11 @@ import Testing
 
 @Suite struct ControllerNameTests {
     @Test func aControllerIsNamedByItsIDAndItsCommentIsTheDetail() {
-        let controller = ControllerSummary(id: "controller01", comment: " Pick station ")
-        #expect(controller.displayName == "controller01")
+        let controller = ControllerSummary(id: "controller1", comment: " Pick station ")
+        #expect(controller.displayName == "controller1")
         #expect(controller.detail == "Pick station")
-        #expect(ControllerSummary(id: "controller02", comment: "  ").detail == nil)
-        #expect(ControllerSummary(id: "controller03").detail == nil)
+        #expect(ControllerSummary(id: "controller2", comment: "  ").detail == nil)
+        #expect(ControllerSummary(id: "controller3").detail == nil)
     }
 }
 
@@ -214,25 +214,25 @@ import Testing
     func target(_ text: String) -> BrowserTarget? { BrowserTarget(url: URL(string: text)!, serverHost: "portal.example.test") }
 
     @Test func theLiveAndTheCloudUIOfOneControllerHaveDifferentHeaders() {
-        #expect(target("https://controller01-live.portal.example.test/")?.title == "controller01 \u{00B7} Live")
-        #expect(target("https://controller01-cloud.portal.example.test/")?.title == "controller01 \u{00B7} Cloud")
+        #expect(target("https://controller1-live.portal.example.test/")?.title == "controller1 \u{00B7} Live")
+        #expect(target("https://controller1-cloud.portal.example.test/")?.title == "controller1 \u{00B7} Cloud")
         #expect(target("https://virtual01-virtual.portal.example.test/")?.title == "virtual01 \u{00B7} Virtual")
-        #expect(target("https://controller01-live.portal.example.test/")?.subtitle == "controller01-live.portal.example.test")
+        #expect(target("https://controller1-live.portal.example.test/")?.subtitle == "controller1-live.portal.example.test")
     }
 
     @Test func anyOtherAddressHasNoControllerHeader() {
         #expect(target("https://portal.example.test/ticket/12") == nil)
-        #expect(target("https://controller01.portal.example.test/") == nil)
-        #expect(target("https://controller01-live.evil.test/") == nil)
+        #expect(target("https://controller1.portal.example.test/") == nil)
+        #expect(target("https://controller1-live.evil.test/") == nil)
     }
 }
 
 @Suite struct ReleaseTests {
     @Test func aControllerWithoutAReleaseIsNotLinkedAndOneWithoutAnImageMatchesByVersionOnly() {
-        #expect(ControllerSummary(id: "controller01").release == .notLinked)
-        #expect(ControllerSummary(id: "controller01", releaseId: "release01").release == .versionOnly(releaseId: "release01"))
-        #expect(ControllerSummary(id: "controller01", releaseId: "release01", releaseImageId: "image01").release == .exact(releaseId: "release01"))
-        #expect(ControllerSummary(id: "controller01", hypervisorState: .init(version: "9.9", publishedAt: nil)).hypervisorVersion == "9.9")
+        #expect(ControllerSummary(id: "controller1").release == .notLinked)
+        #expect(ControllerSummary(id: "controller1", releaseId: "release01").release == .versionOnly(releaseId: "release01"))
+        #expect(ControllerSummary(id: "controller1", releaseId: "release01", releaseImageId: "image01").release == .exact(releaseId: "release01"))
+        #expect(ControllerSummary(id: "controller1", hypervisorState: .init(version: "9.9", publishedAt: nil)).hypervisorVersion == "9.9")
     }
 
     @Test func theNotesAreInThePersonsLanguageWithAnEnglishFallback() {
@@ -269,10 +269,10 @@ import Testing
     @Test func aReleaseListsTheMachinesOnIt() async throws {
         let (connection, transport) = scriptedConnection { operation, _ in
             operation == "ListControllersUsingRelease"
-                ? ["ListControllersUsingRelease": [["id": "controller01", "releaseId": "r1"]]]
+                ? ["ListControllersUsingRelease": [["id": "controller1", "releaseId": "r1"]]]
                 : ["ListVirtualControllersUsingRelease": [["id": "virtual01", "name": "Training cell", "status": "running"]]]
         }
-        #expect(try await connection.controllers(usingRelease: "r1").map(\.id) == ["controller01"])
+        #expect(try await connection.controllers(usingRelease: "r1").map(\.id) == ["controller1"])
         #expect(try await connection.virtualControllers(usingRelease: "r1").map(\.displayName) == ["Training cell"])
         #expect(sentVariables(try #require(transport.requests.last))["releaseId"] as? String == "r1")
     }
@@ -287,31 +287,31 @@ import Testing
 
     @Test func eachPageOfTheAppIsRead() {
         #expect(link("https://portal.example.test/ticket/12") == .ticket(sequence: 12))
-        #expect(link("https://portal.example.test/controller/controller01") == .controller(id: "controller01"))
+        #expect(link("https://portal.example.test/controller/controller1") == .controller(id: "controller1"))
         #expect(link("https://portal.example.test/virtualcontroller/virtual01") == .virtualController(id: "virtual01"))
         #expect(link("https://portal.example.test/release/release-01_a") == .release(id: "release-01_a"))
     }
 
     @Test func aTrailingSlashAQueryAndAFragmentAreIgnored() {
         #expect(link("https://portal.example.test/ticket/12/") == .ticket(sequence: 12))
-        #expect(link("https://portal.example.test/controller/controller01/?tab=alarms") == .controller(id: "controller01"))
+        #expect(link("https://portal.example.test/controller/controller1/?tab=alarms") == .controller(id: "controller1"))
         #expect(link("https://portal.example.test/release/release01?x=1#top") == .release(id: "release01"))
         #expect(link("https://portal.example.test//virtualcontroller//virtual01") == .virtualController(id: "virtual01"))
     }
 
     @Test func aSubpageOpensItsOwnScreenOrNone() {
-        #expect(PortalLink(subpagePath: "/controller/controller01/backups") == .controllerBackups(id: "controller01"))
+        #expect(PortalLink(subpagePath: "/controller/controller1/backups") == .controllerBackups(id: "controller1"))
         #expect(PortalLink(subpagePath: "/virtualcontroller/virtual01/snapshots") == .virtualControllerSnapshots(id: "virtual01"))
         #expect(PortalLink(subpagePath: "/surveillance/camera01/playback") == .camera(id: "camera01"))
         #expect(PortalLink(subpagePath: "/organization/organization01/members") == .organizationPage(.members, organizationId: "organization01"))
         // The app has no screen for these pages, so they open on the web and not on the entity.
-        #expect(PortalLink(subpagePath: "/controller/controller01/alarms") == nil)
+        #expect(PortalLink(subpagePath: "/controller/controller1/alarms") == nil)
         #expect(PortalLink(subpagePath: "/site/site01/telemetry") == nil)
         #expect(PortalLink(subpagePath: "/organization/organization01/sso") == nil)
     }
 
     @Test func aSubpageWritesItsPathBack() {
-        #expect(PortalLink.controllerBackups(id: "controller01").path == "/controller/controller01/backups")
+        #expect(PortalLink.controllerBackups(id: "controller1").path == "/controller/controller1/backups")
         #expect(PortalLink.virtualControllerSnapshots(id: "virtual01").path == "/virtualcontroller/virtual01/snapshots")
     }
 
@@ -319,14 +319,14 @@ import Testing
         func row(_ id: String, _ path: String) -> GlobalSearchResult {
             GlobalSearchResult(resultKind: .shortcut, id: id, title: "Page", path: path)
         }
-        #expect(row("controller.backups:controller01", "/controller/controller01/backups").link == .controllerBackups(id: "controller01"))
-        #expect(row("controller.alarms:controller01", "/controller/controller01/alarms").link == nil)
+        #expect(row("controller.backups:controller1", "/controller/controller1/backups").link == .controllerBackups(id: "controller1"))
+        #expect(row("controller.alarms:controller1", "/controller/controller1/alarms").link == nil)
         #expect(row("tickets.closed", "/ticket?status=closed").link == nil)
         #expect(row("settings.tokens", "/settings/tokens").link == .screen(.tokens))
     }
 
     @Test func aPageBelowTheOneOpensTheOne() {
-        #expect(link("https://portal.example.test/controller/controller01/backups") == .controller(id: "controller01"))
+        #expect(link("https://portal.example.test/controller/controller1/backups") == .controller(id: "controller1"))
         #expect(link("https://portal.example.test/virtualcontroller/virtual01/snapshots/") == .virtualController(id: "virtual01"))
         #expect(link("https://portal.example.test/release/release01/images") == .release(id: "release01"))
         #expect(link("https://portal.example.test/ticket/12/comments") == nil)
@@ -335,7 +335,7 @@ import Testing
     @Test func percentEncodingIsUndone() {
         #expect(link("https://portal.example.test/controller/controller%2D01") == .controller(id: "controller-01"))
         #expect(link("https://portal.example.test/ticket/%31%32") == .ticket(sequence: 12))
-        #expect(link("https://portal.example.test/%63ontroller/controller01") == .controller(id: "controller01"))
+        #expect(link("https://portal.example.test/%63ontroller/controller1") == .controller(id: "controller1"))
     }
 
     @Test func anEncodedSlashOrOtherCharacterIsNotAnIdentifier() {
@@ -360,7 +360,10 @@ import Testing
         #expect(link("https://portal.example.test/site/site01") == .site(id: "site01"))
         #expect(link("https://portal.example.test/site/site01/cell/cell01") == .cell(id: "cell01", siteId: "site01"))
         #expect(link("https://portal.example.test/surveillance/camera01") == .camera(id: "camera01"))
+        #expect(link("https://portal.example.test/chat/conversation01") == .conversation(id: "conversation01"))
         #expect(link("https://portal.example.test/agent/conversation01") == .conversation(id: "conversation01"))
+        #expect(link("https://portal.example.test/chat/conversation01#message-m7") == .conversation(id: "conversation01"))
+        #expect(link("https://portal.example.test/chat/run/run01") == nil)
         #expect(link("https://portal.example.test/user/user02") == .user(id: "user02"))
         #expect(link("https://portal.example.test/incident/incident01") == .incident(id: "incident01"))
     }
@@ -369,7 +372,7 @@ import Testing
         #expect(link("https://other.example.test/ticket/12") == nil)
         #expect(link("https://portal.example.test.evil.test/ticket/12") == nil)
         #expect(link("https://evil.portal.example.test/ticket/12") == nil)
-        #expect(link("https://controller01-live.portal.example.test/controller/controller01") == nil)
+        #expect(link("https://controller1-live.portal.example.test/controller/controller1") == nil)
     }
 
     @Test func theHostIsComparedWithoutCaseAndTheSchemeMayBeHttp() {
@@ -390,7 +393,7 @@ import Testing
 
     @Test func theCopiedAddressIsTheWebAppsAddress() {
         #expect(PortalLink.ticket(sequence: 12).url(server: server).absoluteString == "https://portal.example.test/ticket/12")
-        #expect(PortalLink.controller(id: "controller01").url(server: server).absoluteString == "https://portal.example.test/controller/controller01")
+        #expect(PortalLink.controller(id: "controller1").url(server: server).absoluteString == "https://portal.example.test/controller/controller1")
         #expect(PortalLink.virtualController(id: "virtual01").url(server: server).absoluteString == "https://portal.example.test/virtualcontroller/virtual01")
         #expect(PortalLink.release(id: "release01").url(server: server).absoluteString == "https://portal.example.test/release/release01")
     }
@@ -421,11 +424,11 @@ import Testing
     @Test func aControllerIsLookedUpById() async throws {
         let (connection, _) = scriptedConnection { operation, variables in
             #expect(operation == "GetController")
-            #expect(variables["controllerId"] as? String == "controller01")
-            return ["GetController": ["id": "controller01", "comment": "Pick station", "siteId": "site01"]]
+            #expect(variables["controllerId"] as? String == "controller1")
+            return ["GetController": ["id": "controller1", "comment": "Pick station", "siteId": "site01"]]
         }
-        let controller = try await connection.controller(id: "controller01")
-        #expect(controller.id == "controller01")
+        let controller = try await connection.controller(id: "controller1")
+        #expect(controller.id == "controller1")
         #expect(controller.comment == "Pick station")
     }
 }

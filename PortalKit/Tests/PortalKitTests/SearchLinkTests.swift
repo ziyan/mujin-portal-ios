@@ -8,16 +8,16 @@ import Testing
     /// One row of every kind the server sends, with the path it gives that kind.
     static let kinds: [(GlobalSearchResultKind, String, PortalLink?)] = [
         (.shortcut, "/settings/tokens", .screen(.tokens)),
-        (.controller, "/controller/controller01", .controller(id: "controller01")),
+        (.controller, "/controller/controller1", .controller(id: "controller1")),
         (.virtualController, "/virtualcontroller/virtual01", .virtualController(id: "virtual01")),
         (.site, "/site/site01", .site(id: "site01")),
         (.cell, "/site/site01/cell/cell01", .cell(id: "cell01", siteId: "site01")),
         (.camera, "/surveillance/camera01", .camera(id: "camera01")),
         (.organization, "/organization/organization01", .organization(id: "organization01")),
         (.person, "/user/user02", .user(id: "user02")),
-        (.directChat, "/agent/chatconv01", .conversation(id: "chatconv01")),
-        (.groupChat, "/agent/chatconv02", .conversation(id: "chatconv02")),
-        (.conversation, "/agent/conversation01", .conversation(id: "conversation01")),
+        (.directChat, "/chat/chatconv01", .conversation(id: "chatconv01")),
+        (.groupChat, "/chat/chatconv02", .conversation(id: "chatconv02")),
+        (.conversation, "/chat/conversation01", .conversation(id: "conversation01")),
         (.ticket, "/ticket/12", .ticket(sequence: 12)),
         (.release, "/release/release01", .release(id: "release01")),
         (.page, "/site/site01/page/page01", .sitePage(id: "page01", siteId: "site01")),
@@ -38,14 +38,14 @@ import Testing
         ("page.sites", "/site", .screen(.sites)),
         ("page.releases", "/release", .screen(.releases)),
         ("page.help", "/help", nil),
-        ("page.assistant", "/agent", .screen(.assistant)),
-        ("assistant.goals", "/agent/goals", .screen(.goals)),
-        ("assistant.ideas", "/agent/ideas", .screen(.ideas)),
-        ("assistant.knowledge", "/agent/knowledge", .screen(.knowledge)),
-        ("assistant.dreams", "/agent/knowledge?view=dreams", .screen(.dreams)),
-        ("assistant.automations", "/agent/automations", .screen(.automations)),
-        ("assistant.oversight", "/agent/oversight", nil),
-        ("assistant.settings", "/agent/settings", .screen(.assistantSettings)),
+        ("page.assistant", "/chat", .screen(.assistant)),
+        ("assistant.goals", "/settings/goals", .screen(.goals)),
+        ("assistant.ideas", "/settings/ideas", .screen(.ideas)),
+        ("assistant.knowledge", "/settings/memory", .screen(.knowledge)),
+        ("assistant.dreams", "/settings/memory?view=dreams", .screen(.dreams)),
+        ("assistant.automations", "/settings/automations", .screen(.automations)),
+        ("assistant.oversight", "/settings/oversight", nil),
+        ("assistant.settings", "/settings/assistant", .screen(.assistantSettings)),
         ("account.profile", "/user/user01", .user(id: "user01")),
         ("account.activity", "/user/user01/activity", nil),
         ("account.tickets", "/user/user01/tickets", nil),
@@ -103,8 +103,28 @@ import Testing
         }
     }
 
-    @Test func aDocumentationPageOpensOnTheWeb() {
-        // The kind has a mapping of its own, and the app has no screen for it.
+    /// Links written before the assistant moved to `/chat` and its pages into Settings open the same screens.
+    @Test func theAssistantsEarlierPathsStillOpenTheirScreens() {
+        let earlier: [(String, PortalLink)] = [
+            ("/agent", .screen(.assistant)),
+            ("/agent/goals", .screen(.goals)),
+            ("/agent/ideas", .screen(.ideas)),
+            ("/agent/knowledge", .screen(.knowledge)),
+            ("/agent/knowledge?view=dreams", .screen(.dreams)),
+            ("/agent/automations", .screen(.automations)),
+            ("/agent/settings", .screen(.assistantSettings)),
+            ("/agent/conversation01", .conversation(id: "conversation01")),
+            ("/agent/chatconv01#message-m7", .conversation(id: "chatconv01")),
+        ]
+        for (path, expected) in earlier {
+            #expect(PortalLink(path: path) == expected, "\(path)")
+        }
+        // Search rows from a server that still writes the earlier paths.
+        #expect(GlobalSearchResult(resultKind: .conversation, id: "id", title: "Title", path: "/agent/conversation01").link == .conversation(id: "conversation01"))
+        #expect(GlobalSearchResult(resultKind: .shortcut, id: "id", title: "Title", path: "/agent/knowledge?view=dreams", iconName: "knowledge").link == .screen(.dreams))
+    }
+
+    @Test func aDocumentationPageIsReadAsASitePage() {
         #expect(PortalLink(path: "/site/site01/page/page01") == .sitePage(id: "page01", siteId: "site01"))
     }
 
@@ -142,7 +162,7 @@ import Testing
     }
 
     @Test func pathsTheAppDoesNotReadAreNil() {
-        for path in ["", "/", "/home", "/help", "/ticket/new", "/user/user01/activity", "/organization/organization01/sso", "/agent/oversight", "/settings/nothing", "/settings/tokens/extra", "/user/a%2Fb"] {
+        for path in ["", "/", "/home", "/help", "/ticket/new", "/user/user01/activity", "/organization/organization01/sso", "/agent/oversight", "/settings/oversight", "/chat/run/run01", "/chat/run", "/chat/chat01/m7/extra", "/settings/nothing", "/settings/tokens/extra", "/user/a%2Fb"] {
             #expect(PortalLink(path: path) == nil, "\(path)")
         }
     }

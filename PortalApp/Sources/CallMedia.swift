@@ -22,9 +22,17 @@ enum CallMediaError: Error {
 /// the phone's own candidates are gathered. Everything the screen needs comes back through the callbacks.
 final class CallMedia: NSObject, RTCPeerConnectionDelegate, @unchecked Sendable {
     /// A remote stream's id is the id of the person who sends it.
+    /// What the call does anything about; the states in between are `other`.
+    enum ConnectionState: Sendable {
+        case connected
+        case disconnected
+        case failed
+        case other
+    }
+
     struct Callbacks: @unchecked Sendable {
         var onRemoteVideo: @Sendable (_ userId: String, _ box: VideoTrackBox?) -> Void = { _, _ in }
-        var onConnectionChange: @Sendable (_ isConnected: Bool, _ isFailed: Bool) -> Void = { _, _ in }
+        var onConnectionChange: @Sendable (_ state: ConnectionState) -> Void = { _ in }
         var onSpeaking: @Sendable (_ userIds: Set<String>) -> Void = { _ in }
     }
 
@@ -349,7 +357,12 @@ final class CallMedia: NSObject, RTCPeerConnectionDelegate, @unchecked Sendable 
     }
 
     func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCPeerConnectionState) {
-        callbacks.onConnectionChange(newState == .connected, newState == .failed)
+        switch newState {
+        case .connected: callbacks.onConnectionChange(.connected)
+        case .disconnected: callbacks.onConnectionChange(.disconnected)
+        case .failed: callbacks.onConnectionChange(.failed)
+        default: callbacks.onConnectionChange(.other)
+        }
     }
 
     func peerConnection(_ peerConnection: RTCPeerConnection, didAdd rtpReceiver: RTCRtpReceiver, streams mediaStreams: [RTCMediaStream]) {

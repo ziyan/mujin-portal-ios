@@ -48,13 +48,22 @@ extension Array where Element == WaitingItem {
 
 extension Connection {
     /// The latest messages of a conversation, oldest first. With
-    /// `beforeMessageId` it is the page before that message.
-    public func messages(conversationId: String, latestCount: Int?, beforeMessageId: String? = nil) async throws -> [ConversationMessage] {
+    /// `beforeMessageId` it is the page before that message. With `threadRootMessageId`, on a server with threads, it is that thread,
+    /// its root first.
+    public func messages(
+        conversationId: String, latestCount: Int?, beforeMessageId: String? = nil, threadRootMessageId: String? = nil
+    ) async throws -> [ConversationMessage] {
         struct Answer: Decodable, Sendable { let ListConversationMessages: [ConversationMessage]? }
         var variables: [String: JSONValue] = ["conversationId": .string(conversationId)]
         if let latestCount { variables["latestMessageCount"] = .number(Double(latestCount)) }
         if let beforeMessageId { variables["beforeMessageId"] = .string(beforeMessageId) }
-        return try await execute(Documents.listMessages, variables: variables, as: Answer.self).ListConversationMessages ?? []
+        var document = Documents.listMessages
+        if let threadRootMessageId = ThreadRouting.normalized(threadRootMessageId) {
+            document = Documents.listMessagesInThread
+            variables["threadRootMessageId"] = .string(threadRootMessageId)
+            variables["beforeMessageId"] = nil
+        }
+        return try await execute(document, variables: variables, as: Answer.self).ListConversationMessages ?? []
     }
 
     /// How many messages the conversation holds, for "N earlier messages".
@@ -65,6 +74,11 @@ extension Connection {
         }
         let answer = try await execute(Documents.countMessages, variables: ["conversationId": .string(conversationId)], as: Answer.self)
         return answer.CountConversationMessages?.messageCount ?? 0
+    }
+
+    /// The count, or nil when it could not be read: the screen shows no "N earlier messages" then.
+    public func messageCountOrNil(conversationId: String) async -> Int? {
+        try? await messageCount(conversationId: conversationId)
     }
 
     /// Searches the person's conversations by title and by what was said.
@@ -80,6 +94,11 @@ extension Connection {
     }
 
     @discardableResult
+    /// Makes a conversation with the assistant the person's main chat. The one before it becomes a side chat.
+    public func setMainConversation(id: String) async throws {
+        _ = try await execute(Documents.setMainConversation, variables: ["conversationId": .string(id)], as: JSONValue.self)
+    }
+
     public func renameConversation(id: String, title: String) async throws -> ConversationSummary? {
         struct Answer: Decodable, Sendable {
             struct Renamed: Decodable, Sendable { let conversation: ConversationSummary? }

@@ -11,6 +11,8 @@ struct SettingsView: View {
 
     @State private var isShowingAccounts = DemoOptions.screen == "accounts"
     @State private var isConfirmingSignOut = false
+    @State private var isSendingFeedback = DemoOptions.screen == "feedback-form-open"
+    @AppStorage(FeedbackPreference.askAfterScreenshotKey) private var shouldAskAfterScreenshot = true
 
     private var account: Account { session.account }
 
@@ -34,6 +36,27 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("accountsButton")
             }
+            // Stays after the card in Chat is put off, so the update can still be found.
+            if let update = appModel.updates.update {
+                Section {
+                    Button {
+                        appModel.updates.install()
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(update.openTitle)
+                                Text(update.sourceText).font(.footnote).foregroundStyle(Color.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "arrow.down.circle")
+                        }
+                        .foregroundStyle(.primary)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("appUpdateRow")
+                }
+            }
             Section("Notifications") {
                 NavigationLink(value: MoreDestination.notificationSettings) {
                     Label("Notification settings", systemImage: "bell.badge")
@@ -53,6 +76,31 @@ struct SettingsView: View {
                         .foregroundStyle(.primary)
                 }
                 .accessibilityIdentifier("editTabBarRow")
+            }
+            // Only on a server that has it; an older one shows nothing here.
+            if session.capabilities.offersPortalFeedback {
+                Section {
+                    Button {
+                        isSendingFeedback = true
+                    } label: {
+                        Label("Send feedback", systemImage: "text.bubble")
+                            .foregroundStyle(.primary)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("sendFeedbackRow")
+                    NavigationLink(value: MoreDestination.myFeedback) {
+                        Label("My feedback", systemImage: "tray.full")
+                            .foregroundStyle(.primary)
+                    }
+                    .accessibilityIdentifier("myFeedbackLink")
+                    Toggle("Ask for feedback after a screenshot", isOn: $shouldAskAfterScreenshot)
+                        .accessibilityIdentifier("feedbackAfterScreenshotToggle")
+                } header: {
+                    Text("Feedback")
+                } footer: {
+                    Text("Feedback goes to the Portal team, for problems with the app or ideas to improve it. Nothing is sent until you press Send.")
+                }
             }
             Section {
                 NavigationLink(value: MoreDestination.about) {
@@ -81,6 +129,9 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .sheet(isPresented: $isShowingAccounts) {
             AccountsView()
+        }
+        .sheet(isPresented: $isSendingFeedback) {
+            FeedbackView(request: FeedbackRequest(pictureData: nil, screenName: nil))
         }
     }
 }

@@ -49,6 +49,16 @@ final class SiteModel {
     var viewerIsMujinUser = false
     var viewerPermissions: [String] = []
     var viewerOrganizationId: String?
+    /// Whether the server leaves controllers out of site views, and whether its sites name a telemetry source. Set by the session.
+    var offersSiteExclusion = false
+    var offersTelemetrySource = false
+    /// The controllers this site's or cell's merged views leave out, by id.
+    private(set) var excludedControllerIds: [String] = []
+    /// The controller that stands for the whole site, when the server has the field and the site names one.
+    var sourceControllerId: String? {
+        guard offersTelemetrySource, let id = selectedSite?.telemetrySourceControllerId, !id.isEmpty else { return nil }
+        return id
+    }
     var canSeeMembers: Bool {
         SiteMembersAccess.canSee(isMujinUser: viewerIsMujinUser, permissions: viewerPermissions, viewerOrganizationId: viewerOrganizationId, siteOrganizationId: selectedSite?.organizationId)
     }
@@ -101,6 +111,7 @@ final class SiteModel {
         var unavailableControllerCount = 0
         var robots = SiteRobots()
         var controllers: [ControllerSummary] = []
+        var excludedControllerIds: [String] = []
         var incidents: [IncidentSummary] = []
         var telemetry: SiteTelemetry?
         var cells: [SiteCell] = []
@@ -116,6 +127,7 @@ final class SiteModel {
         unavailableControllerCount = snapshot.unavailableControllerCount
         robots = snapshot.robots
         controllers = snapshot.controllers
+        excludedControllerIds = snapshot.excludedControllerIds
         incidents = snapshot.incidents
         telemetry = snapshot.telemetry
         cells = snapshot.cells
@@ -138,7 +150,7 @@ final class SiteModel {
             if held.isFresh && !force { return }
         }
         do {
-            sites = try await connection.sites(organizationId: organizationId)
+            sites = try await connection.sites(organizationId: organizationId, includesTelemetrySource: offersTelemetrySource)
             cache?.store(sites, for: sitesKey)
             resolveSelection()
             if selectedSiteId == nil { phase = .loaded } else { await loadDetails(force: force) }
@@ -146,6 +158,11 @@ final class SiteModel {
             onError(error)
             if phase == .loading { phase = .failed(error.userMessage) }
         }
+    }
+
+    nonisolated private static func excludedControllerIds(_ connection: Connection, siteId: String, cellId: String?, isOffered: Bool) async -> [String] {
+        guard isOffered else { return [] }
+        return (try? await connection.siteExcludedControllerIds(siteId: siteId, cellId: cellId)) ?? []
     }
 
     /// Reads everything about the selected site at once. A part the server
@@ -172,9 +189,13 @@ final class SiteModel {
         var snapshot = Snapshot()
         async let alarmResult = try? connection.siteAlarms(siteId: siteId, cellId: cellId)
         async let robotResult = try? connection.siteRobots(siteId: siteId, cellId: cellId)
-        async let controllerRows = try? connection.controllers(organizationId: scopeId, cellId: cellId)
+        let isExclusionOffered = offersSiteExclusion
+        async let controllerRows = try? connection.controllers(organizationId: scopeId, cellId: cellId, includesExclusionFlag: isExclusionOffered)
         async let incidentRows = try? connection.incidents(organizationId: scopeId)
-        let (alarmAnswer, robotAnswer, controllerAnswer, incidentAnswer) = await (alarmResult, robotResult, controllerRows, incidentRows)
+        // What the views leave out, for the cell when this is a cell. A server without the feature leaves nothing out.
+        async let excludedRows = Self.excludedControllerIds(connection, siteId: siteId, cellId: cellId, isOffered: isExclusionOffered)
+        let (alarmAnswer, robotAnswer, controllerAnswer, incidentAnswer, excludedAnswer) = await (alarmResult, robotResult, controllerRows, incidentRows, excludedRows)
+        snapshot.excludedControllerIds = excludedAnswer
         snapshot.alarms = alarmAnswer?.alarms ?? []
         snapshot.unavailableControllerCount = alarmAnswer?.unavailableControllerCount ?? 0
         snapshot.robots = robotAnswer ?? SiteRobots()
@@ -186,6 +207,7 @@ final class SiteModel {
             unavailableControllerCount = snapshot.unavailableControllerCount
             robots = snapshot.robots
             controllers = snapshot.controllers
+            excludedControllerIds = snapshot.excludedControllerIds
             incidents = snapshot.incidents
         }
         phase = .loaded
@@ -202,7 +224,9 @@ final class SiteModel {
         if cellId == nil, canSeeMembers, let memberOrganizationId = selectedSite?.organizationId ?? scopeId {
             snapshot.members = (try? await connection.siteMembers(siteId: siteId, organizationId: memberOrganizationId, viewerOrganizationId: viewerOrganizationId)) ?? []
         }
-        snapshot.telemetry = try? await connection.siteTelemetry(controllerIds: snapshot.controllers.map(\.id), virtualControllerIds: snapshot.virtualControllers.map(\.id))
+        snapshot.telemetry = try? await connection.siteTelemetry(
+            controllerIds: snapshot.controllers.map(\.id), virtualControllerIds: snapshot.virtualControllers.map(\.id),
+            excludedControllerIds: Set(snapshot.excludedControllerIds), sourceControllerId: sourceControllerId, isCell: cellId != nil)
         apply(snapshot)
         cache?.store(snapshot, for: snapshotKey)
     }
@@ -235,6 +259,7 @@ struct SiteView: View {
     var body: some View {
         if embedsNavigation {
             NavigationStack(path: $path) { screen.portalDestinations() }
+                .pushesRoutes { route in path.append(route) }
         } else {
             screen
         }
@@ -257,7 +282,7 @@ struct SiteView: View {
             }
         }
         .navigationTitle(model?.selectedSite?.name ?? String(localized: "Site"))
-        .navigationSubtitle(embedsNavigation ? "" : (session.organizationNames[activeOrganizationId ?? ""] ?? ""))
+        .navigationSubtitle(embedsNavigation ? "" : (session.organizationNames[activeOrganizationId ?? model?.selectedSite?.organizationId ?? ""] ?? ""))
         .navigationBarTitleDisplayMode(.inline)
         // The site picker and the bell belong to the Sites tab; a site pushed from a customer has its name and the assistant.
         .toolbar {
@@ -315,10 +340,11 @@ struct SiteView: View {
                 if DemoOptions.screen == "site-orchestrators" { path.append(.siteList(.orchestrators, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "site-mobile-robots" { path.append(.siteList(.mobileRobots, organizationKey: siteModel.sessionKey)) }
                 if DemoOptions.screen == "site-alarms" { path.append(.siteList(.alarms, organizationKey: siteModel.sessionKey)) }
-                if DemoOptions.screen == "site-alarm-detail" || DemoOptions.screen == "site-alarm-metadata", let alarm = siteModel.alarms.first {
+                if DemoOptions.screen == "site-alarm-detail" || DemoOptions.screen == "site-alarm-metadata" || DemoOptions.screen == "alarm-levels-critical", let alarm = siteModel.alarms.first {
                     path.append(.alarm(alarm, controller: siteModel.controllers.first { $0.id == alarm.controllerId }))
                 }
                 if DemoOptions.screen == "site-members" { path.append(.siteList(.members, organizationKey: siteModel.sessionKey)) }
+                if let screen = DemoOptions.screen, PagesDemo.owns(screen) { path.append(contentsOf: PagesDemo.routes(for: screen)) }
                 if DemoOptions.screen == "site-back" {
                     // Choose the second site, push a list, and come back: the page must still show the second site.
                     siteModel.selectedSiteId = "site02"
@@ -326,6 +352,15 @@ struct SiteView: View {
                     path.append(.siteList(.controllers, organizationKey: siteModel.sessionKey))
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
                     path.removeAll()
+                }
+                if let controllerId = SiteViewDemo.controllerId(for: DemoOptions.screen), let controller = siteModel.controllers.first(where: { $0.id == controllerId }) {
+                    path.append(.controller(controller))
+                }
+                if DemoOptions.screen == "exclusion-controllers" { path.append(.siteList(.controllers, organizationKey: siteModel.sessionKey)) }
+                if DemoOptions.screen == "alarm-levels-list" { path.append(.siteList(.alarms, organizationKey: siteModel.sessionKey)) }
+                if let screen = DemoOptions.screen, screen == "exclusion-cell" || screen == "exclusion-cell-source" {
+                    let demoCellId = screen == "exclusion-cell" ? "cell01" : "cell02"
+                    if let cell = siteModel.cells.first(where: { $0.id == demoCellId }) { path.append(siteModel.route(to: cell)) }
                 }
                 if DemoOptions.screen == "site-cells" { path.append(.siteList(.cells, organizationKey: siteModel.sessionKey)) }
                 if let screen = DemoOptions.screen, screen == "cell" || screen == "cell-lower" || screen == "cell-empty" {
@@ -367,20 +402,24 @@ struct SiteView: View {
                     Text("Sites you can see show up here.")
                 }
             } else {
-                List { PortalRows {
-                    SiteSectionViews.telemetry(model, showsViewAll: true)
-                    cellsSection(model)
-                    SiteSectionViews.overview(model)
-                    resourcesSection(model)
-                    SiteSectionViews.cameras(model)
-                    SiteSectionViews.alarms(model)
-                    SiteSectionViews.incidents(model)
-                    SiteSectionViews.tickets(model)
-                } }
-.portalRootList()
-                .accessibilityIdentifier("sitePage")
-                .routePushing()
-                .refreshable { await model.loadDetails(force: true) }
+                ScrollViewReader { proxy in
+                    List { PortalRows {
+                        SiteSectionViews.telemetry(model, showsViewAll: true)
+                        SiteSectionViews.viewNotes(model)
+                        cellsSection(model)
+                        SiteSectionViews.overview(model)
+                        resourcesSection(model)
+                        SiteSectionViews.cameras(model)
+                        SiteSectionViews.alarms(model)
+                        SiteSectionViews.incidents(model)
+                        SiteSectionViews.tickets(model)
+                    } }
+                    .portalRootList()
+                    .accessibilityIdentifier("sitePage")
+                    .routePushing()
+                    .refreshable { await model.loadDetails(force: true) }
+                    .task { await scrollToPagesRowInDemo(proxy) }
+                }
             }
         }
     }
@@ -406,8 +445,27 @@ struct SiteView: View {
         }
     }
 
+    /// The demo's Pages row screen starts scrolled to the row, since the page is longer than the screen.
+    private func scrollToPagesRowInDemo(_ proxy: ScrollViewProxy) async {
+        guard appModel.isDemo, DemoOptions.screen == "site-pages-row" else { return }
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        proxy.scrollTo(Self.pagesRowScrollID, anchor: .center)
+    }
+
+    private static let pagesRowScrollID = "sitePagesRow"
+
     private func resourcesSection(_ model: SiteModel) -> some View {
         Section("Resources") {
+            if session.capabilities.offersSiteChats, let siteId = model.selectedSiteId {
+                SiteChatRow(siteId: siteId, connection: model.connection)
+            }
+            if session.capabilities.offersSitePages, let siteId = model.selectedSiteId {
+                NavigationLink(value: PortalRoute.sitePages(siteId: siteId)) {
+                    Text("Documentation")
+                }
+                .id(Self.pagesRowScrollID)
+                .accessibilityIdentifier("sitePagesRow")
+            }
             NavigationLink(value: PortalRoute.siteList(.controllers, organizationKey: model.sessionKey)) {
                 LabeledContent("Controllers") { Text(model.controllers.count.formatted()).monospacedDigit() }
             }
@@ -550,6 +608,12 @@ struct ControllerDetailView: View {
     @State var isMoving = false
     @State var errorText: String?
     @State private var isLinkCopied = false
+    /// Whether the controller is left out of site views, once read afresh or changed here. Until then the row it was opened from says.
+    @State var isExcluded: Bool?
+    @State var isSavingExclusion = false
+
+    /// Whether the controller is left out of its site's and cells' merged views.
+    var isLeftOutOfSiteViews: Bool { isExcluded ?? (controller.isExcludedFromSiteViews == true) }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -582,6 +646,11 @@ struct ControllerDetailView: View {
                 }
                 if let region = controller.region, !region.isEmpty {
                     LabeledContent("Region") { Text(region) }
+                }
+                if isLeftOutOfSiteViews {
+                    Label("Excluded from site views", systemImage: "eye.slash")
+                        .foregroundStyle(Color.statusWarning)
+                        .accessibilityIdentifier("excludedBadge")
                 }
             }
             Section {
@@ -862,12 +931,15 @@ struct SiteTelemetryView: View {
         .portalList()
         .navigationTitle("Last 24 hours")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .task {
             let connection = appModel.connection(for: session.account)
             var rows: [(cell: SiteCell, telemetry: SiteTelemetry)] = []
             for cell in model.cells {
-                if let telemetry = try? await connection.siteTelemetry(controllerIds: cell.controllerIds ?? [], virtualControllerIds: cell.virtualControllerIds ?? []) {
+                if let telemetry = try? await connection.siteTelemetry(
+                    controllerIds: cell.controllerIds ?? [], virtualControllerIds: cell.virtualControllerIds ?? [],
+                    excludedControllerIds: Set(model.excludedControllerIds), sourceControllerId: model.sourceControllerId, isCell: true)
+                {
                     rows.append((cell, telemetry))
                 }
             }
@@ -960,7 +1032,7 @@ struct VirtualControllerDetailView: View {
         .demoMenuHost(screen: "virtual-controller-menu")
         .navigationTitle(virtual.displayName)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .fullScreenCover(item: $screenSession) { screen in
             ControllerScreenView(session: screen, name: virtual.displayName)
         }
@@ -994,7 +1066,7 @@ enum SiteRows {
     }
 
     @ViewBuilder
-    static func controller(_ controller: ControllerSummary) -> some View {
+    static func controller(_ controller: ControllerSummary, isSiteTotal: Bool = false) -> some View {
         HStack(spacing: 10) {
             Image(systemName: controller.isOnline ? "checkmark.circle" : "circle.slash")
                 .foregroundStyle(.secondary)
@@ -1002,6 +1074,20 @@ enum SiteRows {
             VStack(alignment: .leading, spacing: 2) {
                 Text(controller.displayName).foregroundStyle(.primary)
                 if let detail = controller.detail { Text(detail).font(.footnote).foregroundStyle(.secondary) }
+                if controller.isExcludedFromSiteViews == true {
+                    Label("Excluded from site views", systemImage: "eye.slash")
+                        .labelStyle(InlineLabelStyle())
+                        .font(.footnote)
+                        .foregroundStyle(Color.statusWarning)
+                        .accessibilityIdentifier("excludedBadge")
+                }
+                if isSiteTotal {
+                    Label("Site total", systemImage: "sum")
+                        .labelStyle(InlineLabelStyle())
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("siteTotalBadge")
+                }
             }
         }
     }
@@ -1020,8 +1106,7 @@ enum SiteRows {
             Label {
                 Text(alarm.message)
             } icon: {
-                Image(systemName: alarm.severityRank <= 1 ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
-                    .foregroundStyle(alarm.severityRank <= 1 ? Color.statusError : Color.statusWarning)
+                AlarmSeverityIcon(severityRank: alarm.severityRank)
             }
             // The controller is named on every row. At the accessibility text sizes the parts go on separate lines.
             ViewThatFits(in: .horizontal) {
@@ -1089,7 +1174,7 @@ struct SiteListScreen: View {
         List { PortalRows {
             switch kind {
             case .alarms:
-                ForEach(model.alarms) { SiteRows.alarmLink($0, controllers: model.controllers) }
+                ActiveAlarmRows.rows(model.alarms, controllers: model.controllers)
             case .incidents:
                 ForEach(model.incidents) { incident in NavigationLink(value: PortalRoute.incident(incident)) { SiteRows.incident(incident) } }
             case .tickets:
@@ -1127,7 +1212,7 @@ struct SiteListScreen: View {
                 }
             case .controllers:
                 ForEach(model.controllers) { controller in
-                    NavigationLink(value: PortalRoute.controller(controller)) { SiteRows.controller(controller) }
+                    NavigationLink(value: PortalRoute.controller(controller)) { SiteRows.controller(controller, isSiteTotal: controller.id == model.sourceControllerId) }
                 }
             }
         } }
@@ -1135,11 +1220,51 @@ struct SiteListScreen: View {
         .accessibilityIdentifier("siteList.\(String(describing: kind))")
         .navigationTitle(kind.title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(.hidden, for: .tabBar)
+        .hidesTabBarWhenCompact()
         .toolbar {
             if kind == .virtualControllers, model.cellId == nil {
                 ToolbarItem(placement: .topBarTrailing) { VirtualControllerCreateButton(model: model) }
             }
+        }
+    }
+}
+
+/// SiteChatRow opens the chat of the site, for everyone with access to it.
+private struct SiteChatRow: View {
+    @Environment(SessionModel.self) private var session
+    let siteId: String
+    let connection: Connection
+
+    @State private var isOpening = false
+    @State private var errorText: String?
+
+    var body: some View {
+        Button {
+            Task { await open() }
+        } label: {
+            HStack {
+                Label("Site chat", systemImage: "bubble.left.and.bubble.right").foregroundStyle(.primary)
+                Spacer(minLength: 8)
+                if isOpening { ProgressView().controlSize(.small) }
+            }
+            .contentShape(.rect)
+        }
+        .disabled(isOpening)
+        .accessibilityIdentifier("siteChatRow")
+        .alert("Could not open the site chat", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorText ?? "")
+        }
+    }
+
+    private func open() async {
+        isOpening = true
+        defer { isOpening = false }
+        do {
+            session.open(.chat(conversationId: try await connection.openSiteChat(siteId: siteId)))
+        } catch {
+            errorText = error.localizedDescription
         }
     }
 }

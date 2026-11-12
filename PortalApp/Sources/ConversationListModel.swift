@@ -99,6 +99,15 @@ final class ConversationListModel {
         }
     }
 
+    /// Unread messages across the chats listed.
+    var chatUnreadCount: Int { conversations.reduce(0) { $0 + ($1.chat?.unreadCount ?? 0) } }
+
+    /// The person read a chat to its end: the row and the held list show it at once, ahead of the next read.
+    func markRead(id: String) {
+        conversations = ConversationListUpdate.markedRead(conversations, id: id)
+        cache?.update(cacheKey, as: [ConversationSummary].self) { $0 = ConversationListUpdate.markedRead($0, id: id) }
+    }
+
     /// The server gave the conversation a title: the row and the held list take it.
     func retitle(id: String, title: String?) {
         guard let title, !title.isEmpty else { return }

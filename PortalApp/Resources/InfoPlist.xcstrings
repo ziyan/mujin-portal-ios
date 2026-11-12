@@ -54,43 +54,43 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Talk to the assistant, record voice messages and speak on calls."
+            "value": "Talk to the assistant, dictate messages, record voice messages and speak on calls."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "アシスタントと話したり、ボイスメッセージを録音したり、通話で話したりします。"
+            "value": "アシスタントと話したり、メッセージを音声入力したり、ボイスメッセージを録音したり、通話で話したりします。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "与助手交谈、录制语音消息并在通话中说话。"
+            "value": "与助手交谈、听写消息、录制语音消息并在通话中说话。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "與助手交談、錄製語音訊息並在通話中說話。"
+            "value": "與助手交談、聽寫訊息、錄製語音訊息並在通話中說話。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mit dem Assistenten sprechen, Sprachnachrichten aufnehmen und in Anrufen sprechen."
+            "value": "Mit dem Assistenten sprechen, Nachrichten diktieren, Sprachnachrichten aufnehmen und in Anrufen sprechen."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Parlez à l'assistant, enregistrez des messages vocaux et parlez pendant les appels."
+            "value": "Parlez à l'assistant, dictez des messages, enregistrez des messages vocaux et parlez pendant les appels."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Praat met de assistent, neem spraakberichten op en spreek in gesprekken."
+            "value": "Praat met de assistent, dicteer berichten, neem spraakberichten op en spreek in gesprekken."
           }
         }
       },

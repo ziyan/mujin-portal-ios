@@ -46,6 +46,27 @@ public struct ChatCallSegment: Codable, Equatable, Sendable {
     }
 }
 
+/// ChatCallRecording is one person's audio from a call that was recorded.
+public struct ChatCallRecording: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let filename: String?
+    public let uploadedByUserId: String?
+
+    public init(id: String, filename: String? = nil, uploadedByUserId: String? = nil) {
+        self.id = id
+        self.filename = filename
+        self.uploadedByUserId = uploadedByUserId
+    }
+}
+
+/// ChatCallTranscriptStatus is what a call that is over can say about its recording and transcript.
+public enum ChatCallTranscriptStatus: Equatable, Sendable {
+    case none
+    case transcribing
+    case ready
+    case failed
+}
+
 /// ChatCall is a call in a chat, going or over, as the call screen, the banner and the line in the chat know it.
 public struct ChatCall: Codable, Equatable, Identifiable, Sendable {
     public let id: String
@@ -64,14 +85,25 @@ public struct ChatCall: Codable, Equatable, Identifiable, Sendable {
     /// `off`, `recording`, `waiting`, `done` or `failed`.
     public let transcriptState: String?
     public let members: [ChatCallMember]?
+    /// What was said. A call read from a chat's history leaves this out, so `GetChatCall` is asked when it is opened.
     public let transcriptSegments: [ChatCallSegment]?
+    /// Each person's audio, from `GetChatCall` only.
+    public let recordingAttachments: [ChatCallRecording]?
+    /// The line of the call in the chat, and how many recordings and spoken lines it has, from the list of past calls.
+    public let messageId: String?
+    public let recordingCount: Int?
+    public let transcriptSegmentCount: Int?
 
     public init(
         id: String, chatId: String? = nil, startedByUserId: String? = nil, startedByUserName: String? = nil, chatDisplayName: String? = nil,
         startedAt: String? = nil, endedAt: String? = nil, endReason: String? = nil, durationMS: Int? = nil, isTranscriptionOn: Bool? = nil,
         transcriptionTurnedOnByUserId: String? = nil, transcriptionTurnedOnByName: String? = nil, transcriptState: String? = nil,
-        members: [ChatCallMember]? = nil, transcriptSegments: [ChatCallSegment]? = nil
+        members: [ChatCallMember]? = nil, transcriptSegments: [ChatCallSegment]? = nil, recordingAttachments: [ChatCallRecording]? = nil,
+        messageId: String? = nil, recordingCount: Int? = nil, transcriptSegmentCount: Int? = nil
     ) {
+        self.messageId = messageId
+        self.recordingCount = recordingCount
+        self.transcriptSegmentCount = transcriptSegmentCount
         self.id = id
         self.chatId = chatId
         self.startedByUserId = startedByUserId
@@ -87,6 +119,7 @@ public struct ChatCall: Codable, Equatable, Identifiable, Sendable {
         self.transcriptState = transcriptState
         self.members = members
         self.transcriptSegments = transcriptSegments
+        self.recordingAttachments = recordingAttachments
     }
 
     /// A call is going while it has no end.
@@ -115,9 +148,49 @@ public struct ChatCall: Codable, Equatable, Identifiable, Sendable {
         return nil
     }
 
+    public var transcriptStatus: ChatCallTranscriptStatus {
+        guard !isGoing else { return .none }
+        switch transcriptState {
+        case "done": return .ready
+        case "waiting", "recording": return .transcribing
+        case "failed": return .failed
+        default: return .none
+        }
+    }
+
     public func spokenSegments() -> [ChatCallSegment] {
         (transcriptSegments ?? []).filter { !($0.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
+}
+
+/// ChatCallReconnectOutcome is what the server made of an attempt to reconnect a call's media.
+public enum ChatCallReconnectOutcome: Equatable, Sendable {
+    case reconnected(answerSdp: String, mediaSessionId: String)
+    /// The call is over.
+    case ended
+    /// The person went on from another device or left the call: this phone stops without leaving.
+    case moved
+    /// The call has no room for them now.
+    case full
+}
+
+/// CallReconnectPlan is when a call tries to get its media back, the same on every client.
+public enum CallReconnectPlan {
+    /// A first connection that takes longer than this has failed.
+    public static let firstConnectTimeout: TimeInterval = 30
+    /// How long a connection may stay disconnected before it is replaced: most blips recover by themselves.
+    public static let disconnectedGrace: TimeInterval = 3
+    /// How long a new connection has to come up after its answer.
+    public static let attemptTimeout: TimeInterval = 15
+    /// How long after the drop the call gives up.
+    public static let giveUpAfter: TimeInterval = 60
+
+    /// How long to wait after this many failed attempts: 1, 2, 4, then 8 seconds.
+    public static func delay(afterFailedAttempts count: Int) -> TimeInterval {
+        min(8, pow(2, Double(max(0, count - 1))))
+    }
+
+    public static func shouldGiveUp(elapsed: TimeInterval) -> Bool { elapsed >= giveUpAfter }
 }
 
 /// ChatCallRules are the numbers and wording of a call.
@@ -160,6 +233,8 @@ public enum ChatCallRules {
     /// Whether the person can start a call from this chat: it has someone else in it.
     public static func canStart(in room: ChatRoom?, userId: String) -> Bool {
         guard let room, room.canWrite else { return false }
+        // Anyone with access to the site can be called into a site chat.
+        if room.isSite { return true }
         return room.currentMembers.contains { $0.userId != userId }
     }
 }
@@ -320,7 +395,7 @@ extension Documents {
 
     public static let listGoingChatCalls = "query ListGoingChatCalls { ListGoingChatCalls { \(callFields) } }"
 
-    public static let getChatCall = "query GetChatCall($callId: String) { GetChatCall(callId: $callId) { \(callFields) } }"
+    public static let getChatCall = "query GetChatCall($callId: String) { GetChatCall(callId: $callId) { \(callFields) recordingAttachments { id filename uploadedByUserId } } }"
 
     public static let startChatCall = """
         mutation StartChatCall($chatId: String, $userIds: [String], $isVideoOn: Boolean) {
@@ -351,7 +426,13 @@ extension Documents {
         """
 
     public static let joinChatCallMedia = """
-        mutation JoinChatCallMedia($callId: String, $offerSdp: String) { JoinChatCallMedia(callId: $callId, offerSdp: $offerSdp) { answerSdp } }
+        mutation JoinChatCallMedia($callId: String, $offerSdp: String) { JoinChatCallMedia(callId: $callId, offerSdp: $offerSdp) { answerSdp mediaSessionId } }
+        """
+
+    public static let reconnectChatCallMedia = """
+        mutation ReconnectChatCallMedia($callId: String, $offerSdp: String, $mediaSessionId: String) {
+          ReconnectChatCallMedia(callId: $callId, offerSdp: $offerSdp, mediaSessionId: $mediaSessionId) { outcome answerSdp mediaSessionId }
+        }
         """
 
     public static let answerChatCallMedia = """
@@ -380,7 +461,7 @@ extension Documents {
     static var chatCallDocuments: [String] {
         [
             isChatCallAvailable, listGoingChatCalls, getChatCall, startChatCall, joinChatCall, declineChatCall, leaveChatCall, ringChatCallMembers,
-            setChatCallMedia, setChatCallTranscription, joinChatCallMedia, answerChatCallMedia, onChatCallEvent, onChatCallSignal,
+            setChatCallMedia, setChatCallTranscription, joinChatCallMedia, reconnectChatCallMedia, answerChatCallMedia, onChatCallEvent, onChatCallSignal,
             getChatCallMaximumPersonCount, setChatCallVideoSubscriptions,
         ]
     }
@@ -501,16 +582,45 @@ extension Connection {
             Documents.setChatCallTranscription, variables: ["callId": .string(id), "isTranscriptionOn": .bool(isTranscriptionOn)], as: JSONValue.self)
     }
 
-    /// Joins the media of a call with the phone's offer (made after its candidates were gathered) and returns the server's answer.
-    public func joinChatCallMedia(id: String, offerSdp: String) async throws -> String {
+    /// Joins the media of a call with the phone's offer (made after its candidates were gathered) and returns the server's answer, with
+    /// the id of the session to reconnect with.
+    public func joinChatCallMedia(id: String, offerSdp: String) async throws -> (answerSdp: String, mediaSessionId: String?) {
         struct Answer: Decodable, Sendable {
-            struct Joined: Decodable, Sendable { let answerSdp: String? }
+            struct Joined: Decodable, Sendable {
+                let answerSdp: String?
+                let mediaSessionId: String?
+            }
             let JoinChatCallMedia: Joined?
         }
         let variables: [String: JSONValue] = ["callId": .string(id), "offerSdp": .string(offerSdp)]
-        guard let sdp = try await execute(Documents.joinChatCallMedia, variables: variables, as: Answer.self).JoinChatCallMedia?.answerSdp, !sdp.isEmpty
-        else { throw PortalError.unreadableAnswer }
-        return sdp
+        let joined = try await execute(Documents.joinChatCallMedia, variables: variables, as: Answer.self).JoinChatCallMedia
+        guard let sdp = joined?.answerSdp, !sdp.isEmpty else { throw PortalError.unreadableAnswer }
+        return (sdp, joined?.mediaSessionId)
+    }
+
+    /// Replaces a lost media connection with a new offer, naming the session this phone had.
+    public func reconnectChatCallMedia(id: String, offerSdp: String, mediaSessionId: String) async throws -> ChatCallReconnectOutcome {
+        struct Answer: Decodable, Sendable {
+            struct Reconnected: Decodable, Sendable {
+                let outcome: String?
+                let answerSdp: String?
+                let mediaSessionId: String?
+            }
+            let ReconnectChatCallMedia: Reconnected?
+        }
+        let variables: [String: JSONValue] = ["callId": .string(id), "offerSdp": .string(offerSdp), "mediaSessionId": .string(mediaSessionId)]
+        let answer = try await execute(Documents.reconnectChatCallMedia, variables: variables, as: Answer.self).ReconnectChatCallMedia
+        switch answer?.outcome {
+        case "reconnected":
+            guard let sdp = answer?.answerSdp, !sdp.isEmpty, let session = answer?.mediaSessionId, !session.isEmpty else {
+                throw PortalError.unreadableAnswer
+            }
+            return .reconnected(answerSdp: sdp, mediaSessionId: session)
+        case "ended": return .ended
+        case "moved": return .moved
+        case "full": return .full
+        default: throw PortalError.unreadableAnswer
+        }
     }
 
     /// Answers an offer the server made to renegotiate.

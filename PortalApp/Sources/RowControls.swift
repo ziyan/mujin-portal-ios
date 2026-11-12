@@ -36,16 +36,26 @@ struct RouteOpener: @unchecked Sendable {
 
 extension EnvironmentValues {
     @Entry var openRoute = RouteOpener.unavailable
+    /// Appends a route to the path of the stack the view is in. Each stack that registers `portalDestinations` sets it.
+    @Entry var stackRouteOpener: RouteOpener? = nil
 }
 
+/// A screen a tile opens goes on the stack's path, like a link's. Shown with `navigationDestination(item:)` instead, it
+/// stays above everything the path holds: a link tapped on it pushes its screen underneath, so the tap seems to do
+/// nothing and Back then shows that screen. The item is only for a stack that keeps no path of its own.
 private struct RoutePushingHost: ViewModifier {
+    @Environment(\.stackRouteOpener) private var stackRouteOpener
     @State private var requestedRoute: PortalRoute?
 
     func body(content: Content) -> some View {
-        let requestedRoute = $requestedRoute
-        content
-            .environment(\.openRoute, RouteOpener { route in requestedRoute.wrappedValue = route })
-            .navigationDestination(item: requestedRoute) { route in PortalRouteView(route: route) }
+        if let stackRouteOpener {
+            content.environment(\.openRoute, stackRouteOpener)
+        } else {
+            let requestedRoute = $requestedRoute
+            content
+                .environment(\.openRoute, RouteOpener { route in requestedRoute.wrappedValue = route })
+                .navigationDestination(item: requestedRoute) { route in PortalRouteView(route: route) }
+        }
     }
 }
 
@@ -54,5 +64,11 @@ extension View {
     /// is on screen for as long as a screen it pushed is, unlike its rows.
     func routePushing() -> some View {
         modifier(RoutePushingHost())
+    }
+
+    /// Lets tiles anywhere in this stack push onto its path. Apply it to the `NavigationStack` itself, so the screens
+    /// it pushes, of every kind, see it too.
+    func pushesRoutes(_ push: @escaping @MainActor (PortalRoute) -> Void) -> some View {
+        environment(\.stackRouteOpener, RouteOpener(push: push))
     }
 }
