@@ -17,6 +17,11 @@ extension Documents {
             .replacingOccurrences(of: "lastMessageExcerpt lastMessageAuthorName", with: "lastMessageExcerpt lastMessageAuthorName canPostInternal")
     }
 
+    /// A document whose messages also say whether the person an assistant answer was given for is Mujin staff.
+    public static func withOnBehalfOfStaff(_ document: String) -> String {
+        document.replacingOccurrences(of: "onBehalfOfUserName", with: "onBehalfOfUserName isOnBehalfOfMujinUser")
+    }
+
     /// A SendMessage document that also says whether the message is an internal note.
     static func withInternalArgument(_ document: String) -> String {
         document

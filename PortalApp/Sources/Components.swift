@@ -532,7 +532,7 @@ struct UserAvatar: View {
         .frame(width: size, height: size)
         .clipShape(Circle())
         .overlay(alignment: .bottomTrailing) {
-            if isStaff, !isAssistant { StaffMark(avatarSize: size, ringColor: surfaceColor) }
+            if isStaff { StaffMark(avatarSize: size, ringColor: surfaceColor) }
         }
         .accessibilityHidden(true)
     }

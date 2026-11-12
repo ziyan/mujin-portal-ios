@@ -840,8 +840,12 @@ private struct MessageRow: View {
         }
     }
 
-    /// Whether the author is Mujin staff, which their avatar's corner shows.
-    private var isAuthorStaff: Bool { !message.isAssistant && (message.isAuthorMujinUser ?? model.member(message.authorUserId)?.isMujinUser) == true }
+    /// Whether the author is Mujin staff, which their avatar's corner shows. An assistant answer carries the mark when the person
+    /// it was given for is.
+    private var isAuthorStaff: Bool {
+        if message.isAssistant { return message.isOnBehalfOfMujinUser }
+        return (message.isAuthorMujinUser ?? model.member(message.authorUserId)?.isMujinUser) == true
+    }
 
     /// A quote of the message right above, or of one the reader can see in the transcript, adds nothing.
     private var showsQuote: Bool {

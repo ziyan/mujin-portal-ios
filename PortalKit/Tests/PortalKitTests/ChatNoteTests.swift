@@ -46,4 +46,15 @@ import Testing
         #expect(ServerCapabilities(sendMessageArgumentNames: ["isInternal"]).offersInternalNotes)
         #expect(!ServerCapabilities().offersInternalNotes)
     }
+
+    @Test func anAnswerSaysItWasGivenForStaffOnlyOnAServerThatHasIt() async {
+        let (connection, _) = scriptedConnection { _, _ in [:] }
+        #expect(!(await connection.prepared(Documents.listMessages)).contains("isOnBehalfOfMujinUser"))
+        await connection.setOnBehalfOfStaff(true)
+        #expect(await connection.prepared(Documents.listMessages).contains("onBehalfOfUserName isOnBehalfOfMujinUser"))
+        #expect(ServerCapabilities(messageFieldNames: ["isOnBehalfOfMujinUser"]).offersOnBehalfOfStaff)
+        #expect(!ServerCapabilities().offersOnBehalfOfStaff)
+        #expect(ChatMessage(ConversationMessage(id: "m1", role: "assistant", isOnBehalfOfMujinUser: true)).isOnBehalfOfMujinUser)
+        #expect(!ChatMessage(ConversationMessage(id: "m2", role: "assistant")).isOnBehalfOfMujinUser)
+    }
 }

@@ -354,6 +354,8 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
     public let isInternal: Bool
     /// Whether the author is Mujin staff, when the server says so; nil when it does not.
     public let isAuthorMujinUser: Bool?
+    /// On an assistant answer, whether the person it was given for is Mujin staff.
+    public let isOnBehalfOfMujinUser: Bool
     /// What the message names, one per thing named, whichever way it was written.
     public let references: [ChatReference]
 
@@ -361,6 +363,7 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
         references = ChatReferences.unique(message.references ?? [])
         isInternal = message.isInternal ?? false
         isAuthorMujinUser = message.isAuthorMujinUser
+        isOnBehalfOfMujinUser = message.isOnBehalfOfMujinUser ?? false
         threadRootMessageId = ThreadRouting.normalized(message.threadRootMessageId)
         threadReplyCount = max(0, message.threadReplyCount ?? 0)
         threadLastReplyAt = message.threadLastReplyAt
