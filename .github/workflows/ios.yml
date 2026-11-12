@@ -18,9 +18,11 @@ on:
 
 concurrency:
   # A manual dispatch (the TestFlight upload) has its own group, so a push never
-  # replaces it while it waits for a runner.
+  # replaces it while it waits for a runner. Only a pull request's run gives way
+  # to a newer push: an upload is never cancelled, and a newer one waits as the
+  # one pending run while the running upload finishes.
   group: ios-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -183,6 +185,9 @@ jobs:
   screenshots:
     name: Screenshots (${{ matrix.family }})
     needs: app
+    # An upload run leaves the screenshots to the pull request runs, so they hold
+    # no macOS runner ahead of the TestFlight job.
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.upload) }}
     runs-on: macos-26
     continue-on-error: true
     strategy:
@@ -832,6 +837,8 @@ jobs:
   transition:
     name: Transition recording
     needs: app
+    # Left to the pull request runs, like the screenshots.
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.upload) }}
     runs-on: macos-26
     continue-on-error: true
     steps:
