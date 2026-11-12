@@ -316,6 +316,7 @@ struct ConversationView: View {
                         .threadBar(
                             isShown: model.canOpenThreads && threadKeys[index] != nil,
                             joinsBelow: index + 1 < threadKeys.count && threadKeys[index + 1] == threadKeys[index], gap: 16)
+                        .modifier(RenderedMessageIdentifier(messageId: String(entry.id.split(separator: ":").last ?? "")))
                         .id(entry.id)
                         // The replies of a thread follow its root, which says how many there are.
                         if let rootId = model.threadRootMessageId, entry.id == "user:\(rootId)" || entry.id == "assistant:\(rootId)" {
