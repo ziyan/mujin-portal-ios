@@ -38,30 +38,18 @@ struct MarkdownView: View {
             Text(Self.inline(text))
                 .font(level == 1 ? .title2.bold() : level == 2 ? .title3.bold() : .headline)
                 .padding(.top, 4)
-        case .code(_, let text):
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(text)
-                    .font(.callout.monospaced())
-                    .padding(12)
+                .accessibilityAddTraits(.isHeader)
+        case .code(let language, let text):
+            if let chart = AnswerChart.parse(language: language, text: text) {
+                AnswerChartView(chart: chart)
+            } else {
+                codeBlock(text)
             }
-            .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        case .bulletList(let items):
+
+        case .list(let items):
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\u{2022}")
-                        Text(Self.inline(item))
-                    }
-                }
-            }
-        case .numberedList(let items):
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(index + 1).")
-                            .monospacedDigit()
-                        Text(Self.inline(item))
-                    }
+                    MarkdownListItemView(item: item, text: Self.chips(Self.inline(item.text), names: mentionNames, isOnAccent: isOnAccent))
                 }
             }
         case .quote(let text):
@@ -76,10 +64,21 @@ struct MarkdownView: View {
         }
     }
 
+    /// Code as typed, which scrolls sideways rather than wrap. A diagram or formula the app cannot draw shows its source this way.
+    private func codeBlock(_ text: String) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            Text(text)
+                .font(.callout.monospaced())
+                .padding(12)
+        }
+        .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityIdentifier("markdownCode")
+    }
+
     static func inline(_ text: String) -> AttributedString {
         // Web addresses typed as plain text become links too, which the
         // app opens in its own browser. Code and existing links stay as they are.
-        let result = (try? AttributedString(markdown: BareLinks.markdown(text), options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
+        let result = (try? AttributedString(markdown: BareLinks.markdown(AnswerMath.inlineAsCode(text)), options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
         return styledLinks(result)
     }
 
@@ -113,6 +112,32 @@ struct MarkdownView: View {
     }
 }
 
+/// MarkdownListItemView is one item of a list: indented by its level, after its bullet, its number or its task's box.
+private struct MarkdownListItemView: View {
+    let item: MarkdownListItem
+    let text: AttributedString
+    @ScaledMetric(relativeTo: .body) private var levelIndent: CGFloat = 18
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            switch (item.isChecked, item.marker) {
+            case (let isChecked?, _):
+                Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(isChecked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .accessibilityLabel(isChecked ? Text("Done") : Text("Not done"))
+                    .accessibilityIdentifier(isChecked ? "markdownTaskBoxDone" : "markdownTaskBox")
+            case (nil, .number(let number)):
+                Text("\(number).").monospacedDigit()
+            case (nil, .bullet):
+                // A deeper bullet is hollow, then square, as on the web.
+                Text(["\u{2022}", "\u{25E6}", "\u{25AA}"][min(item.level, 2)])
+            }
+            Text(text)
+        }
+        .padding(.leading, CGFloat(item.level) * levelIndent)
+    }
+}
+
 /// MarkdownTableView is a table of an answer: a header row in semibold, thin
 /// separators between rows, every other body row tinted, and each column
 /// aligned as the Markdown says. The cells never wrap or truncate, so a table
@@ -143,6 +168,7 @@ private struct MarkdownTableView: View {
             .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in rowWidth = width }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
+            .accessibilityIdentifier("markdownTable")
             if shownRowCount < bodyRows.count {
                 Button {
                     shownRowCount += Self.rowsPerPart
