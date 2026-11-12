@@ -289,9 +289,10 @@ final class ConversationModel {
         do {
             let page = try await connection.messages(
                 conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
+            // The page's cards are read before it is shown, so its rows have their full height when they go in.
+            await askForPreviews(page)
             window.prepend(page)
             transcript.load(messages: window.messages, questions: cards.questions, approvals: cards.approvals, isRunning: transcript.isRunning)
-            await askForPreviews(page)
         } catch {
             actionError = error.userMessage
             onError(error)
