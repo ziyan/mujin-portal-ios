@@ -98,6 +98,21 @@ final class ChatModel {
     private(set) var sitePeople: [ChatMember] = []
     /// Whether the server takes structured mentions; otherwise the name text carries them.
     var offersStructuredMentions = false
+    /// Whether the server has internal notes. Set by the screen from the server's capabilities.
+    var offersInternalNotes = false
+    /// The person's own choice on the composer's internal-note lock.
+    var isInternalNoteChosen = false
+    /// Whether the person may write an internal note here: staff, in a chat a customer reads.
+    var canPostInternal: Bool { offersInternalNotes && room?.canPostInternal == true }
+    /// The root of the thread this screen shows, when it is loaded.
+    var threadRootMessage: ChatMessage? {
+        guard let root = ThreadRouting.normalized(threadRootMessageId) else { return nil }
+        return timeline.messages.first { $0.id == root }
+    }
+    /// Whether the lock is held on whatever the person picks: a reply to an internal note, or in an internal thread.
+    var isInternalNoteForced: Bool { canPostInternal && InternalNoteRules.isForcedOn(threadRoot: threadRootMessage, replyTo: replyTarget) }
+    /// Whether the next send is an internal note.
+    var isInternalNote: Bool { canPostInternal && (isInternalNoteForced || isInternalNoteChosen) }
     /// Whether a turn of the assistant the person started is running.
     private(set) var isOwnTurnRunning = false
     /// The thread the assistant's turn at work answers in, when an event or a send said; nil while it is unknown.
@@ -298,6 +313,8 @@ final class ChatModel {
                 if let mark = member.lastReadMessageId, !mark.isEmpty { marks[member.userId] = mark }
             }
             timeline.setReadMarks(marks)
+            // A thread whose newest message is an internal note opens with the lock on, once; the person can change it after.
+            if isThread, phase != .loaded, canPostInternal { isInternalNoteChosen = InternalNoteRules.startsOn(threadMessages: timeline.messages) }
             phase = .loaded
             await reloadCards()
             await markRead()
@@ -378,7 +395,7 @@ final class ChatModel {
             let sent = try await connection.sendChatMessage(
                 conversationId: conversationId, text: trimmed,
                 replyToMessageId: ThreadRouting.replyToMessageId(pickedMessageId: replyTarget?.id, viewThreadRootMessageId: threadRootMessageId),
-                mentions: mentions)
+                mentions: mentions, isInternal: isInternalNote)
             replyTarget = nil
             pickedMentions = []
             if hasFiles { attachments?.removeUploaded() }

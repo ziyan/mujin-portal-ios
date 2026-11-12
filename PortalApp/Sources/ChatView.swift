@@ -137,6 +137,7 @@ struct ChatView: View {
                 offersMessageThreads: session.capabilities.offersMessageThreads,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             chatModel.offersStructuredMentions = session.capabilities.offersStructuredMentions
+            chatModel.offersInternalNotes = session.capabilities.offersInternalNotes
             chatModel.onRead = { [session] id in session.noteChatRead(conversationId: id) }
             model = chatModel
             chatModel.start()
@@ -542,8 +543,8 @@ struct ChatView: View {
                         return true
                     },
                     // A voice message is recorded instead of typed.
-                    menuItems: canUseVoice(model)
-                        ? [ComposerMenuItem(title: "Voice message", systemImage: "mic.fill", identifier: "voiceModeButton") { isVoiceModePreferred = true }] : [],
+                    isInternalNote: model.isInternalNote,
+                    menuItems: composerMenuItems(model),
                     onSend: {
                         // What is still being said belongs to the message that was sent, not to the next one.
                         dictation.abort()
@@ -593,12 +594,30 @@ struct ChatView: View {
 
     /// What a send will do. In a chat with threads, a message in the main history starts a thread and one in a thread replies in it.
     private func fieldPrompt(_ model: ChatModel) -> LocalizedStringKey {
+        if model.isInternalNote { return LocalizedStringKey("Internal note, staff only") }
         if isThread { return LocalizedStringKey("Reply in thread") }
         guard model.offersMessageThreads else {
             if !dynamicTypeSize.isAccessibilitySize, let agent = model.agents.first?.name { return LocalizedStringKey("Message, or @\(agent) to ask") }
             return LocalizedStringKey("Message")
         }
         return LocalizedStringKey("New thread")
+    }
+
+    /// The composer's [+] choices beyond attaching: a voice message, and for staff the internal-note lock, held on where the thread or the
+    /// message replied to is internal.
+    private func composerMenuItems(_ model: ChatModel) -> [ComposerMenuItem] {
+        var items: [ComposerMenuItem] = []
+        if canUseVoice(model) {
+            items.append(ComposerMenuItem(title: "Voice message", systemImage: "mic.fill", identifier: "voiceModeButton") { isVoiceModePreferred = true })
+        }
+        if model.canPostInternal {
+            items.append(
+                ComposerMenuItem(
+                    title: "Internal note", systemImage: "lock", identifier: "internalNoteToggle", isOn: model.isInternalNote,
+                    isDisabled: model.isInternalNoteForced
+                ) { model.isInternalNoteChosen.toggle() })
+        }
+        return items
     }
 
     /// The list that opens above the composer when the draft ends with an @:
@@ -781,7 +800,7 @@ private struct MessageRow: View {
             {
                 Text(organization).font(.caption).foregroundStyle(.secondary).portalNameLine()
             }
-            if member?.isMujinUser == true {
+            if message.isAuthorMujinUser ?? member?.isMujinUser == true {
                 StaffBadge()
             }
         }
@@ -807,6 +826,11 @@ private struct MessageRow: View {
                 Text("A message from before you joined").font(.caption).italic().foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var bubbleFill: AnyShapeStyle {
+        if message.isInternal { return AnyShapeStyle(Color.statusWarning.opacity(0.16)) }
+        return isMine ? AnyShapeStyle(Color.accentColor.opacity(0.2)) : AnyShapeStyle(Color(.secondarySystemBackground))
     }
 
     @ViewBuilder
@@ -851,10 +875,16 @@ private struct MessageRow: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(
-                isMine ? AnyShapeStyle(Color.accentColor.opacity(0.2)) : AnyShapeStyle(Color(.secondarySystemBackground)),
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-            )
+            .background(bubbleFill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            // An internal note is amber and outlined, so a person's own note does not look like what customers read.
+            .overlay {
+                if message.isInternal {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.statusWarning, lineWidth: 1)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if message.isInternal { InternalNoteLabel().padding(6) }
+            }
             .foregroundStyle(.primary)
             }
             }
