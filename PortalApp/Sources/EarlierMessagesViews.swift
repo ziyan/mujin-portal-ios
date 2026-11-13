@@ -56,30 +56,38 @@ struct EarlierMessagesRow: View {
 }
 
 /// PullForEarlier reads how far the person pulls a list past its top, and reads earlier messages when they let go past the set
-/// distance, with a light tap as the pull arms. Reaching the top alone reads nothing.
+/// distance, with a light tap as the pull arms. Reaching the top alone reads nothing. It follows the list only while a finger is on
+/// it: at rest, and while the list settles after a flick, it writes nothing, so a change of layout can never feed back into it.
 struct PullForEarlier: ViewModifier {
     let state: EarlierMessages.RowState
     @Binding var pullProgress: Double
     let onLoad: () -> Void
 
     @State private var isArmed = false
+    /// Whether a finger is on the list.
+    @State private var isInteracting = false
 
     func body(content: Content) -> some View {
         content
             .onScrollGeometryChange(for: Double.self) { geometry in
                 max(0, -Double(geometry.contentOffset.y + geometry.contentInsets.top))
             } action: { _, overscroll in
-                let progress = state.canLoad ? EarlierMessages.pullProgress(overscroll: overscroll) : 0
-                if abs(progress - pullProgress) > 0.01 || (progress == 0) != (pullProgress == 0) { pullProgress = progress }
+                guard isInteracting, state.canLoad else { return }
+                let progress = EarlierMessages.pullProgress(overscroll: overscroll)
+                if abs(progress - pullProgress) > 0.05 || (progress == 0) != (pullProgress == 0) || (progress == 1) != (pullProgress == 1) {
+                    pullProgress = progress
+                }
                 let armed = EarlierMessages.isArmed(overscroll: overscroll, state: state)
                 if armed != isArmed { isArmed = armed }
             }
             .onScrollPhaseChange { oldPhase, newPhase in
-                // Letting go of an armed pull reads the earlier page.
-                if oldPhase == .interacting, newPhase != .interacting, isArmed {
-                    isArmed = false
-                    onLoad()
-                }
+                isInteracting = newPhase == .interacting
+                guard oldPhase == .interacting, newPhase != .interacting else { return }
+                // Letting go reads the earlier page when the pull was armed, and the row goes back to rest either way.
+                let wasArmed = isArmed
+                isArmed = false
+                if pullProgress != 0 { pullProgress = 0 }
+                if wasArmed { onLoad() }
             }
             .sensoryFeedback(.impact(weight: .light), trigger: isArmed) { _, armed in armed }
     }
