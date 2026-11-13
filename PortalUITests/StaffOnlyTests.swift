@@ -1,6 +1,7 @@
 import XCTest
 
-/// Staff in a chat a customer reads see the Staff only switch in the composer: a lock in the pill, a chip beside [+] in the card.
+/// Staff in a chat a customer reads see the Staff only switch in the composer: one round lock beside [+], in the pill, the card and the
+/// voice message bar.
 @MainActor
 final class StaffOnlyTests: XCTestCase {
     override func setUp() async throws {
@@ -17,10 +18,18 @@ final class StaffOnlyTests: XCTestCase {
         let field = DemoApp.element(app, "chatMessageField")
         XCTAssertTrue(DemoApp.waitUntilLabel(field, contains: "Internal note", timeout: 10), "The field does not say the note is internal.\n\(app.debugDescription)")
         field.tap()
-        let chip = DemoApp.button(app, "staffOnlyChip")
-        XCTAssertTrue(DemoApp.waitUntilExists(chip, timeout: 10), "The card has no Staff only chip.\n\(app.debugDescription)")
-        chip.tap()
-        XCTAssertTrue(DemoApp.waitUntilValue(chip, contains: "Off", timeout: 10), "The chip did not turn the switch off.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.waitUntilExists(lock, timeout: 10), "The card has no Staff only lock.\n\(app.debugDescription)")
+        lock.tap()
+        XCTAssertTrue(DemoApp.waitUntilValue(lock, contains: "Off", timeout: 10), "The lock in the card did not turn the switch off.\n\(app.debugDescription)")
+    }
+
+    func testStaffSeeTheSwitchBesideTheVoiceMessageBar() {
+        let app = DemoApp.launch(screen: "chat-voice-composer", persona: "staff")
+        XCTAssertTrue(DemoApp.waitUntilExists(DemoApp.element(app, "voiceHoldButton"), timeout: 90), "The voice message bar did not show.\n\(app.debugDescription)")
+        let lock = DemoApp.button(app, "staffOnlyLock")
+        XCTAssertTrue(DemoApp.waitUntilExists(lock, timeout: 10), "The voice message bar has no Staff only lock.\n\(app.debugDescription)")
+        lock.tap()
+        XCTAssertTrue(DemoApp.waitUntilValue(lock, contains: "On", timeout: 10), "The lock did not turn the switch on.\n\(app.debugDescription)")
     }
 
     func testCustomersDoNotSeeTheSwitch() {

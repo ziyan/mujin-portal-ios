@@ -177,7 +177,8 @@ extension Documents {
 extension Connection {
     /// Sends a recording already uploaded as an attachment. The server checks that it is the person's own audio, and the bounds.
     public func sendChatVoiceMessage(
-        conversationId: String, attachmentId: String, durationMS: Int, waveformLevels: [Int], replyToMessageId: String? = nil
+        conversationId: String, attachmentId: String, durationMS: Int, waveformLevels: [Int], replyToMessageId: String? = nil,
+        isInternal: Bool = false
     ) async throws -> ConversationMessage? {
         struct Answer: Decodable, Sendable {
             struct Sent: Decodable, Sendable { let message: ConversationMessage? }
@@ -191,7 +192,13 @@ extension Connection {
             ]),
         ]
         if let replyToMessageId, !replyToMessageId.isEmpty { variables["replyToMessageId"] = .string(replyToMessageId) }
-        return try await execute(Documents.sendChatVoiceMessage, variables: variables, as: Answer.self).SendMessage.message
+        var document = Documents.sendChatVoiceMessage
+        if isInternal {
+            // Only called with an internal note when the server has them, as a typed message is.
+            document = Documents.withInternalArgument(document)
+            variables["isInternal"] = .bool(true)
+        }
+        return try await execute(document, variables: variables, as: Answer.self).SendMessage.message
     }
 }
 

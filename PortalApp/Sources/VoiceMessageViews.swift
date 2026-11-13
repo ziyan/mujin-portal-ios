@@ -172,6 +172,10 @@ struct VoiceHoldBar: View {
     let onKeyboard: () -> Void
     let onStart: () async -> VoiceMessageRecorder.StartResult
     let onFinish: (_ isCancelled: Bool) -> Void
+    /// Whether the voice message is an internal note: the bar turns amber, as the composer does.
+    var isInternalNote = false
+    /// The Staff only switch beside the keyboard button, for staff in a chat a customer reads.
+    var internalNoteSwitch: InternalNoteSwitch?
 
     @State private var isHolding = false
     @ScaledMetric(relativeTo: .body) private var scaledDiameter: CGFloat = 36
@@ -190,11 +194,14 @@ struct VoiceHoldBar: View {
             }
             .accessibilityLabel("Use the keyboard")
             .accessibilityIdentifier("voiceKeyboardButton")
+            if let internalNoteSwitch { StaffOnlyLockButton(internalNoteSwitch: internalNoteSwitch, diameter: diameter) }
             holdArea
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
-        .background(Color.portalCard.opacity(0.92), in: .rect(cornerRadius: 26, style: .continuous))
+        .background(
+            isInternalNote ? AnyShapeStyle(Color.statusWarning.opacity(0.16)) : AnyShapeStyle(Color.portalCard.opacity(0.92)),
+            in: .rect(cornerRadius: 26, style: .continuous))
         .glassEffect(.regular, in: .rect(cornerRadius: 26, style: .continuous))
         .padding(.horizontal, 12)
         .padding(.bottom, 8)

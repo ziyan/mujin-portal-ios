@@ -230,8 +230,8 @@ final class DemoState: @unchecked Sendable {
                     "id": chatId, "organizationId": "organization01", "chatKind": kind, "name": kind == "group" ? name : NSNull(), "displayName": name, "isMemoryFilingEnabled": false,
                     "lastMessageAt": stamp(secondsAgo), "readerConversationId": conversationId, "readerNotificationLevel": "all", "isReaderAdmin": kind == "group",
                     "isReaderMember": true, "readerUnreadMessageCount": unread, "readerLastReadMessageId": NSNull(), "lastMessageExcerpt": excerpt, "lastMessageAuthorName": author,
-                    // Staff may write internal notes in the chat with a customer, on the screen that shows the Staff only switch.
-                    "canPostInternal": DemoOptions.screen == "chat-internal" && DemoOptions.isStaff,
+                    // Staff may write internal notes in the chat with a customer, on the screens that show the Staff only switch.
+                    "canPostInternal": DemoOptions.offersInternalNotes && DemoOptions.isStaff,
                     "members": members,
                 ] as [String: Any],
             ]
@@ -618,7 +618,7 @@ struct DemoTransport: HTTPTransport {
             ]
             if hasCallHistory { queryFields.append(["name": "listChatCalls"]) }
             var mutationFields: [[String: Any]] = [
-                ["name": "sendMessage", "args": (hasCalls ? [["name": "voiceMessage"]] : []) + (DemoOptions.screen == "chat-internal" ? [["name": "isInternal"]] : [])],
+                ["name": "sendMessage", "args": (hasCalls ? [["name": "voiceMessage"]] : []) + (DemoOptions.offersInternalNotes ? [["name": "isInternal"]] : [])],
                 ["name": "registerPushDevice"], ["name": "startDirectChat"], ["name": "openSiteChat"],
             ]
             if hasCalls { mutationFields += [["name": "startChatCall"], ["name": "joinChatCallMedia"]] }
