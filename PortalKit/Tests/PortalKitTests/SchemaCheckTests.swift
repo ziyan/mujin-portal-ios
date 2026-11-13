@@ -78,6 +78,8 @@ import Testing
             let prepared = Documents.withForegroundOnly(document)
             #expect(prepared.contains("ListConversations(isForegroundOnly: true, "))
             #expect(!prepared.contains("query ListConversations(isForegroundOnly"))
+            #expect(prepared.components(separatedBy: "isForegroundOnly").count == 2, "The argument is added once.")
+            #expect(Documents.withForegroundOnly(prepared) == prepared, "Preparing a document again adds nothing.")
             let problems = try DocumentValidator(schema: Self.schema).problems(in: prepared)
             #expect(problems.isEmpty, "\(document.prefix(60)): \(problems)")
             checked += 1
