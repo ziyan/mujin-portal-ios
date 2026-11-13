@@ -397,6 +397,10 @@ final class ChatModel {
         var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasFiles = editTarget == nil && !(attachments?.items.isEmpty ?? true)
         guard !trimmed.isEmpty || hasFiles else { return false }
+        // Who may read it is decided when Send is pressed: the switch can change while the files upload.
+        let isInternal = isInternalNote
+        let replyToMessageId = ThreadRouting.replyToMessageId(pickedMessageId: replyTarget?.id, viewThreadRootMessageId: threadRootMessageId)
+        let isNewThread = canOpenThreads && replyTarget == nil
         guard trimmed.count <= ChatRules.maximumMessageCharacters else {
             actionError = String(localized: "A message can be up to \(ChatRules.maximumMessageCharacters) characters.")
             return false
@@ -418,11 +422,8 @@ final class ChatModel {
                 return true
             }
             let mentions = offersStructuredMentions ? Mentions.ranges(of: pickedMentions, in: trimmed) : []
-            let isNewThread = canOpenThreads && replyTarget == nil
             let sent = try await connection.sendChatMessage(
-                conversationId: conversationId, text: trimmed,
-                replyToMessageId: ThreadRouting.replyToMessageId(pickedMessageId: replyTarget?.id, viewThreadRootMessageId: threadRootMessageId),
-                mentions: mentions, isInternal: isInternalNote)
+                conversationId: conversationId, text: trimmed, replyToMessageId: replyToMessageId, mentions: mentions, isInternal: isInternal)
             replyTarget = nil
             pickedMentions = []
             if hasFiles { attachments?.removeUploaded() }
@@ -458,6 +459,9 @@ final class ChatModel {
     func sendVoice(_ recording: VoiceRecording) async {
         isSendingVoice = true
         actionError = nil
+        // Who may hear it, and what it answers, are decided when the recording ends: both can change while it uploads.
+        let isInternal = isInternalNote
+        let replyToMessageId = ThreadRouting.replyToMessageId(pickedMessageId: replyTarget?.id, viewThreadRootMessageId: threadRootMessageId)
         defer {
             isSendingVoice = false
             try? FileManager.default.removeItem(at: recording.fileURL)
@@ -467,8 +471,7 @@ final class ChatModel {
             let file = try await connection.uploadAttachment(data: data, filename: VoiceMessageRules.filename(at: Date()), contentType: VoiceMessageRules.contentType)
             let row = try await connection.sendChatVoiceMessage(
                 conversationId: conversationId, attachmentId: file.id, durationMS: recording.durationMS, waveformLevels: recording.levels,
-                replyToMessageId: ThreadRouting.replyToMessageId(pickedMessageId: replyTarget?.id, viewThreadRootMessageId: threadRootMessageId),
-                isInternal: isInternalNote)
+                replyToMessageId: replyToMessageId, isInternal: isInternal)
             replyTarget = nil
             if let row { timeline.upsert(row) }
             await markRead()
