@@ -9,6 +9,9 @@ on:
   push:
     branches: [main]
   pull_request:
+    # ready_for_review takes the screenshots of a pull request marked ready; labeled lets a
+    # draft ask for them with the screenshots label.
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
   workflow_dispatch:
     inputs:
       upload:
@@ -21,7 +24,8 @@ concurrency:
   # replaces it while it waits for a runner. Only a pull request's run gives way
   # to a newer push: an upload is never cancelled, and a newer one waits as the
   # one pending run while the running upload finishes.
-  group: ios-${{ github.ref }}-${{ github.event_name }}
+  # Labelling a pull request has a group of its own, so it never cancels the run of a push.
+  group: ios-${{ github.ref }}-${{ github.event_name }}${{ github.event.action == 'labeled' && '-labeled' || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -31,6 +35,8 @@ jobs:
   # First: nothing internal may reach this public repository.
   hygiene:
     name: Public content
+    # Of the labels, only screenshots asks for a run; every other job waits on this one.
+    if: github.event.action != 'labeled' || github.event.label.name == 'screenshots'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -84,9 +90,36 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Say which Xcode
+        id: xcode
         run: |
           xcodebuild -version
+          echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "${GITHUB_OUTPUT}"
           swift --version
+
+      # The Swift packages, WebRTC's prebuilt framework among them, are fetched
+      # once for each Package.resolved and project.yml.
+      - name: Restore the Swift packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-${{ hashFiles('PortalKit/Package.resolved', 'project.yml') }}
+          restore-keys: swiftpm-
+
+      # The build folder of these sources, else of the newest one built with the
+      # same Xcode. A file that changed since is rebuilt; the index is left out.
+      - name: Restore the build folder
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            build
+            build-ipad
+            PortalKit/.build
+            !build/Index.noindex
+            !build-ipad/Index.noindex
+          key: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('PortalApp/**', 'PortalKit/Sources/**', 'PortalUITests/**', 'PortalNotification/**', 'PortalShare/**', 'Shared/**', 'project.yml', 'PortalKit/Package.resolved') }}
+          restore-keys: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-
 
       - name: Test PortalKit
         working-directory: PortalKit
@@ -103,12 +136,12 @@ jobs:
       - name: Build for an iPhone simulator
         run: |
           DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone [0-9]+ Pro \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
-          xcodebuild build -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build CODE_SIGNING_ALLOWED=NO -quiet
+          xcodebuild build -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build -clonedSourcePackagesDirPath SourcePackages COMPILER_INDEX_STORE_ENABLE=NO CODE_SIGNING_ALLOWED=NO -quiet
 
       - name: Build for an iPad simulator
         run: |
           DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPad Pro 13-inch' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
-          xcodebuild build -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build-ipad CODE_SIGNING_ALLOWED=NO -quiet
+          xcodebuild build -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build-ipad -clonedSourcePackagesDirPath SourcePackages COMPILER_INDEX_STORE_ENABLE=NO CODE_SIGNING_ALLOWED=NO -quiet
 
       - name: Keep the simulator build
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -131,6 +164,34 @@ jobs:
         run: |
           brew install xcodegen
           xcodegen generate
+
+      - name: Say which Xcode
+        id: xcode
+        run: |
+          xcodebuild -version
+          echo "version=$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//')" >> "${GITHUB_OUTPUT}"
+
+      # The Swift packages, WebRTC's prebuilt framework among them, are fetched
+      # once for each Package.resolved and project.yml.
+      - name: Restore the Swift packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-${{ hashFiles('PortalKit/Package.resolved', 'project.yml') }}
+          restore-keys: swiftpm-
+
+      # The build folder of these sources, else of the newest one built with the
+      # same Xcode. A file that changed since is rebuilt; the index is left out.
+      - name: Restore the build folder
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            build
+            !build/Index.noindex
+          key: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('PortalApp/**', 'PortalKit/Sources/**', 'PortalUITests/**', 'PortalNotification/**', 'PortalShare/**', 'Shared/**', 'project.yml', 'PortalKit/Package.resolved') }}
+          restore-keys: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-
 
       - name: Run the UI tests
         run: |
@@ -158,6 +219,7 @@ jobs:
           MONITOR=$!
           set +e
           xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
+            -clonedSourcePackagesDirPath SourcePackages COMPILER_INDEX_STORE_ENABLE=NO \
             -only-testing:MujinPortalUITests -parallel-testing-enabled NO -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
           RESULT=${PIPESTATUS[0]}
           kill "${MONITOR}" || true
@@ -185,9 +247,10 @@ jobs:
   screenshots:
     name: Screenshots (${{ matrix.family }})
     needs: app
-    # An upload run leaves the screenshots to the pull request runs, so they hold
-    # no macOS runner ahead of the TestFlight job.
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.upload) }}
+    # Taken for a pull request that is ready for review or a draft labeled screenshots, and
+    # for a manual run without upload. Pushes to a draft, pushes to main and upload runs skip
+    # them, so they hold no macOS runner ahead of builds and uploads.
+    if: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.draft == false || contains(github.event.pull_request.labels.*.name, 'screenshots'))) || (github.event_name == 'workflow_dispatch' && !inputs.upload) }}
     runs-on: macos-26
     continue-on-error: true
     strategy:
@@ -837,8 +900,8 @@ jobs:
   transition:
     name: Transition recording
     needs: app
-    # Left to the pull request runs, like the screenshots.
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.upload) }}
+    # Taken when the screenshots are, for the same reason.
+    if: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.draft == false || contains(github.event.pull_request.labels.*.name, 'screenshots'))) || (github.event_name == 'workflow_dispatch' && !inputs.upload) }}
     runs-on: macos-26
     continue-on-error: true
     steps:
@@ -907,6 +970,18 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
+      # The Swift packages, WebRTC's prebuilt framework among them, are fetched
+      # once for each Package.resolved and project.yml. Only they are kept: the
+      # archive's build folder holds the signed app and its profile.
+      - name: Restore the Swift packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-${{ hashFiles('PortalKit/Package.resolved', 'project.yml') }}
+          restore-keys: swiftpm-
+
       - name: Put the App Store Connect key where Xcode reads it
         env:
           KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
@@ -942,6 +1017,7 @@ jobs:
           -scheme MujinPortal
           -destination 'generic/platform=iOS'
           -archivePath build/MujinPortal.xcarchive
+          -clonedSourcePackagesDirPath SourcePackages
           -allowProvisioningUpdates
           -authenticationKeyPath "${RUNNER_TEMP}/keys/AuthKey_${KEY_ID}.p8"
           -authenticationKeyID "${KEY_ID}"
