@@ -490,7 +490,7 @@ private struct TranscriptRow: View {
         }
     }
 
-    /// The thread a tap on a message opens, when it belongs to one.
+    /// The thread a tap on a message opens: the one it is a reply in, else its own once it is stored.
     private func threadToOpen(for id: String) -> String? {
         onOpenThread == nil ? nil : model.transcript.threadToOpen(forMessage: id)
     }
@@ -625,7 +625,8 @@ private struct TranscriptRow: View {
     }
 }
 
-/// OpensThread makes a message that belongs to a thread open it when tapped. Links and buttons inside the message keep working.
+/// OpensThread makes a stored message open its thread when tapped: the one it is a reply in, else its own. Links and buttons inside the
+/// message keep working, and a long press still shows its actions.
 private struct OpensThread: ViewModifier {
     let root: String?
     let onOpen: ((String) -> Void)?

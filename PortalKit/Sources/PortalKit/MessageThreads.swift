@@ -93,6 +93,13 @@ public enum ThreadRouting {
         if let pickedMessageId, !pickedMessageId.isEmpty { return pickedMessageId }
         return normalized(viewThreadRootMessageId)
     }
+
+    /// The thread a tap on a message of an assistant conversation opens, as on the web: the thread it is a reply in, else its own, which
+    /// is the message and a composer under it, once the server has stored it. A message still being written or sent opens none.
+    public static func conversationThreadToOpen(messageId: String, threadRootMessageId: String?, isStored: Bool) -> String? {
+        if let root = normalized(threadRootMessageId) { return root }
+        return isStored ? messageId : nil
+    }
 }
 
 extension Documents {
