@@ -37,7 +37,10 @@ final class RichMarkdownDocumentTests: XCTestCase {
             }
             let suffix = "\(look.appearanceName)-\(look.sizeName)"
             XCTAssertTrue(DemoApp.element(app, "mathFormula").waitForExistence(timeout: 30), "[\(suffix)] the formula on its own line is not drawn.")
-            XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "\\frac")).firstMatch.exists, "[\(suffix)] a formula shows its source.")
+            // A paragraph whose formulas are drawn, which VoiceOver reads with each formula's source where it stands.
+            let paragraph = DemoApp.element(app, "mathParagraph")
+            XCTAssertTrue(paragraph.waitForExistence(timeout: 30), "[\(suffix)] the formulas in the words are not drawn.")
+            XCTAssertTrue(paragraph.label.contains("frac{n}{t}"), "[\(suffix)] VoiceOver reads \"\(paragraph.label)\", without the formula.")
             Thread.sleep(forTimeInterval: 2)
             save(app.screenshot().pngRepresentation, name: "document-page-top-\(suffix)")
 

@@ -547,10 +547,11 @@ struct InlineMathText: View {
             case .text(let wordsText):
                 return line + Text(words(wordsText))
             case .formula(let tex, _):
+                // Each formula carries its source as its spoken words, so VoiceOver reads it where it stands instead of a gap.
                 if let picture = renderer.picture(tex: tex, isDark: isDark, fontSize: fontSize) {
-                    return line + Text(Image(uiImage: picture.image)).baselineOffset(-picture.descent)
+                    return line + Text(Image(uiImage: picture.image)).baselineOffset(-picture.descent).accessibilityLabel(Text(verbatim: tex))
                 }
-                return line + Text(MarkdownView.inline("`\(tex)`"))
+                return line + Text(MarkdownView.inline("`\(tex)`")).accessibilityLabel(Text(verbatim: tex))
             }
         }
         .accessibilityLabel(Text(spokenText(pieces)))
