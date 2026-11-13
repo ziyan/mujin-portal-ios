@@ -26,6 +26,18 @@ public enum ArtifactSandbox {
         return min(max(measured.rounded(.up), inlineHeightRange.lowerBound), inlineHeightRange.upperBound)
     }
 
+    /// How long a page drawn again from a remembered height keeps it while the page loads: early reports are of a page half drawn.
+    public static let rememberedHeightHoldSeconds: Double = 2
+
+    /// The height to take from a page's report. A page shown at a remembered height does not shrink while it is still loading, so a
+    /// row the list draws again stays the height it was; after that, or for a page never measured, the report is taken.
+    public static func acceptedHeight(reported: Double, current: Double, isRemembered: Bool, secondsSinceLoad: Double) -> Double? {
+        let clamped = clampedHeight(reported)
+        guard abs(clamped - current) > 1 else { return nil }
+        if isRemembered, clamped < current, secondsSinceLoad < rememberedHeightHoldSeconds { return nil }
+        return clamped
+    }
+
     /// The page's address inside the frame. The fragment says the theme and the title the app already shows above the page; the
     /// page reads it on load and on every change, and a change of the fragment alone does not reload it.
     public static func pageURL(artifactId: String, isDark: Bool, title: String?) -> URL {
@@ -131,5 +143,43 @@ extension Connection {
     /// The text of a markdown artifact.
     public func artifactText(id: String) async throws -> String {
         String(decoding: try await artifactData(id: id, isDownload: false), as: UTF8.self)
+    }
+}
+
+/// ArtifactRowMemory keeps what an inline artifact measured and read, by artifact, for as long as the app runs. A list draws a row
+/// again each time it scrolls back into view; started from the default height or an empty document, the row would grow as the page
+/// loads and move everything under it. Started from what it had, it lays out at its final size at once.
+public struct ArtifactRowMemory: Sendable {
+    /// How many artifacts it keeps; the one used longest ago goes first.
+    public static let capacity = 200
+
+    private var heights: [String: Double] = [:]
+    private var texts: [String: String] = [:]
+    private var order: [String] = []
+
+    public init() {}
+
+    public func height(artifactId: String) -> Double? { heights[artifactId] }
+
+    public func text(artifactId: String) -> String? { texts[artifactId] }
+
+    public mutating func remember(height: Double, artifactId: String) {
+        heights[artifactId] = height
+        touch(artifactId)
+    }
+
+    public mutating func remember(text: String, artifactId: String) {
+        texts[artifactId] = text
+        touch(artifactId)
+    }
+
+    private mutating func touch(_ artifactId: String) {
+        order.removeAll { $0 == artifactId }
+        order.append(artifactId)
+        while order.count > Self.capacity {
+            let dropped = order.removeFirst()
+            heights[dropped] = nil
+            texts[dropped] = nil
+        }
     }
 }

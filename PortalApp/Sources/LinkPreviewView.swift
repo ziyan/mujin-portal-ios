@@ -12,15 +12,36 @@ struct LinkPreviewCardView: View {
     let card: LinkPreviewCard
     let connection: Connection
 
-    @State private var imageData: Data?
+    @State private var image: UIImage?
+    /// Whether the picture could not be read, so its space is given back.
+    @State private var isImageMissing = false
+
+    /// How tall the picture of a card is. The space is held from the first frame, so the card is the same height before the picture
+    /// arrives, after it, and when the list draws the row again as it scrolls back.
+    static let imageHeight: CGFloat = 140
+
+    /// The server's picture of the card, which the app fetches; nil when the card has none. The demo has pictures only for the
+    /// rendering fixture's cards.
+    private var imagePath: String? {
+        guard let path = card.imageUrl, path.hasPrefix("/api/"),
+            !appModel.isDemo || path.hasPrefix("/api/v1/attachment/\(ChatRenderingDemo.assetPrefix)")
+        else { return nil }
+        return path
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let imageData, let image = UIImage(data: imageData) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxHeight: 140)
+            if imagePath != nil, !isImageMissing {
+                Color(.tertiarySystemFill)
+                    .frame(height: Self.imageHeight)
+                    .frame(maxWidth: .infinity)
+                    .overlay {
+                        if let image = image ?? imagePath.flatMap({ AttachmentImageCache.images.object(forKey: Self.cacheKey(connection, $0)) }) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                        }
+                    }
                     .clipped()
                     .accessibilityHidden(true)
             }
@@ -64,13 +85,22 @@ struct LinkPreviewCardView: View {
             if !Task.isCancelled { open() }
         }
         .task(id: card.urlHash) {
-            // The demo has pictures only for the rendering fixture's cards.
-            guard let path = card.imageUrl, path.hasPrefix("/api/"),
-                !appModel.isDemo || path.hasPrefix("/api/v1/attachment/\(ChatRenderingDemo.assetPrefix)")
-            else { return }
-            imageData = try? await connection.fetch(path: path)
+            guard let path = imagePath else { return }
+            let key = Self.cacheKey(connection, path)
+            if let held = AttachmentImageCache.images.object(forKey: key) {
+                image = held
+                return
+            }
+            guard let data = try? await connection.fetch(path: path), let fetched = UIImage(data: data) else {
+                isImageMissing = true
+                return
+            }
+            AttachmentImageCache.images.setObject(fetched, forKey: key)
+            image = fetched
         }
     }
+
+    private static func cacheKey(_ connection: Connection, _ path: String) -> NSString { "\(connection.accountKey)|preview|\(path)" as NSString }
 
     /// labelText is the small line above the title: the site an outside page
     /// came from, or for a Portal link what it is ("Ticket #12"), the same as
