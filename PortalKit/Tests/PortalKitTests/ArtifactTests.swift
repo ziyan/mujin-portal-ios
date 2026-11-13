@@ -70,4 +70,26 @@ import Testing
         await #expect(throws: PortalError.self) { try await connection.fetch(path: "https://elsewhere.example.test/x") }
         #expect(transport.requests.isEmpty)
     }
+
+    @Test func aRowDrawnAgainStartsAtTheHeightAndTextItHad() {
+        var memory = ArtifactRowMemory()
+        #expect(memory.height(artifactId: "artifact01") == nil)
+        memory.remember(height: 412, artifactId: "artifact01")
+        memory.remember(text: "# Notes", artifactId: "artifact02")
+        #expect(memory.height(artifactId: "artifact01") == 412)
+        #expect(memory.text(artifactId: "artifact02") == "# Notes")
+        for index in 0..<ArtifactRowMemory.capacity { memory.remember(height: 200, artifactId: "other\(index)") }
+        #expect(memory.height(artifactId: "artifact01") == nil, "The one used longest ago goes first.")
+    }
+
+    @Test func aRememberedHeightDoesNotShrinkWhileThePageLoads() {
+        // A page never measured takes every report.
+        #expect(ArtifactSandbox.acceptedHeight(reported: 180, current: 320, isRemembered: false, secondsSinceLoad: 0.1) == 180)
+        // Drawn again at its remembered height, a half-drawn page's early report is not taken, but growing is.
+        #expect(ArtifactSandbox.acceptedHeight(reported: 180, current: 412, isRemembered: true, secondsSinceLoad: 0.5) == nil)
+        #expect(ArtifactSandbox.acceptedHeight(reported: 500, current: 412, isRemembered: true, secondsSinceLoad: 0.5) == 500)
+        #expect(ArtifactSandbox.acceptedHeight(reported: 180, current: 412, isRemembered: true, secondsSinceLoad: 3) == 180)
+        // The same height again changes nothing.
+        #expect(ArtifactSandbox.acceptedHeight(reported: 412.4, current: 413, isRemembered: false, secondsSinceLoad: 3) == nil)
+    }
 }
