@@ -278,6 +278,17 @@ struct ConversationView: View {
         }
     }
 
+    /// Reads the page before the first message held, then brings the first row shown before back to the top of the screen, so what
+    /// was being read stays where it was and the earlier messages wait above it.
+    private func loadEarlierKeepingPlace(_ model: ConversationModel, proxy: ScrollViewProxy) {
+        let firstShown = model.transcript.displayEntries.first { Self.isShown($0, showWorkingNotes: showWorkingNotes) }?.id
+        Task {
+            await model.loadEarlier()
+            guard let firstShown else { return }
+            proxy.scrollTo(firstShown, anchor: .top)
+        }
+    }
+
     /// The row at the top of the messages, or nil where it would say nothing useful: an empty conversation, or the start of a thread,
     /// whose root is at the top.
     private func earlierRowState(_ model: ConversationModel) -> EarlierMessages.RowState? {
@@ -294,7 +305,7 @@ struct ConversationView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     // Earlier messages are read on a pull past the top, which this row says.
                     if let state = earlierRowState(model) {
-                        EarlierMessagesRow(state: state, pullProgress: earlierPullProgress) { Task { await model.loadEarlier() } }
+                        EarlierMessagesRow(state: state, pullProgress: earlierPullProgress) { loadEarlierKeepingPlace(model, proxy: proxy) }
                     }
                     if model.transcript.entries.isEmpty, !model.isThread {
                         ContentUnavailableView {
@@ -350,7 +361,7 @@ struct ConversationView: View {
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
             // The bottom anchor keeps the reading place as earlier messages go in above.
-            .modifier(PullForEarlier(state: model.earlierRowState, pullProgress: $earlierPullProgress) { Task { await model.loadEarlier() } })
+            .modifier(PullForEarlier(state: model.earlierRowState, pullProgress: $earlierPullProgress) { loadEarlierKeepingPlace(model, proxy: proxy) })
             // The end of the thread, which an answer being written changes. Reading the same messages again moves nothing.
             .onChange(of: model.transcript.entries.last) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
