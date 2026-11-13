@@ -296,6 +296,8 @@ final class ChatModel {
                         isMujinUser: $0.isMujinUser)
                 }
             }
+            // The cards are read before the rows are shown, so a row has its full height from its first frame.
+            await loadPreviews(of: newRows)
             window.replace(with: newRows, totalCount: await total)
             timeline.load(window.messages)
             var marks: [String: String] = [:]
@@ -307,7 +309,6 @@ final class ChatModel {
             await reloadCards()
             await markRead()
             if agents.isEmpty, let loaded = try? await connection.authorizedAgents(organizationId: newRoom.organizationId) { agents = loaded }
-            await loadPreviews(timeline.messages.suffix(30).map(\.id))
         } catch {
             onError(error)
             if phase == .loading { phase = .failed(error.userMessage) }
@@ -322,9 +323,9 @@ final class ChatModel {
         do {
             let page = try await connection.messages(
                 conversationId: conversationId, latestCount: MessageWindow.pageSize, beforeMessageId: first)
+            await loadPreviews(of: page)
             window.prepend(page)
             timeline.load(window.messages)
-            await loadPreviews(page.map(\.id))
         } catch {
             // Said in the row at the top, where the person pulled, with a way to try again.
             earlierLoadFailure = error.userMessage
@@ -488,6 +489,12 @@ final class ChatModel {
     func loadPreviews(_ ids: [String], force: Bool = false) async {
         let candidates = timeline.messages.filter { ids.contains($0.id) && !$0.isDeleted && !$0.hasPreviewsRemoved }.map { (id: $0.id, text: $0.text) }
         await linkPreviews.load(candidates, force: force)
+    }
+
+    /// Reads the cards of rows not shown yet.
+    private func loadPreviews(of rows: [ConversationMessage]) async {
+        let candidates = rows.map(ChatMessage.init).filter { !$0.isDeleted && !$0.hasPreviewsRemoved }.map { (id: $0.id, text: $0.text) }
+        await linkPreviews.load(candidates)
     }
 
     func removePreviews(of message: ChatMessage) async {
