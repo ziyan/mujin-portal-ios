@@ -196,6 +196,20 @@ final class ThreadTests: XCTestCase {
         XCTAssertTrue(message(app, Self.assistantMainText).waitForExistence(timeout: 30), "Back did not return to the conversation.\n\(app.debugDescription)")
     }
 
+    func testATapOnAConversationMessageWithNoRepliesOpensItsOwnThread() {
+        let app = DemoApp.launch(screen: "thread-conversation")
+        let single = message(app, Self.assistantMainText)
+        XCTAssertTrue(single.waitForExistence(timeout: 60), "The conversation did not open.\n\(app.debugDescription)")
+        DemoApp.scrollToElement(single, in: app)
+        // The words themselves, not the bubble around them.
+        single.tap()
+        XCTAssertTrue(threadTitle(app).waitForExistence(timeout: 30), "A tap on a message with no replies opened no thread.\n\(app.debugDescription)")
+        XCTAssertTrue(message(app, Self.assistantMainText).waitForExistence(timeout: 30), "The thread does not show its message.\n\(app.debugDescription)")
+        XCTAssertFalse(message(app, Self.assistantReplyText).exists, "The thread shows a message of another thread.\n\(app.debugDescription)")
+        DemoApp.goBack(app)
+        XCTAssertTrue(replyControl(app, containing: "3 replies").waitForExistence(timeout: 30), "Back did not return to the conversation.\n\(app.debugDescription)")
+    }
+
     func testAReplyInAConversationThreadIsAnsweredInTheThread() {
         let app = DemoApp.launch(screen: "thread-conversation-open")
         // The thread opens on top of the conversation as the app starts; the first queries may meet an app too busy to answer.

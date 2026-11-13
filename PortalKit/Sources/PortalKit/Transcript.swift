@@ -308,9 +308,10 @@ public struct Transcript: Equatable, Sendable {
             isRunning: isRunning, workingThreadRootMessageId: workingThreadRootMessageId, viewThreadRootMessageId: threadRootMessageId)
     }
 
-    /// The thread a tap on a message opens: the one it is a reply in, else its own when it has replies.
+    /// The thread a tap on a message opens: the one it is a reply in, else its own once the message is stored, replies or not.
     public func threadToOpen(forMessage messageId: String) -> String? {
-        ThreadRouting.threadToOpen(messageId: messageId, threadRootMessageId: threadRoots[messageId], replyCount: threadSummaries[messageId]?.replyCount ?? 0)
+        ThreadRouting.conversationThreadToOpen(
+            messageId: messageId, threadRootMessageId: threadRoots[messageId], isStored: persistedMessageIds.contains(messageId))
     }
 
     /// The thread a message is part of: the one it is a reply in, else its own when it has replies.
