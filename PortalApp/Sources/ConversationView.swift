@@ -193,7 +193,7 @@ struct ConversationView: View {
                 offersMessageThreads: session.capabilities.offersMessageThreads,
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             conversationModel.onTitleChanged = { onTitleChanged?($0) }
-            conversationModel.offersBackgroundCommands = session.capabilities.offersBackgroundCommands
+            conversationModel.readsOffersBackgroundCommands = { [weak session] in session?.capabilities.offersBackgroundCommands ?? false }
             model = conversationModel
             takeReference()
             voice?.end()

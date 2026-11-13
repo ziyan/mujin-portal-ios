@@ -14,14 +14,18 @@ struct BackgroundCommandsSheet: View {
                 if model.shownBackgroundCommands.isEmpty {
                     ContentUnavailableView("No background commands", systemImage: "apple.terminal")
                 } else {
-                    List {
-                        ForEach(model.shownBackgroundCommands) { command in
-                            BackgroundCommandRow(
-                                command: command, canStop: BackgroundCommandRules.canStop(command, currentUserId: currentUserId),
-                                onStop: { Task { await model.stopBackgroundCommand(command) } })
+                    // One clock for the sheet, which ticks every second only while a command runs; finished ones show a fixed length.
+                    let isAnyRunning = model.shownBackgroundCommands.contains { $0.commandState == "running" }
+                    TimelineView(.periodic(from: .now, by: isAnyRunning ? 1 : 3_600)) { context in
+                        List {
+                            ForEach(model.shownBackgroundCommands) { command in
+                                BackgroundCommandRow(
+                                    command: command, now: context.date, canStop: BackgroundCommandRules.canStop(command, currentUserId: currentUserId),
+                                    onStop: { Task { await model.stopBackgroundCommand(command) } })
+                            }
                         }
+                        .listStyle(.plain)
                     }
-                    .listStyle(.plain)
                 }
             }
             .navigationTitle("Background commands")
@@ -36,6 +40,8 @@ struct BackgroundCommandsSheet: View {
 /// output in a bordered block that starts at the newest lines and opens to more.
 private struct BackgroundCommandRow: View {
     let command: BackgroundCommand
+    /// The sheet's clock, for how long a running command has run.
+    let now: Date
     let canStop: Bool
     let onStop: () -> Void
     @State private var isExpanded = false
@@ -49,11 +55,9 @@ private struct BackgroundCommandRow: View {
                 .truncationMode(.middle)
             HStack(spacing: 8) {
                 stateChip
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(verbatim: command.elapsed(now: context.date).map(BackgroundCommandRules.clock) ?? "")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
+                Text(verbatim: command.elapsed(now: now).map(BackgroundCommandRules.clock) ?? "")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
                 Spacer(minLength: 4)
                 if canStop {
                     Button("Stop", role: .destructive, action: onStop)
