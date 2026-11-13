@@ -33,8 +33,6 @@ struct ConversationView: View {
     @State private var isOnScreen = false
     /// Whether the top of the thread is in view, where earlier messages load.
     @State private var isTopInView = false
-    /// Whether this screen is counted among those that show a call going elsewhere in a strip under their header.
-    @State private var isHostingCallStrip = false
 
     private var isThread: Bool { threadRootMessageId != nil }
     /// Whether a call can start here: from the conversation, or from a thread on a server with threads, where it goes in the thread.
@@ -237,18 +235,10 @@ struct ConversationView: View {
             isOnScreen = true
             model?.start()
             session.callPlaceOnScreen = place
-            if !isHostingCallStrip {
-                isHostingCallStrip = true
-                session.callStripHostCount += 1
-            }
         }
         .onDisappear {
             isOnScreen = false
             if session.callPlaceOnScreen == place { session.callPlaceOnScreen = nil }
-            if isHostingCallStrip {
-                isHostingCallStrip = false
-                session.callStripHostCount -= 1
-            }
             // A call goes on in its bar, its conversation still listening for the answers; anything else stops with the screen.
             guard !isCallStaged else { return }
             model?.stop()
