@@ -902,8 +902,13 @@ jobs:
       # The project is generated, with what Homebrew installs, before the
       # App Store Connect key is on disk: nothing installed reads it.
       - name: Generate the project
+        env:
+          # The server a first sign-in offers, as a bare host. A secret keeps it
+          # out of this public repository and its logs; unset offers production.
+          DEFAULT_SERVER: ${{ secrets.PORTAL_DEFAULT_SERVER }}
         run: |
           printf 'DEVELOPMENT_TEAM = %s\n' "${TEAM}" > Configuration/Identity.xcconfig
+          printf 'MUJINPORTAL_DEFAULT_SERVER = %s\n' "$(printf '%s' "${DEFAULT_SERVER}" | tr -d '[:space:]')" >> Configuration/Identity.xcconfig
           brew install xcodegen
           xcodegen generate
 

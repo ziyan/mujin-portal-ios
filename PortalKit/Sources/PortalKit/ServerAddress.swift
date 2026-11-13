@@ -5,6 +5,21 @@ public struct ServerAddress: Hashable, Codable, Sendable, CustomStringConvertibl
     /// The production instance a first sign-in defaults to.
     public static let production = ServerAddress(validated: URL(string: "https://portal.mujin.cloud")!)
 
+    /// The server a first sign-in offers. A build can name another one, as a
+    /// bare host, in the Info.plist (`PortalDefaultServer`).
+    public static var signInDefault: ServerAddress {
+        signInDefault(configured: Bundle.main.object(forInfoDictionaryKey: "PortalDefaultServer") as? String)
+    }
+
+    /// A build that names no server, or one that does not parse, offers
+    /// production.
+    public static func signInDefault(configured: String?) -> ServerAddress {
+        guard let configured, !configured.hasPrefix("$("), let address = try? ServerAddress(configured) else {
+            return .production
+        }
+        return address
+    }
+
     public let url: URL
 
     private init(validated url: URL) {

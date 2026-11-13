@@ -23,6 +23,13 @@ import Testing
         #expect(ServerAddress.production.description == "https://portal.mujin.cloud")
     }
 
+    @Test func aBuildCanNameTheSignInDefault() {
+        #expect(ServerAddress.signInDefault(configured: "portal.example.test").description == "https://portal.example.test")
+        for configured in [nil, "", "  ", "$(MUJINPORTAL_DEFAULT_SERVER)", "ftp://portal.example.test"] {
+            #expect(ServerAddress.signInDefault(configured: configured) == .production)
+        }
+    }
+
     @Test func endpointsAreJoined() throws {
         let server = try ServerAddress("https://portal.example.test/")
         #expect(server.endpoint("/api/v1/graphql").absoluteString == "https://portal.example.test/api/v1/graphql")
