@@ -143,7 +143,8 @@ struct ChatView: View {
             chatModel.onRead = { [session] id in session.noteChatRead(conversationId: id) }
             model = chatModel
             chatModel.start()
-            if appModel.isDemo, DemoOptions.screen == "chat-composer" { drafts.stageDemo() }
+            if appModel.isDemo, DemoOptions.screen == "chat-composer" || DemoOptions.screen == "chat-internal-on" { drafts.stageDemo() }
+            if appModel.isDemo, DemoOptions.startsInternalNote { chatModel.isInternalNoteChosen = true }
             if appModel.isDemo, SpeechDemo.stagesListening(DemoOptions.screen, isThread: isThread) { dictation.stageListening(captionText: DemoSpeech.firstCaption) }
             if appModel.isDemo, SpeechDemo.stagesWords(DemoOptions.screen) { draft = DemoSpeech.dictatedWords }
             if appModel.isDemo, let messageId = SpeechDemo.messageToPlay(DemoOptions.screen, isThread: isThread) {
@@ -536,7 +537,8 @@ struct ChatView: View {
                 if isVoiceMode, canUseVoice(model) {
                     VoiceHoldBar(
                         recorder: recorder, isEnabled: model.canWrite && !model.isSendingVoice, onKeyboard: { isVoiceModePreferred = false },
-                        onStart: { await beginRecording(model) }, onFinish: { isCancelled in finishRecording(model, cancel: isCancelled) }
+                        onStart: { await beginRecording(model) }, onFinish: { isCancelled in finishRecording(model, cancel: isCancelled) },
+                        isInternalNote: model.isInternalNote, internalNoteSwitch: internalNoteSwitch(model)
                     )
                     .task {
                         recorder.onLimitReached = { finishRecording(model, cancel: false) }

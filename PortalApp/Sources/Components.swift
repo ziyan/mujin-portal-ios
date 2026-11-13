@@ -35,7 +35,7 @@ struct ComposerCard<Accessory: View>: View {
     var menuItems: [ComposerMenuItem] = []
     /// Whether the next send is an internal note: the box turns amber.
     var isInternalNote = false
-    /// The Staff only switch, for staff in a chat a customer reads: a chip beside [+] in the card, a lock in the pill.
+    /// The Staff only switch, for staff in a chat a customer reads: a round lock beside [+], like the composer's other buttons.
     var internalNoteSwitch: InternalNoteSwitch?
 
     @State private var isFocused = false
@@ -70,11 +70,7 @@ struct ComposerCard<Accessory: View>: View {
                 plusMenu
                 accessory
                 if let internalNoteSwitch {
-                    if isExpanded {
-                        StaffOnlyChip(internalNoteSwitch: internalNoteSwitch)
-                    } else {
-                        StaffOnlyLockButton(internalNoteSwitch: internalNoteSwitch, diameter: diameter)
-                    }
+                    StaffOnlyLockButton(internalNoteSwitch: internalNoteSwitch, diameter: diameter)
                 }
             }
             field
@@ -196,38 +192,9 @@ struct InternalNoteSwitch {
     let onToggle: () -> Void
 }
 
-/// StaffOnlyChip is the Staff only switch in the composer's card beside [+]: outlined while off, amber while on, and held on with its
-/// lock where the thread or the message replied to is internal.
-struct StaffOnlyChip: View {
-    let internalNoteSwitch: InternalNoteSwitch
-
-    var body: some View {
-        Button(action: internalNoteSwitch.onToggle) {
-            Label("Staff only", systemImage: internalNoteSwitch.isOn ? "lock.fill" : "lock.open")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(internalNoteSwitch.isOn ? Color.statusWarning : Color.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(internalNoteSwitch.isOn ? Color.statusWarning.opacity(0.16) : Color.clear, in: Capsule())
-                .overlay {
-                    if !internalNoteSwitch.isOn { Capsule().strokeBorder(Color.gray.opacity(0.4), lineWidth: 1) }
-                }
-                .lineLimit(1)
-                .fixedSize()
-                .frame(minHeight: 44)
-                .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .disabled(internalNoteSwitch.isLocked)
-        .accessibilityLabel(Text("Staff only"))
-        .accessibilityValue(internalNoteSwitch.isOn ? Text("On") : Text("Off"))
-        .accessibilityHint(internalNoteSwitch.isLocked ? Text("This thread is internal") : Text("Only Mujin staff read what you send"))
-        .accessibilityAddTraits(internalNoteSwitch.isOn ? .isSelected : [])
-        .accessibilityIdentifier("staffOnlyChip")
-    }
-}
-
-/// StaffOnlyLockButton is the Staff only switch while the composer is a pill: a small lock beside [+], amber while on.
+/// StaffOnlyLockButton is the Staff only switch beside [+], in the pill, the card and the voice message bar: a round button like [+] and the
+/// microphone, an open lock while off and an amber closed lock while on. Held on in an internal thread or a reply to an internal note, it
+/// keeps its amber colors so it still says what a send does.
 struct StaffOnlyLockButton: View {
     let internalNoteSwitch: InternalNoteSwitch
     let diameter: CGFloat
@@ -235,15 +202,19 @@ struct StaffOnlyLockButton: View {
     var body: some View {
         Button(action: internalNoteSwitch.onToggle) {
             Image(systemName: internalNoteSwitch.isOn ? "lock.fill" : "lock.open")
-                .font(.footnote.weight(.semibold))
+                .font(.body.weight(.medium))
                 .foregroundStyle(internalNoteSwitch.isOn ? Color.statusWarning : Color.secondary)
                 .frame(width: diameter, height: diameter)
-                .contentShape(.circle)
+                .background(internalNoteSwitch.isOn ? Color.statusWarning.opacity(0.18) : Color(.tertiarySystemFill), in: .circle)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .disabled(internalNoteSwitch.isLocked)
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .accessibilityLabel(Text("Staff only"))
         .accessibilityValue(internalNoteSwitch.isOn ? Text("On") : Text("Off"))
+        .accessibilityHint(internalNoteSwitch.isLocked ? Text("This thread is internal") : Text("Only Mujin staff read what you send"))
         .accessibilityAddTraits(internalNoteSwitch.isOn ? .isSelected : [])
         .accessibilityIdentifier("staffOnlyLock")
     }
