@@ -220,8 +220,12 @@ struct FeedbackView: View {
     private func send() async {
         guard PortalFeedback.canSend(feedbackText: feedbackText, isSending: isSending) else { return }
         isSending = true
+        session.isSendingFeedback = true
         errorText = nil
-        defer { isSending = false }
+        defer {
+            isSending = false
+            session.isSendingFeedback = false
+        }
         do {
             let connection = appModel.connection(for: session.account)
             let files = try await drafts.upload(using: connection)
