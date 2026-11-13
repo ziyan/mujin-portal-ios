@@ -310,6 +310,13 @@ struct MainTabsView: View {
         }
         // The person asked to go to a tab or a conversation, such as "Ask about" on a page in a sheet: the sheet is over it.
         .onChange(of: session.selectedSection) { _, _ in closeSheets(session) }
+        // A call with the assistant that ends, or fails, while its conversation or thread is off screen is let go of here, with its
+        // conversation's live feed; one on screen keeps its own.
+        .onChange(of: session.assistantCall?.isGoing ?? false) { _, isGoing in
+            guard !isGoing, let call = session.assistantCall, session.callPlaceOnScreen != call.place else { return }
+            call.end()
+            session.assistantCall = nil
+        }
         .onChange(of: session.conversationToOpen) { _, conversationId in if conversationId != nil { closeSheets(session) } }
         .onChange(of: session.composeRequest != nil) { _, isComposing in if isComposing { closeSheets(session) } }
         .onChange(of: appModel.openedLink, initial: true) { _, opened in
