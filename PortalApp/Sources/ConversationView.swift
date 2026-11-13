@@ -278,6 +278,14 @@ struct ConversationView: View {
         }
     }
 
+    /// The row at the top of the messages, or nil where it would say nothing useful: an empty conversation, or the start of a thread,
+    /// whose root is at the top.
+    private func earlierRowState(_ model: ConversationModel) -> EarlierMessages.RowState? {
+        let state = model.earlierRowState
+        if state == .start, model.isThread || model.transcript.entries.isEmpty { return nil }
+        return state
+    }
+
     private func transcript(_ model: ConversationModel) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -483,14 +491,6 @@ private struct TranscriptRow: View {
         if let onOpenThread, summary?.isCountShown == true || isWorking {
             ThreadReplyControl(summary: summary, isWorking: isWorking) { onOpenThread(id) }
         }
-    }
-
-    /// The row at the top of the messages, or nil where it would say nothing useful: an empty conversation, or the start of a thread,
-    /// whose root is at the top.
-    private func earlierRowState(_ model: ConversationModel) -> EarlierMessages.RowState? {
-        let state = model.earlierRowState
-        if state == .start, model.isThread || model.transcript.entries.isEmpty { return nil }
-        return state
     }
 
     /// The thread a tap on a message opens, when it belongs to one.
