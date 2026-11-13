@@ -24,7 +24,8 @@ concurrency:
   # replaces it while it waits for a runner. Only a pull request's run gives way
   # to a newer push: an upload is never cancelled, and a newer one waits as the
   # one pending run while the running upload finishes.
-  group: ios-${{ github.ref }}-${{ github.event_name }}
+  # Labelling a pull request has a group of its own, so it never cancels the run of a push.
+  group: ios-${{ github.ref }}-${{ github.event_name }}${{ github.event.action == 'labeled' && '-labeled' || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -34,6 +35,8 @@ jobs:
   # First: nothing internal may reach this public repository.
   hygiene:
     name: Public content
+    # Of the labels, only screenshots asks for a run; every other job waits on this one.
+    if: github.event.action != 'labeled' || github.event.label.name == 'screenshots'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -104,8 +107,8 @@ jobs:
           key: swiftpm-${{ hashFiles('PortalKit/Package.resolved', 'project.yml') }}
           restore-keys: swiftpm-
 
-      # The build folder of this commit, else of the newest commit built with
-      # the same Xcode. A file that changed since is rebuilt; the index is left out.
+      # The build folder of these sources, else of the newest one built with the
+      # same Xcode. A file that changed since is rebuilt; the index is left out.
       - name: Restore the build folder
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -115,7 +118,7 @@ jobs:
             PortalKit/.build
             !build/Index.noindex
             !build-ipad/Index.noindex
-          key: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-${{ github.sha }}
+          key: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('PortalApp/**', 'PortalKit/Sources/**', 'PortalUITests/**', 'PortalNotification/**', 'PortalShare/**', 'Shared/**', 'project.yml', 'PortalKit/Package.resolved') }}
           restore-keys: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-
 
       - name: Test PortalKit
@@ -179,26 +182,22 @@ jobs:
           key: swiftpm-${{ hashFiles('PortalKit/Package.resolved', 'project.yml') }}
           restore-keys: swiftpm-
 
-      # The build folder of this commit, else of the newest commit built with
-      # the same Xcode. A file that changed since is rebuilt; the index is left out.
+      # The build folder of these sources, else of the newest one built with the
+      # same Xcode. A file that changed since is rebuilt; the index is left out.
       - name: Restore the build folder
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             build
             !build/Index.noindex
-          key: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-${{ github.sha }}
+          key: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('PortalApp/**', 'PortalKit/Sources/**', 'PortalUITests/**', 'PortalNotification/**', 'PortalShare/**', 'Shared/**', 'project.yml', 'PortalKit/Package.resolved') }}
           restore-keys: deriveddata-${{ github.job }}-${{ steps.xcode.outputs.version }}-
 
-      # Three clones of the simulator run the test classes side by side. The
-      # device is booted once and shut down first, so each clone starts from a
-      # simulator that has finished its first boot.
       - name: Run the UI tests
         run: |
           DEVICE=$(xcrun simctl list devices available | grep -m1 -E 'iPhone [0-9]+ Pro \(' | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
           xcrun simctl boot "${DEVICE}"
           xcrun simctl bootstatus "${DEVICE}" -b
-          xcrun simctl shutdown "${DEVICE}"
           # When the app stops going idle, XCTest only says so. Keep a sample of
           # the process at that moment, which says where its main thread is.
           mkdir -p hang-samples
@@ -221,7 +220,7 @@ jobs:
           set +e
           xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
             -clonedSourcePackagesDirPath SourcePackages COMPILER_INDEX_STORE_ENABLE=NO \
-            -only-testing:MujinPortalUITests -parallel-testing-enabled YES -parallel-testing-worker-count 3 -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
+            -only-testing:MujinPortalUITests -parallel-testing-enabled NO -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
           RESULT=${PIPESTATUS[0]}
           kill "${MONITOR}" || true
           exit "${RESULT}"
