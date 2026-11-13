@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 import PortalKit
 
 /// ConversationModel is one open conversation: its transcript, kept current
@@ -8,6 +9,8 @@ import PortalKit
 @MainActor
 @Observable
 final class ConversationModel {
+    private static let log = Logger(subsystem: "com.ziyan.mujinportal", category: "conversation")
+
     enum Phase: Equatable {
         case loading
         case loaded
@@ -43,6 +46,15 @@ final class ConversationModel {
     private(set) var isLoadingEarlier = false
     /// Background work this conversation started that has not ended.
     private(set) var backgroundWork: [BackgroundWork] = []
+    /// Whether the assistant runs shell commands in the background on this server, asked each time: the session learns what the
+    /// server offers after the screen opens, and again when it changes.
+    @ObservationIgnored var readsOffersBackgroundCommands: () -> Bool = { false }
+    private var offersBackgroundCommands: Bool { readsOffersBackgroundCommands() }
+    /// The conversation's background commands, every thread's together.
+    private(set) var backgroundCommands: [BackgroundCommand] = []
+    /// This view's background commands, running first: the main history's, or this thread's.
+    var shownBackgroundCommands: [BackgroundCommand] { BackgroundCommandRules.commands(backgroundCommands, inView: threadRootMessageId) }
+    var runningBackgroundCommandCount: Int { BackgroundCommandRules.runningCount(backgroundCommands, inView: threadRootMessageId) }
     /// Questions the person set aside, so what they type goes out as a message.
     private(set) var dismissedQuestionIds: Set<String> = []
     /// The message the next send replies to, shown above the composer.
@@ -132,6 +144,8 @@ final class ConversationModel {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
                 guard let self, !Task.isCancelled else { return }
                 if !self.backgroundWork.isEmpty { await self.refreshBackgroundWork() }
+                // A running command's output and state are read again while it runs.
+                if self.backgroundCommands.contains(where: \.isRunning) { await self.refreshBackgroundCommands() }
                 // Filing has no event: the note is read again about every 20 seconds.
                 round += 1
                 if round % 4 == 0 { await self.refreshFiling() }
@@ -242,6 +256,7 @@ final class ConversationModel {
             phase = .loaded
             if isRunFinished { watchForServerTitle() }
             await refreshBackgroundWork()
+            await refreshBackgroundCommands()
             await askForPreviews(window.messages.suffix(30))
         } catch {
             onError(error)
@@ -301,6 +316,27 @@ final class ConversationModel {
     func refreshBackgroundWork() async {
         if let work = try? await connection.backgroundWork(conversationId: conversationId) {
             backgroundWork = work.filter(\.isInProgress)
+        }
+    }
+
+    func refreshBackgroundCommands() async {
+        guard offersBackgroundCommands else { return }
+        do {
+            backgroundCommands = try await connection.backgroundCommands(conversationId: conversationId)
+        } catch {
+            // The list keeps what it had; the next refresh tries again.
+            Self.log.error("background commands could not be read: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Asks one of the person's own commands to stop.
+    func stopBackgroundCommand(_ command: BackgroundCommand) async {
+        do {
+            try await connection.stopBackgroundCommand(id: command.id)
+            await refreshBackgroundCommands()
+        } catch {
+            actionError = error.userMessage
+            onError(error)
         }
     }
 
