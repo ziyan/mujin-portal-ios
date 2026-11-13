@@ -41,6 +41,13 @@ final class ConversationModel {
     /// Whether the live feed has dropped and not come back. The first connection of an opened conversation does not count.
     private(set) var isFeedLost = false
     private(set) var isLoadingEarlier = false
+    /// Why the last read of earlier messages failed, shown in the row at the top with a way to try again; nil once one succeeds.
+    private(set) var earlierLoadFailure: String?
+
+    /// What the row at the top says about the messages before the first one held.
+    var earlierRowState: EarlierMessages.RowState {
+        EarlierMessages.rowState(earlierCount: window.earlierCount, isLoading: isLoadingEarlier, failure: earlierLoadFailure)
+    }
     /// Background work this conversation started that has not ended.
     private(set) var backgroundWork: [BackgroundWork] = []
     /// Whether the assistant runs shell commands in the background on this server.
@@ -314,6 +321,7 @@ final class ConversationModel {
     func loadEarlier() async {
         guard let first = window.firstMessageId, !isLoadingEarlier else { return }
         isLoadingEarlier = true
+        earlierLoadFailure = nil
         defer { isLoadingEarlier = false }
         do {
             let page = try await connection.messages(
@@ -322,7 +330,8 @@ final class ConversationModel {
             transcript.load(messages: window.messages, questions: cards.questions, approvals: cards.approvals, isRunning: transcript.isRunning)
             await askForPreviews(page)
         } catch {
-            actionError = error.userMessage
+            // Said in the row at the top, where the person pulled, with a way to try again.
+            earlierLoadFailure = error.userMessage
             onError(error)
         }
     }

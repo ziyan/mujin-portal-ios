@@ -33,7 +33,8 @@ struct ConversationView: View {
     @State private var drafts = AttachmentDrafts()
     @State private var isOnScreen = false
     /// Whether the top of the thread is in view, where earlier messages load.
-    @State private var isTopInView = false
+    /// How far a pull past the top has gone toward reading earlier messages, from 0 to 1.
+    @State private var earlierPullProgress = 0.0
     /// Whether this screen is counted among those that show a call going elsewhere in a strip under their header.
     @State private var isHostingCallStrip = false
     /// Whether the conversation already opened on the thread where something waited, which it does once.
@@ -394,17 +395,9 @@ struct ConversationView: View {
                 // Not lazy: rows measured only as they scroll in left the thread blank for a moment on the way to its end, and could
                 // leave a lazy stack placing its rows forever. The window holds one page of messages and grows a page at a time.
                 VStack(alignment: .leading, spacing: 16) {
-                    // Earlier messages load as the top comes into view; no strip says so.
-                    if model.window.earlierCount > 0 {
-                        Color.clear.frame(height: 1)
-                            .onScrollVisibilityChange(threshold: 0.01) { isVisible in
-                                isTopInView = isVisible
-                                if isVisible { Task { await model.loadEarlier() } }
-                            }
-                            // A short page can leave the top in view, and then the scroll says nothing more.
-                            .onChange(of: model.window.earlierCount) { _, _ in
-                                if isTopInView { Task { await model.loadEarlier() } }
-                            }
+                    // Earlier messages are read on a pull past the top, which this row says.
+                    if let state = earlierRowState(model) {
+                        EarlierMessagesRow(state: state, pullProgress: earlierPullProgress) { Task { await model.loadEarlier() } }
                     }
                     if model.transcript.entries.isEmpty, !model.isThread {
                         ContentUnavailableView {
@@ -466,6 +459,8 @@ struct ConversationView: View {
             .defaultScrollAnchor(.top, for: .alignment)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
+            // The bottom anchor keeps the reading place as earlier messages go in above.
+            .modifier(PullForEarlier(state: model.earlierRowState, pullProgress: $earlierPullProgress) { Task { await model.loadEarlier() } })
             // The end of the thread, which an answer being written changes. Reading the same messages again moves nothing.
             .onChange(of: model.transcript.entries.last) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -606,6 +601,14 @@ private struct TranscriptRow: View {
         if let onOpenThread, summary?.isCountShown == true || isWorking {
             ThreadReplyControl(summary: summary, isWorking: isWorking) { onOpenThread(id) }
         }
+    }
+
+    /// The row at the top of the messages, or nil where it would say nothing useful: an empty conversation, or the start of a thread,
+    /// whose root is at the top.
+    private func earlierRowState(_ model: ConversationModel) -> EarlierMessages.RowState? {
+        let state = model.earlierRowState
+        if state == .start, model.isThread || model.transcript.entries.isEmpty { return nil }
+        return state
     }
 
     /// The thread a tap on a message opens: the one it is a reply in, else its own once it is stored.

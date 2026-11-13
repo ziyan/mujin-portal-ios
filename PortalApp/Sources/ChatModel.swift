@@ -90,6 +90,13 @@ final class ChatModel {
     /// Whether the live feed has dropped and not come back. The first connection of an opened chat does not count.
     private(set) var isFeedLost = false
     private(set) var isLoadingEarlier = false
+    /// Why the last read of earlier messages failed, shown in the row at the top with a way to try again; nil once one succeeds.
+    private(set) var earlierLoadFailure: String?
+
+    /// What the row at the top says about the messages before the first one held.
+    var earlierRowState: EarlierMessages.RowState {
+        EarlierMessages.rowState(earlierCount: window.earlierCount, isLoading: isLoadingEarlier, failure: earlierLoadFailure)
+    }
     /// The agents the chat's organization may use, the main one first.
     private(set) var agents: [Agent] = []
     /// The people and agents the person picked from the @ list for the draft.
@@ -356,6 +363,7 @@ final class ChatModel {
     func loadEarlier() async {
         guard let first = window.firstMessageId, !isLoadingEarlier else { return }
         isLoadingEarlier = true
+        earlierLoadFailure = nil
         defer { isLoadingEarlier = false }
         do {
             let page = try await connection.messages(
@@ -364,7 +372,8 @@ final class ChatModel {
             timeline.load(window.messages)
             await loadPreviews(page.map(\.id))
         } catch {
-            actionError = error.userMessage
+            // Said in the row at the top, where the person pulled, with a way to try again.
+            earlierLoadFailure = error.userMessage
             onError(error)
         }
     }
