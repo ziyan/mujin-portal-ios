@@ -5,9 +5,6 @@ import XCTest
 /// failure.
 @MainActor
 final class EarlierMessagesTests: XCTestCase {
-    /// The first message held before the earlier page is read: the conversation's 11th of 40.
-    private static let firstHeldText = "Question 6 about the pick rate."
-
     override func setUp() async throws {
         continueAfterFailure = false
     }
@@ -16,6 +13,12 @@ final class EarlierMessagesTests: XCTestCase {
 
     private func message(_ app: XCUIApplication, _ text: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
+    /// The number of the earliest question the list holds, as in "Question 36 about the pick rate."
+    private func earliestQuestion(_ app: XCUIApplication) -> Int? {
+        app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Question ")).allElementsBoundByIndex
+            .compactMap { Int($0.label.dropFirst("Question ".count).prefix(while: \.isNumber)) }.min()
     }
 
     /// Scrolls to the top with flicks, which never hold a pull past the top.
@@ -45,17 +48,25 @@ final class EarlierMessagesTests: XCTestCase {
     func testAPullReadsTheEarlierPageInAboveWithoutMovingTheReadingPlace() {
         let app = DemoApp.launch(screen: "earlier-more")
         scrollToTop(app)
-        let firstHeld = message(app, Self.firstHeldText)
+        Thread.sleep(forTimeInterval: 1)
+        guard let earliestBefore = earliestQuestion(app) else { return XCTFail("No question is listed.\n\(app.debugDescription)") }
+        let firstHeld = message(app, "Question \(earliestBefore) about the pick rate.")
         XCTAssertTrue(firstHeld.isHittable, "The first message held is not in view at the top.\n\(app.debugDescription)")
         pull(app)
-        XCTAssertTrue(DemoApp.waitUntilValue(row(app), contains: "start", timeout: 30), "A pull did not read the earlier page.\n\(app.debugDescription)")
-        XCTAssertTrue(message(app, "Question 1 about the pick rate.").exists, "The earliest message is not there.\n\(app.debugDescription)")
+        let earlier = message(app, "Question \(earliestBefore - 1) about the pick rate.")
+        XCTAssertTrue(earlier.waitForExistence(timeout: 30), "A pull did not read the earlier page.\n\(app.debugDescription)")
         Thread.sleep(forTimeInterval: 1)
         // The earlier messages went in above: what was being read is still in view, and the top of the conversation is not.
         XCTAssertTrue(firstHeld.isHittable, "The reading place moved as the earlier messages went in.\n\(app.debugDescription)")
         XCTAssertFalse(row(app).isHittable, "The list jumped to the top of the earlier messages.\n\(app.debugDescription)")
+    }
+
+    func testTheTopOfAShortConversationSaysItIsTheStart() {
+        let app = DemoApp.launch(screen: "conversation:conversation02")
         scrollToTop(app)
-        XCTAssertTrue(row(app).label.contains("Start of the conversation"), "The top does not say it is the start.\n\(app.debugDescription)")
+        XCTAssertTrue(
+            DemoApp.waitUntilLabel(row(app), contains: "Start of the conversation", timeout: 10), "The top does not say it is the start.\n\(app.debugDescription)")
+        XCTAssertEqual(row(app).value as? String, "start")
     }
 
     func testTheRowShowsItIsLoadingWhileTheEarlierPageIsRead() {

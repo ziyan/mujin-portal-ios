@@ -46,6 +46,13 @@ public enum EarlierMessages {
     /// How far a pull has gone toward reading more, from 0 to 1.
     public static func pullProgress(overscroll: Double) -> Double { min(max(overscroll / armDistance, 0), 1) }
 
-    /// Whether letting go now reads more.
-    public static func isArmed(overscroll: Double, state: RowState) -> Bool { state.canLoad && overscroll >= armDistance }
+    /// How far a pull that armed has to come back before it lets go of being armed, so a finger that wavers at the distance does
+    /// not arm it, and tap, again and again.
+    public static let disarmDistance: Double = 56
+
+    /// Whether letting go now reads more: a pull arms at the set distance and stays armed until it comes back below a shorter one.
+    public static func isArmed(overscroll: Double, state: RowState, wasArmed: Bool = false) -> Bool {
+        guard state.canLoad else { return false }
+        return overscroll >= (wasArmed ? disarmDistance : armDistance)
+    }
 }
