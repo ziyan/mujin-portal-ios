@@ -26,16 +26,18 @@ final class EarlierMessagesTests: XCTestCase {
         XCTAssertTrue(top.isHittable, "The top of the conversation could not be reached.\n\(app.debugDescription)", file: file, line: line)
     }
 
-    /// Holds the list at its top and pulls it down well past the set distance, then lets go.
+    /// Holds the list at its top by the row, not by a message, whose long press has actions, and pulls it down well past the set
+    /// distance, then lets go.
     private func pull(_ app: XCUIApplication) {
-        let start = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
-        start.press(forDuration: 0.2, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 420)))
+        let start = row(app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 420)))
     }
 
     func testTheRowSaysThereIsMoreAndReachingTheTopReadsNothing() {
         let app = DemoApp.launch(screen: "earlier-more")
         scrollToTop(app)
-        XCTAssertTrue(row(app).label.contains("Pull down for earlier messages"), "The row does not say to pull.\n\(app.debugDescription)")
+        // Once the list has settled at the top: during a bounce the row can still say to let go.
+        XCTAssertTrue(DemoApp.waitUntilLabel(row(app), contains: "Pull down for earlier messages", timeout: 10), "The row does not say to pull.\n\(app.debugDescription)")
         Thread.sleep(forTimeInterval: 2)
         XCTAssertEqual(row(app).value as? String, "more", "Reaching the top read the earlier messages without a pull.\n\(app.debugDescription)")
     }
