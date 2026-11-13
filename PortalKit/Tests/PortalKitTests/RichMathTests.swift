@@ -38,4 +38,14 @@ import Testing
         #expect(MarkdownBlocks.parse("\\[\n\\sigma = 1\n\\]") == [.code(language: "math", text: "\\sigma = 1")])
         #expect(MarkdownBlocks.parse("$$ and $$") == [.paragraph("$$ and $$")])
     }
+
+    @Test func aLineThatOnlyStartsWithDollarsLeavesTheRestOfTheMessageBe() {
+        // An amount at the start of a line, with no closing $$ after it, is words, and so is everything under it.
+        #expect(MarkdownBlocks.parse("$$5 million deal closed\n\nThe next step is Friday.") == [
+            .paragraph("$$5 million deal closed"), .paragraph("The next step is Friday."),
+        ])
+        #expect(MarkdownBlocks.parse("\\[see the note\n\nmore words") == [.paragraph("\\[see the note"), .paragraph("more words")])
+        // A real display formula over several lines is still one.
+        #expect(MarkdownBlocks.parse("$$\n\\sigma = 1\n$$") == [.code(language: "math", text: "\\sigma = 1")])
+    }
 }
