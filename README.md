@@ -5,7 +5,9 @@ accounts on several Portal instances, the conversation list, and a
 conversation with the assistant: streamed answers, Markdown, sending messages,
 and question and approval cards.
 
-The first account defaults to `https://portal.mujin.cloud`. "Use another
+The first account defaults to `https://portal.mujin.cloud`, unless the build
+names another server (`MUJINPORTAL_DEFAULT_SERVER`, which the upload job sets
+from the `PORTAL_DEFAULT_SERVER` secret). "Use another
 server" takes any https address, so the same build works against another Portal
 instance.
 

@@ -107,9 +107,9 @@ struct SignInView: View {
         VStack(spacing: 14) {
             if !isUsingOtherServer {
                 Button {
-                    Task { await model.signIn(to: .production) }
+                    Task { await model.signIn(to: .signInDefault) }
                 } label: {
-                    Text("Sign in to \(ServerAddress.production.displayHost)")
+                    Text("Sign in to \(ServerAddress.signInDefault.displayHost)")
                         .font(.headline)
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)
@@ -164,7 +164,7 @@ struct SignInView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(model.isSigningIn || serverText.trimmingCharacters(in: .whitespaces).isEmpty)
-                Button("Use \(ServerAddress.production.displayHost)") {
+                Button("Use \(ServerAddress.signInDefault.displayHost)") {
                     isUsingOtherServer = false
                     addressError = nil
                 }

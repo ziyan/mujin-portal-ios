@@ -21,6 +21,10 @@ MUJINPORTAL_APP_GROUP = group.$(MUJINPORTAL_BUNDLE_IDENTIFIER)
 MUJINPORTAL_PUSH_ENVIRONMENT[config=Debug] = sandbox
 MUJINPORTAL_PUSH_ENVIRONMENT[config=Release] = production
 
+// The server a first sign-in offers, as a bare host (an xcconfig value cannot
+// hold "//"). Empty offers production; the upload job sets it from a secret.
+MUJINPORTAL_DEFAULT_SERVER =
+
 // The app and its extensions carry the same version; CI sets the build
 // number of each upload to the workflow run number.
 MARKETING_VERSION = 0.1.0
