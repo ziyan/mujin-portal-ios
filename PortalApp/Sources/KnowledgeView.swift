@@ -202,7 +202,7 @@ struct MemoryPageView: View {
                 PortalRows {
                     if let summary = page.summary, !summary.isEmpty {
                         // A summary is Markdown, as on the web: its formulas, diagrams and tables are drawn.
-                        Section { MarkdownView(markdown: summary).accessibilityIdentifier("memoryPageSummary") }
+                        Section { MarkdownView(markdown: summary).accessibilityElement(children: .contain).accessibilityIdentifier("memoryPageSummary") }
                     }
                     Section("What it knows") {
                         if live.isEmpty { Text("Nothing is current on this page.").foregroundStyle(.secondary) }

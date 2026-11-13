@@ -45,6 +45,17 @@ final class MarkdownTableZoomTests: XCTestCase {
         XCTAssertFalse(viewer(app).exists, "The viewer stayed open.")
     }
 
+    func testTheFormulasAndDiagramOfAPageKeepTheirOwnNames() {
+        let app = DemoApp.launch(screen: "site-page-rich")
+        XCTAssertTrue(DemoApp.element(app, "sitePageWords").waitForExistence(timeout: 90), "The page never appeared.\n\(app.debugDescription)")
+        let paragraph = DemoApp.element(app, "mathParagraph")
+        XCTAssertTrue(paragraph.waitForExistence(timeout: 30), "The formulas in the words are not drawn.\n\(app.debugDescription)")
+        XCTAssertTrue(paragraph.label.contains("frac{n}{t}"), "VoiceOver reads \"\(paragraph.label)\", without the formula.")
+        XCTAssertTrue(DemoApp.element(app, "mathFormula").waitForExistence(timeout: 30), "The formula on its own line is not drawn.\n\(app.debugDescription)")
+        let diagram = DemoApp.element(app, "mermaidDiagram")
+        DemoApp.scrollToElement(diagram, in: app)
+    }
+
     func testTheFullScreenButtonOpensTheTable() {
         let app = DemoApp.launch(screen: "site-page-rich")
         _ = revealTable(app)
