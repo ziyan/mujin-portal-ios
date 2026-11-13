@@ -16,7 +16,7 @@ struct EarlierMessagesRow: View {
             case .more:
                 let isArmed = pullProgress >= 1
                 Label {
-                    Text(isArmed ? "Release to load earlier messages" : "Pull down for earlier messages")
+                    Text(isArmed ? LocalizedStringKey("Release to load earlier messages") : LocalizedStringKey("Pull down for earlier messages"))
                 } icon: {
                     Image(systemName: "arrow.down")
                         .rotationEffect(.degrees(isArmed ? 180 : 0))
@@ -67,7 +67,7 @@ struct PullForEarlier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onScrollGeometryChange(for: Double.self) { geometry in
-                max(0, -(geometry.contentOffset.y + geometry.contentInsets.top))
+                max(0, -Double(geometry.contentOffset.y + geometry.contentInsets.top))
             } action: { _, overscroll in
                 let progress = state.canLoad ? EarlierMessages.pullProgress(overscroll: overscroll) : 0
                 if abs(progress - pullProgress) > 0.01 || (progress == 0) != (pullProgress == 0) { pullProgress = progress }
