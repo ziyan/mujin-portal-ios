@@ -21,9 +21,11 @@ struct ArtifactWebView: UIViewRepresentable {
     /// Inline pages are as tall as they say, between 120 and 640 points; the full-size one fills the screen.
     let isInline: Bool
     @Binding var height: Double
+    /// Whether the height it starts at is the one this page measured before, so an early report of a half-drawn page is not taken.
+    var isHeightRemembered = false
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(height: $height, isInline: isInline)
+        Coordinator(height: $height, isInline: isInline, isHeightRemembered: isHeightRemembered)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -66,17 +68,21 @@ struct ArtifactWebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private let height: Binding<Double>
         private let isInline: Bool
+        private let isHeightRemembered: Bool
         private weak var webView: WKWebView?
         private var shownPageURL: URL?
         private var loadTask: Task<Void, Never>?
+        private var loadStartedAt = Date()
 
-        init(height: Binding<Double>, isInline: Bool) {
+        init(height: Binding<Double>, isInline: Bool, isHeightRemembered: Bool) {
             self.height = height
             self.isInline = isInline
+            self.isHeightRemembered = isHeightRemembered
         }
 
         func begin(webView: WKWebView, pageURL: URL) {
             self.webView = webView
+            loadStartedAt = Date()
             shownPageURL = pageURL
             loadTask = Task {
                 // Without the rule list the page would not be contained, so it is not shown.
@@ -111,8 +117,12 @@ struct ArtifactWebView: UIViewRepresentable {
             guard isInline, message.frameInfo.isMainFrame, message.frameInfo.request.url?.scheme == ArtifactSandbox.scheme,
                 let number = message.body as? NSNumber
             else { return }
-            let clamped = ArtifactSandbox.clampedHeight(number.doubleValue)
-            if abs(clamped - height.wrappedValue) > 1 { height.wrappedValue = clamped }
+            if let accepted = ArtifactSandbox.acceptedHeight(
+                reported: number.doubleValue, current: height.wrappedValue, isRemembered: isHeightRemembered,
+                secondsSinceLoad: Date().timeIntervalSince(loadStartedAt))
+            {
+                height.wrappedValue = accepted
+            }
         }
 
         // MARK: WKNavigationDelegate
@@ -189,6 +199,12 @@ final class ArtifactSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 }
 
+/// ArtifactRows holds what each inline artifact measured and read while the app runs, for the rows a list draws again.
+@MainActor
+enum ArtifactRows {
+    static var memory = ArtifactRowMemory()
+}
+
 /// ArtifactCardView is a page, drawing or document the assistant made, shown
 /// under the tool line. A tap on the title opens it full size.
 struct ArtifactCardView: View {
@@ -198,8 +214,20 @@ struct ArtifactCardView: View {
     let connection: Connection
     let onOpen: () -> Void
 
-    @State private var height = ArtifactSandbox.defaultHeight
+    @State private var height: Double
     @State private var markdown: String?
+    /// Whether the card starts at the height this artifact measured before, drawn again as the list scrolls back to it.
+    private let isHeightRemembered: Bool
+
+    init(artifact: ArtifactReference, connection: Connection, onOpen: @escaping () -> Void) {
+        self.artifact = artifact
+        self.connection = connection
+        self.onOpen = onOpen
+        let remembered = ArtifactRows.memory.height(artifactId: artifact.id)
+        isHeightRemembered = remembered != nil
+        _height = State(initialValue: remembered ?? ArtifactSandbox.defaultHeight)
+        _markdown = State(initialValue: ArtifactRows.memory.text(artifactId: artifact.id))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -250,17 +278,23 @@ struct ArtifactCardView: View {
     private var content: some View {
         if artifact.kind == .markdown {
             MarkdownView(markdown: markdown ?? "")
+                // Until the document has been read once, a steady space stands in for it.
+                .frame(minHeight: markdown == nil ? ArtifactSandbox.inlineHeightRange.lowerBound : nil, alignment: .top)
                 .frame(maxHeight: 320, alignment: .top)
                 .clipped()
                 .task(id: artifact.id) {
-                    markdown = await loadMarkdown()
+                    guard markdown == nil, let text = await loadMarkdown() else { return }
+                    markdown = text
+                    ArtifactRows.memory.remember(text: text, artifactId: artifact.id)
                 }
         } else {
             ArtifactWebView(
                 source: pageSource, title: artifact.title,
-                connection: connection, isDark: colorScheme == .dark, isInline: true, height: $height
+                connection: connection, isDark: colorScheme == .dark, isInline: true, height: $height,
+                isHeightRemembered: isHeightRemembered
             )
             .frame(height: height)
+            .onChange(of: height) { _, measured in ArtifactRows.memory.remember(height: measured, artifactId: artifact.id) }
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
