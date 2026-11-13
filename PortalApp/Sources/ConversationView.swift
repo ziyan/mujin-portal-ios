@@ -41,6 +41,10 @@ struct ConversationView: View {
     @State private var heldEnd: HeldEnd?
     /// How tall the typing dots and work banners at the foot of the transcript are, kept while the end is held.
     @State private var footHeight: CGFloat = 0
+    /// Whether the person just let out what waited below: the list grows past the end while it scrolls there, and is not held again.
+    @State private var isReleasingHold = false
+    /// Counts the releases, so the scroll to the end runs after the released entries are laid out.
+    @State private var releaseCount = 0
 
     private struct HeldEnd {
         let lastEntry: TranscriptEntry
@@ -55,11 +59,12 @@ struct ConversationView: View {
         return Array(all[..<index]) + [heldEnd.lastEntry]
     }
 
-    /// Whether anything waits past the held end: a newer entry, or more words of the answer being written.
+    /// Whether anything waits past the held end: a newer entry, or more words of the answer being written. Only the last entry is
+    /// compared, so the check costs the same however long the transcript is.
     private func hasWaiting(_ model: ConversationModel) -> Bool {
-        guard heldEnd != nil else { return false }
-        let all = model.transcript.displayEntries.filter { Self.isShown($0, showWorkingNotes: showWorkingNotes) }
-        return all != shownEntries(model)
+        guard let heldEnd else { return false }
+        guard let last = model.transcript.displayEntries.last(where: { Self.isShown($0, showWorkingNotes: showWorkingNotes) }) else { return false }
+        return last.id != heldEnd.lastEntry.id || last != heldEnd.lastEntry
     }
 
     private var isThread: Bool { threadRootMessageId != nil }
@@ -390,10 +395,12 @@ struct ConversationView: View {
             .onChange(of: isAtEnd) { _, isShown in
                 if isShown {
                     heldEnd = nil
-                } else if heldEnd == nil, let last = shownEntries(model).last {
+                    isReleasingHold = false
+                } else if heldEnd == nil, !isReleasingHold, footHeight > 0 || !model.isShowingTypingDots, let last = shownEntries(model).last {
                     heldEnd = HeldEnd(lastEntry: last, footHeight: footHeight)
                 }
             }
+            .onChange(of: releaseCount) { _, _ in withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) } }
             // The end of the thread, which an answer being written changes, is followed from the end, and always after the person
             // says something, which also lets out what waited. Reading the same messages again moves nothing.
             .onChange(of: model.transcript.entries.last) { _, last in
@@ -405,11 +412,9 @@ struct ConversationView: View {
             .overlay(alignment: .bottom) {
                 if hasWaiting(model) {
                     Button {
+                        isReleasingHold = true
                         heldEnd = nil
-                        Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(50))
-                            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
-                        }
+                        releaseCount += 1
                     } label: {
                         Label("New messages", systemImage: "arrow.down")
                             .font(.footnote.weight(.semibold))

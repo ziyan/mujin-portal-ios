@@ -33,6 +33,10 @@ struct ChatView: View {
     /// How tall the typing area was when the person left the end, kept while they read further up for the same reason.
     @State private var typingAreaHeight: CGFloat = 0
     @State private var heldTypingAreaHeight: CGFloat = 0
+    /// Whether the person just let out what waited below: the list grows past the end while it scrolls there, and is not held again.
+    @State private var isReleasingHold = false
+    /// Counts the releases, so the scroll to the end runs after the released messages are laid out.
+    @State private var releaseCount = 0
     @State private var isOnScreen = false
     @State private var draft = DemoOptions.screen == "chat-mention" ? "Can @" : ""
     @State private var messageToDelete: ChatMessage?
@@ -304,11 +308,13 @@ struct ChatView: View {
             .onChange(of: isAtEnd) { _, isShown in
                 if isShown {
                     heldAfterMessageId = nil
-                } else {
+                    isReleasingHold = false
+                } else if !isReleasingHold {
                     heldAfterMessageId = heldAfterMessageId ?? model.timeline.messages.last?.id
                     heldTypingAreaHeight = typingAreaHeight
                 }
             }
+            .onChange(of: releaseCount) { _, _ in withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) } }
             .task(id: focusedMessageId) { await showFocusedMessage(model, proxy: proxy) }
             // A new message is followed only from the end, or when it is the person's own, which also lets out what waited below.
             .onChange(of: model.timeline.messages.last?.id) { _, _ in
@@ -321,11 +327,9 @@ struct ChatView: View {
                 let waiting = model.timeline.messages.count - shownMessages(model).count
                 if waiting > 0 {
                     Button {
+                        isReleasingHold = true
                         heldAfterMessageId = nil
-                        Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(50))
-                            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
-                        }
+                        releaseCount += 1
                     } label: {
                         Label(waiting == 1 ? String(localized: "1 new message") : String(localized: "\(waiting) new messages"), systemImage: "arrow.down")
                             .font(.footnote.weight(.semibold))
