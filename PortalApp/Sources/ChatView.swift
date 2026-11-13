@@ -26,6 +26,14 @@ struct ChatView: View {
     /// The threads the person waved away from the hint that offers to continue one, while this screen is open.
     /// The message a link pointed at, marked for a moment.
     @State private var highlightedMessageId: String?
+    /// Whether the list shows its last message. Only then does it follow what arrives at the end.
+    @State private var isAtEnd = true
+    /// The last message shown while the person reads further up. What arrives after it waits below, behind a button, so nothing
+    /// below the messages being read grows and moves them.
+    @State private var heldAfterMessageId: String?
+    /// How tall the typing area was when the person left the end, kept while they read further up for the same reason.
+    @State private var typingAreaHeight: CGFloat = 0
+    @State private var heldTypingAreaHeight: CGFloat = 0
     @State private var isOnScreen = false
     /// Whether this screen is counted among those that show a call going elsewhere in a strip under their header.
     @State private var isHostingCallStrip = false
@@ -227,8 +235,9 @@ struct ChatView: View {
     private func messages(_ model: ChatModel) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
-                // Not lazy: scrolling could leave a lazy stack placing its rows forever, with the app frozen at full CPU. The window
-                // holds one page of messages and grows only when the person asks for earlier ones.
+                // Not lazy: scrolling could leave a lazy stack placing its rows forever, with the app frozen at full CPU, and a lazy
+                // stack's guessed heights move the rows as it measures them. The window holds one page of messages and grows a page
+                // at a time when the person pulls down past the top.
                 VStack(alignment: .leading, spacing: 10) {
                     if let state = earlierRowState(model) {
                         EarlierMessagesRow(state: state, pullProgress: earlierPullProgress) { loadEarlierKeepingPlace(model, proxy: proxy) }
@@ -245,7 +254,7 @@ struct ChatView: View {
                         }
                         .padding(.top, 48)
                     }
-                    let messages = model.timeline.messages
+                    let messages = shownMessages(model)
                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                         let previous = index > 0 ? messages[index - 1] : nil
                         let isNewDay = DayLabel.isNewDay(previous?.date, message.date)
@@ -288,10 +297,17 @@ struct ChatView: View {
                     ForEach(model.approvals) { card in
                         ApprovalCardView(card: card) { isApproved in Task { await model.decide(card, isApproved: isApproved) } }
                     }
-                    if model.isAssistantWorkingHere && model.questions.isEmpty && model.approvals.isEmpty {
-                        TypingBubble()
+                    if isAtEnd {
+                        VStack(alignment: .leading, spacing: 10) {
+                            if model.isAssistantWorkingHere && model.questions.isEmpty && model.approvals.isEmpty {
+                                TypingBubble()
+                            }
+                            typingLine(model)
+                        }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { typingAreaHeight = $0 }
+                    } else {
+                        Color.clear.frame(height: heldTypingAreaHeight)
                     }
-                    typingLine(model)
                     Color.clear.frame(height: 1).id("bottom")
                 }
                 .padding(.horizontal, 16)
@@ -301,16 +317,54 @@ struct ChatView: View {
             }
             .scrollDismissesKeyboard(.immediately)
             .background(Color.portalPage)
+            // A short chat sits at the bottom, and a long one opens at its end. When the content changes size, the list at its end
+            // keeps the end in view; read further up, it keeps the messages in view where they are, whatever changes below them. An
+            // earlier page going in above is the one change made at the top, and while it does the list keeps its distance from the end.
             .defaultScrollAnchor(.bottom)
             // Earlier messages are read only on a pull past the top; the bottom anchor keeps the reading place as they go in above.
             .modifier(PullForEarlier(state: model.earlierRowState, pullProgress: $earlierPullProgress) { loadEarlierKeepingPlace(model, proxy: proxy) })
+            .onScrollGeometryChange(for: Bool.self, of: ListEnd.isShown) { _, isShown in isAtEnd = isShown }
+            .onChange(of: isAtEnd) { _, isShown in
+                if isShown {
+                    heldAfterMessageId = nil
+                } else {
+                    heldAfterMessageId = heldAfterMessageId ?? model.timeline.messages.last?.id
+                    heldTypingAreaHeight = typingAreaHeight
+                }
+            }
             .task(id: focusedMessageId) { await showFocusedMessage(model, proxy: proxy) }
+            // A new message is followed only from the end, or when it is the person's own, which also lets out what waited below.
             .onChange(of: model.timeline.messages.last?.id) { _, _ in
+                let isOwn = model.timeline.messages.last.map { $0.authorUserId == model.currentUserId && !$0.isAssistant } ?? false
+                guard isAtEnd || isOwn else { return }
+                heldAfterMessageId = nil
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+            }
+            .overlay(alignment: .bottom) {
+                let waiting = model.timeline.messages.count - shownMessages(model).count
+                if waiting > 0 {
+                    Button {
+                        heldAfterMessageId = nil
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(50))
+                            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+                        }
+                    } label: {
+                        Label(waiting == 1 ? String(localized: "1 new message") : String(localized: "\(waiting) new messages"), systemImage: "arrow.down")
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .padding(.bottom, 8)
+                    .accessibilityIdentifier("newMessagesButton")
+                }
             }
             // The call's stage taking or giving back room at the top keeps the newest message in view above the composer. The
             // scroll waits for the layout that applies the new margin: made at once, it scrolls to where the end was before.
             .onChange(of: callStageBottom) { _, _ in
+                guard isAtEnd else { return }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(100))
                     proxy.scrollTo("bottom", anchor: .bottom)
@@ -484,6 +538,13 @@ struct ChatView: View {
 
     private func lastOwnMessageId(_ model: ChatModel) -> String? {
         model.timeline.messages.last { $0.authorUserId == model.currentUserId && !$0.isDeleted }?.id
+    }
+
+    /// The messages the list shows: all of them, or while the person reads further up, those up to the one shown when they left the end.
+    private func shownMessages(_ model: ChatModel) -> [ChatMessage] {
+        let all = model.timeline.messages
+        guard let heldAfterMessageId, let index = all.lastIndex(where: { $0.id == heldAfterMessageId }) else { return all }
+        return Array(all[...index])
     }
 
     @ViewBuilder
