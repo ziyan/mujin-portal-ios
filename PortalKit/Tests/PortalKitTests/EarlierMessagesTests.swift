@@ -24,4 +24,11 @@ import Testing
         #expect(EarlierMessages.pullProgress(overscroll: -10) == 0)
         #expect(EarlierMessages.pullProgress(overscroll: 500) == 1)
     }
+
+    @Test func anArmedPullStaysArmedUntilItComesWellBack() {
+        let wavering = EarlierMessages.armDistance - 4
+        #expect(!EarlierMessages.isArmed(overscroll: wavering, state: .more, wasArmed: false), "Short of the distance, a pull is not armed.")
+        #expect(EarlierMessages.isArmed(overscroll: wavering, state: .more, wasArmed: true), "A finger wavering at the distance stays armed.")
+        #expect(!EarlierMessages.isArmed(overscroll: EarlierMessages.disarmDistance - 1, state: .more, wasArmed: true))
+    }
 }

@@ -1,14 +1,26 @@
+import Observation
 import PortalKit
 import SwiftUI
+
+/// EarlierPull is how far a pull past the top has gone, kept apart from the screen so that only the row at the top redraws as the
+/// finger moves, not every message under it.
+@MainActor
+@Observable
+final class EarlierPull {
+    /// From 0 to 1, where 1 is armed.
+    var progress = 0.0
+}
 
 /// EarlierMessagesRow sits at the top of a chat or conversation and says what is before the first message held: that a pull down
 /// reads more, with an arrow that turns as the pull reaches the set distance, a spinner while it reads, why it failed with a way to
 /// try again, or that this is the start. VoiceOver reads it as a button that loads the earlier messages.
 struct EarlierMessagesRow: View {
     let state: EarlierMessages.RowState
-    /// How far the pull has gone toward reading more, from 0 to 1.
-    let pullProgress: Double
+    /// How far the pull has gone toward reading more.
+    let pull: EarlierPull
     let onLoad: () -> Void
+
+    private var pullProgress: Double { pull.progress }
 
     var body: some View {
         Group {
@@ -60,7 +72,7 @@ struct EarlierMessagesRow: View {
 /// it: at rest, and while the list settles after a flick, it writes nothing, so a change of layout can never feed back into it.
 struct PullForEarlier: ViewModifier {
     let state: EarlierMessages.RowState
-    @Binding var pullProgress: Double
+    let pull: EarlierPull
     let onLoad: () -> Void
 
     @State private var isArmed = false
@@ -74,10 +86,10 @@ struct PullForEarlier: ViewModifier {
             } action: { _, overscroll in
                 guard isInteracting, state.canLoad else { return }
                 let progress = EarlierMessages.pullProgress(overscroll: overscroll)
-                if abs(progress - pullProgress) > 0.05 || (progress == 0) != (pullProgress == 0) || (progress == 1) != (pullProgress == 1) {
-                    pullProgress = progress
+                if abs(progress - pull.progress) > 0.05 || (progress == 0) != (pull.progress == 0) || (progress == 1) != (pull.progress == 1) {
+                    pull.progress = progress
                 }
-                let armed = EarlierMessages.isArmed(overscroll: overscroll, state: state)
+                let armed = EarlierMessages.isArmed(overscroll: overscroll, state: state, wasArmed: isArmed)
                 if armed != isArmed { isArmed = armed }
             }
             .onScrollPhaseChange { oldPhase, newPhase in
@@ -86,7 +98,7 @@ struct PullForEarlier: ViewModifier {
                 // Letting go reads the earlier page when the pull was armed, and the row goes back to rest either way.
                 let wasArmed = isArmed
                 isArmed = false
-                if pullProgress != 0 { pullProgress = 0 }
+                if pull.progress != 0 { pull.progress = 0 }
                 if wasArmed { onLoad() }
             }
             .sensoryFeedback(.impact(weight: .light), trigger: isArmed) { _, armed in armed }
