@@ -130,6 +130,8 @@ enum CallDemo {
                 "id": "chat03", "organizationId": "organization01", "chatKind": "direct", "name": NSNull(), "displayName": "Sam Sample", "isMemoryFilingEnabled": false,
                 "lastMessageAt": stamp(120), "readerConversationId": "chatconv03", "readerNotificationLevel": "all", "isReaderAdmin": false,
                 "isReaderMember": true, "readerUnreadMessageCount": 0, "readerLastReadMessageId": NSNull(), "lastMessageExcerpt": "Voice message", "lastMessageAuthorName": "Sam Sample",
+                // Staff may write internal notes here on the voice message screens, which show the Staff only switch beside the bar.
+                "canPostInternal": DemoOptions.offersInternalNotes && DemoOptions.isStaff,
                 "members": [
                     member("user01", "Alex Example", "organization01", "Example Logistics"),
                     member("user02", "Sam Sample", "organization00", "Support", staff: true),

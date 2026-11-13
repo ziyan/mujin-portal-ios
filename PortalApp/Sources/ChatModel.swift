@@ -467,7 +467,8 @@ final class ChatModel {
             let file = try await connection.uploadAttachment(data: data, filename: VoiceMessageRules.filename(at: Date()), contentType: VoiceMessageRules.contentType)
             let row = try await connection.sendChatVoiceMessage(
                 conversationId: conversationId, attachmentId: file.id, durationMS: recording.durationMS, waveformLevels: recording.levels,
-                replyToMessageId: ThreadRouting.replyToMessageId(pickedMessageId: replyTarget?.id, viewThreadRootMessageId: threadRootMessageId))
+                replyToMessageId: ThreadRouting.replyToMessageId(pickedMessageId: replyTarget?.id, viewThreadRootMessageId: threadRootMessageId),
+                isInternal: isInternalNote)
             replyTarget = nil
             if let row { timeline.upsert(row) }
             await markRead()

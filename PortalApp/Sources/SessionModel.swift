@@ -522,6 +522,14 @@ enum DemoOptions {
         }
     }
 
+    /// Whether the demo server takes internal notes: the screens that show the Staff only switch to staff, typed or as a voice message.
+    static var offersInternalNotes: Bool {
+        ["chat-internal", "chat-internal-on", "chat-voice-composer", "chat-voice-recording"].contains(screen ?? "")
+    }
+
+    /// Whether the chat opens with the Staff only switch on, to show the amber composer and voice message bar.
+    static var startsInternalNote: Bool { screen == "chat-internal-on" || (screen == "chat-voice-recording" && isStaff) }
+
     /// The tab to open on, from `section:<name>`.
     static var section: AppSection? {
         guard let screen else { return nil }
