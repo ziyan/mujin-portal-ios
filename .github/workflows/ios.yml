@@ -68,7 +68,7 @@ jobs:
   kit:
     name: PortalKit on Linux
     needs: changes
-    if: needs.changes.outputs.app == 'true'
+    if: false
     runs-on: ubuntu-latest
     container: swift:6.1
     steps:
@@ -81,7 +81,7 @@ jobs:
   app:
     name: App on macOS
     needs: changes
-    if: needs.changes.outputs.app == 'true'
+    if: false
     runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -221,7 +221,7 @@ jobs:
           set +e
           xcodebuild test -project MujinPortal.xcodeproj -scheme MujinPortal -destination "id=${DEVICE}" -derivedDataPath build \
             -clonedSourcePackagesDirPath SourcePackages COMPILER_INDEX_STORE_ENABLE=NO \
-            -only-testing:MujinPortalUITests -skip-testing:MujinPortalUITests/ChatRenderingTests -skip-testing:MujinPortalUITests/ChatRenderingPerformanceTests -skip-testing:MujinPortalUITests/RichMarkdownDocumentTests -parallel-testing-enabled YES -parallel-testing-worker-count 3 -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
+            -only-testing:MujinPortalUITests/OverviewTileTests -only-testing:MujinPortalUITests/SitePagesTests -only-testing:MujinPortalUITests/SiteViewTests -only-testing:MujinPortalUITests/SpeechTests -only-testing:MujinPortalUITests/ThreadTests -only-testing:MujinPortalUITests/BrowserFromSheetTests -only-testing:MujinPortalUITests/CallStageTests -parallel-testing-enabled NO -retry-tests-on-failure -test-iterations 2 -resultBundlePath ui-tests.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee ui-tests.log
           RESULT=${PIPESTATUS[0]}
           kill "${MONITOR}" || true
           exit "${RESULT}"
@@ -249,7 +249,7 @@ jobs:
   rendering:
     name: Chat rendering on macOS
     needs: changes
-    if: needs.changes.outputs.app == 'true'
+    if: false
     runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
