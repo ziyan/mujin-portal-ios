@@ -634,7 +634,10 @@ private struct OpensThread: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if let root, let onOpen {
-            content.onTapGesture { onOpen(root) }
+            // VoiceOver opens it with an action, as a tap does: a message with no replies has no count to press.
+            content
+                .onTapGesture { onOpen(root) }
+                .accessibilityAction(named: Text("Open thread")) { onOpen(root) }
         } else {
             content
         }
