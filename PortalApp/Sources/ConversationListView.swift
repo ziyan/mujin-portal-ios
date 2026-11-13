@@ -117,6 +117,7 @@ struct ConversationListView: View {
                 if screen == "photo-chat" { selection.open("conversation-photos") }
                 if screen == "voice" || screen == "background-commands" || screen == "conversation-links" || screen == "message-actions" || screen == "select-text" || screen == "title-event" { selection.open("conversation01") }
                 if screen == "side-chat-links" { selection.open("conversation05") }
+                if EarlierDemo.owns(screen) { selection.open(EarlierDemo.conversationId) }
                 if DemoArtifact.opensConversation(screen: screen) { selection.open("conversation04") }
                 if screen == "chat-reply" || screen == "chat-internal" || screen == "chat-composer" || screen == "chat-mention" || screen == "chat-add-people" || screen == "chat-link-tap" || screen == "chat-links" || screen == "chat-message-actions" { selection.open("chatconv01") }
                 if let conversationId = CallDemo.conversationId(for: screen) { selection.open(conversationId) }
