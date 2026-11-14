@@ -108,9 +108,10 @@ struct ComposerCard<Accessory: View>: View {
             .accessibilityLabel(Text(placeholder))
             .accessibilityIdentifier(fieldIdentifier)
         }
-        // The width the words have in the pill: measured only while it is one, since the card's is wider.
+        // The width the words have in the pill: measured only while it is one, since the card's is wider. A change under a point is
+        // rounding, not a new width, and acting on it could flip the shape back and forth at the boundary.
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
-            if !isExpanded { pillFieldWidth = width }
+            if !isExpanded, abs(width - pillFieldWidth) >= 1 { pillFieldWidth = width }
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 8)
