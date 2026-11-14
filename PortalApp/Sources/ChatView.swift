@@ -922,6 +922,8 @@ private struct MessageRow: View {
                     })
             } else {
             VStack(alignment: .leading, spacing: 2) {
+                // The mark has a line of its own, so it never sits on the words of a short note.
+                if message.isInternal { InternalNoteLabel() }
                 // People's messages are Markdown. The words around code and links keep the name chips of the people mentioned.
                 RichBodyView(markdown: message.text, connection: model.connection, isSelectable: false) { words in markdownText(words) }
                 if message.isEdited {
@@ -936,9 +938,6 @@ private struct MessageRow: View {
                 if message.isInternal {
                     RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.statusWarning, lineWidth: 1)
                 }
-            }
-            .overlay(alignment: .topTrailing) {
-                if message.isInternal { InternalNoteLabel().padding(6) }
             }
             .foregroundStyle(.primary)
             }
