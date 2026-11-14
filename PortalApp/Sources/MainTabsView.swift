@@ -273,7 +273,7 @@ struct MainTabsView: View {
                     CallBar(center: appModel.callCenter, call: call)
                 }
                 // A call with the assistant whose conversation is off screen goes on here, as a call with people does.
-                if session.callStripsShown.isEmpty, let call = session.assistantCall, call.isGoing, session.callPlaceOnScreen != call.place {
+                if session.callStripsShown.isEmpty, let call = session.assistantCall, call.isGoing, !session.isShowing(call.place) {
                     // The bar sits outside the tab bar, which is where the session is put in the environment.
                     AssistantCallBar(call: call)
                         .environment(session)
@@ -315,7 +315,7 @@ struct MainTabsView: View {
         // A call with the assistant that ends, or fails, while its conversation or thread is off screen is let go of here, with its
         // conversation's live feed; one on screen keeps its own.
         .onChange(of: session.assistantCall?.isGoing ?? false) { _, isGoing in
-            guard !isGoing, let call = session.assistantCall, session.callPlaceOnScreen != call.place else { return }
+            guard !isGoing, let call = session.assistantCall, !session.isShowing(call.place) else { return }
             call.end()
             session.assistantCall = nil
         }

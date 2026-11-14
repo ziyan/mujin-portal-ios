@@ -57,8 +57,13 @@ final class SessionModel {
     /// The call with the assistant that is going, held here and not by its conversation's screen: leaving the screen, switching tabs or
     /// covering it keeps the call, which shows in a small bar until the person comes back or hangs up.
     var assistantCall: AssistantCall?
-    /// The conversation or thread on screen now, if any, so the assistant call's bar steps aside where the call's own stage shows it.
-    var callPlaceOnScreen: CallPlace?
+    /// The conversations and threads on screen now, one entry for each screen that shows, so the assistant call's bar steps aside where
+    /// the call's own stage shows it. Each screen adds and takes out only its own entry, so a screen that goes away after another
+    /// opened on the same place does not take the new one's entry with it.
+    var callPlacesOnScreen: [UUID: CallPlace] = [:]
+
+    /// Whether a screen shows this place now.
+    func isShowing(_ place: CallPlace) -> Bool { callPlacesOnScreen.values.contains(place) }
     /// The call strips showing now, one for each conversation, chat or thread screen that shows a call going elsewhere under its own
     /// header. The app's bar above the header steps aside while any does. Each strip adds itself while it shows and takes itself out
     /// as it goes, so a screen that is loading, or shows no strip, never hides the bar.

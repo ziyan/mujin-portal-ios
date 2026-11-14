@@ -39,7 +39,8 @@ final class CallStageTests: XCTestCase {
         let other = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Questions about site01")).firstMatch
         // The list draws only the rows near the screen, and this conversation is a day old: it is below them until the list scrolls.
         for _ in 0..<12 where !other.exists { app.swipeUp() }
-        DemoApp.scrollToElement(other, in: app)
+        // The row may be the last of the list, which cannot be scrolled up to the middle of the screen: it only has to be tappable.
+        XCTAssertTrue(DemoApp.waitUntilHittable(other, timeout: 20), "The conversation cannot be tapped.\n\(app.debugDescription)")
         other.tap()
         let strip = DemoApp.element(app, "ongoingCallStrip")
         XCTAssertTrue(DemoApp.waitUntilExists(strip, timeout: 20), "The other conversation does not show the call.\n\(app.debugDescription)")
