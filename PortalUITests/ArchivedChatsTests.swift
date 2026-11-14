@@ -29,6 +29,12 @@ final class ArchivedChatsTests: XCTestCase {
         restore.tap()
         XCTAssertTrue(row.waitForNonExistence(timeout: 10), "The restored chat stayed in the archived list.\n\(app.debugDescription)")
         app.buttons["Done"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts[Self.archivedTitle].waitForExistence(timeout: 30), "The restored chat is not back in the chat list.\n\(app.debugDescription)")
+        // The chat list draws only the rows near the screen, and this chat is ten days old: it is below them until the list scrolls.
+        let restored = app.staticTexts[Self.archivedTitle]
+        for _ in 0..<12 where !restored.exists {
+            app.swipeUp()
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        XCTAssertTrue(restored.waitForExistence(timeout: 30), "The restored chat is not back in the chat list.\n\(app.debugDescription)")
     }
 }
