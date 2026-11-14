@@ -7,6 +7,7 @@ public struct MemoryPage: Codable, Equatable, Identifiable, Sendable {
     public let path: String?
     public let memoryScope: String?
     public let siteId: String?
+    public let siteName: String?
     public let userId: String?
     public let organizationId: String?
     public let pageKind: String?
@@ -24,7 +25,7 @@ public struct MemoryPage: Codable, Equatable, Identifiable, Sendable {
     public init(
         id: String, path: String? = nil, memoryScope: String? = "user", name: String? = nil, summary: String? = nil, liveFactCount: Int? = nil,
         facts: [MemoryFact]? = nil, links: [MemoryLink]? = nil, aliases: [String]? = nil, isWritableByReader: Bool? = nil, pageKind: String? = nil,
-        siteId: String? = nil, dormantAt: String? = nil
+        siteId: String? = nil, siteName: String? = nil, dormantAt: String? = nil
     ) {
         self.id = id
         self.path = path
@@ -38,6 +39,7 @@ public struct MemoryPage: Codable, Equatable, Identifiable, Sendable {
         self.isWritableByReader = isWritableByReader
         self.pageKind = pageKind
         self.siteId = siteId
+        self.siteName = siteName
         self.dormantAt = dormantAt
         self.userId = nil
         self.organizationId = nil
@@ -48,6 +50,15 @@ public struct MemoryPage: Codable, Equatable, Identifiable, Sendable {
     /// The name to show: the page's own, else its path.
     public var shownName: String { MemoryPageName.shown(name: name, path: path) }
     public var isDormant: Bool { !(dormantAt ?? "").isEmpty }
+
+    /// The site a site page belongs to, as a person reads it: the site's name, else "Site" and its id. Nil for a page in any other pool.
+    public var siteTitle: String? {
+        guard memoryScope == "site" else { return nil }
+        let trimmed = (siteName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+        let identifier = (siteId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return identifier.isEmpty ? "Site" : "Site \(identifier)"
+    }
 }
 
 /// MemoryPageName is how a page is titled for a person: its own name, else the last part of its path in words.
@@ -245,7 +256,7 @@ public struct MemoryCitation: Equatable, Sendable {
 }
 
 extension Documents {
-    static let memoryPageFields = "id path memoryScope siteId userId organizationId pageKind name summary liveFactCount importance dormantAt modifiedAt"
+    static let memoryPageFields = "id path memoryScope siteId siteName userId organizationId pageKind name summary liveFactCount importance dormantAt modifiedAt"
 
     static let memoryFactFields = """
         id number factKind sentence importedTitle tags happenedAt confidence isInferred supersededByFactId dormantAt createdAt
@@ -389,5 +400,48 @@ extension Connection {
 
     public func forgetMemoryPage(id: String) async throws {
         _ = try await execute(Documents.forgetMemoryPage, variables: ["memoryPageId": .string(id)], as: JSONValue.self)
+    }
+}
+
+/// MemoryPageGroup is one section of the knowledge list: a whole pool, or for site pages one site.
+public struct MemoryPageGroup: Equatable, Sendable, Identifiable {
+    /// `user`, `site`, `organization` or `global` (or whatever the server sent).
+    public let memoryScope: String
+    /// The site's title for a site group, nil for the other pools.
+    public let siteTitle: String?
+    public let pages: [MemoryPage]
+
+    public var id: String { siteTitle.map { "\(memoryScope):\($0)" } ?? memoryScope }
+}
+
+public enum MemoryPageGrouping {
+    static let scopeOrder = ["user", "site", "organization", "global"]
+
+    /// The pages as sections in the order About you, one per site (by name), Your organization, Everyone, then any other pool.
+    public static func groups(_ pages: [MemoryPage]) -> [MemoryPageGroup] {
+        var order: [(scope: String, siteId: String?, siteTitle: String?)] = []
+        var members: [String: [MemoryPage]] = [:]
+        for page in pages {
+            let scope = page.memoryScope ?? ""
+            let siteTitle = page.siteTitle
+            let key = siteTitle == nil ? scope : "\(scope):\(page.siteId ?? ""):\(siteTitle ?? "")"
+            if members[key] == nil { order.append((scope, page.siteId, siteTitle)) }
+            members[key, default: []].append(page)
+        }
+        let sorted = order.sorted { left, right in
+            let leftRank = scopeOrder.firstIndex(of: left.scope) ?? 99
+            let rightRank = scopeOrder.firstIndex(of: right.scope) ?? 99
+            if leftRank != rightRank { return leftRank < rightRank }
+            if let leftTitle = left.siteTitle, let rightTitle = right.siteTitle {
+                let comparison = leftTitle.localizedCaseInsensitiveCompare(rightTitle)
+                if comparison != .orderedSame { return comparison == .orderedAscending }
+                return (left.siteId ?? "") < (right.siteId ?? "")
+            }
+            return false
+        }
+        return sorted.map { entry in
+            let key = entry.siteTitle == nil ? entry.scope : "\(entry.scope):\(entry.siteId ?? ""):\(entry.siteTitle ?? "")"
+            return MemoryPageGroup(memoryScope: entry.scope, siteTitle: entry.siteTitle, pages: members[key] ?? [])
+        }
     }
 }

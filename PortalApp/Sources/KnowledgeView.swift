@@ -14,14 +14,15 @@ struct MemoryPageReference: Hashable, Identifiable {
     var id: String { "\(pageId ?? "")|\(path ?? "")|\(scope ?? "")|\(factNumber ?? 0)" }
 }
 
-extension MemoryPage {
-    var scopeTitle: LocalizedStringKey {
+extension MemoryPageGroup {
+    /// A site group is titled with the site's name; the other pools have fixed titles.
+    var sectionTitle: Text {
+        if let siteTitle { return Text(verbatim: siteTitle) }
         switch memoryScope {
-        case "user": "About you"
-        case "site": "Sites"
-        case "organization": "Your organization"
-        case "global": "Everyone"
-        default: LocalizedStringKey(memoryScope ?? "")
+        case "user": return Text("About you")
+        case "organization": return Text("Your organization")
+        case "global": return Text("Everyone")
+        default: return Text(verbatim: memoryScope)
         }
     }
 }
@@ -35,8 +36,6 @@ struct KnowledgeView: View {
     @State private var phase = LoadPhase.loading
     @State private var searchText = ""
     @State private var foundFacts: [MemoryFact] = []
-
-    private static let scopeOrder = ["user", "site", "organization", "global"]
 
     var body: some View {
         Group {
@@ -81,14 +80,14 @@ struct KnowledgeView: View {
                             NavigationLink(value: MoreDestination.memoryPage(MemoryPageReference(path: fact.pagePath, scope: fact.memoryScope, siteId: fact.siteId, factNumber: fact.number))) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(fact.sentence ?? "").foregroundStyle(.primary)
-                                    Text(fact.shownPageName).font(.caption).foregroundStyle(.secondary)
+                                    Text(factPageLabel(fact)).font(.caption).foregroundStyle(.secondary)
                                 }
                             }
                         }
                     }
                 }
-                ForEach(groups, id: \.scope) { group in
-                    Section(group.pages[0].scopeTitle) {
+                ForEach(MemoryPageGrouping.groups(pages)) { group in
+                    Section {
                         ForEach(group.pages) { page in
                             NavigationLink(value: MoreDestination.memoryPage(MemoryPageReference(pageId: page.id))) {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -102,6 +101,8 @@ struct KnowledgeView: View {
                                 }
                             }
                         }
+                    } header: {
+                        group.sectionTitle
                     }
                 }
             }
@@ -110,11 +111,12 @@ struct KnowledgeView: View {
         .refreshable { await load() }
     }
 
-    private var groups: [(scope: String, pages: [MemoryPage])] {
-        let grouped = Dictionary(grouping: pages) { $0.memoryScope ?? "" }
-        return grouped.keys.sorted {
-            (Self.scopeOrder.firstIndex(of: $0) ?? 99) < (Self.scopeOrder.firstIndex(of: $1) ?? 99)
-        }.map { ($0, grouped[$0] ?? []) }
+    /// The page a found fact is on, with its site's name in front for a site page whose site is known from the pages found.
+    private func factPageLabel(_ fact: MemoryFact) -> String {
+        guard fact.memoryScope == "site",
+              let siteTitle = pages.first(where: { $0.memoryScope == "site" && $0.siteId == fact.siteId })?.siteTitle
+        else { return fact.shownPageName }
+        return "\(siteTitle) · \(fact.shownPageName)"
     }
 
     private func load() async {
@@ -200,6 +202,9 @@ struct MemoryPageView: View {
         return ScrollViewReader { proxy in
             List {
                 PortalRows {
+                    if let siteTitle = page.siteTitle {
+                        Section { Text(siteTitle).foregroundStyle(.secondary) }
+                    }
                     if let summary = page.summary, !summary.isEmpty {
                         // A summary is Markdown, as on the web: its formulas, diagrams and tables are drawn.
                         Section { MarkdownView(markdown: summary).accessibilityElement(children: .contain).accessibilityIdentifier("memoryPageSummary") }
