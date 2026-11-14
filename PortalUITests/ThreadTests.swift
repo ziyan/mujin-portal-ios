@@ -158,7 +158,8 @@ final class ThreadTests: XCTestCase {
         let app = DemoApp.launch(screen: "thread-conversation")
         let single = message(app, Self.assistantMainText)
         XCTAssertTrue(single.waitForExistence(timeout: 60), "The conversation did not open.\n\(app.debugDescription)")
-        DemoApp.scrollToElement(single, in: app)
+        // The last message sits just above the composer, below the band a scroll aims for: it is tapped where it is when it can be.
+        if !DemoApp.waitUntilHittable(single) { DemoApp.scrollToElement(single, in: app) }
         // The words themselves, not the bubble around them.
         single.tap()
         XCTAssertTrue(threadTitle(app).waitForExistence(timeout: 30), "A tap on a message with no replies opened no thread.\n\(app.debugDescription)")
