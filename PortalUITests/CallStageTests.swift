@@ -16,6 +16,20 @@ final class CallStageTests: XCTestCase {
         checkMuteAndLeave(screen: "chat-in-call")
     }
 
+    /// Leaving the conversation does not end a call with the assistant: it goes on in a bar, which brings the conversation back.
+    func testAnAssistantCallGoesOnInABarWhenItsConversationIsLeft() {
+        let app = DemoApp.launch(screen: "voice")
+        let leave = DemoApp.button(app, "callStageLeave")
+        XCTAssertTrue(DemoApp.waitUntilExists(leave, timeout: 90), "The call did not start.\n\(app.debugDescription)")
+        DemoApp.goBack(app)
+        let bar = DemoApp.element(app, "assistantCallBar")
+        XCTAssertTrue(DemoApp.waitUntilExists(bar, timeout: 20), "Leaving the conversation ended the call.\n\(app.debugDescription)")
+        bar.tap()
+        XCTAssertTrue(DemoApp.waitUntilExists(leave, timeout: 20), "The bar did not bring the call back.\n\(app.debugDescription)")
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: bar)
+        XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 10), .completed, "The bar stayed over its own conversation.\n\(app.debugDescription)")
+    }
+
     private func checkMuteAndLeave(screen: String, file: StaticString = #filePath, line: UInt = #line) {
         let app = DemoApp.launch(screen: screen)
         let mute = DemoApp.button(app, "callStageMute")

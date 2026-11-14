@@ -54,6 +54,11 @@ final class SessionModel {
     var ticketToOpen: String?
     /// The feedback sheet a screenshot opened, nil while none is up.
     var feedbackRequest: FeedbackRequest?
+    /// The call with the assistant that is going, held here and not by its conversation's screen: leaving the screen, switching tabs or
+    /// covering it keeps the call, which shows in a small bar until the person comes back or hangs up.
+    var assistantCall: AssistantCall?
+    /// The conversation on screen now, if any, so the assistant call's bar steps aside while its own conversation shows it.
+    var conversationIdOnScreen: String?
     /// Set when a notification asks More to show the Automations screen.
     var automationsRequested = false
     var isShowingNotifications = false

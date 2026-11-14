@@ -51,7 +51,16 @@ struct ConversationView: View {
         dictation.abort()
         session.readAloud.stop()
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        holdCall()
         Task { await voice.start() }
+    }
+
+    /// Hands the call to the session, which keeps it, with this conversation, when the screen goes away. A call that is going already
+    /// with another conversation ends first: one call at a time.
+    private func holdCall() {
+        guard let voice, let model else { return }
+        if let other = session.assistantCall, other.voice !== voice { other.end() }
+        session.assistantCall = AssistantCall(conversationId: conversationId, model: model, voice: voice)
     }
 
     /// The assistant large over the conversation while the call goes, with what the call is doing under its name, and leave and
@@ -96,6 +105,10 @@ struct ConversationView: View {
             }
         }
         .conversationBar(title: isThread ? "\(String(localized: "Thread")) \u{00B7} \(shownTitle)" : shownTitle, isCallStageShown: isCallStaged)
+        // A call that ended on this screen is no longer the session's to keep.
+        .onChange(of: isCallStaged) { _, isStaged in
+            if !isStaged, let voice, session.assistantCall?.voice === voice { session.assistantCall = nil }
+        }
         .navigationDestination(item: $openedThreadRootId) { rootId in
             ConversationView(account: account, conversationId: conversationId, title: title, threadRootMessageId: rootId)
         }
@@ -164,10 +177,17 @@ struct ConversationView: View {
         .onChange(of: session.selectedSection) { _, _ in takeReference() }
         .onAppear { takeReference() }
         .task(id: conversationId) {
+            // A call with this conversation that went on while it was off screen: the screen takes it back, with its conversation.
+            if !isThread, let call = session.assistantCall, call.conversationId == conversationId, call.isGoing {
+                model = call.model
+                voice = call.voice
+                call.model.start()
+                return
+            }
             // The task runs again each time the screen comes back: the messages stay while `onAppear` reads them again.
             if let model, model.conversationId == conversationId {
                 // A call is made from the whole conversation, not from one of its threads.
-                if !isThread { voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory) }
+                if !isThread, !isCallStaged { voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory) }
                 return
             }
             let conversationModel = ConversationModel(
@@ -178,13 +198,17 @@ struct ConversationView: View {
             conversationModel.onTitleChanged = { onTitleChanged?($0) }
             model = conversationModel
             takeReference()
-            voice?.end()
+            // The screen moves to another conversation (on iPad, a pick from the list): a call that is going stays with the session.
+            if !isCallStaged { voice?.end() }
             if !isThread {
                 voice = VoiceCallController(
                     model: conversationModel, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
             }
             conversationModel.start()
-            if appModel.isDemo, DemoOptions.screen == "voice" { voice?.startDemo() }
+            if appModel.isDemo, DemoOptions.screen == "voice" {
+                voice?.startDemo()
+                holdCall()
+            }
             if appModel.isDemo, DemoOptions.screen == "conversation-composer" { drafts.stageDemo() }
             if appModel.isDemo, SpeechDemo.stagesListening(DemoOptions.screen, isThread: isThread) { dictation.stageListening(captionText: DemoSpeech.firstCaption) }
             if appModel.isDemo, SpeechDemo.stagesWords(DemoOptions.screen) { draft = DemoSpeech.dictatedWords }
@@ -202,9 +226,13 @@ struct ConversationView: View {
         .onAppear {
             isOnScreen = true
             model?.start()
+            if !isThread { session.conversationIdOnScreen = conversationId }
         }
         .onDisappear {
             isOnScreen = false
+            if !isThread, session.conversationIdOnScreen == conversationId { session.conversationIdOnScreen = nil }
+            // A call goes on in its bar, its conversation still listening for the answers; anything else stops with the screen.
+            guard !isCallStaged else { return }
             model?.stop()
             voice?.end()
         }
@@ -212,12 +240,16 @@ struct ConversationView: View {
         .onCoveredChange { isCovered in
             guard isOnScreen, let model else { return }
             if isCovered {
-                model.stop()
-                voice?.end()
                 dictation.abort()
                 session.readAloud.stop()
+                // A call goes on in its bar while the screen is covered.
+                guard !isCallStaged else { return }
+                model.stop()
+                voice?.end()
             } else {
-                if !isThread { voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory) }
+                if !isThread, !isCallStaged {
+                    voice = VoiceCallController(model: model, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
+                }
                 model.start()
             }
         }
