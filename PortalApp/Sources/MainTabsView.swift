@@ -271,7 +271,9 @@ struct MainTabsView: View {
                 }
                 // A call with the assistant whose conversation is off screen goes on here, as a call with people does.
                 if let call = session.assistantCall, call.isGoing, session.conversationIdOnScreen != call.conversationId {
+                    // The bar sits outside the tab bar, which is where the session is put in the environment.
                     AssistantCallBar(call: call)
+                        .environment(session)
                 }
             }
         }
