@@ -901,7 +901,7 @@ private struct MessageRow: View {
                         .frame(maxWidth: 320)
                 }
                 if let onOpenThread, message.threadSummary?.isCountShown == true || isAssistantWorkingInThread {
-                    ThreadReplyControl(summary: message.threadSummary, isWorking: isAssistantWorkingInThread, subjectText: message.threadSubject?.subjectText) { onOpenThread(message.id) }
+                    ThreadReplyControl(summary: message.threadSummary, isWorking: isAssistantWorkingInThread, subject: message.threadSubject) { onOpenThread(message.id) }
                 }
                 if isMine, isLastOwn { receipt }
             }

@@ -139,7 +139,7 @@ final class ThreadTests: XCTestCase {
         XCTAssertTrue(chip.waitForExistence(timeout: 30), "The thread does not show what it is about.\n\(app.debugDescription)")
         XCTAssertTrue(chip.label.contains("#13"), "The chip does not name the ticket.\n\(chip.label)")
         DemoApp.goBack(app)
-        XCTAssertTrue(replyControl(app, containing: "Ticket 13").waitForExistence(timeout: 30), "The count line does not name the ticket.\n\(app.debugDescription)")
+        XCTAssertTrue(replyControl(app, containing: "#13").waitForExistence(timeout: 30), "The count line does not name the ticket.\n\(app.debugDescription)")
     }
 
     func testAReplySentInAThreadStaysInTheThreadAndCountsInTheChat() {
