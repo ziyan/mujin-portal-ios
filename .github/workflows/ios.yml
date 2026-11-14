@@ -233,6 +233,8 @@ jobs:
           shoot share-ticket share-ticket
           shoot browser browser
           shoot artifacts conversation:conversation04
+          shoot artifact-full artifact-full
+          shoot artifact-document-full artifact-document-full
           shoot notes conversation:conversation05
           shoot tickets tickets
           shoot ticket ticket
@@ -511,6 +513,8 @@ jobs:
           shoot select-text-dark select-text
           shoot share-dark share
           shoot artifacts-dark conversation:conversation04
+          shoot artifact-full-dark artifact-full
+          shoot artifact-document-full-dark artifact-document-full
           shoot automations-activity-dark automations-activity
           shoot list-dark list
           shoot ticket-dark ticket
