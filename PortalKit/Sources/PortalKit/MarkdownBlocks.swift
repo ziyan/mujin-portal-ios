@@ -104,8 +104,12 @@ public enum MarkdownBlocks {
                 let rest = String(trimmed.dropFirst(opener.count))
                 let isOneLine = rest.count >= closer.count && rest.hasSuffix(closer)
                 let firstLine = isOneLine ? String(rest.dropLast(closer.count)) : rest
-                // Plain words between the delimiters are not a formula: the line is an ordinary paragraph.
-                if isOneLine ? RichMath.isFormula(firstLine.trimmingCharacters(in: .whitespaces)) : true {
+                // Plain words between the delimiters are not a formula: the line is an ordinary paragraph. Over several lines the
+                // block has to close, and hold a formula, too, so a line that only starts with "$$5" leaves the rest of the message be.
+                let isFormulaBlock = isOneLine
+                    ? RichMath.isFormula(firstLine.trimmingCharacters(in: .whitespaces))
+                    : Self.closedFormula(after: lineIndex, firstLine: firstLine, closer: closer, in: lines)
+                if isFormulaBlock {
                     flush()
                     mathCloser = closer
                     if isOneLine {
@@ -172,6 +176,20 @@ public enum MarkdownBlocks {
     /// A delimiter row that is still being typed or streamed (the last line
     /// of the text, with fewer cells than the header) already makes the table,
     /// so the answer does not flip from raw pipes to a table a word later.
+
+    /// Whether a display formula opened on one line closes on a later one, with a formula in between.
+    static func closedFormula(after lineIndex: Int, firstLine: String, closer: String, in lines: [String]) -> Bool {
+        var content = [firstLine]
+        for line in lines.dropFirst(lineIndex + 1) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasSuffix(closer) {
+                content.append(String(trimmed.dropLast(closer.count)))
+                return RichMath.isFormula(content.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            content.append(trimmed)
+        }
+        return false
+    }
     static func table(startingAt index: Int, in lines: [String]) -> (block: MarkdownBlock, endIndex: Int)? {
         guard index + 1 < lines.count else { return nil }
         let header = lines[index].trimmingCharacters(in: .whitespaces)
