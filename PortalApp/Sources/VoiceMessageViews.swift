@@ -198,6 +198,11 @@ struct VoiceHoldBar: View {
             .accessibilityLabel("Use the keyboard")
             .accessibilityIdentifier("voiceKeyboardButton")
             if let internalNoteSwitch { StaffOnlyLockButton(internalNoteSwitch: internalNoteSwitch, diameter: diameter) }
+            // The rest of the bar is the button to hold: a line marks where it starts, with no fill of its own.
+            Rectangle()
+                .fill(Color(.separator))
+                .frame(width: 1, height: diameter * 0.7)
+                .accessibilityHidden(true)
             holdArea
         }
         .padding(.horizontal, 6)
@@ -224,10 +229,11 @@ struct VoiceHoldBar: View {
                     .multilineTextAlignment(.center)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 48)
+        .frame(maxWidth: .infinity, minHeight: 44)
         .padding(.horizontal, 8)
-        .background(recorder.isCancelling ? Color.statusError.opacity(0.18) : Color(.tertiarySystemFill), in: .capsule)
-        .contentShape(.capsule)
+        // Only letting go to cancel tints it; at rest it is the bar itself.
+        .background(recorder.isCancelling ? Color.statusError.opacity(0.18) : Color.clear, in: .capsule)
+        .contentShape(.rect)
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
