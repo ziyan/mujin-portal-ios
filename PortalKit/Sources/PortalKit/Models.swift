@@ -145,6 +145,8 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
     public let isAuthorMujinUser: Bool?
     /// The tickets, controllers, virtual controllers, sites and cells the message names, as the reader may see them.
     public let references: [ChatReference]?
+    /// On a thread's root, the ticket or cell the thread is about. Asked for only from a server that has references.
+    public let threadSubject: ChatReference?
     /// On an assistant answer, whether the person it was given for is Mujin staff. Asked for only from a server that has it.
     public let isOnBehalfOfMujinUser: Bool?
 
@@ -158,8 +160,9 @@ public struct ConversationMessage: Codable, Equatable, Identifiable, Sendable {
         isAddressingAssistant: Bool? = nil, editedAt: String? = nil, deletedAt: String? = nil, linkPreviewsRemovedAt: String? = nil,
         voiceMessage: VoiceMessage? = nil, call: ChatCall? = nil, threadRootMessageId: String? = nil, threadReplyCount: Int? = nil,
         threadLastReplyAt: String? = nil, isInternal: Bool? = nil, isAuthorMujinUser: Bool? = nil, references: [ChatReference]? = nil,
-        isOnBehalfOfMujinUser: Bool? = nil
+        isOnBehalfOfMujinUser: Bool? = nil, threadSubject: ChatReference? = nil
     ) {
+        self.threadSubject = threadSubject
         self.isOnBehalfOfMujinUser = isOnBehalfOfMujinUser
         self.references = references
         self.isInternal = isInternal
