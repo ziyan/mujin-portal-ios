@@ -188,7 +188,9 @@ private struct MarkdownTableView: View {
             // The table fills the row, and scrolls sideways when it is wider. Asking first whether it fits drew a wide table on a
             // wide screen as fitting and then wider than its row, which pushed the words around it off the screen.
             ScrollView(.horizontal, showsIndicators: false) {
-                grid.frame(minWidth: rowWidth, idealWidth: rowWidth, maxWidth: .infinity, alignment: .leading)
+                // The grid at its own width, which is what makes the scroll content wider than the row. A frame that proposed the
+                // row's width as its ideal width cut the content to the row, so there was nothing to drag.
+                grid.fixedSize(horizontal: true, vertical: false).frame(minWidth: rowWidth, alignment: .leading)
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in rowWidth = width }
