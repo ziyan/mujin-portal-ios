@@ -120,6 +120,7 @@ struct ConversationView: View {
         if let other = session.assistantCall, other.voice !== voice { other.end() }
         if let peopleCall = appModel.callCenter.session, !peopleCall.isEnded { appModel.callCenter.hangUp() }
         session.assistantCall = AssistantCall(conversationId: conversationId, threadRootMessageId: threadRootMessageId, model: model, voice: voice)
+        print("CALLDIAG held the call of \(conversationId)")
     }
 
     /// Where this screen is, as a call's place: the conversation, or one of its threads.
@@ -171,6 +172,7 @@ struct ConversationView: View {
         .conversationBar(title: isThread ? "\(String(localized: "Thread")) \u{00B7} \(shownTitle)" : shownTitle, isCallStageShown: isCallStaged)
         // A call that ended on this screen is no longer the session's to keep.
         .onChange(of: isCallStaged) { _, isStaged in
+            print("CALLDIAG staged \(isStaged) in \(conversationId)")
             if !isStaged, let voice, session.assistantCall?.voice === voice { session.assistantCall = nil }
         }
         .navigationDestination(item: $openedThreadRootId) { rootId in
@@ -324,10 +326,12 @@ struct ConversationView: View {
         .onAppear {
             isOnScreen = true
             model?.start()
+            print("CALLDIAG appeared \(conversationId)")
             session.callPlaceOnScreen = place
         }
         .onDisappear {
             isOnScreen = false
+            print("CALLDIAG disappeared \(conversationId)")
             if session.callPlaceOnScreen == place { session.callPlaceOnScreen = nil }
             // A call goes on in its bar, its conversation still listening for the answers; anything else stops with the screen.
             guard !isCallStaged else { return }

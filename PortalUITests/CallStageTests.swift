@@ -37,6 +37,8 @@ final class CallStageTests: XCTestCase {
         XCTAssertTrue(DemoApp.waitUntilExists(leave, timeout: 90), "The call did not start.\n\(app.debugDescription)")
         DemoApp.goBack(app)
         let other = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Questions about site01")).firstMatch
+        // The list draws only the rows near the screen, and this conversation is a day old: it is below them until the list scrolls.
+        for _ in 0..<12 where !other.exists { app.swipeUp() }
         DemoApp.scrollToElement(other, in: app)
         other.tap()
         let strip = DemoApp.element(app, "ongoingCallStrip")
