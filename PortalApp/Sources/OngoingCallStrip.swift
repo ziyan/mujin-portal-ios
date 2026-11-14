@@ -12,6 +12,9 @@ struct OngoingCallStrip: View {
     /// Whether the screen shows the call with people on its own stage.
     var isPeopleCallStagedHere = false
 
+    /// This strip, in the session's set of strips that show.
+    @State private var stripId = UUID()
+
     var body: some View {
         if let call = session.assistantCall, call.isGoing, call.place != place {
             strip(
@@ -48,7 +51,8 @@ struct OngoingCallStrip: View {
                     avatar.accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 0) {
                         Text("On a call").font(.caption.weight(.semibold))
-                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                        // Minutes, read once a minute: a clock that ticks every second keeps every screen under it redrawing.
+                        TimelineView(.everyMinute) { context in
                             detail(context.date).font(.caption2.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
                         }
                     }
@@ -92,14 +96,16 @@ struct OngoingCallStrip: View {
         .glassEffect(.regular, in: .rect(cornerRadius: 22, style: .continuous))
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
+        .onAppear { session.callStripsShown.insert(stripId) }
+        .onDisappear { session.callStripsShown.remove(stripId) }
     }
 
     /// How long a call has run, as minutes and seconds, with hours once it passes one.
+    /// How long the call has gone, in whole minutes: "Under a minute", "12 min", "1 h 5 min".
     static func clock(_ seconds: TimeInterval) -> String {
-        let whole = max(0, Int(seconds))
-        let hours = whole / 3600
-        let minutes = (whole % 3600) / 60
-        let rest = whole % 60
-        return hours > 0 ? String(format: "%d:%02d:%02d", hours, minutes, rest) : String(format: "%d:%02d", minutes, rest)
+        let minutes = max(0, Int(seconds)) / 60
+        if minutes == 0 { return String(localized: "Under a minute") }
+        if minutes < 60 { return String(localized: "\(minutes) min") }
+        return String(localized: "\(minutes / 60) h \(minutes % 60) min")
     }
 }

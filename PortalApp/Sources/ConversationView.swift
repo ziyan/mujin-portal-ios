@@ -35,8 +35,6 @@ struct ConversationView: View {
     /// Whether the top of the thread is in view, where earlier messages load.
     /// How far a pull past the top has gone toward reading earlier messages, from 0 to 1.
     @State private var earlierPullProgress = 0.0
-    /// Whether this screen is counted among those that show a call going elsewhere in a strip under their header.
-    @State private var isHostingCallStrip = false
     /// Whether the conversation already opened on the thread where something waited, which it does once.
     @State private var hasOpenedWaitingThread = false
     /// Whether the transcript shows its end. Only then does it follow an answer being written or a message that arrives.
@@ -322,18 +320,10 @@ struct ConversationView: View {
             isOnScreen = true
             model?.start()
             session.callPlaceOnScreen = place
-            if !isHostingCallStrip {
-                isHostingCallStrip = true
-                session.callStripHostCount += 1
-            }
         }
         .onDisappear {
             isOnScreen = false
             if session.callPlaceOnScreen == place { session.callPlaceOnScreen = nil }
-            if isHostingCallStrip {
-                isHostingCallStrip = false
-                session.callStripHostCount -= 1
-            }
             // A call goes on in its bar, its conversation still listening for the answers; anything else stops with the screen.
             guard !isCallStaged else { return }
             model?.stop()

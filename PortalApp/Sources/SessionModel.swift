@@ -65,9 +65,10 @@ final class SessionModel {
     var assistantCall: AssistantCall?
     /// The conversation or thread on screen now, if any, so the assistant call's bar steps aside where the call's own stage shows it.
     var callPlaceOnScreen: CallPlace?
-    /// How many conversation, chat and thread screens are up. Each shows a call that is going elsewhere in a strip under its own
-    /// header, so the app's bar above the header steps aside while any is.
-    var callStripHostCount = 0
+    /// The call strips showing now, one for each conversation, chat or thread screen that shows a call going elsewhere under its own
+    /// header. The app's bar above the header steps aside while any does. Each strip adds itself while it shows and takes itself out
+    /// as it goes, so a screen that is loading, or shows no strip, never hides the bar.
+    var callStripsShown: Set<UUID> = []
     /// Set when a notification asks More to show the Automations screen.
     var automationsRequested = false
     var isShowingNotifications = false

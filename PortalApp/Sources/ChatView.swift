@@ -35,8 +35,6 @@ struct ChatView: View {
     @State private var typingAreaHeight: CGFloat = 0
     @State private var heldTypingAreaHeight: CGFloat = 0
     @State private var isOnScreen = false
-    /// Whether this screen is counted among those that show a call going elsewhere in a strip under their header.
-    @State private var isHostingCallStrip = false
     @State private var draft = DemoOptions.screen == "chat-mention" ? "Can @" : ""
     @State private var messageToDelete: ChatMessage?
     @State private var isShowingInfo = DemoOptions.screen == "chat-info" || DemoOptions.screen == "chat-site-info" || DemoOptions.screen?.hasPrefix("chat-call-history") == true
@@ -173,18 +171,10 @@ struct ChatView: View {
             isOnScreen = true
             model?.start()
             if !isThread { callCenter.chatIdOnScreen = model?.chatId ?? chatId }
-            if !isHostingCallStrip {
-                isHostingCallStrip = true
-                session.callStripHostCount += 1
-            }
         }
         .onDisappear {
             isOnScreen = false
             model?.stop()
-            if isHostingCallStrip {
-                isHostingCallStrip = false
-                session.callStripHostCount -= 1
-            }
             // Another chat may already have taken the place.
             if !isThread, callCenter.chatIdOnScreen == (model?.chatId ?? chatId) { callCenter.chatIdOnScreen = nil }
         }

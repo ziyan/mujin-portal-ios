@@ -279,13 +279,13 @@ struct MainTabsView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 // A conversation, chat or thread on screen shows a call going elsewhere in a strip under its own header instead.
-                if session.callStripHostCount == 0, let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded,
+                if session.callStripsShown.isEmpty, let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded,
                     appModel.callCenter.chatIdOnScreen != call.chatId
                 {
                     CallBar(center: appModel.callCenter, call: call)
                 }
                 // A call with the assistant whose conversation is off screen goes on here, as a call with people does.
-                if session.callStripHostCount == 0, let call = session.assistantCall, call.isGoing, session.callPlaceOnScreen != call.place {
+                if session.callStripsShown.isEmpty, let call = session.assistantCall, call.isGoing, session.callPlaceOnScreen != call.place {
                     AssistantCallBar(call: call)
                 }
             }
