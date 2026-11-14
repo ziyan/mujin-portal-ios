@@ -24,7 +24,9 @@ final class CallScreenTests: XCTestCase {
         XCTAssertTrue(DemoApp.waitUntilExists(leave, timeout: 60), "The call screen did not open.\n\(app.debugDescription)")
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: leave)
         XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 30), .completed, "The page opened behind the call.\n\(app.debugDescription)")
-        XCTAssertTrue(DemoApp.waitUntilExists(DemoApp.element(app, "callBar"), timeout: 15), "The call did not go on in its bar.\n\(app.debugDescription)")
+        // The call goes on in the app's bar, or, where the page shows the call under its own header, in that page's strip.
+        let ongoingCall = app.descendants(matching: .any).matching(NSPredicate(format: "identifier IN %@", ["callBar", "ongoingCallStrip"])).firstMatch
+        XCTAssertTrue(DemoApp.waitUntilExists(ongoingCall, timeout: 15), "The call did not go on in its bar.\n\(app.debugDescription)")
     }
 
     /// A dropped call says what is happening and keeps its controls.
