@@ -34,6 +34,17 @@ public enum Documents {
         }
         """
 
+    /// The person's archived conversations and chats, which the list never asks for. Asked only of a server with
+    /// isForegroundOnly, which `prepared` adds.
+    public static let listArchivedConversations = """
+        query ListConversations($userId: String) {
+          ListConversations(userId: $userId, archivedOnly: true) {
+            conversations { \(conversationFields) }
+            meta { totalCount }
+          }
+        }
+        """
+
     public static let getConversation = """
         query GetConversation($conversationId: String!) {
           GetConversation(conversationId: $conversationId) { \(conversationFields) }
@@ -169,7 +180,7 @@ public enum Documents {
     /// Every document, for the schema check.
     public static var all: [String] {
         var documents: [String] = [
-            me, organization, mainAgent, listConversations, getConversation, listMessages, listQuestions, listApprovals,
+            me, organization, mainAgent, listConversations, listArchivedConversations, getConversation, listMessages, listQuestions, listApprovals,
             createConversation, sendMessage, cancelRun, answerQuestion, resolveToolApproval, archiveConversation,
             listSites, createTicket, onConversationEvent, createWebSessionHandoff,
         ]
@@ -224,6 +235,8 @@ extension Documents {
     /// A list of conversations people pick from, on a server that can leave out background runs and empty assistant conversations:
     /// the app lists only those, never a sub-agent's, so every list it sends asks for them. A page of fifty is then fifty a person sees.
     public static func withForegroundOnly(_ document: String) -> String {
-        document.replacingOccurrences(of: "(?<!query )ListConversations\\(", with: "ListConversations(isForegroundOnly: true, ", options: .regularExpression)
+        // Once only: a document prepared again keeps one argument.
+        guard !document.contains("isForegroundOnly") else { return document }
+        return document.replacingOccurrences(of: "(?<!query )ListConversations\\(", with: "ListConversations(isForegroundOnly: true, ", options: .regularExpression)
     }
 }
