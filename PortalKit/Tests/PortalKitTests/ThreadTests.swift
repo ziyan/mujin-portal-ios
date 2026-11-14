@@ -85,6 +85,32 @@ import Testing
         #expect(ThreadRouting.isEventForView(pending, viewThreadRootMessageId: nil))
     }
 
+    @Test func aQuestionOrApprovalDeliveredLiveShowsOnlyInTheViewItWasAskedIn() {
+        let question = ConversationEvent(type: "pending_question", pendingQuestion: .init(questionId: "q1", question: "Which?"), threadRootMessageId: "m1")
+        let approval = ConversationEvent(
+            type: "pending_approval", pendingApproval: .init(approvalId: "a1", toolName: "shell"), threadRootMessageId: "m1")
+        var inThread = Transcript(threadRootMessageId: "m1")
+        inThread.apply(question)
+        inThread.apply(approval)
+        #expect(inThread.entries.map(\.id).sorted() == ["approval:a1", "question:q1"])
+        var otherThread = Transcript(threadRootMessageId: "m2")
+        otherThread.apply(question)
+        otherThread.apply(approval)
+        #expect(otherThread.entries.isEmpty)
+        var mainHistory = Transcript()
+        mainHistory.apply(question)
+        mainHistory.apply(approval)
+        #expect(mainHistory.entries.isEmpty)
+        mainHistory.apply(ConversationEvent(type: "pending_question", pendingQuestion: .init(questionId: "q2", question: "Which?")))
+        #expect(mainHistory.entries.map(\.id) == ["question:q2"])
+    }
+
+    @Test func onlyATodoToolResultRefreshesTheTodoList() {
+        #expect(ConversationEvent(type: "tool_result", toolResult: .init(toolCallId: "c1", toolName: "todo")).mayChangeTodos)
+        #expect(!ConversationEvent(type: "tool_result", toolResult: .init(toolCallId: "c2", toolName: "shell")).mayChangeTodos)
+        #expect(!ConversationEvent(type: "tool_call", toolCall: .init(toolCallId: "c1", toolName: "todo")).mayChangeTodos)
+    }
+
     @Test func onlyRunContentSaysWhereTheAssistantWorks() {
         #expect(ThreadRouting.workingThreadRootMessageId(of: runEvent("tool_call", thread: "m1")) == "m1")
         #expect(ThreadRouting.workingThreadRootMessageId(of: runEvent("text_delta")) == nil)

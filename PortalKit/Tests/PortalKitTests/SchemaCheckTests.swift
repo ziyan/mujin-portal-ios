@@ -82,6 +82,19 @@ import Testing
         #expect(checked >= 5)
     }
 
+    /// Each list of fields that gets a thread is found in some document, so a change to a document's layout that stops the match fails here.
+    @Test func everyThreadToolFieldListStillMatchesADocument() {
+        for fields in Documents.threadToolAnchors {
+            let matching = Documents.all.filter { Documents.addThreadField(to: $0, after: fields) != $0 }
+            #expect(!matching.isEmpty, "No document holds the fields: \(fields)")
+        }
+    }
+
+    @Test func theThreadFieldIsAddedWhateverWhitespaceSeparatesTheFields() {
+        let spread = "{ id question\n    choices   allowOther askedAt answeredAt cancelledAt }"
+        #expect(Documents.withThreadTools(spread).contains("cancelledAt threadRootMessageId"))
+    }
+
     /// The lists people pick from ask for foreground conversations only, a valid argument wherever it is added.
     @Test func theForegroundOnlyListsAreValid() throws {
         var checked = 0
