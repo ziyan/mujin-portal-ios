@@ -51,8 +51,16 @@ struct ComposerCard<Accessory: View>: View {
     /// The card: words across its whole width with the buttons on a row beneath, while the person types, has something attached or has
     /// written more than one line. Otherwise one pill: [+], the words, the microphone and send in a row.
     private var isExpanded: Bool {
-        isFocused || !(drafts?.items.isEmpty ?? true) || text.contains("\n") || wrapsInPill
+        isFocused || !(drafts?.items.isEmpty ?? true) || text.contains("\n") || wrapsInPill || isTooNarrowForButtonsBesideWords
     }
+
+    /// At the accessibility text sizes the round buttons, the Staff only lock among them, leave the words in a pill about a hundred points
+    /// to stand in, so the placeholder would read as an ellipsis. The card gives the words the whole width.
+    private var isTooNarrowForButtonsBesideWords: Bool {
+        internalNoteSwitch != nil && dynamicTypeSize.isAccessibilitySize
+    }
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Whether the words need a second line at the pill's width, in the text view's own font and at the current text size.
     private var wrapsInPill: Bool {
