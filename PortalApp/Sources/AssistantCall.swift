@@ -44,6 +44,7 @@ final class AssistantCall {
 
     /// Hangs up from the bar, where no screen is left to stop the conversation's live feed.
     func end() {
+        print("CALLDIAG call-end \(conversationId)")
         voice.end()
         model.stop()
     }
