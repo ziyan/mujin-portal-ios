@@ -106,6 +106,7 @@ final class VoiceCallController {
     }
 
     func end() {
+        print("CALLDIAG voice-end \(Thread.callStackSymbols.prefix(5).joined(separator: " | "))")
         if let socket { Task { try? await socket.send(VoiceClientEvent.stop.encoded()) } }
         shutDown()
         phase = .idle

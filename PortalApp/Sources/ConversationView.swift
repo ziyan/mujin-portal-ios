@@ -121,6 +121,7 @@ struct ConversationView: View {
         guard let voice, let model else { return }
         if let other = session.assistantCall, other.voice !== voice { other.end() }
         if let peopleCall = appModel.callCenter.session, !peopleCall.isEnded { appModel.callCenter.hangUp() }
+        print("CALLDIAG hold \(screenId) \(conversationId) replacing \(session.assistantCall?.conversationId ?? "none")")
         session.assistantCall = AssistantCall(conversationId: conversationId, threadRootMessageId: threadRootMessageId, model: model, voice: voice)
     }
 
@@ -176,6 +177,7 @@ struct ConversationView: View {
         .conversationBar(title: isThread ? "\(String(localized: "Thread")) \u{00B7} \(shownTitle)" : shownTitle, isCallStageShown: isCallStaged)
         // A call that ended on this screen is no longer the session's to keep.
         .onChange(of: isCallStaged) { _, isStaged in
+            print("CALLDIAG staged \(isStaged) \(screenId) \(conversationId)")
             if !isStaged, let voice, session.assistantCall?.voice === voice { session.assistantCall = nil }
         }
         .navigationDestination(item: $openedThreadRootId) { rootId in
@@ -278,8 +280,10 @@ struct ConversationView: View {
         .onChange(of: session.selectedSection) { _, _ in takeReference() }
         .onAppear { takeReference() }
         .task(id: conversationId) {
+            print("CALLDIAG task \(screenId) \(conversationId) thread \(threadRootMessageId ?? "none") held \(session.assistantCall?.conversationId ?? "none") going \(session.assistantCall?.isGoing ?? false)")
             // A call with this conversation that went on while it was off screen: the screen takes it back, with its conversation.
             if let call = session.assistantCall, call.place == place, call.isGoing {
+                print("CALLDIAG adopt \(screenId) \(conversationId)")
                 model = call.model
                 voice = call.voice
                 call.model.start()
@@ -310,7 +314,9 @@ struct ConversationView: View {
             conversationModel.start()
             // Only the demo's own conversation starts the call, and once: another conversation opened during it, or this one drawn a second
             // time, shows the call it finds.
-            if appModel.isDemo, DemoOptions.screen == "voice", conversationId == "conversation01", session.assistantCall == nil {
+            print("CALLDIAG demo-check \(screenId) \(conversationId) screen \(DemoOptions.screen ?? "none") held \(session.assistantCall?.conversationId ?? "none")")
+            if appModel.isDemo, DemoOptions.screen == "voice", session.assistantCall == nil {
+                print("CALLDIAG demo-start \(screenId) \(conversationId)")
                 voice?.startDemo()
                 holdCall()
             }
