@@ -286,7 +286,9 @@ struct MainTabsView: View {
                 }
                 // A call with the assistant whose conversation is off screen goes on here, as a call with people does.
                 if session.callStripsShown.isEmpty, let call = session.assistantCall, call.isGoing, session.callPlaceOnScreen != call.place {
+                    // The bar sits outside the tab bar, which is where the session is put in the environment.
                     AssistantCallBar(call: call)
+                        .environment(session)
                 }
             }
         }
@@ -327,12 +329,10 @@ struct MainTabsView: View {
         // A call with the assistant that ends, or fails, while its conversation or thread is off screen is let go of here, with its
         // conversation's live feed; one on screen keeps its own.
         .onChange(of: session.assistantCall?.isGoing ?? false) { _, isGoing in
-            print("CALLDIAG going \(isGoing)")
             guard !isGoing, let call = session.assistantCall, session.callPlaceOnScreen != call.place else { return }
             call.end()
             session.assistantCall = nil
         }
-        .onChange(of: session.callPlaceOnScreen) { _, place in print("CALLDIAG on screen \(place?.conversationId ?? "none"), call \(session.assistantCall?.conversationId ?? "none")") }
         .onChange(of: session.conversationToOpen) { _, conversationId in if conversationId != nil { closeSheets(session) } }
         .onChange(of: session.composeRequest != nil) { _, isComposing in if isComposing { closeSheets(session) } }
         .onChange(of: appModel.openedLink, initial: true) { _, opened in
