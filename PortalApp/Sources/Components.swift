@@ -55,12 +55,15 @@ struct ComposerCard<Accessory: View>: View {
     /// Whether the words need a second line at the pill's width, in the text view's own font and at the current text size.
     private var wrapsInPill: Bool {
         guard !text.isEmpty, pillFieldWidth > 0 else { return false }
-        return ComposerMeasure.needsSecondLine(text, width: pillFieldWidth)
+        return wrapMemo.needsSecondLine(text, width: pillFieldWidth)
     }
+
+    /// The last measurement, so the words are measured once per change of text, width or text size, not on every evaluation of the body.
+    @State private var wrapMemo = ComposerWrapMemo()
 
     var body: some View {
         // One layout for both shapes, so the text view stays the same view: the keyboard, the caret and marked text survive the change.
-        ComposerLayout(isExpanded: isExpanded, spacing: Self.inset) {
+        ComposerLayout(isExpanded: isExpanded, text: text, spacing: Self.inset) {
             Group {
                 if let drafts, !drafts.items.isEmpty { AttachmentStrip(drafts: drafts) } else { Color.clear.frame(width: 0, height: 0) }
             }
@@ -111,7 +114,7 @@ struct ComposerCard<Accessory: View>: View {
         // The width the words have in the pill: measured only while it is one, since the card's is wider. A change under a point is
         // rounding, not a new width, and acting on it could flip the shape back and forth at the boundary.
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
-            if !isExpanded, abs(width - pillFieldWidth) >= 1 { pillFieldWidth = width }
+            if !isExpanded, ComposerShape.acceptsPillWidth(width, replacing: pillFieldWidth) { pillFieldWidth = width }
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 8)
@@ -207,13 +210,26 @@ struct InternalNoteLabel: View {
     }
 }
 
-/// ComposerMeasure tells whether words fit one line of the composer's text view, which sets them in the body font with no insets.
-enum ComposerMeasure {
-    static func needsSecondLine(_ text: String, width: CGFloat, font: UIFont = UIFont.preferredFont(forTextStyle: .body)) -> Bool {
+/// ComposerWrapMemo measures whether the words need a second line of the composer's text view, which sets them in the body font with no
+/// insets, and remembers the answer for the text, width and font size it was asked about. It is a plain class held in @State:
+/// remembering changes nothing the screen shows, so it never re-runs the body.
+final class ComposerWrapMemo {
+    private var text = ""
+    private var width: CGFloat = 0
+    private var fontSize: CGFloat = 0
+    private var answer = false
+
+    func needsSecondLine(_ text: String, width: CGFloat) -> Bool {
+        let font = UIFont.preferredFont(forTextStyle: .body)
+        if text == self.text, width == self.width, font.pointSize == fontSize { return answer }
         let bounds = (text as NSString).boundingRect(
             with: CGSize(width: max(width, 1), height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font], context: nil)
-        return bounds.height > font.lineHeight * 1.5
+        self.text = text
+        self.width = width
+        self.fontSize = font.pointSize
+        answer = ComposerShape.needsSecondLine(textHeight: bounds.height, lineHeight: font.lineHeight)
+        return answer
     }
 }
 
@@ -281,31 +297,56 @@ private struct ComposerPlusMenu: View {
 /// attached; the card puts what is attached on top, the words across the full width, and the buttons on a row beneath.
 struct ComposerLayout: Layout {
     var isExpanded: Bool
+    /// The words in the field. Never read: when it changes the layout updates, so the cached measurement of the text view is dropped.
+    var text: String
     var spacing: CGFloat
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    /// What the text view and the button rows measured, kept for the pass: a measurement of the text view is the costly one, and the
+    /// layout asks for the same width in both of its methods.
+    struct Cache {
+        var leading: CGSize
+        var trailing: CGSize
+        var fieldSizeByWidth: [CGFloat: CGSize] = [:]
+    }
+
+    func makeCache(subviews: Subviews) -> Cache {
+        Cache(leading: subviews[1].sizeThatFits(.unspecified), trailing: subviews[3].sizeThatFits(.unspecified))
+    }
+
+    func updateCache(_ cache: inout Cache, subviews: Subviews) {
+        cache = makeCache(subviews: subviews)
+    }
+
+    private func fieldSize(_ subview: LayoutSubview, width: CGFloat, cache: inout Cache) -> CGSize {
+        if let size = cache.fieldSizeByWidth[width] { return size }
+        let size = subview.sizeThatFits(ProposedViewSize(width: width, height: nil))
+        cache.fieldSizeByWidth[width] = size
+        return size
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
         let width = proposal.width ?? 320
-        let leading = subviews[1].sizeThatFits(.unspecified)
-        let trailing = subviews[3].sizeThatFits(.unspecified)
+        let leading = cache.leading
+        let trailing = cache.trailing
         if isExpanded {
             let attached = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
-            let field = subviews[2].sizeThatFits(ProposedViewSize(width: width, height: nil))
+            let field = fieldSize(subviews[2], width: width, cache: &cache)
             let attachedHeight = attached.height > 0 ? attached.height + spacing : 0
             return CGSize(width: width, height: attachedHeight + field.height + spacing / 2 + max(leading.height, trailing.height))
         }
-        let field = subviews[2].sizeThatFits(ProposedViewSize(width: fieldWidth(width, leading, trailing), height: nil))
+        let field = fieldSize(subviews[2], width: fieldWidth(width, leading, trailing), cache: &cache)
         return CGSize(width: width, height: max(leading.height, trailing.height, field.height))
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let leading = subviews[1].sizeThatFits(.unspecified)
-        let trailing = subviews[3].sizeThatFits(.unspecified)
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
+        let leading = cache.leading
+        let trailing = cache.trailing
         if isExpanded {
             var y = bounds.minY
             let attached = subviews[0].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
             subviews[0].place(at: CGPoint(x: bounds.minX, y: y), proposal: ProposedViewSize(width: bounds.width, height: attached.height))
             if attached.height > 0 { y += attached.height + spacing }
-            let field = subviews[2].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+            let field = fieldSize(subviews[2], width: bounds.width, cache: &cache)
             subviews[2].place(at: CGPoint(x: bounds.minX, y: y), proposal: ProposedViewSize(width: bounds.width, height: field.height))
             y += field.height + spacing / 2
             let rowHeight = max(leading.height, trailing.height)
@@ -316,7 +357,7 @@ struct ComposerLayout: Layout {
         subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.minY), proposal: .zero)
         subviews[1].place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: .unspecified)
         let width = fieldWidth(bounds.width, leading, trailing)
-        let field = subviews[2].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let field = fieldSize(subviews[2], width: width, cache: &cache)
         subviews[2].place(
             at: CGPoint(x: bounds.minX + leading.width + (leading.width > 0 ? spacing : 0), y: bounds.midY), anchor: .leading,
             proposal: ProposedViewSize(width: width, height: field.height))
