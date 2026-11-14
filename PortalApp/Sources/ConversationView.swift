@@ -216,8 +216,8 @@ struct ConversationView: View {
                     model: conversationModel, connection: appModel.connection(for: account), socketFactory: URLSessionVoiceSocket.factory)
             }
             conversationModel.start()
-            // Only the demo's own conversation starts the call: another one opened during it shows the call in its strip.
-            if appModel.isDemo, DemoOptions.screen == "voice", conversationId == "conversation01" {
+            // The first conversation the demo opens starts the call: another one opened during it shows the call in its strip.
+            if appModel.isDemo, DemoOptions.screen == "voice", session.assistantCall == nil {
                 voice?.startDemo()
                 holdCall()
             }
