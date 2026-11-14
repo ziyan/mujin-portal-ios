@@ -921,13 +921,15 @@ private struct MessageRow: View {
                         }
                     })
             } else {
-            VStack(alignment: .leading, spacing: 2) {
-                // The mark has a line of its own, so it never sits on the words of a short note.
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                // The lock sits beside the words, so it never covers a short note.
                 if message.isInternal { InternalNoteLabel() }
-                // People's messages are Markdown. The words around code and links keep the name chips of the people mentioned.
-                RichBodyView(markdown: message.text, connection: model.connection, isSelectable: false) { words in markdownText(words) }
-                if message.isEdited {
-                    Text("edited").font(.caption2).foregroundStyle(AnyShapeStyle(.secondary))
+                VStack(alignment: .leading, spacing: 2) {
+                    // People's messages are Markdown. The words around code and links keep the name chips of the people mentioned.
+                    RichBodyView(markdown: message.text, connection: model.connection, isSelectable: false) { words in markdownText(words) }
+                    if message.isEdited {
+                        Text("edited").font(.caption2).foregroundStyle(AnyShapeStyle(.secondary))
+                    }
                 }
             }
             .padding(.horizontal, 14)
