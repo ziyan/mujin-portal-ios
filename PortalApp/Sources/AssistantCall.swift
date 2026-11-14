@@ -1,18 +1,39 @@
 import PortalKit
 import SwiftUI
 
-/// AssistantCall is a call with the assistant: its conversation, which hears the answers, and the voice that carries the call. The
-/// session holds it while it goes, so the call outlives the screen it started on.
+/// CallPlace is where a call with the assistant is: a conversation, or one thread of it.
+struct CallPlace: Equatable {
+    let conversationId: String
+    let threadRootMessageId: String?
+}
+
+/// AssistantCall is a call with the assistant: its conversation or thread, which hears the answers, and the voice that carries the
+/// call. The session holds it while it goes, so the call outlives the screen it started on.
 @MainActor
 final class AssistantCall {
     let conversationId: String
+    /// The thread the call is in: each spoken turn is a reply in it, and only its runs are read aloud. Nil for the main history.
+    let threadRootMessageId: String?
     let model: ConversationModel
     let voice: VoiceCallController
+    let startedAt = Date()
 
-    init(conversationId: String, model: ConversationModel, voice: VoiceCallController) {
+    init(conversationId: String, threadRootMessageId: String?, model: ConversationModel, voice: VoiceCallController) {
         self.conversationId = conversationId
+        self.threadRootMessageId = threadRootMessageId
         self.model = model
         self.voice = voice
+    }
+
+    var place: CallPlace { CallPlace(conversationId: conversationId, threadRootMessageId: threadRootMessageId) }
+
+    /// Opens the call's own conversation or thread, where its stage shows.
+    func open(in session: SessionModel) {
+        if let threadRootMessageId {
+            session.open(.conversationThread(id: conversationId, threadRootMessageId: threadRootMessageId))
+        } else {
+            session.open(.conversation(id: conversationId))
+        }
     }
 
     /// Whether the call is still going or being set up. A call that failed is over: it leaves no bar behind.
@@ -23,6 +44,7 @@ final class AssistantCall {
 
     /// Hangs up from the bar, where no screen is left to stop the conversation's live feed.
     func end() {
+        print("CALLDIAG call-end \(conversationId)")
         voice.end()
         model.stop()
     }
@@ -36,7 +58,7 @@ struct AssistantCallBar: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Button { session.open(.conversation(id: call.conversationId)) } label: {
+            Button { call.open(in: session) } label: {
                 HStack(spacing: 10) {
                     PersonAvatar(name: "", size: 32, isAssistant: true)
                     VStack(alignment: .leading, spacing: 0) {

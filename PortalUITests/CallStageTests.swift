@@ -30,6 +30,28 @@ final class CallStageTests: XCTestCase {
         XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 10), .completed, "The bar stayed over its own conversation.\n\(app.debugDescription)")
     }
 
+    /// Another conversation shows the call going elsewhere in a strip under its own header, and the strip leads back to the call.
+    func testAnotherConversationShowsTheCallInAStripUnderItsHeader() {
+        let app = DemoApp.launch(screen: "voice")
+        let leave = DemoApp.button(app, "callStageLeave")
+        XCTAssertTrue(DemoApp.waitUntilExists(leave, timeout: 90), "The call did not start.\n\(app.debugDescription)")
+        DemoApp.goBack(app)
+        let other = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Questions about site01")).firstMatch
+        // The list draws only the rows near the screen, and this conversation is a day old: it is below them until the list scrolls.
+        for _ in 0..<12 where !other.exists { app.swipeUp() }
+        // The row may be the last of the list, which cannot be scrolled up to the middle of the screen: it only has to be tappable.
+        XCTAssertTrue(DemoApp.waitUntilHittable(other, timeout: 20), "The conversation cannot be tapped.\n\(app.debugDescription)")
+        other.tap()
+        let strip = DemoApp.element(app, "ongoingCallStrip")
+        XCTAssertTrue(DemoApp.waitUntilExists(strip, timeout: 20), "The other conversation does not show the call.\n\(app.debugDescription)")
+        XCTAssertGreaterThanOrEqual(
+            strip.frame.minY, app.navigationBars.firstMatch.frame.maxY - 1, "The strip is not under the header.\n\(app.debugDescription)")
+        XCTAssertFalse(DemoApp.element(app, "assistantCallBar").exists, "The app's bar shows over the strip too.\n\(app.debugDescription)")
+        XCTAssertTrue(DemoApp.element(app, "ongoingCallStripHangUp").exists, "The strip has no way to hang up.\n\(app.debugDescription)")
+        strip.tap()
+        XCTAssertTrue(DemoApp.waitUntilExists(leave, timeout: 20), "The strip did not lead back to the call.\n\(app.debugDescription)")
+    }
+
     private func checkMuteAndLeave(screen: String, file: StaticString = #filePath, line: UInt = #line) {
         let app = DemoApp.launch(screen: screen)
         let mute = DemoApp.button(app, "callStageMute")

@@ -190,6 +190,8 @@ struct ChatView: View {
             }
         case .loaded:
             messages(model)
+                // A call going on elsewhere, or in this chat while its thread is open, shows under the header.
+                .safeAreaInset(edge: .top, spacing: 0) { OngoingCallStrip(place: nil, isPeopleCallStagedHere: stagedCall(model) != nil) }
                 .safeAreaInset(edge: .top, spacing: 0) { if !isThread { callBanner(model) } }
                 // At rest the messages start below the call's stage; scrolled up, they fade out behind it. Reserved as a safe area
                 // rather than a content margin: a margin pushed a short chat, which sits at the bottom, down under the composer.

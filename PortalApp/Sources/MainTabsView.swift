@@ -266,11 +266,14 @@ struct MainTabsView: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
-                if let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded, appModel.callCenter.chatIdOnScreen != call.chatId {
+                // A conversation, chat or thread on screen shows a call going elsewhere in a strip under its own header instead.
+                if session.callStripsShown.isEmpty, let call = appModel.callCenter.session, !appModel.callCenter.isScreenShown, !call.isEnded,
+                    appModel.callCenter.chatIdOnScreen != call.chatId
+                {
                     CallBar(center: appModel.callCenter, call: call)
                 }
                 // A call with the assistant whose conversation is off screen goes on here, as a call with people does.
-                if let call = session.assistantCall, call.isGoing, session.conversationIdOnScreen != call.conversationId {
+                if session.callStripsShown.isEmpty, let call = session.assistantCall, call.isGoing, !session.isShowing(call.place) {
                     // The bar sits outside the tab bar, which is where the session is put in the environment.
                     AssistantCallBar(call: call)
                         .environment(session)
@@ -309,10 +312,10 @@ struct MainTabsView: View {
         }
         // The person asked to go to a tab or a conversation, such as "Ask about" on a page in a sheet: the sheet is over it.
         .onChange(of: session.selectedSection) { _, _ in closeSheets(session) }
-        // A call with the assistant that ends, or fails, while its conversation is off screen is let go of here, with its
-        // conversation's live feed; a conversation on screen keeps its own.
+        // A call with the assistant that ends, or fails, while its conversation or thread is off screen is let go of here, with its
+        // conversation's live feed; one on screen keeps its own.
         .onChange(of: session.assistantCall?.isGoing ?? false) { _, isGoing in
-            guard !isGoing, let call = session.assistantCall, session.conversationIdOnScreen != call.conversationId else { return }
+            guard !isGoing, let call = session.assistantCall, !session.isShowing(call.place) else { return }
             call.end()
             session.assistantCall = nil
         }
