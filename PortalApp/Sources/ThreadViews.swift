@@ -6,13 +6,19 @@ import SwiftUI
 struct ThreadReplyControl: View {
     let summary: ThreadSummary?
     let isWorking: Bool
-    /// What the thread is about, such as "Ticket 13", named before the count when there is any.
-    var subjectText: String?
+    /// What the thread is about, a ticket or a cell, named with its symbol before the count when there is any, such as "#13".
+    var subject: ChatReference?
     let onOpen: () -> Void
 
     private func line(_ count: Int) -> Text {
-        guard let subjectText, !subjectText.isEmpty else { return Text(ThreadText.replyCount(count)) }
-        return Text(subjectText) + Text(" \u{00B7} ") + Text(ThreadText.replyCount(count))
+        guard let subject, !subject.subjectText.isEmpty else { return Text(ThreadText.replyCount(count)) }
+        return Text(Image(systemName: subject.symbolName)) + Text(" \(subject.subjectText) \u{00B7} ") + Text(ThreadText.replyCount(count))
+    }
+
+    /// What VoiceOver reads: the subject in full (a ticket's number and title), then the count.
+    private func spokenLine(_ count: Int) -> Text {
+        guard let subject, !subject.chipText.isEmpty else { return Text(ThreadText.replyCount(count)) }
+        return Text(subject.chipText) + Text(", ") + Text(ThreadText.replyCount(count))
     }
 
     var body: some View {
@@ -32,7 +38,7 @@ struct ThreadReplyControl: View {
         // above as to the one below.
         .padding(.vertical, -12)
         .foregroundStyle(Color.accentColor)
-        .accessibilityLabel(isWorking ? Text("Working on an answer…") : summary.map { line($0.replyCount) } ?? Text(""))
+        .accessibilityLabel(isWorking ? Text("Working on an answer…") : summary.map { spokenLine($0.replyCount) } ?? Text(""))
         .accessibilityHint(Text("Open the thread"))
         .accessibilityIdentifier("threadReplyControl")
     }
