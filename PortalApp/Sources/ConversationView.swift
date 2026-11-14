@@ -124,6 +124,9 @@ struct ConversationView: View {
         session.assistantCall = AssistantCall(conversationId: conversationId, threadRootMessageId: threadRootMessageId, model: model, voice: voice)
     }
 
+    /// This screen, among the ones the session counts as showing a place.
+    @State private var screenId = UUID()
+
     /// Where this screen is, as a call's place: the conversation, or one of its threads.
     private var place: CallPlace { CallPlace(conversationId: conversationId, threadRootMessageId: threadRootMessageId) }
 
@@ -326,11 +329,11 @@ struct ConversationView: View {
         .onAppear {
             isOnScreen = true
             model?.start()
-            session.callPlaceOnScreen = place
+            session.callPlacesOnScreen[screenId] = place
         }
         .onDisappear {
             isOnScreen = false
-            if session.callPlaceOnScreen == place { session.callPlaceOnScreen = nil }
+            session.callPlacesOnScreen[screenId] = nil
             // A call goes on in its bar, its conversation still listening for the answers; anything else stops with the screen.
             guard !isCallStaged else { return }
             model?.stop()
