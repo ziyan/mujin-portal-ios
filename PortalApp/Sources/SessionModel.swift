@@ -56,6 +56,8 @@ final class SessionModel {
     var feedbackRequest: FeedbackRequest?
     /// The words typed into the feedback sheet when it was put away to show a page, given back when it opens again.
     var feedbackDraftText = ""
+    /// Whether the feedback sheet is sending. It stays up while it does: put away then, a retry could send a second ticket.
+    var isSendingFeedback = false
     /// Counts the pages opened through `open`, so whatever covers the screen closes each time, whether the tab changes or not.
     private(set) var pageOpenCount = 0
     /// The call with the assistant that is going, held here and not by its conversation's screen: leaving the screen, switching tabs or

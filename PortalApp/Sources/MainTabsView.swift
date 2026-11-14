@@ -227,12 +227,13 @@ struct MainTabsView: View {
     }
 
     /// Closes whatever covers the screen, so a page that is opened shows instead of opening behind it. The full-screen call shrinks to
-    /// its bar and goes on; the feedback sheet goes away keeping the words typed so far, which it shows again when it next opens.
+    /// its bar and goes on; the feedback sheet goes away keeping the words typed so far, which it shows again when it next opens. A
+    /// feedback sheet that is sending stays until it is done, so the ticket is sent once.
     private func closeSheets(_ session: SessionModel) {
         appModel.openedLink = nil
         appModel.openedCitation = nil
         session.isShowingNotifications = false
-        session.feedbackRequest = nil
+        if !session.isSendingFeedback { session.feedbackRequest = nil }
         if appModel.callCenter.isScreenShown { appModel.callCenter.minimize() }
     }
 
