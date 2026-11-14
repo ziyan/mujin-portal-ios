@@ -1466,7 +1466,26 @@ final class DemoSocket: FeedSocket, @unchecked Sendable {
         enqueue(.text(String(decoding: data, as: UTF8.self)))
     }
 
+    /// The conversation a subscribe frame asks for. `SubscriptionMessage` reads what a server sends and never a subscribe, so the
+    /// frame is read here.
+    private static func subscribedConversationId(in text: String) -> String? {
+        guard let frame = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any], frame["type"] as? String == "subscribe",
+            let payload = frame["payload"] as? [String: Any], let variables = payload["variables"] as? [String: Any]
+        else { return nil }
+        return variables["conversationId"] as? String
+    }
+
     func send(_ text: String) async throws {
+        // Only the screens that play live events are listened for: the others have run without any, and their tests stand on that.
+        if ChatHistoryDemo.owns(DemoOptions.screen) || TranscriptStreamDemo.owns(DemoOptions.screen),
+            let subscribedConversationId = Self.subscribedConversationId(in: text)
+        {
+            inner.withValue { $0.conversationId = subscribedConversationId }
+            state.withData { $0.sockets.append(self) }
+            if ChatHistoryDemo.isLive(DemoOptions.screen), subscribedConversationId == ChatHistoryDemo.conversationId { ChatHistoryDemo.playLive(state: state) }
+            if TranscriptStreamDemo.owns(DemoOptions.screen), subscribedConversationId == TranscriptStreamDemo.conversationId { TranscriptStreamDemo.play(state: state) }
+            return
+        }
         guard let message = try? SubscriptionMessage(decoding: text) else { return }
         switch message {
         case .connectionInit: enqueue(.text(#"{"type":"connection_ack"}"#))
@@ -1474,8 +1493,6 @@ final class DemoSocket: FeedSocket, @unchecked Sendable {
         case .subscribe(_, _, let variables):
             inner.withValue { $0.conversationId = variables["conversationId"]?.stringValue ?? "" }
             state.withData { $0.sockets.append(self) }
-            if ChatHistoryDemo.isLive(DemoOptions.screen), conversationId == ChatHistoryDemo.conversationId { ChatHistoryDemo.playLive(state: state) }
-            if TranscriptStreamDemo.owns(DemoOptions.screen), conversationId == TranscriptStreamDemo.conversationId { TranscriptStreamDemo.play(state: state) }
             // The title-event screen: a conversation is open when the server renames it, and the title changes at once.
             if DemoOptions.screen == "title-event", conversationId == "conversation01" {
                 let demoState = state
