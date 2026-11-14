@@ -6,7 +6,7 @@ import PortalKit
 enum ThreadDemo {
     static let screens: Set<String> = [
         "thread-chat", "thread-chat-open", "thread-chat-working", "thread-chat-media", "thread-chat-media-open", "thread-conversation",
-        "thread-conversation-open", "thread-push", "thread-link",
+        "thread-conversation-open", "thread-push", "thread-link", "thread-conversation-waiting",
         // The thread screens of dictation and reading aloud, which need the same server and data (see SpeechDemo).
         "dictate-thread-chat", "dictate-thread-conversation", "read-aloud-thread-chat", "read-aloud-thread-conversation",
     ]
@@ -19,13 +19,35 @@ enum ThreadDemo {
 
     static func owns(_ screen: String?) -> Bool { screen.map { screens.contains($0) } ?? false }
 
+    /// The screen where an approval waits in a thread of the conversation and nowhere else, with a todo list for each view.
+    static func waitsInThread(_ screen: String?) -> Bool { screen == "thread-conversation-waiting" }
+
+    /// The approval waiting in the conversation's thread.
+    static func threadApproval(stamp: (TimeInterval) -> String) -> [String: Any] {
+        [
+            "id": "approval-thread01", "toolCallId": "call-thread01", "toolName": "shell", "policyReason": "This command restarts a dock door controller.",
+            "risk": "high", "arguments": "{\"command\":\"systemctl restart door4\"}", "requestedAt": stamp(300), "decidedAt": NSNull(),
+            "cancelledAt": NSNull(), "threadRootMessageId": assistantThreadRootMessageId,
+        ]
+    }
+
+    /// The todo list: one item for the main history, two for the thread.
+    static func todos(stamp: (TimeInterval) -> String) -> [[String: Any]] {
+        [
+            ["id": "todo01", "title": "Send the weekly door report", "status": "open", "priority": "normal", "createdAt": stamp(9_000), "completedAt": NSNull(), "threadRootMessageId": NSNull()],
+            ["id": "todo02", "title": "Read the door 4 sensor log", "status": "done", "priority": "high", "createdAt": stamp(2_600), "completedAt": stamp(2_450), "threadRootMessageId": assistantThreadRootMessageId],
+            ["id": "todo03", "title": "Restart the door 4 controller", "status": "open", "priority": "high", "createdAt": stamp(2_400), "completedAt": NSNull(), "threadRootMessageId": assistantThreadRootMessageId],
+        ]
+    }
+
     /// The conversation a screen opens.
     static func conversationId(for screen: String?) -> String? {
         switch screen {
         case "thread-chat", "thread-chat-open", "thread-chat-working", "thread-chat-media", "thread-chat-media-open", "dictate-thread-chat",
             "read-aloud-thread-chat":
             chatConversationId
-        case "thread-conversation", "thread-conversation-open", "dictate-thread-conversation", "read-aloud-thread-conversation": assistantConversationId
+        case "thread-conversation", "thread-conversation-open", "dictate-thread-conversation", "read-aloud-thread-conversation", "thread-conversation-waiting":
+            assistantConversationId
         default: nil
         }
     }

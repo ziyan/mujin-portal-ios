@@ -71,7 +71,16 @@ final class ConversationModel {
     /// Whether the summary, and so the server's own title, has been written already.
     private var hasSummary = false
     private var hasHeardTitleEvent = false
+    /// The questions and approvals of this view: the main history's, or this thread's.
     private var cards: (questions: [QuestionCard], approvals: [ApprovalCard]) = ([], [])
+    /// The threads where a question or an approval waits, which the main history points to. Empty in a thread.
+    private(set) var waitingThreadRootIds: [String] = []
+    /// The thread the conversation should open on: where something waits, when nothing waits in the main history.
+    private(set) var threadToOpenOn: String?
+    /// Whether the server keeps the assistant's todo list, which each view shows its own part of.
+    var offersTodos = false
+    private(set) var todos: [ConversationTodo] = []
+    var shownTodos: [ConversationTodo] { ThreadViews.todos(todos, inView: threadRootMessageId) }
 
     init(
         conversationId: String, currentUserId: String, connection: Connection, socketFactory: @escaping FeedSocketFactory,
@@ -170,6 +179,7 @@ final class ConversationModel {
             switch event.kind {
             case .runComplete, .runError: await reload(isRunFinished: true)
             case .pendingQuestion, .pendingApproval: await reload()
+            case .toolResult where event.mayChangeTodos: await refreshTodos()
             default: break
             }
         case .reconnecting:
@@ -225,12 +235,21 @@ final class ConversationModel {
                 conversationId: conversationId, latestCount: isThread ? ThreadRouting.threadMessageCount : window.reloadCount,
                 threadRootMessageId: threadRootMessageId)
             async let waitingCards = connection.waitingCards(conversationId: conversationId)
+            async let todoList = fetchTodos()
             // A thread is read whole, so it has no count of earlier messages.
             let shouldCountMessages = !isThread
             async let total: Int? = shouldCountMessages ? connection.messageCountOrNil(conversationId: conversationId) : nil
             let (loadedSummary, loadedMessages, loadedCards) = try await (summary, messages, waitingCards)
             window.replace(with: loadedMessages, totalCount: await total)
-            cards = loadedCards
+            // Each view shows the questions and approvals asked in it; the main history points to the threads where others wait.
+            let viewRoot = threadRootMessageId
+            cards = (
+                loadedCards.questions.filter { ThreadViews.belongs(threadRootMessageId: $0.threadRootMessageId, toView: viewRoot) },
+                loadedCards.approvals.filter { ThreadViews.belongs(threadRootMessageId: $0.threadRootMessageId, toView: viewRoot) }
+            )
+            waitingThreadRootIds = isThread ? [] : ThreadViews.waitingThreads(questions: loadedCards.questions, approvals: loadedCards.approvals)
+            threadToOpenOn = isThread ? nil : ThreadViews.threadToOpenOn(questions: loadedCards.questions, approvals: loadedCards.approvals)
+            if let loadedTodos = await todoList { todos = loadedTodos }
             isTitleCustom = loadedSummary.isTitleCustom == true
             hasSummary = !(loadedSummary.summary ?? "").isEmpty
             applyTitle(loadedSummary.title)
@@ -247,6 +266,17 @@ final class ConversationModel {
             onError(error)
             if phase == .loading { phase = .failed(error.userMessage) }
         }
+    }
+
+    /// The assistant's todo list, or nil where the server keeps none or the read failed, so the list shown stays as it was.
+    private func fetchTodos() async -> [ConversationTodo]? {
+        guard offersTodos else { return nil }
+        return try? await connection.todos(conversationId: conversationId)
+    }
+
+    /// Reads the todo list again, after the assistant used its todo tool.
+    private func refreshTodos() async {
+        if let fetched = await fetchTodos() { todos = fetched }
     }
 
     /// A conversation keeps the title it has: a read that comes back without one, from a replica that is

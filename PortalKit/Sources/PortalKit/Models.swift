@@ -210,8 +210,13 @@ public struct QuestionCard: Codable, Equatable, Identifiable, Sendable {
     public let allowOther: Bool
     /// When the assistant asked. Missing for a card that arrived live.
     public let askedAt: String?
+    /// The thread the question was asked in; nil for the main history.
+    public let threadRootMessageId: String?
 
-    public init(id: String, question: String, choices: [String] = [], allowOther: Bool = true, askedAt: String? = nil) {
+    public init(
+        id: String, question: String, choices: [String] = [], allowOther: Bool = true, askedAt: String? = nil, threadRootMessageId: String? = nil
+    ) {
+        self.threadRootMessageId = ThreadRouting.normalized(threadRootMessageId)
         self.id = id
         self.question = question
         self.choices = choices
@@ -228,8 +233,14 @@ public struct ApprovalCard: Codable, Equatable, Identifiable, Sendable {
     public let policyReason: String
     public let risk: String
     public let arguments: String
+    /// The thread the approval waits in; nil for the main history.
+    public let threadRootMessageId: String?
 
-    public init(id: String, toolCallId: String = "", toolName: String, policyReason: String = "", risk: String = "", arguments: String = "") {
+    public init(
+        id: String, toolCallId: String = "", toolName: String, policyReason: String = "", risk: String = "", arguments: String = "",
+        threadRootMessageId: String? = nil
+    ) {
+        self.threadRootMessageId = ThreadRouting.normalized(threadRootMessageId)
         self.id = id
         self.toolCallId = toolCallId
         self.toolName = toolName

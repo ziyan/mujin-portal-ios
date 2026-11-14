@@ -13,8 +13,16 @@ public struct ArtifactReference: Equatable, Identifiable, Sendable {
     public let title: String
     public let kind: Kind
     public let sizeBytes: Int64?
+    /// The thread the artifact was made in, where the list says; nil for the main history or when it does not say.
+    public let threadRootMessageId: String?
+    /// When it was made, where the list says.
+    public let createdAt: String?
 
-    public init(id: String, title: String, kind: Kind, sizeBytes: Int64? = nil) {
+    public init(
+        id: String, title: String, kind: Kind, sizeBytes: Int64? = nil, threadRootMessageId: String? = nil, createdAt: String? = nil
+    ) {
+        self.threadRootMessageId = ThreadRouting.normalized(threadRootMessageId)
+        self.createdAt = createdAt
         self.id = id
         self.title = title
         self.kind = kind
