@@ -32,7 +32,10 @@ struct ConversationView: View {
     @State private var drafts = AttachmentDrafts()
     @State private var isOnScreen = false
     /// Whether the top of the thread is in view, where earlier messages load.
-    @State private var isTopInView = false
+    /// How far a pull past the top has gone toward reading earlier messages, which only the row at the top reads.
+    @State private var earlierPull = EarlierPull()
+    /// The entry that was first when an earlier page was asked for, which the list goes back to once the page is in.
+    @State private var entryIdAtTopBeforeEarlier: String?
 
     private var isThread: Bool { threadRootMessageId != nil }
     /// Where the call's stage ends on screen, and where the conversation's content begins, so the messages start below the stage.
@@ -277,23 +280,23 @@ struct ConversationView: View {
         }
     }
 
+    /// The row at the top of the messages, or nil where it would say nothing useful: an empty conversation, or the start of a thread,
+    /// whose root is at the top.
+    private func earlierRowState(_ model: ConversationModel) -> EarlierMessages.RowState? {
+        let state = model.earlierRowState
+        if state == .start, model.isThread || model.transcript.entries.isEmpty { return nil }
+        return state
+    }
+
     private func transcript(_ model: ConversationModel) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
                 // Not lazy: rows measured only as they scroll in left the thread blank for a moment on the way to its end, and could
                 // leave a lazy stack placing its rows forever. The window holds one page of messages and grows a page at a time.
                 VStack(alignment: .leading, spacing: 16) {
-                    // Earlier messages load as the top comes into view; no strip says so.
-                    if model.window.earlierCount > 0 {
-                        Color.clear.frame(height: 1)
-                            .onScrollVisibilityChange(threshold: 0.01) { isVisible in
-                                isTopInView = isVisible
-                                if isVisible { Task { await model.loadEarlier() } }
-                            }
-                            // A short page can leave the top in view, and then the scroll says nothing more.
-                            .onChange(of: model.window.earlierCount) { _, _ in
-                                if isTopInView { Task { await model.loadEarlier() } }
-                            }
+                    // Earlier messages are read on a pull past the top, which this row says.
+                    if let state = earlierRowState(model) {
+                        EarlierMessagesRow(state: state, pull: earlierPull) { Task { await model.loadEarlier() } }
                     }
                     if model.transcript.entries.isEmpty, !model.isThread {
                         ContentUnavailableView {
@@ -348,6 +351,16 @@ struct ConversationView: View {
             .defaultScrollAnchor(.top, for: .alignment)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
+            // The list goes back to the message being read as earlier messages go in above.
+            .modifier(PullForEarlier(state: model.earlierRowState, pull: earlierPull) { Task { await model.loadEarlier() } })
+            .onChange(of: model.isLoadingEarlier) { _, isLoading in
+                if isLoading { entryIdAtTopBeforeEarlier = model.transcript.displayEntries.first { Self.isShown($0, showWorkingNotes: showWorkingNotes) }?.id }
+            }
+            .onChange(of: model.transcript.entries.first?.id) { _, _ in
+                guard let heldEntryId = entryIdAtTopBeforeEarlier else { return }
+                entryIdAtTopBeforeEarlier = nil
+                Task { @MainActor in await EarlierReadingPlace.keep(rowId: heldEntryId, proxy: proxy) }
+            }
             // The end of the thread, which an answer being written changes. Reading the same messages again moves nothing.
             .onChange(of: model.transcript.entries.last) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }

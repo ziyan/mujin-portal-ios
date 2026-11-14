@@ -21,6 +21,10 @@ struct ChatView: View {
 
     @State private var model: ChatModel?
     @State private var openedThreadRootId: String?
+    /// How far a pull past the top has gone toward reading earlier messages, which only the row at the top reads.
+    @State private var earlierPull = EarlierPull()
+    /// The message that was first when an earlier page was asked for, which the list goes back to once the page is in.
+    @State private var messageIdAtTopBeforeEarlier: String?
     /// The message a link pointed at, marked for a moment.
     @State private var highlightedMessageId: String?
     @State private var isOnScreen = false
@@ -206,12 +210,8 @@ struct ChatView: View {
                 // Not lazy: scrolling could leave a lazy stack placing its rows forever, with the app frozen at full CPU. The window
                 // holds one page of messages and grows only when the person asks for earlier ones.
                 VStack(alignment: .leading, spacing: 10) {
-                    if model.window.earlierCount > 0 {
-                        Button { Task { await model.loadEarlier() } } label: {
-                            Text("\(model.window.earlierCount) earlier messages").font(.footnote).frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isLoadingEarlier)
+                    if let state = earlierRowState(model) {
+                        EarlierMessagesRow(state: state, pull: earlierPull) { Task { await model.loadEarlier() } }
                     }
                     if model.timeline.messages.isEmpty, !isThread {
                         ContentUnavailableView {
@@ -281,6 +281,16 @@ struct ChatView: View {
             .scrollDismissesKeyboard(.immediately)
             .background(Color.portalPage)
             .defaultScrollAnchor(.bottom)
+            // Earlier messages are read only on a pull past the top; the list goes back to the message being read as they go in above.
+            .modifier(PullForEarlier(state: model.earlierRowState, pull: earlierPull) { Task { await model.loadEarlier() } })
+            .onChange(of: model.isLoadingEarlier) { _, isLoading in
+                if isLoading { messageIdAtTopBeforeEarlier = model.timeline.messages.first?.id }
+            }
+            .onChange(of: model.timeline.messages.first?.id) { _, _ in
+                guard let heldMessageId = messageIdAtTopBeforeEarlier else { return }
+                messageIdAtTopBeforeEarlier = nil
+                Task { @MainActor in await EarlierReadingPlace.keep(rowId: heldMessageId, proxy: proxy) }
+            }
             .task(id: focusedMessageId) { await showFocusedMessage(model, proxy: proxy) }
             .onChange(of: model.timeline.messages.last?.id) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -315,6 +325,14 @@ struct ChatView: View {
         let isOwn = rootMessage.authorUserId == model.currentUserId && !rootMessage.isAssistant
         let author: String? = isOwn ? nil : (rootMessage.isAssistant ? String(localized: "Assistant") : (rootMessage.authorName ?? model.member(rootMessage.authorUserId)?.shownName ?? String(localized: "Someone")))
         return CommentLine(rootMessageId: root, author: author, excerpt: ThreadExcerpt.start(of: rootMessage.text))
+    }
+
+    /// The row at the top of the messages, or nil where it would say nothing useful: an empty chat, or the start of a thread, whose
+    /// root is at the top.
+    private func earlierRowState(_ model: ChatModel) -> EarlierMessages.RowState? {
+        let state = model.earlierRowState
+        if state == .start, isThread || model.timeline.messages.isEmpty { return nil }
+        return state
     }
 
     /// The message a link points at, when this screen is where it belongs: the thread it is in, or the whole chat.

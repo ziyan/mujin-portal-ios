@@ -143,6 +143,7 @@ final class DemoState: @unchecked Sendable {
                     """,
             ],
         ]
+        if EarlierDemo.owns(DemoOptions.screen) { data.messages[EarlierDemo.conversationId] = EarlierDemo.rows(stamp: stamp) }
         if DemoOptions.screen == "conversation-links" {
             data.messages["conversation01"]?.append([
                 "id": "m06", "role": "assistant", "createdAt": stamp(2_800),
@@ -525,6 +526,18 @@ struct DemoTransport: HTTPTransport {
             let refusal = try JSONSerialization.data(withJSONObject: ["errors": [["message": FeedbackDemo.failureMessage]]])
             return (refusal, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
         }
+        if EarlierDemo.isEarlierRead(operation: operation, variables: variables) {
+            switch DemoOptions.screen {
+            case "earlier-loading":
+                // Held back, so the row shows its spinner.
+                try await Task.sleep(nanoseconds: 3_600_000_000_000)
+            case "earlier-failed":
+                let refusal = try JSONSerialization.data(withJSONObject: ["errors": [["message": EarlierDemo.failureMessage]]])
+                return (refusal, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+            default:
+                break
+            }
+        }
         if let message = PagesDemo.refusal(operation: operation, screen: ProcessInfo.processInfo.environment["PORTAL_DEMO_SCREEN"]) {
             let refusal = try JSONSerialization.data(withJSONObject: ["errors": [["message": message]]])
             return (refusal, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
@@ -769,6 +782,9 @@ struct DemoTransport: HTTPTransport {
         case "SetChatTyping", "EditChatMessage", "DeleteChatMessage", "RemoveMessageLinkPreviews":
             return [operation: NSNull()]
         case "ListConversationMessages":
+            if EarlierDemo.owns(DemoOptions.screen), conversationId == EarlierDemo.conversationId {
+                return ["ListConversationMessages": EarlierDemo.page(state.withData { $0.messages[conversationId] ?? [] }, variables: variables)]
+            }
             return ["ListConversationMessages": ThreadDemo.messages(state.withData { $0.messages[conversationId] ?? [] }, variables: variables)]
         case "ListSites":
             let all: [[String: Any]] = [
