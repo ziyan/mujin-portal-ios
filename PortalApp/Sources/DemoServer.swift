@@ -297,6 +297,13 @@ final class DemoState: @unchecked Sendable {
                 said("l10", "assistant", "Mujin AI", "[Ticket by path](/ticket/1)", 310, role: "assistant"),
             ])
         }
+        if ChatHistoryDemo.owns(DemoOptions.screen) {
+            data.messages["chatconv01"] = ChatHistoryDemo.messages(stamp: stamp) + (data.messages["chatconv01"] ?? [])
+        }
+        if TranscriptStreamDemo.owns(DemoOptions.screen) {
+            data.conversations.insert(TranscriptStreamDemo.conversationRow(stamp: stamp), at: 0)
+            data.messages[TranscriptStreamDemo.conversationId] = TranscriptStreamDemo.messages(stamp: stamp)
+        }
         data.messages["chatconv02"] = [
             said("d1", "user03", "Robin Demo", "Shift change at 14:00.", 7_200),
             said("d2", "user04", "Jordan Placeholder", "I can take the pick station.", 7_100),
@@ -508,6 +515,10 @@ struct DemoTransport: HTTPTransport {
             ["ListControllerTelemetrySummaries", "ListCells", "ListSiteVirtualControllers", "ListSiteOrchestrators"].contains(operation)
         {
             try await Task.sleep(nanoseconds: 3_600_000_000_000)
+        }
+        // An earlier page of the long history takes a moment, so the list can be looked at before and after it goes in.
+        if operation == "ListConversationMessages", ChatHistoryDemo.owns(DemoOptions.screen), (variables["beforeMessageId"] as? String)?.isEmpty == false {
+            try await Task.sleep(for: .seconds(ChatHistoryDemo.earlierPageDelaySeconds))
         }
         // A real server takes a moment, and a screen can open before the list it belongs to has arrived.
         if operation == "ListConversations", let delay = ProcessInfo.processInfo.environment["PORTAL_DEMO_LIST_DELAY_SECONDS"].flatMap(UInt64.init) {
@@ -763,6 +774,8 @@ struct DemoTransport: HTTPTransport {
                             ["urlHash": "hash03", "linkKind": "external", "url": "https://example.test/docs/suction", "title": "Suction cup checklist", "description": "Steps to check hoses, seals and pressure before a shift.", "siteName": "example.test"],
                             ["urlHash": "hash04", "linkKind": "ticket", "resourceId": "ticket01", "title": "Gripper drops boxes at pick station 3", "description": "Ticket #1", "statusText": "open", "path": "/ticket/1"],
                         ]]
+                    case _ where ChatHistoryDemo.preview(messageId: id) != nil:
+                        return ChatHistoryDemo.preview(messageId: id)
                     case "c3":
                         return ["messageId": id, "isPending": false, "linkPreviews": [["urlHash": "hash02", "linkKind": "external", "url": "https://example.test/docs/suction", "title": "Suction cup checklist", "description": "Steps to check hoses, seals and pressure before a shift.", "siteName": "example.test"]]]
                     default: return nil
@@ -782,10 +795,14 @@ struct DemoTransport: HTTPTransport {
         case "SetChatTyping", "EditChatMessage", "DeleteChatMessage", "RemoveMessageLinkPreviews":
             return [operation: NSNull()]
         case "ListConversationMessages":
+            let rows = ThreadDemo.messages(state.withData { $0.messages[conversationId] ?? [] }, variables: variables)
             if EarlierDemo.owns(DemoOptions.screen), conversationId == EarlierDemo.conversationId {
                 return ["ListConversationMessages": EarlierDemo.page(state.withData { $0.messages[conversationId] ?? [] }, variables: variables)]
             }
-            return ["ListConversationMessages": ThreadDemo.messages(state.withData { $0.messages[conversationId] ?? [] }, variables: variables)]
+            if ChatHistoryDemo.owns(DemoOptions.screen), conversationId == ChatHistoryDemo.conversationId {
+                return ["ListConversationMessages": ChatHistoryDemo.page(rows, variables: variables)]
+            }
+            return ["ListConversationMessages": rows]
         case "ListSites":
             let all: [[String: Any]] = [
                 ["id": "site01", "name": "site01", "organizationId": "organization01", "isArchived": false, "viewerCapabilities": ["virtual_controller:create"]],
@@ -1449,7 +1466,26 @@ final class DemoSocket: FeedSocket, @unchecked Sendable {
         enqueue(.text(String(decoding: data, as: UTF8.self)))
     }
 
+    /// The conversation a subscribe frame asks for. `SubscriptionMessage` reads what a server sends and never a subscribe, so the
+    /// frame is read here.
+    private static func subscribedConversationId(in text: String) -> String? {
+        guard let frame = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any], frame["type"] as? String == "subscribe",
+            let payload = frame["payload"] as? [String: Any], let variables = payload["variables"] as? [String: Any]
+        else { return nil }
+        return variables["conversationId"] as? String
+    }
+
     func send(_ text: String) async throws {
+        // Only the screens that play live events are listened for: the others have run without any, and their tests stand on that.
+        if ChatHistoryDemo.owns(DemoOptions.screen) || TranscriptStreamDemo.owns(DemoOptions.screen),
+            let subscribedConversationId = Self.subscribedConversationId(in: text)
+        {
+            inner.withValue { $0.conversationId = subscribedConversationId }
+            state.withData { $0.sockets.append(self) }
+            if ChatHistoryDemo.isLive(DemoOptions.screen), subscribedConversationId == ChatHistoryDemo.conversationId { ChatHistoryDemo.playLive(state: state) }
+            if TranscriptStreamDemo.owns(DemoOptions.screen), subscribedConversationId == TranscriptStreamDemo.conversationId { TranscriptStreamDemo.play(state: state) }
+            return
+        }
         guard let message = try? SubscriptionMessage(decoding: text) else { return }
         switch message {
         case .connectionInit: enqueue(.text(#"{"type":"connection_ack"}"#))

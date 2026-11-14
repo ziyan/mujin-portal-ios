@@ -34,6 +34,38 @@ struct ConversationView: View {
     /// Whether the top of the thread is in view, where earlier messages load.
     /// How far a pull past the top has gone toward reading earlier messages, which only the row at the top reads.
     @State private var earlierPull = EarlierPull()
+    /// Whether the transcript shows its end. Only then does it follow an answer being written or a message that arrives.
+    @State private var isAtEnd = true
+    /// What the transcript showed last when the person left its end. While they read further up, the transcript shows nothing past it,
+    /// and the answer being written stays as it was then, so nothing below the messages being read grows and moves them.
+    @State private var heldEnd: HeldEnd?
+    /// How tall the typing dots and work banners at the foot of the transcript are, kept while the end is held.
+    @State private var footHeight: CGFloat = 0
+    /// Whether the person just let out what waited below: the list grows past the end while it scrolls there, and is not held again.
+    @State private var isReleasingHold = false
+    /// Counts the releases, so the scroll to the end runs after the released entries are laid out.
+    @State private var releaseCount = 0
+
+    private struct HeldEnd {
+        let lastEntry: TranscriptEntry
+        let footHeight: CGFloat
+    }
+
+    /// The entries the transcript shows: all of them at its end, or while the end is held, those up to the last one shown then, which
+    /// keeps the words it had. An earlier page going in above still shows.
+    private func shownEntries(_ model: ConversationModel) -> [TranscriptEntry] {
+        let all = model.transcript.displayEntries.filter { Self.isShown($0, showWorkingNotes: showWorkingNotes) }
+        guard let heldEnd, let index = all.lastIndex(where: { $0.id == heldEnd.lastEntry.id }) else { return all }
+        return Array(all[..<index]) + [heldEnd.lastEntry]
+    }
+
+    /// Whether anything waits past the held end: a newer entry, or more words of the answer being written. Only the last entry is
+    /// compared, so the check costs the same however long the transcript is.
+    private func hasWaiting(_ model: ConversationModel) -> Bool {
+        guard let heldEnd else { return false }
+        guard let last = model.transcript.displayEntries.last(where: { Self.isShown($0, showWorkingNotes: showWorkingNotes) }) else { return false }
+        return last.id != heldEnd.lastEntry.id || last != heldEnd.lastEntry
+    }
     /// The entry that was first when an earlier page was asked for, which the list goes back to once the page is in.
     @State private var entryIdAtTopBeforeEarlier: String?
 
@@ -306,7 +338,7 @@ struct ConversationView: View {
                         }
                         .padding(.top, 48)
                     }
-                    let shownEntries = model.transcript.displayEntries.filter { Self.isShown($0, showWorkingNotes: showWorkingNotes) }
+                    let shownEntries = shownEntries(model)
                     let threadKeys = Self.threadKeys(of: shownEntries, in: model.transcript)
                     ForEach(Array(shownEntries.enumerated()), id: \.element.id) { index, entry in
                         TranscriptRow(
@@ -328,14 +360,21 @@ struct ConversationView: View {
                                     shownEntries.filter { Self.isReply(in: $0, root: rootId) }.count))
                         }
                     }
-                    // The one sign of a turn at work: typing dots below everything, until the answer is done.
-                    if model.isShowingTypingDots {
-                        TypingBubble().id("typing")
-                    }
-                    if !model.isThread {
-                        ForEach(model.backgroundWork) { work in
-                            BackgroundWorkBanner(work: work) { Task { await model.stopBackgroundWork(work) } }
+                    if let heldEnd {
+                        Color.clear.frame(height: heldEnd.footHeight)
+                    } else {
+                        VStack(alignment: .leading, spacing: 16) {
+                            // The one sign of a turn at work: typing dots below everything, until the answer is done.
+                            if model.isShowingTypingDots {
+                                TypingBubble().id("typing")
+                            }
+                            if !model.isThread {
+                                ForEach(model.backgroundWork) { work in
+                                    BackgroundWorkBanner(work: work) { Task { await model.stopBackgroundWork(work) } }
+                                }
+                            }
                         }
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footHeight = $0 }
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
@@ -347,27 +386,63 @@ struct ConversationView: View {
             }
             .scrollDismissesKeyboard(.immediately)
             .background(Color.portalPage)
-            // A short thread starts at the top; a long one opens, and follows, at the end.
+            // A short thread starts at the top; a long one opens, and follows, at the end. An earlier page going in above is followed by
+            // a scroll back to the message being read.
             .defaultScrollAnchor(.top, for: .alignment)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
-            .defaultScrollAnchor(.bottom, for: .sizeChanges)
+            // Only a list at its end keeps its end as it grows: one being read further up keeps its messages where they are while
+            // an answer is written below.
+            .defaultScrollAnchor(isAtEnd ? .bottom : nil, for: .sizeChanges)
             // The list goes back to the message being read as earlier messages go in above.
             .modifier(PullForEarlier(state: model.earlierRowState, pull: earlierPull) { Task { await model.loadEarlier() } })
+            .onScrollGeometryChange(for: Bool.self, of: ListEnd.isShown) { _, isShown in isAtEnd = isShown }
+            .onChange(of: isAtEnd) { _, isShown in
+                if isShown {
+                    heldEnd = nil
+                    isReleasingHold = false
+                } else if heldEnd == nil, !isReleasingHold, footHeight > 0 || !model.isShowingTypingDots, let last = shownEntries(model).last {
+                    heldEnd = HeldEnd(lastEntry: last, footHeight: footHeight)
+                }
+            }
+            .onChange(of: releaseCount) { _, _ in withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) } }
             .onChange(of: model.isLoadingEarlier) { _, isLoading in
-                if isLoading { entryIdAtTopBeforeEarlier = model.transcript.displayEntries.first { Self.isShown($0, showWorkingNotes: showWorkingNotes) }?.id }
+                if isLoading { entryIdAtTopBeforeEarlier = shownEntries(model).first?.id }
             }
             .onChange(of: model.transcript.entries.first?.id) { _, _ in
                 guard let heldEntryId = entryIdAtTopBeforeEarlier else { return }
                 entryIdAtTopBeforeEarlier = nil
                 Task { @MainActor in await EarlierReadingPlace.keep(rowId: heldEntryId, proxy: proxy) }
             }
-            // The end of the thread, which an answer being written changes. Reading the same messages again moves nothing.
-            .onChange(of: model.transcript.entries.last) { _, _ in
+            // The end of the thread, which an answer being written changes, is followed from the end, and always after the person
+            // says something, which also lets out what waited. Reading the same messages again moves nothing.
+            .onChange(of: model.transcript.entries.last) { _, last in
+                let isOwn = if case .some(.user) = last { true } else { false }
+                guard isAtEnd || isOwn else { return }
+                heldEnd = nil
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+            }
+            .overlay(alignment: .bottom) {
+                if hasWaiting(model) {
+                    Button {
+                        isReleasingHold = true
+                        heldEnd = nil
+                        releaseCount += 1
+                    } label: {
+                        Label("New messages", systemImage: "arrow.down")
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .padding(.bottom, 8)
+                    .accessibilityIdentifier("newMessagesButton")
+                }
             }
             // The call's stage taking or giving back room at the top keeps the newest message in view above the composer. The
             // scroll waits for the layout that applies the new margin: made at once, it scrolls to where the end was before.
             .onChange(of: callStageBottom) { _, _ in
+                guard isAtEnd else { return }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(100))
                     proxy.scrollTo("bottom", anchor: .bottom)
