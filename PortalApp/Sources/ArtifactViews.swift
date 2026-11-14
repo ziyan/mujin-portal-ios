@@ -87,15 +87,26 @@ struct ArtifactWebView: UIViewRepresentable {
             loadTask = Task {
                 // Without the rule list the page would not be contained, so it is not shown.
                 guard await Self.install(rules: ArtifactSandbox.contentRuleListJSON(), on: webView) else { return }
+                // The theme can change while the rule list is made ready: the page loads at the address shown now.
+                let latestPageURL = shownPageURL ?? pageURL
                 var components = URLComponents(url: ArtifactSandbox.frameURL, resolvingAgainstBaseURL: false)!
-                components.queryItems = [URLQueryItem(name: "page", value: pageURL.absoluteString)]
+                components.queryItems = [URLQueryItem(name: "page", value: latestPageURL.absoluteString)]
                 webView.load(URLRequest(url: components.url!))
             }
         }
 
+        /// Adds the rule list to the web view: the one compiled before for these very rules, else one compiled now. The identifier
+        /// names the rules, so rules that change in a later version are compiled again rather than read stale.
         private static func install(rules: String, on webView: WKWebView) async -> Bool {
+            let store = WKContentRuleListStore.default()
+            let identifier = "artifact-frame-\(ArtifactSandbox.stableHash(rules))"
             do {
-                let list = try await WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "artifact-frame", encodedContentRuleList: rules)
+                let list: WKContentRuleList?
+                if let compiled = try? await store?.contentRuleList(forIdentifier: identifier) {
+                    list = compiled
+                } else {
+                    list = try await store?.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: rules)
+                }
                 guard let list else { return false }
                 webView.configuration.userContentController.add(list)
                 return true
@@ -544,13 +555,16 @@ enum DemoArtifact {
             });
           }
           function tellHeight() {
-            if (window.parent !== window) { window.parent.postMessage({ portalArtifact: { height: root.scrollHeight } }, "*"); }
+            // The body's own height: the root's scroll height is never less than the frame, so a page in a taller frame never shrank.
+            var style = getComputedStyle(document.body);
+            var height = Math.ceil(document.body.getBoundingClientRect().height + parseFloat(style.marginTop) + parseFloat(style.marginBottom));
+            if (window.parent !== window) { window.parent.postMessage({ portalArtifact: { height: height } }, "*"); }
           }
           followTheme();
           hideRepeatedTitle();
           addEventListener("hashchange", followTheme);
           addEventListener("load", tellHeight);
-          new ResizeObserver(tellHeight).observe(root);
+          new ResizeObserver(tellHeight).observe(document.body);
         })();
         </script>
         </body></html>

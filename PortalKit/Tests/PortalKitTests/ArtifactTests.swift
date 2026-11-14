@@ -92,4 +92,10 @@ import Testing
         // The same height again changes nothing.
         #expect(ArtifactSandbox.acceptedHeight(reported: 412.4, current: 413, isRemembered: false, secondsSinceLoad: 3) == nil)
     }
+
+    @Test func theRuleListIsNamedByItsRulesTheSameInEveryLaunch() {
+        #expect(ArtifactSandbox.stableHash("abc") == ArtifactSandbox.stableHash("abc"))
+        #expect(ArtifactSandbox.stableHash("abc") != ArtifactSandbox.stableHash("abd"))
+        #expect(ArtifactSandbox.stableHash("") == "cbf29ce484222325")
+    }
 }
