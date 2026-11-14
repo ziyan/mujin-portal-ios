@@ -30,6 +30,44 @@ import Testing
             runError: type == "run_error" ? .init(turnEndReason: "It failed.", reasonKind: "failed") : nil, threadRootMessageId: thread)
     }
 
+    // MARK: chats
+
+    func chatMessage(_ id: String, author: String = "user01", root: String? = nil, replyCount: Int = 0, lastReplyAt: String? = nil, text: String = "Hello") -> ChatMessage {
+        ChatMessage(
+            ConversationMessage(
+                id: id, role: "user", content: .string(text), createdAt: "2026-03-01T10:00:00Z", isChatMessage: true, authorUserId: author,
+                authorName: author, threadRootMessageId: root, threadReplyCount: replyCount, threadLastReplyAt: lastReplyAt))
+    }
+
+    @Test func aTapOnAMessageOfTheMainHistoryOpensItsThreadEvenWithoutReplies() {
+        #expect(ThreadRouting.chatThreadToOpen(messageId: "m1", threadRootMessageId: nil, isDeleted: false) == "m1")
+        #expect(ThreadRouting.chatThreadToOpen(messageId: "m2", threadRootMessageId: "m1", isDeleted: false) == "m1")
+        #expect(ThreadRouting.chatThreadToOpen(messageId: "m3", threadRootMessageId: "", isDeleted: true) == nil)
+    }
+
+    @Test func theThreadToContinueIsTheLatestActiveOneThePersonTookPartIn() {
+        let now = PortalDate.parse("2026-03-01T12:00:00Z")!
+        let messages = [
+            // A thread the person wrote a reply in, active ten minutes ago.
+            chatMessage("r1", author: "user02", replyCount: 2, lastReplyAt: "2026-03-01T11:50:00Z", text: "Can someone check the gripper on station three today?"),
+            chatMessage("x1", author: "user01", root: "r1"),
+            // A thread the person started, active five minutes ago: the latest.
+            chatMessage("r2", author: "user01", replyCount: 1, lastReplyAt: "2026-03-01T11:55:00Z", text: "Dock door"),
+            // Active a minute ago, but the person took no part in it.
+            chatMessage("r3", author: "user03", replyCount: 4, lastReplyAt: "2026-03-01T11:59:00Z"),
+            // The person took part, but its last reply is an hour old.
+            chatMessage("r4", author: "user01", replyCount: 1, lastReplyAt: "2026-03-01T11:00:00Z"),
+        ]
+        #expect(ThreadRouting.threadToContinue(messages, currentUserId: "user01", now: now)?.id == "r2")
+        #expect(ThreadRouting.threadToContinue(messages, currentUserId: "user09", now: now) == nil)
+    }
+
+    @Test func anExcerptEndsAtAWord() {
+        #expect(ThreadRouting.excerpt("Dock door") == "Dock door")
+        #expect(ThreadRouting.excerpt("Can someone check the gripper on station three today?") == "Can someone check the gripper on station\u{2026}")
+        #expect(ThreadRouting.excerpt("Line one\nline two") == "Line one line two")
+    }
+
     // MARK: routing
 
     @Test func theMainHistoryShowsEveryEventAndAThreadOnlyItsOwnRuns() {

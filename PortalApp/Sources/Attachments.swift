@@ -298,10 +298,32 @@ struct AttachMenu: View {
     let drafts: AttachmentDrafts
     var systemImage = "paperclip"
 
+    var body: some View {
+        Menu {
+            AttachMenuItems(drafts: drafts)
+        } label: {
+            Label("Attach", systemImage: systemImage)
+                .labelStyle(.iconOnly)
+                .font(.body.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 36, height: 36)
+                .background(Color(.tertiarySystemFill), in: .circle)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(.rect)
+        }
+        .accessibilityIdentifier("attachMenu")
+    }
+}
+
+/// AttachMenuItems are the ways to attach: a photo, the camera, a file, and a picture on the clipboard. They make up a menu of their own
+/// or the first part of the composer's [+].
+struct AttachMenuItems: View {
+    let drafts: AttachmentDrafts
+
     @State private var hasClipboardPicture = UIPasteboard.general.hasImages
 
     var body: some View {
-        Menu {
+        Group {
             Button {
                 drafts.isPickingPhotos = true
             } label: {
@@ -326,17 +348,7 @@ struct AttachMenu: View {
                     Label("Paste picture", systemImage: "doc.on.clipboard")
                 }
             }
-        } label: {
-            Label("Attach", systemImage: systemImage)
-                .labelStyle(.iconOnly)
-                .font(.body.weight(.medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 36, height: 36)
-                .background(Color(.tertiarySystemFill), in: .circle)
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(.rect)
         }
-        .accessibilityIdentifier("attachMenu")
         .onReceive(NotificationCenter.default.publisher(for: UIPasteboard.changedNotification)) { _ in
             hasClipboardPicture = UIPasteboard.general.hasImages
         }

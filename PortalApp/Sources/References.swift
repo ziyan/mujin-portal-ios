@@ -133,3 +133,90 @@ struct SentQuote: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+/// ContinueThreadHint offers, above the main history's composer, the thread the person was just talking in: what a send there would
+/// start is a new thread, so the hint is the way back into the one they meant.
+struct ContinueThreadHint: View {
+    let excerpt: String
+    let onOpen: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "bubble.left.and.text.bubble.right")
+                .font(.footnote)
+                .foregroundStyle(Color.portalSecondary)
+                .accessibilityHidden(true)
+            Text("Continue in thread: \(excerpt)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Reply in thread", action: onOpen)
+                .font(.caption.weight(.semibold))
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("continueThreadButton")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(alignment: .leading) {
+            Rectangle().fill(Color.accentColor).frame(width: 3)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityIdentifier("continueThreadHint")
+    }
+}
+
+/// StaffMark marks a Mujin user at the bottom right of their avatar: the Mujin mark in a small circle, on a ring of the surface the
+/// avatar sits on so it reads apart from the picture. The name beside the avatar says "Mujin staff" aloud (`readsAsStaff`).
+struct StaffMark: View {
+    /// The avatar's size; the mark is 40% of it.
+    let avatarSize: CGFloat
+    let ringColor: Color
+
+    var body: some View {
+        let markSize = avatarSize * 0.4
+        let ringWidth = max(1.5, markSize * 0.14)
+        Image("MujinLogo")
+            .resizable()
+            .scaledToFit()
+            .padding(markSize * 0.18)
+            .frame(width: markSize, height: markSize)
+            .background(Color.portalCard, in: Circle())
+            .padding(ringWidth)
+            .background(ringColor, in: Circle())
+            .offset(x: ringWidth, y: ringWidth)
+            .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Adds "Mujin staff" to what is read aloud for a name whose avatar carries the staff mark.
+    @ViewBuilder
+    func readsAsStaff(_ isStaff: Bool) -> some View {
+        if isStaff {
+            accessibilityLabel { label in
+                label
+                Text("Mujin staff")
+            }
+        } else {
+            self
+        }
+    }
+}
+
+/// StaffBadge marks a Mujin user after their name where no avatar is shown, as in a list at the largest text sizes: the Mujin
+/// mark, read aloud as "Mujin staff".
+struct StaffBadge: View {
+    @ScaledMetric(relativeTo: .caption) private var height: CGFloat = 13
+
+    var body: some View {
+        Image("MujinLogo")
+            .resizable()
+            .scaledToFit()
+            .frame(height: height)
+            .accessibilityElement()
+            .accessibilityLabel(Text("Mujin staff"))
+            .accessibilityIdentifier("staffBadge")
+    }
+}

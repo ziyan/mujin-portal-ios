@@ -236,10 +236,18 @@ the argument and fields is sent none of them (`ServerCapabilities.offersMessageT
 
 ## TestFlight
 
-TestFlight builds come from the `TestFlight` job of `.github/workflows/ios.yml`,
-which runs only when started by hand: Actions, iOS, Run workflow, with
-"Upload the build to TestFlight" on. The build number is the workflow run
+TestFlight builds come from the `TestFlight` job of `.github/workflows/ios.yml`.
+It runs on every push to `main`, and when started by hand: Actions, iOS, Run
+workflow, with "Upload the build to TestFlight" on. It waits only for the kit
+and app builds, not for the UI tests, so a broken build never uploads and a
+working one reaches testers at once. The build number is the workflow run
 number and the version is `MARKETING_VERSION` in `Configuration/Base.xcconfig`.
+
+Testers get the `integration` branch, not one pull request at a time. It is
+`main` with every open pull request branch merged in, and it is rebuilt that
+way on every push to a pull request branch and whenever a pull request merges;
+each rebuild is pushed and then uploaded with a manual run on `integration`.
+Pull requests stay separate for review; `integration` is never merged anywhere.
 
 The app tells people when a newer build can be installed. It reads how it was
 installed from its receipt's name, and not from StoreKit's app transaction,

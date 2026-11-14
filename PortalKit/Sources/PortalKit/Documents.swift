@@ -180,6 +180,7 @@ public enum Documents {
         documents += siteViewRuleDocuments
         documents += siteDocuments
         documents += notificationDocuments
+        documents += [searchChatReferences]
         documents += chatDocuments
         documents += pushDocuments
         documents += presenceDocuments
@@ -216,5 +217,13 @@ public enum Documents {
         documents += messageLinkDocuments
         documents += sitePageDocuments
         return documents
+    }
+}
+
+extension Documents {
+    /// A list of conversations people pick from, on a server that can leave out background runs and empty assistant conversations:
+    /// the app lists only those, never a sub-agent's, so every list it sends asks for them. A page of fifty is then fifty a person sees.
+    public static func withForegroundOnly(_ document: String) -> String {
+        document.replacingOccurrences(of: "(?<!query )ListConversations\\(", with: "ListConversations(isForegroundOnly: true, ", options: .regularExpression)
     }
 }

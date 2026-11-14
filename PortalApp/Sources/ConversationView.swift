@@ -272,7 +272,7 @@ struct ConversationView: View {
                     if isCallStaged { Color.clear.frame(height: max(callStageBottom - contentTop, 0)) }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    ComposerBar(model: model, voice: voice, dictation: dictation, drafts: drafts, draft: $draft)
+                    ComposerBar(model: model, voice: voice, dictation: dictation, drafts: drafts, draft: $draft, onTalk: voice == nil ? nil : { startCall() })
                 }
         }
     }
@@ -970,10 +970,12 @@ private struct ComposerBar: View {
     let dictation: DictationController
     let drafts: AttachmentDrafts
     @Binding var draft: String
+    /// Starts a call with the assistant, offered as Talk in the composer's [+].
+    var onTalk: (() -> Void)?
 
     private var placeholder: LocalizedStringKey {
         if model.activeQuestion != nil { return LocalizedStringKey("Your answer") }
-        return model.isThread ? LocalizedStringKey("Reply in thread…") : LocalizedStringKey("Message")
+        return model.isThread ? LocalizedStringKey("Reply in thread") : LocalizedStringKey("Message")
     }
 
     private var isDraftEmpty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -1025,15 +1027,13 @@ private struct ComposerBar: View {
             if let voice, voice.isActive || voice.phase != .idle {
                 EmptyView()
             } else {
-            AttachmentStrip(drafts: drafts)
-                .padding(.horizontal, 16)
             if let attachError = drafts.errorText {
                 Text(attachError).font(.footnote).foregroundStyle(Color.statusError).padding(.horizontal, 20)
             }
             ComposerCard(
                 placeholder: placeholder, text: $draft, drafts: drafts,
                 canSend: canSend,
-                onVoice: nil,
+                onVoice: onTalk,
                 onStop: model.isRunning ? { Task { await model.cancelRun() } } : nil, dictation: dictationControl,
                 onEscape: {
                     guard draft.isEmpty, model.replyTarget != nil else { return false }

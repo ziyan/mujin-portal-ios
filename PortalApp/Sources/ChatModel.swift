@@ -98,6 +98,21 @@ final class ChatModel {
     private(set) var sitePeople: [ChatMember] = []
     /// Whether the server takes structured mentions; otherwise the name text carries them.
     var offersStructuredMentions = false
+    /// Whether the server has internal notes. Set by the screen from the server's capabilities.
+    var offersInternalNotes = false
+    /// The person's own choice on the composer's internal-note lock.
+    var isInternalNoteChosen = false
+    /// Whether the person may write an internal note here: staff, in a chat a customer reads.
+    var canPostInternal: Bool { offersInternalNotes && room?.canPostInternal == true }
+    /// The root of the thread this screen shows, when it is loaded.
+    var threadRootMessage: ChatMessage? {
+        guard let root = ThreadRouting.normalized(threadRootMessageId) else { return nil }
+        return timeline.messages.first { $0.id == root }
+    }
+    /// Whether the lock is held on whatever the person picks: a reply to an internal note, or in an internal thread.
+    var isInternalNoteForced: Bool { canPostInternal && InternalNoteRules.isForcedOn(threadRoot: threadRootMessage, replyTo: replyTarget) }
+    /// Whether the next send is an internal note.
+    var isInternalNote: Bool { canPostInternal && (isInternalNoteForced || isInternalNoteChosen) }
     /// Whether a turn of the assistant the person started is running.
     private(set) var isOwnTurnRunning = false
     /// The thread the assistant's turn at work answers in, when an event or a send said; nil while it is unknown.
@@ -138,6 +153,8 @@ final class ChatModel {
     var isThread: Bool { threadRootMessageId != nil }
     /// Whether this screen is the main history of a server with threads: a tap on a message of a thread opens it.
     var canOpenThreads: Bool { offersMessageThreads && !isThread }
+    /// The thread a message just sent in the main history started, for the screen to open; the screen clears it once it has.
+    var threadStartedBySend: String?
     /// Whether the assistant's turn at work is answering where this screen looks: in this thread, or in no thread on the main history.
     var isAssistantWorkingHere: Bool {
         ThreadRouting.isViewRunning(
@@ -162,6 +179,33 @@ final class ChatModel {
     }
 
     /// The people and agents the @ list offers for what the draft ends with, or none when it is closed.
+    /// Whether the server has references, which the # picker finds. Set by the screen from the server's capabilities.
+    var offersChatReferences = false
+    /// What the # picker offers for the draft as typed now.
+    private(set) var referenceCandidates: [ChatReferenceCandidate] = []
+    private var referenceSearch: Task<Void, Never>?
+
+    /// Looks up what the # at the end of the draft could name, a moment after the typing stops; nothing when the draft has no #.
+    func searchReferences(for draft: String) {
+        referenceSearch?.cancel()
+        guard offersChatReferences, canWrite, let query = ChatReferences.pickerQuery(in: draft) else {
+            if !referenceCandidates.isEmpty { referenceCandidates = [] }
+            return
+        }
+        referenceSearch = Task { [connection, chatId] in
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            guard !Task.isCancelled else { return }
+            let found = (try? await connection.searchChatReferences(query: query, chatId: chatId)) ?? []
+            guard !Task.isCancelled else { return }
+            if found != referenceCandidates { referenceCandidates = found }
+        }
+    }
+
+    func clearReferenceCandidates() {
+        referenceSearch?.cancel()
+        referenceCandidates = []
+    }
+
     func mentionSuggestions(for draft: String) -> [MentionCandidate] {
         guard canWrite, let query = Mentions.query(in: draft) else { return [] }
         return Mentions.candidates(agents: agents, members: reachablePeople, query: query, excludingUserId: currentUserId)
@@ -296,6 +340,8 @@ final class ChatModel {
                 if let mark = member.lastReadMessageId, !mark.isEmpty { marks[member.userId] = mark }
             }
             timeline.setReadMarks(marks)
+            // A thread whose newest message is an internal note opens with the lock on, once; the person can change it after.
+            if isThread, phase != .loaded, canPostInternal { isInternalNoteChosen = InternalNoteRules.startsOn(threadMessages: timeline.messages) }
             phase = .loaded
             await reloadCards()
             await markRead()
@@ -372,14 +418,16 @@ final class ChatModel {
                 return true
             }
             let mentions = offersStructuredMentions ? Mentions.ranges(of: pickedMentions, in: trimmed) : []
+            let isNewThread = canOpenThreads && replyTarget == nil
             let sent = try await connection.sendChatMessage(
                 conversationId: conversationId, text: trimmed,
                 replyToMessageId: ThreadRouting.replyToMessageId(pickedMessageId: replyTarget?.id, viewThreadRootMessageId: threadRootMessageId),
-                mentions: mentions)
+                mentions: mentions, isInternal: isInternalNote)
             replyTarget = nil
             pickedMentions = []
             if hasFiles { attachments?.removeUploaded() }
             if let message = sent.message { timeline.upsert(message) }
+            if isNewThread, let message = sent.message, ThreadRouting.normalized(message.threadRootMessageId) == nil { threadStartedBySend = message.id }
             if !sent.runId.isEmpty {
                 isOwnTurnRunning = true
                 // The assistant answers in a thread: the one the message is in, or a new one hanging from the message.

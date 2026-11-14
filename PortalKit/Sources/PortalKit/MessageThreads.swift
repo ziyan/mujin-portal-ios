@@ -87,6 +87,46 @@ public enum ThreadRouting {
         return replyCount > 0 ? messageId : nil
     }
 
+    /// The thread a tap on a message of a chat's main history opens: the thread it is a reply in, else its own, replies or not. A
+    /// message that has none yet opens as the message and a composer that starts its thread. A deleted message opens nothing.
+    public static func chatThreadToOpen(messageId: String, threadRootMessageId: String?, isDeleted: Bool) -> String? {
+        if let root = normalized(threadRootMessageId) { return root }
+        return isDeleted ? nil : messageId
+    }
+
+    /// How long after its last reply a thread the person took part in is offered to continue from the main history.
+    public static let continueWindow: TimeInterval = 30 * 60
+
+    /// The thread the main history's composer offers to continue: the most recently active thread of the chat that the person took part
+    /// in (wrote its root or a reply in it) and that had a reply in the last 30 minutes. Worked out from the messages the screen has
+    /// loaded; the server keeps nothing for it.
+    public static func threadToContinue(_ messages: [ChatMessage], currentUserId: String, now: Date = Date()) -> ChatMessage? {
+        var participated = Set<String>()
+        for message in messages where message.authorUserId == currentUserId && !message.isDeleted {
+            if let root = normalized(message.threadRootMessageId) { participated.insert(root) } else { participated.insert(message.id) }
+        }
+        return messages
+            .filter { root in
+                normalized(root.threadRootMessageId) == nil && !root.isDeleted && root.threadReplyCount > 0 && participated.contains(root.id)
+            }
+            .compactMap { root -> (ChatMessage, Date)? in
+                guard let last = PortalDate.parse(root.threadLastReplyAt), now.timeIntervalSince(last) <= continueWindow else { return nil }
+                return (root, last)
+            }
+            .max { $0.1 < $1.1 }?.0
+    }
+
+    /// The first words of a thread's root, for the hint that offers to continue it.
+    public static func excerpt(_ text: String, maximumCharacters: Int = 40) -> String {
+        let flat = text.split(whereSeparator: \.isNewline).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        guard flat.count > maximumCharacters else { return flat }
+        let cut = flat.prefix(maximumCharacters)
+        // Cut at the end of a word: where the cut already ends one, there; else at the last space before it.
+        let endsAWord = flat[flat.index(flat.startIndex, offsetBy: maximumCharacters)] == " "
+        let atWord = endsAWord ? cut : (cut.lastIndex(of: " ").map { cut[..<$0] } ?? cut)
+        return atWord.trimmingCharacters(in: .whitespaces) + "\u{2026}"
+    }
+
     /// The message a send replies to. A thread's composer replies to the message the person picked, else to the thread's root, which
     /// is what puts the message in the thread. The main history replies only to a message picked.
     public static func replyToMessageId(pickedMessageId: String?, viewThreadRootMessageId: String?) -> String? {

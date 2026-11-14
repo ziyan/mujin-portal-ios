@@ -8,11 +8,11 @@ struct DictationControl {
     let action: () -> Void
 }
 
-/// ComposerCard is where the person writes, on every screen that has a box:
-/// one rounded card with the words on top and the buttons inside it, adding
-/// files at the bottom left, then voice, stop and send at the bottom right.
-/// Send is a filled accent circle when there is something to send and quiet
-/// gray when there is not. Nothing around it is glass of its own.
+/// ComposerCard is where the person writes, on every screen that has a box. At rest it is one pill: [+], the prompt, the microphone and
+/// send. While the person types, has something attached or has written more than one line, it is a card: what is attached on top,
+/// the words across the full width, and [+] at the bottom left with the microphone and send at the bottom right. Every button sits
+/// inside the box, which is the only bordered shape: [+] and the microphone are tonal circles, send is a filled accent circle (quiet
+/// gray with nothing to send) and becomes a square Stop while a turn runs.
 struct ComposerCard<Accessory: View>: View {
     let placeholder: LocalizedStringKey
     @Binding var text: String
@@ -31,77 +31,134 @@ struct ComposerCard<Accessory: View>: View {
     let onSend: () -> Void
     @ViewBuilder var accessory: Accessory
 
+    /// More for the [+] menu than attaching files: talking, and the screen's own choices.
+    var menuItems: [ComposerMenuItem] = []
+    /// Whether the next send is an internal note: the box turns amber and the card shows Staff only beside [+].
+    var isInternalNote = false
+
     @State private var isFocused = false
     /// The round buttons grow with the text, held where their symbols stay inside them.
     @ScaledMetric(relativeTo: .body) private var scaledDiameter: CGFloat = 36
     private var diameter: CGFloat { min(scaledDiameter, 60) }
+    private static var cornerRadius: CGFloat { 24 }
+    private static var inset: CGFloat { 8 }
+
+    /// How wide the words are while the composer is a pill, measured, so the pill knows when the words would need a second line.
+    @State private var pillFieldWidth: CGFloat = 0
+
+    /// The card: words across its whole width with the buttons on a row beneath, while the person types, has something attached or has
+    /// written more than one line. Otherwise one pill: [+], the words, the microphone and send in a row.
+    private var isExpanded: Bool {
+        isFocused || !(drafts?.items.isEmpty ?? true) || text.contains("\n") || wrapsInPill
+    }
+
+    /// Whether the words need a second line at the pill's width, in the text view's own font and at the current text size.
+    private var wrapsInPill: Bool {
+        guard !text.isEmpty, pillFieldWidth > 0 else { return false }
+        return wrapMemo.needsSecondLine(text, width: pillFieldWidth)
+    }
+
+    /// The last measurement, so the words are measured once per change of text, width or text size, not on every evaluation of the body.
+    @State private var wrapMemo = ComposerWrapMemo()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ZStack(alignment: .topLeading) {
-                if text.isEmpty {
-                    Text(placeholder)
-                        .foregroundStyle(Color(.placeholderText))
-                        .lineLimit(1)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-                // Paste or a drop of pictures is the card's own: it adds attachments, and any text that came with them is typed in only when it says something (PasteRule). With a hardware keyboard, Return sends and Shift+Return adds a line.
-                ComposerTextView(
-                    text: $text, isFocused: $isFocused, isEnabled: isEnabled,
-                    onReturn: { if canSend { onSend() } }, onEscape: onEscape,
-                    onPasteItems: drafts.map { drafts in { providers in await drafts.paste(itemProviders: providers) } }
-                )
-                .accessibilityLabel(Text(placeholder))
-                .accessibilityIdentifier(fieldIdentifier)
+        // One layout for both shapes, so the text view stays the same view: the keyboard, the caret and marked text survive the change.
+        ComposerLayout(isExpanded: isExpanded, text: text, spacing: Self.inset) {
+            Group {
+                if let drafts, !drafts.items.isEmpty { AttachmentStrip(drafts: drafts) } else { Color.clear.frame(width: 0, height: 0) }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
             HStack(spacing: 4) {
-                if let drafts { AttachMenu(drafts: drafts, systemImage: "plus") }
+                plusMenu
                 accessory
-                Spacer(minLength: 0)
-                if let dictation {
-                    // A plain microphone, apart from the waveform that starts a call and the filled one that records a voice message.
-                    // Listening, it is tinted and sits on a soft circle.
-                    Button(action: dictation.action) {
-                        Image(systemName: "mic")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(dictation.isListening ? Color.accentColor : Color.secondary)
-                            .frame(width: diameter, height: diameter)
-                            .background(dictation.isListening ? Color.accentColor.opacity(0.18) : Color.clear, in: .circle)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(.rect)
-                    }
-                    .disabled(!dictation.isEnabled)
-                    .accessibilityLabel(dictation.isListening ? Text("Stop dictating") : Text("Dictate"))
-                    .accessibilityIdentifier("dictateButton")
+                if isInternalNote, isExpanded { StaffOnlyChip() }
+            }
+            field
+            trailingButtons
+        }
+        .padding(Self.inset)
+        .animation(.easeOut(duration: 0.15), value: isExpanded)
+        // A tap on the box outside its buttons starts typing.
+        .background {
+            Color.clear
+                .contentShape(.rect(cornerRadius: Self.cornerRadius, style: .continuous))
+                .onTapGesture { isFocused = true }
+        }
+        .background(isInternalNote ? AnyShapeStyle(Color.statusWarning.opacity(0.16)) : AnyShapeStyle(Color.portalCard.opacity(0.92)), in: .rect(cornerRadius: Self.cornerRadius, style: .continuous))
+        .glassEffect(.regular, in: .rect(cornerRadius: Self.cornerRadius, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+        .frame(maxWidth: 720 + 32)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// The words, with the prompt drawn over the empty box on one line that ends in an ellipsis: the prompt never makes the box taller.
+    private var field: some View {
+        ZStack(alignment: .topLeading) {
+            if text.isEmpty {
+                Text(placeholder)
+                    .foregroundStyle(Color(.placeholderText))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            // Paste or a drop of pictures is the card's own: it adds attachments, and any text that came with them is typed in only when it says something (PasteRule). With a hardware keyboard, Return sends and Shift+Return adds a line.
+            ComposerTextView(
+                text: $text, isFocused: $isFocused, isEnabled: isEnabled,
+                onReturn: { if canSend { onSend() } }, onEscape: onEscape,
+                onPasteItems: drafts.map { drafts in { providers in await drafts.paste(itemProviders: providers) } }
+            )
+            .accessibilityLabel(Text(placeholder))
+            .accessibilityIdentifier(fieldIdentifier)
+        }
+        // The width the words have in the pill: measured only while it is one, since the card's is wider. A change under a point is
+        // rounding, not a new width, and acting on it could flip the shape back and forth at the boundary.
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            if !isExpanded, ComposerShape.acceptsPillWidth(width, replacing: pillFieldWidth) { pillFieldWidth = width }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 8)
+    }
+
+    /// [+]: attach a photo or a file, talk, and the screen's own choices. Hidden when there is nothing in it.
+    @ViewBuilder private var plusMenu: some View {
+        let items = menuItems + (onVoice.map { [ComposerMenuItem(title: "Talk", systemImage: "waveform", identifier: "voiceButton", action: $0)] } ?? [])
+        if drafts != nil || !items.isEmpty {
+            ComposerPlusMenu(drafts: drafts, items: items, diameter: diameter)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        }
+    }
+
+    /// The microphone and send, at the right of the pill or of the card's last row. While a turn runs, send is a square Stop.
+    private var trailingButtons: some View {
+        HStack(spacing: 4) {
+            if let dictation {
+                // Listening, it is tinted.
+                Button(action: dictation.action) {
+                    Image(systemName: "mic")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(dictation.isListening ? Color.accentColor : Color.secondary)
+                        .frame(width: diameter, height: diameter)
+                        .background(dictation.isListening ? Color.accentColor.opacity(0.18) : Color(.tertiarySystemFill), in: .circle)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(.rect)
                 }
-                if let onVoice, !canSend {
-                    Button(action: onVoice) {
-                        Image(systemName: "waveform")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(.secondary)
-                            .frame(width: diameter, height: diameter)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(.rect)
-                    }
-                    .accessibilityLabel("Talk to the assistant")
-                    .accessibilityIdentifier("voiceButton")
+                .disabled(!dictation.isEnabled)
+                .accessibilityLabel(dictation.isListening ? Text("Stop dictating") : Text("Dictate"))
+                .accessibilityIdentifier("dictateButton")
+            }
+            if let onStop {
+                Button(action: onStop) {
+                    Image(systemName: "stop.fill")
+                        .font(.footnote)
+                        .foregroundStyle(Color.onAccent)
+                        .frame(width: diameter, height: diameter)
+                        .background(Color.accentColor, in: .circle)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(.rect)
                 }
-                if let onStop {
-                    Button(action: onStop) {
-                        Image(systemName: "stop.fill")
-                            .font(.footnote)
-                            .foregroundStyle(Color(.systemBackground))
-                            .frame(width: diameter, height: diameter)
-                            .background(Color.primary, in: .circle)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .contentShape(.rect)
-                    }
-                    .accessibilityLabel("Stop")
-                }
+                .accessibilityLabel("Stop")
+            } else {
                 Button(action: onSend) {
                     Group {
                         if isSending {
@@ -121,23 +178,194 @@ struct ComposerCard<Accessory: View>: View {
                 .accessibilityLabel(sendLabel)
                 .accessibilityIdentifier(sendIdentifier)
             }
-            // Past a point the buttons stop growing with the text.
-            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-            .padding(.horizontal, 6)
-            .padding(.bottom, 4)
         }
-        // A tap on the card outside its buttons starts typing.
-        .background {
-            Color.clear
-                .contentShape(.rect(cornerRadius: 26, style: .continuous))
-                .onTapGesture { isFocused = true }
+        // Past a point the buttons stop growing with the text.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+    }
+}
+
+/// StaffOnlyChip says, in the composer's card beside [+], that what is sent is an internal note only Mujin staff read.
+struct StaffOnlyChip: View {
+    var body: some View {
+        Label("Staff only", systemImage: "lock.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.statusWarning)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.statusWarning.opacity(0.16), in: Capsule())
+            .lineLimit(1)
+            .fixedSize()
+            .accessibilityIdentifier("staffOnlyChip")
+    }
+}
+
+/// InternalNoteLabel marks an internal note in a chat: a lock, read aloud as Internal.
+struct InternalNoteLabel: View {
+    var body: some View {
+        Image(systemName: "lock.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.statusWarning)
+            .accessibilityLabel(Text("Internal"))
+            .accessibilityIdentifier("internalNoteLabel")
+    }
+}
+
+/// ComposerWrapMemo measures whether the words need a second line of the composer's text view, which sets them in the body font with no
+/// insets, and remembers the answer for the text, width and font size it was asked about. It is a plain class held in @State:
+/// remembering changes nothing the screen shows, so it never re-runs the body.
+final class ComposerWrapMemo {
+    private var text = ""
+    private var width: CGFloat = 0
+    private var fontSize: CGFloat = 0
+    private var answer = false
+
+    func needsSecondLine(_ text: String, width: CGFloat) -> Bool {
+        let font = UIFont.preferredFont(forTextStyle: .body)
+        if text == self.text, width == self.width, font.pointSize == fontSize { return answer }
+        let bounds = (text as NSString).boundingRect(
+            with: CGSize(width: max(width, 1), height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font], context: nil)
+        self.text = text
+        self.width = width
+        self.fontSize = font.pointSize
+        answer = ComposerShape.needsSecondLine(textHeight: bounds.height, lineHeight: font.lineHeight)
+        return answer
+    }
+}
+
+/// ComposerMenuItem is one choice of the composer's [+] menu beyond attaching: talking, or a choice of the screen's own. One with
+/// `isOn` set is a check item.
+struct ComposerMenuItem: Identifiable {
+    let title: LocalizedStringKey
+    let systemImage: String
+    var identifier: String
+    var isOn: Bool?
+    var isDisabled = false
+    let action: () -> Void
+    var id: String { identifier }
+
+    init(title: LocalizedStringKey, systemImage: String, identifier: String, isOn: Bool? = nil, isDisabled: Bool = false, action: @escaping () -> Void) {
+        self.title = title
+        self.systemImage = systemImage
+        self.identifier = identifier
+        self.isOn = isOn
+        self.isDisabled = isDisabled
+        self.action = action
+    }
+}
+
+/// ComposerPlusMenu is the [+] of the composer: a filled tonal circle that opens the ways to attach, then the composer's other choices.
+private struct ComposerPlusMenu: View {
+    let drafts: AttachmentDrafts?
+    let items: [ComposerMenuItem]
+    let diameter: CGFloat
+
+    var body: some View {
+        Menu {
+            if let drafts { AttachMenuItems(drafts: drafts) }
+            if !items.isEmpty {
+                Section {
+                    ForEach(items) { item in
+                        if let isOn = item.isOn {
+                            Toggle(isOn: Binding(get: { isOn }, set: { _ in item.action() })) { Label(item.title, systemImage: item.systemImage) }
+                                .disabled(item.isDisabled)
+                                .accessibilityIdentifier(item.identifier)
+                        } else {
+                            Button(action: item.action) { Label(item.title, systemImage: item.systemImage) }
+                                .disabled(item.isDisabled)
+                                .accessibilityIdentifier(item.identifier)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Label("More", systemImage: "plus")
+                .labelStyle(.iconOnly)
+                .font(.body.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(width: diameter, height: diameter)
+                .background(Color(.tertiarySystemFill), in: .circle)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(.rect)
         }
-        .background(Color.portalCard.opacity(0.92), in: .rect(cornerRadius: 26, style: .continuous))
-        .glassEffect(.regular, in: .rect(cornerRadius: 26, style: .continuous))
-        .padding(.horizontal, 12)
-        .padding(.bottom, 8)
-        .frame(maxWidth: 720 + 32)
-        .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("attachMenu")
+    }
+}
+
+/// ComposerLayout places the composer's parts as one pill or as a card. Its subviews come in a fixed order: what is attached, the
+/// leading buttons, the words, and the trailing buttons. The pill is a single row with the words between the buttons and nothing
+/// attached; the card puts what is attached on top, the words across the full width, and the buttons on a row beneath.
+struct ComposerLayout: Layout {
+    var isExpanded: Bool
+    /// The words in the field. Never read: when it changes the layout updates, so the cached measurement of the text view is dropped.
+    var text: String
+    var spacing: CGFloat
+
+    /// What the text view and the button rows measured, kept for the pass: a measurement of the text view is the costly one, and the
+    /// layout asks for the same width in both of its methods.
+    struct Cache {
+        var leading: CGSize
+        var trailing: CGSize
+        var fieldSizeByWidth: [CGFloat: CGSize] = [:]
+    }
+
+    func makeCache(subviews: Subviews) -> Cache {
+        Cache(leading: subviews[1].sizeThatFits(.unspecified), trailing: subviews[3].sizeThatFits(.unspecified))
+    }
+
+    func updateCache(_ cache: inout Cache, subviews: Subviews) {
+        cache = makeCache(subviews: subviews)
+    }
+
+    private func fieldSize(_ subview: LayoutSubview, width: CGFloat, cache: inout Cache) -> CGSize {
+        if let size = cache.fieldSizeByWidth[width] { return size }
+        let size = subview.sizeThatFits(ProposedViewSize(width: width, height: nil))
+        cache.fieldSizeByWidth[width] = size
+        return size
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
+        let width = proposal.width ?? 320
+        let leading = cache.leading
+        let trailing = cache.trailing
+        if isExpanded {
+            let attached = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
+            let field = fieldSize(subviews[2], width: width, cache: &cache)
+            let attachedHeight = attached.height > 0 ? attached.height + spacing : 0
+            return CGSize(width: width, height: attachedHeight + field.height + spacing / 2 + max(leading.height, trailing.height))
+        }
+        let field = fieldSize(subviews[2], width: fieldWidth(width, leading, trailing), cache: &cache)
+        return CGSize(width: width, height: max(leading.height, trailing.height, field.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
+        let leading = cache.leading
+        let trailing = cache.trailing
+        if isExpanded {
+            var y = bounds.minY
+            let attached = subviews[0].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+            subviews[0].place(at: CGPoint(x: bounds.minX, y: y), proposal: ProposedViewSize(width: bounds.width, height: attached.height))
+            if attached.height > 0 { y += attached.height + spacing }
+            let field = fieldSize(subviews[2], width: bounds.width, cache: &cache)
+            subviews[2].place(at: CGPoint(x: bounds.minX, y: y), proposal: ProposedViewSize(width: bounds.width, height: field.height))
+            y += field.height + spacing / 2
+            let rowHeight = max(leading.height, trailing.height)
+            subviews[1].place(at: CGPoint(x: bounds.minX, y: y + rowHeight / 2), anchor: .leading, proposal: .unspecified)
+            subviews[3].place(at: CGPoint(x: bounds.maxX, y: y + rowHeight / 2), anchor: .trailing, proposal: .unspecified)
+            return
+        }
+        subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.minY), proposal: .zero)
+        subviews[1].place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: .unspecified)
+        let width = fieldWidth(bounds.width, leading, trailing)
+        let field = fieldSize(subviews[2], width: width, cache: &cache)
+        subviews[2].place(
+            at: CGPoint(x: bounds.minX + leading.width + (leading.width > 0 ? spacing : 0), y: bounds.midY), anchor: .leading,
+            proposal: ProposedViewSize(width: width, height: field.height))
+        subviews[3].place(at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing, proposal: .unspecified)
+    }
+
+    private func fieldWidth(_ width: CGFloat, _ leading: CGSize, _ trailing: CGSize) -> CGFloat {
+        max(width - leading.width - trailing.width - (leading.width > 0 ? spacing : 0) - spacing, 0)
     }
 }
 
@@ -146,13 +374,13 @@ extension ComposerCard {
     init(
         placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,
         isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", dictation: DictationControl? = nil,
-        fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton", onEscape: (() -> Bool)? = nil, onSend: @escaping () -> Void,
-        @ViewBuilder accessory: () -> Accessory
+        fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton", onEscape: (() -> Bool)? = nil,
+        isInternalNote: Bool = false, menuItems: [ComposerMenuItem] = [], onSend: @escaping () -> Void, @ViewBuilder accessory: () -> Accessory
     ) {
         self.init(
             placeholder: placeholder, text: text, drafts: drafts, isEnabled: isEnabled, canSend: canSend, isSending: isSending, sendSymbol: sendSymbol,
             sendLabel: sendLabel, onVoice: nil, onStop: nil, dictation: dictation, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
-            onSend: onSend, accessory: accessory)
+            onSend: onSend, accessory: accessory, menuItems: menuItems, isInternalNote: isInternalNote)
     }
 }
 
@@ -161,12 +389,12 @@ extension ComposerCard where Accessory == EmptyView {
         placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,
         isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", onVoice: (() -> Void)? = nil,
         onStop: (() -> Void)? = nil, dictation: DictationControl? = nil, fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton",
-        onEscape: (() -> Bool)? = nil, onSend: @escaping () -> Void
+        onEscape: (() -> Bool)? = nil, isInternalNote: Bool = false, menuItems: [ComposerMenuItem] = [], onSend: @escaping () -> Void
     ) {
         self.init(
             placeholder: placeholder, text: text, drafts: drafts, isEnabled: isEnabled, canSend: canSend, isSending: isSending, sendSymbol: sendSymbol,
             sendLabel: sendLabel, onVoice: onVoice, onStop: onStop, dictation: dictation, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
-            onSend: onSend, accessory: { EmptyView() })
+            onSend: onSend, accessory: { EmptyView() }, menuItems: menuItems, isInternalNote: isInternalNote)
     }
 }
 
@@ -327,6 +555,10 @@ struct UserAvatar: View {
     var modifiedAt: String?
     var size: CGFloat = 28
     var isAssistant = false
+    /// Whether the person is Mujin staff, which puts the staff mark on the avatar's corner.
+    var isStaff = false
+    /// The surface the avatar sits on, which the staff mark's ring takes.
+    var surfaceColor = Color.portalCard
 
     @State private var loaded: UIImage?
 
@@ -341,6 +573,9 @@ struct UserAvatar: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
+        .overlay(alignment: .bottomTrailing) {
+            if isStaff { StaffMark(avatarSize: size, ringColor: surfaceColor) }
+        }
         .accessibilityHidden(true)
     }
 }
