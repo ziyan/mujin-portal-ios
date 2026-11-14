@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 import PortalKit
 
 /// ConversationModel is one open conversation: its transcript, kept current
@@ -8,6 +9,8 @@ import PortalKit
 @MainActor
 @Observable
 final class ConversationModel {
+    private static let log = Logger(subsystem: "com.ziyan.mujinportal", category: "conversation")
+
     enum Phase: Equatable {
         case loading
         case loaded
@@ -50,8 +53,10 @@ final class ConversationModel {
     }
     /// Background work this conversation started that has not ended.
     private(set) var backgroundWork: [BackgroundWork] = []
-    /// Whether the assistant runs shell commands in the background on this server.
-    var offersBackgroundCommands = false
+    /// Whether the assistant runs shell commands in the background on this server, asked each time: the session learns what the
+    /// server offers after the screen opens, and again when it changes.
+    @ObservationIgnored var readsOffersBackgroundCommands: () -> Bool = { false }
+    private var offersBackgroundCommands: Bool { readsOffersBackgroundCommands() }
     /// The conversation's background commands, every thread's together.
     private(set) var backgroundCommands: [BackgroundCommand] = []
     /// This view's background commands, running first: the main history's, or this thread's.
@@ -344,8 +349,13 @@ final class ConversationModel {
     }
 
     func refreshBackgroundCommands() async {
-        guard offersBackgroundCommands, let commands = try? await connection.backgroundCommands(conversationId: conversationId) else { return }
-        backgroundCommands = commands
+        guard offersBackgroundCommands else { return }
+        do {
+            backgroundCommands = try await connection.backgroundCommands(conversationId: conversationId)
+        } catch {
+            // The list keeps what it had; the next refresh tries again.
+            Self.log.error("background commands could not be read: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// Asks one of the person's own commands to stop.

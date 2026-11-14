@@ -288,7 +288,7 @@ struct ConversationView: View {
                 onError: { [appModel, account] error in appModel.handle(error, account: account) })
             conversationModel.onTitleChanged = { onTitleChanged?($0) }
             conversationModel.offersTodos = session.capabilities.offersTodos
-            conversationModel.offersBackgroundCommands = session.capabilities.offersBackgroundCommands
+            conversationModel.readsOffersBackgroundCommands = { [weak session] in session?.capabilities.offersBackgroundCommands ?? false }
             model = conversationModel
             takeReference()
             // The screen moves to another conversation (on iPad, a pick from the list): a call that is going stays with the session.
