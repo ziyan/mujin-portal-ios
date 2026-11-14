@@ -227,6 +227,18 @@ struct ChatView: View {
                         .buttonStyle(.bordered)
                         .disabled(model.isLoadingEarlier)
                     }
+                    if isThread, let subject = model.timeline.messages.first(where: { $0.id == model.threadRootMessageId })?.threadSubject {
+                        // What the thread is about, under the title. Opens the ticket or cell when the reader may see it.
+                        if subject.canOpen {
+                            Button { if let path = subject.path, let link = PortalLink(path: path) { appModel.openedLink = OpenedLink(link: link) } } label: {
+                                MessageReferenceChip(reference: subject)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("threadSubjectChip")
+                        } else {
+                            MessageReferenceChip(reference: subject).accessibilityIdentifier("threadSubjectChip")
+                        }
+                    }
                     if model.timeline.messages.isEmpty, !isThread {
                         ContentUnavailableView {
                             Label("No messages yet", systemImage: "bubble.left.and.bubble.right")
@@ -802,7 +814,7 @@ private struct MessageRow: View {
                         .frame(maxWidth: 320)
                 }
                 if let onOpenThread, message.threadSummary?.isCountShown == true || isAssistantWorkingInThread {
-                    ThreadReplyControl(summary: message.threadSummary, isWorking: isAssistantWorkingInThread) { onOpenThread(message.id) }
+                    ThreadReplyControl(summary: message.threadSummary, isWorking: isAssistantWorkingInThread, subjectText: message.threadSubject?.subjectText) { onOpenThread(message.id) }
                 }
                 if isMine, isLastOwn { receipt }
             }

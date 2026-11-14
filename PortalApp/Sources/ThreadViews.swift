@@ -6,7 +6,14 @@ import SwiftUI
 struct ThreadReplyControl: View {
     let summary: ThreadSummary?
     let isWorking: Bool
+    /// What the thread is about, such as "Ticket 13", named before the count when there is any.
+    var subjectText: String?
     let onOpen: () -> Void
+
+    private func line(_ count: Int) -> Text {
+        guard let subjectText, !subjectText.isEmpty else { return Text(ThreadText.replyCount(count)) }
+        return Text(subjectText) + Text(" \u{00B7} ") + Text(ThreadText.replyCount(count))
+    }
 
     var body: some View {
         Button(action: onOpen) {
@@ -14,7 +21,7 @@ struct ThreadReplyControl: View {
                 if isWorking {
                     TypingDots(dotSize: 6)
                 } else if let summary {
-                    Text(ThreadText.replyCount(summary.replyCount)).font(.footnote)
+                    line(summary.replyCount).font(.footnote).lineLimit(1)
                 }
             }
             .frame(minHeight: 44)
@@ -25,7 +32,7 @@ struct ThreadReplyControl: View {
         // above as to the one below.
         .padding(.vertical, -12)
         .foregroundStyle(Color.accentColor)
-        .accessibilityLabel(isWorking ? Text("Working on an answer…") : summary.map { Text(ThreadText.replyCount($0.replyCount)) } ?? Text(""))
+        .accessibilityLabel(isWorking ? Text("Working on an answer…") : summary.map { line($0.replyCount) } ?? Text(""))
         .accessibilityHint(Text("Open the thread"))
         .accessibilityIdentifier("threadReplyControl")
     }
