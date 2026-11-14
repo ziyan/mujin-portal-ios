@@ -23,6 +23,8 @@ struct ChatView: View {
     @State private var openedThreadRootId: String?
     /// How far a pull past the top has gone toward reading earlier messages, which only the row at the top reads.
     @State private var earlierPull = EarlierPull()
+    /// The message that was first when an earlier page was asked for, which the list goes back to once the page is in.
+    @State private var messageIdAtTopBeforeEarlier: String?
     /// The message a link pointed at, marked for a moment.
     @State private var highlightedMessageId: String?
     /// Whether the list shows its last message. Only then does it follow what arrives at the end.
@@ -300,9 +302,9 @@ struct ChatView: View {
             .background(Color.portalPage)
             // A short chat sits at the bottom, and a long one opens at its end. When the content changes size, the list at its end
             // keeps the end in view; read further up, it keeps the messages in view where they are, whatever changes below them. An
-            // earlier page going in above is the one change made at the top, and while it does the list keeps its distance from the end.
+            // earlier page going in above is the one change made at the top, and the list is scrolled back to the message being read.
             .defaultScrollAnchor(.bottom)
-            // Earlier messages are read only on a pull past the top; the bottom anchor keeps the reading place as they go in above.
+            // Earlier messages are read only on a pull past the top; the list goes back to the message being read as they go in above.
             .modifier(PullForEarlier(state: model.earlierRowState, pull: earlierPull) { Task { await model.loadEarlier() } })
             .onScrollGeometryChange(for: Bool.self, of: ListEnd.isShown) { _, isShown in isAtEnd = isShown }
             .onChange(of: isAtEnd) { _, isShown in
@@ -315,6 +317,14 @@ struct ChatView: View {
                 }
             }
             .onChange(of: releaseCount) { _, _ in withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) } }
+            .onChange(of: model.isLoadingEarlier) { _, isLoading in
+                if isLoading { messageIdAtTopBeforeEarlier = model.timeline.messages.first?.id }
+            }
+            .onChange(of: model.timeline.messages.first?.id) { _, _ in
+                guard let heldMessageId = messageIdAtTopBeforeEarlier else { return }
+                messageIdAtTopBeforeEarlier = nil
+                Task { @MainActor in await EarlierReadingPlace.keep(rowId: heldMessageId, proxy: proxy) }
+            }
             .task(id: focusedMessageId) { await showFocusedMessage(model, proxy: proxy) }
             // A new message is followed only from the end, or when it is the person's own, which also lets out what waited below.
             .onChange(of: model.timeline.messages.last?.id) { _, _ in
