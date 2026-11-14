@@ -10,9 +10,16 @@ extension ServerCapabilities {
     public var offersTodos: Bool { offersQuery("ListConversationTodos") }
 }
 
+extension ConversationEvent {
+    /// Whether this event is the result of the assistant's todo tool, after which the todo list is read again.
+    public var mayChangeTodos: Bool {
+        kind == .toolResult && (toolResult?.toolName ?? "").lowercased().contains("todo")
+    }
+}
+
 extension Documents {
     /// The fields each document that lists them adds on a server with thread-native interactions.
-    private static let threadToolAnchors = [
+    static let threadToolAnchors = [
         "id question choices allowOther askedAt answeredAt cancelledAt",
         "id toolCallId toolName policyReason risk arguments requestedAt decidedAt cancelledAt",
         "conversationId organizationId ownerUserId conversationTitle waitingKind interactionId promptText toolName toolRisk askedAt expiresAt",
@@ -21,8 +28,14 @@ extension Documents {
     ]
 
     /// A document with each question's, approval's, waiting item's, artifact's and todo's thread added.
+    /// Fields are matched whatever whitespace separates them, so a document laid out on several lines still gets its field.
     public static func withThreadTools(_ document: String) -> String {
-        threadToolAnchors.reduce(document) { result, fields in result.replacingOccurrences(of: fields, with: fields + " threadRootMessageId") }
+        threadToolAnchors.reduce(document) { result, fields in addThreadField(to: result, after: fields) }
+    }
+
+    static func addThreadField(to document: String, after fields: String) -> String {
+        let pattern = fields.split(separator: " ").map { NSRegularExpression.escapedPattern(for: String($0)) }.joined(separator: "\\s+")
+        return document.replacingOccurrences(of: pattern, with: "$0 threadRootMessageId", options: .regularExpression)
     }
 
     public static let listTodos = """

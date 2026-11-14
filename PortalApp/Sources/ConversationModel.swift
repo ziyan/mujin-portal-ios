@@ -179,6 +179,7 @@ final class ConversationModel {
             switch event.kind {
             case .runComplete, .runError: await reload(isRunFinished: true)
             case .pendingQuestion, .pendingApproval: await reload()
+            case .toolResult where event.mayChangeTodos: await refreshTodos()
             default: break
             }
         case .reconnecting:
@@ -234,6 +235,7 @@ final class ConversationModel {
                 conversationId: conversationId, latestCount: isThread ? ThreadRouting.threadMessageCount : window.reloadCount,
                 threadRootMessageId: threadRootMessageId)
             async let waitingCards = connection.waitingCards(conversationId: conversationId)
+            async let loadedTodos = fetchTodos()
             // A thread is read whole, so it has no count of earlier messages.
             let shouldCountMessages = !isThread
             async let total: Int? = shouldCountMessages ? connection.messageCountOrNil(conversationId: conversationId) : nil
@@ -247,7 +249,7 @@ final class ConversationModel {
             )
             waitingThreadRootIds = isThread ? [] : ThreadViews.waitingThreads(questions: loadedCards.questions, approvals: loadedCards.approvals)
             threadToOpenOn = isThread ? nil : ThreadViews.threadToOpenOn(questions: loadedCards.questions, approvals: loadedCards.approvals)
-            if offersTodos, let loadedTodos = try? await connection.todos(conversationId: conversationId) { todos = loadedTodos }
+            if let loadedTodos = await loadedTodos { todos = loadedTodos }
             isTitleCustom = loadedSummary.isTitleCustom == true
             hasSummary = !(loadedSummary.summary ?? "").isEmpty
             applyTitle(loadedSummary.title)
@@ -264,6 +266,17 @@ final class ConversationModel {
             onError(error)
             if phase == .loading { phase = .failed(error.userMessage) }
         }
+    }
+
+    /// The assistant's todo list, or nil where the server keeps none or the read failed, so the list shown stays as it was.
+    private func fetchTodos() async -> [ConversationTodo]? {
+        guard offersTodos else { return nil }
+        return try? await connection.todos(conversationId: conversationId)
+    }
+
+    /// Reads the todo list again, after the assistant used its todo tool.
+    private func refreshTodos() async {
+        if let fetched = await fetchTodos() { todos = fetched }
     }
 
     /// A conversation keeps the title it has: a read that comes back without one, from a replica that is

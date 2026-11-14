@@ -570,14 +570,19 @@ public struct Transcript: Equatable, Sendable {
             if let duration = result.durationMS, duration > 0 { activity.durationMS = duration }
             entries[index] = .tool(activity)
         case .pendingQuestion:
-            guard let question = event.pendingQuestion else { return }
+            // A question asked in another view waits there; the main history points to it.
+            guard let question = event.pendingQuestion,
+                ThreadViews.belongs(threadRootMessageId: event.threadRootMessageId, toView: threadRootMessageId)
+            else { return }
             finishStreaming()
             let card = QuestionCard(id: question.questionId, question: question.question, choices: question.choices ?? [], allowOther: question.allowOther ?? true)
             guard !entries.contains(where: { $0.id == "question:\(card.id)" }) else { return }
             entries.append(.question(card))
             liveEntryIds.insert("question:\(card.id)")
         case .pendingApproval:
-            guard let approval = event.pendingApproval else { return }
+            guard let approval = event.pendingApproval,
+                ThreadViews.belongs(threadRootMessageId: event.threadRootMessageId, toView: threadRootMessageId)
+            else { return }
             finishStreaming()
             let card = ApprovalCard(
                 id: approval.approvalId, toolCallId: approval.toolCallId ?? "", toolName: approval.toolName,
