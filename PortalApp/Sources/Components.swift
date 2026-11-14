@@ -64,8 +64,14 @@ struct ComposerCard<Accessory: View>: View {
 
     /// Whether the words need a second line at the pill's width, in the text view's own font and at the current text size.
     private var wrapsInPill: Bool {
-        guard !text.isEmpty, pillFieldWidth > 0 else { return false }
-        return wrapMemo.needsSecondLine(text, width: pillFieldWidth)
+        guard !text.isEmpty else { return false }
+        return wrapMemo.needsSecondLine(text, width: pillFieldWidth > 0 ? pillFieldWidth : Self.estimatedPillFieldWidth)
+    }
+
+    /// The words' width in a pill before one was measured, from the screen's width less the box's margins and its three round buttons, so
+    /// a box that opens with words in it chooses its shape in its first layout and does not turn from a pill into a card a moment later.
+    private static var estimatedPillFieldWidth: CGFloat {
+        min(UIScreen.main.bounds.width, 720 + 32) - 2 * 12 - 2 * inset - 3 * 44 - 2 * 4 - 2 * 6
     }
 
     /// The last measurement, so the words are measured once per change of text, width or text size, not on every evaluation of the body.
