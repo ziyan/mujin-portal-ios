@@ -29,9 +29,12 @@ final class MarkdownTableZoomTests: XCTestCase {
         // A slow drag that stops where it ends, as one finger on the table does; a swipe is a flick the page may take for its own.
         let start = table.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
         let end = table.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
-        start.press(forDuration: 0.1, thenDragTo: end)
-        let deadline = Date().addingTimeInterval(5)
-        while !isLastHeadingInView(), Date() < deadline { Thread.sleep(forTimeInterval: 0.25) }
+        // The table is about twice as wide as the row, and one drag moves it by two thirds of the row: it takes more than one.
+        for _ in 0..<4 where !isLastHeadingInView() {
+            start.press(forDuration: 0.1, thenDragTo: end)
+            let deadline = Date().addingTimeInterval(2)
+            while !isLastHeadingInView(), Date() < deadline { Thread.sleep(forTimeInterval: 0.25) }
+        }
         XCTAssertTrue(isLastHeadingInView(), "A drag did not move the table sideways.\n\(app.debugDescription)")
         XCTAssertFalse(viewer(app).exists, "A one finger drag opened the table full screen.")
     }
@@ -56,9 +59,14 @@ final class MarkdownTableZoomTests: XCTestCase {
     func testTheFormulasAndDiagramOfAPageKeepTheirOwnNames() {
         let app = DemoApp.launch(screen: "site-page-rich")
         XCTAssertTrue(DemoApp.element(app, "sitePageWords").waitForExistence(timeout: 90), "The page never appeared.\n\(app.debugDescription)")
-        let paragraph = DemoApp.element(app, "mathParagraph")
-        XCTAssertTrue(paragraph.waitForExistence(timeout: 30), "The formulas in the words are not drawn.\n\(app.debugDescription)")
-        XCTAssertTrue(paragraph.label.contains("frac{n}{t}"), "VoiceOver reads \"\(paragraph.label)\", without the formula.")
+        // The page has two paragraphs with formulas in their words, and the first match of one identifier is not always the same one.
+        let paragraphs = app.descendants(matching: .any).matching(identifier: "mathParagraph")
+        XCTAssertTrue(paragraphs.firstMatch.waitForExistence(timeout: 30), "The formulas in the words are not drawn.\n\(app.debugDescription)")
+        let deadline = Date().addingTimeInterval(15)
+        func labels() -> [String] { paragraphs.allElementsBoundByIndex.map(\.label) }
+        func isFormulaRead() -> Bool { labels().contains(where: { $0.contains("frac{n}{t}") }) }
+        while !isFormulaRead(), Date() < deadline { Thread.sleep(forTimeInterval: 0.25) }
+        XCTAssertTrue(isFormulaRead(), "VoiceOver reads \(labels()), without the formula.")
         XCTAssertTrue(DemoApp.element(app, "mathFormula").waitForExistence(timeout: 30), "The formula on its own line is not drawn.\n\(app.debugDescription)")
         let diagram = DemoApp.element(app, "mermaidDiagram")
         DemoApp.scrollToElement(diagram, in: app)

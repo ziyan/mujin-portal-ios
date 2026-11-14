@@ -200,6 +200,8 @@ private struct MarkdownTableView: View {
                     if value.magnification > 1.12 { openFullScreen() }
                 }
             )
+            // Text selection on the page's words reaches over the table too, which is kept from taking the finger that drags it.
+            .textSelection(.disabled)
             .accessibilityIdentifier("markdownTable")
             .accessibilityAction(named: Text("Open full screen")) { openFullScreen() }
             HStack {
