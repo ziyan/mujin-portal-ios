@@ -310,10 +310,12 @@ struct MainTabsView: View {
         // A call with the assistant that ends, or fails, while its conversation is off screen is let go of here, with its
         // conversation's live feed; a conversation on screen keeps its own.
         .onChange(of: session.assistantCall?.isGoing ?? false) { _, isGoing in
+            print("CALLDIAG going \(isGoing) on screen \(session.conversationIdOnScreen ?? "none")")
             guard !isGoing, let call = session.assistantCall, session.conversationIdOnScreen != call.conversationId else { return }
             call.end()
             session.assistantCall = nil
         }
+        .onChange(of: session.conversationIdOnScreen) { _, conversationId in print("CALLDIAG on screen \(conversationId ?? "none"), call \(session.assistantCall?.conversationId ?? "none")") }
         .onChange(of: session.conversationToOpen) { _, conversationId in if conversationId != nil { closeSheets(session) } }
         .onChange(of: session.composeRequest != nil) { _, isComposing in if isComposing { closeSheets(session) } }
         .onChange(of: appModel.openedLink, initial: true) { _, opened in
