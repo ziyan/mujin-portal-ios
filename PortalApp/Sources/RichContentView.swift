@@ -9,7 +9,7 @@ import WebKit
 enum RichContentPage {
     static let scheme = "portal-rich"
     static let pageURL = URL(string: "\(scheme)://content/page.html")!
-    private static let folder = Bundle.main.url(forResource: "RichContent", withExtension: nil)
+    nonisolated private static let folder = Bundle.main.url(forResource: "RichContent", withExtension: nil)
 
     enum Content: Equatable {
         case diagram(String)
@@ -17,11 +17,22 @@ enum RichContentPage {
         case paragraph(html: String)
     }
 
-    /// A library file or font, by its path under the app's scheme.
-    static func file(path: String) -> (data: Data, contentType: String)? {
+    /// The library files and fonts already read, by path, so a page that draws again does not read multi-megabyte Mermaid again.
+    nonisolated(unsafe) private static let fileCache = NSCache<NSString, NSData>()
+
+    /// A library file or font, by its path under the app's scheme. It reads the file when it is not cached, so call it off the main
+    /// thread.
+    nonisolated static func file(path: String) -> (data: Data, contentType: String)? {
         guard let folder, !path.contains("..") else { return nil }
         let url = folder.appendingPathComponent(String(path.drop { $0 == "/" }))
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        let data: Data
+        if let cached = fileCache.object(forKey: path as NSString) {
+            data = cached as Data
+        } else {
+            guard let read = try? Data(contentsOf: url) else { return nil }
+            fileCache.setObject(read as NSData, forKey: path as NSString)
+            data = read
+        }
         let type: String = switch url.pathExtension {
         case "js": "text/javascript"
         case "css": "text/css"
@@ -120,6 +131,8 @@ enum RichContentPage {
 @MainActor
 final class RichContentSchemeHandler: NSObject, WKURLSchemeHandler {
     private let page: String
+    /// The files being read for a request, so a request WebKit stops is not answered.
+    private var running: [ObjectIdentifier: Task<Void, Never>] = [:]
 
     init(page: String) {
         self.page = page
@@ -130,19 +143,35 @@ final class RichContentSchemeHandler: NSObject, WKURLSchemeHandler {
             urlSchemeTask.didFailWithError(URLError(.unsupportedURL))
             return
         }
-        let answer: (data: Data, contentType: String)? =
-            url.path == RichContentPage.pageURL.path ? (Data(page.utf8), "text/html; charset=utf-8") : RichContentPage.file(path: url.path)
-        guard let answer else {
-            urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
+        func respond(with file: (data: Data, contentType: String)?) {
+            guard let file else {
+                urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
+                return
+            }
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": file.contentType])!
+            urlSchemeTask.didReceive(response)
+            urlSchemeTask.didReceive(file.data)
+            urlSchemeTask.didFinish()
+        }
+        if url.path == RichContentPage.pageURL.path {
+            respond(with: (Data(page.utf8), "text/html; charset=utf-8"))
             return
         }
-        let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": answer.contentType])!
-        urlSchemeTask.didReceive(response)
-        urlSchemeTask.didReceive(answer.data)
-        urlSchemeTask.didFinish()
+        let path = url.path
+        let identifier = ObjectIdentifier(urlSchemeTask)
+        running[identifier] = Task { [weak self] in
+            let file = await Task.detached(priority: .userInitiated) { RichContentPage.file(path: path) }.value
+            guard !Task.isCancelled, let self else { return }
+            self.running[identifier] = nil
+            respond(with: file)
+        }
     }
 
-    func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {}
+    func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {
+        let identifier = ObjectIdentifier(urlSchemeTask)
+        running[identifier]?.cancel()
+        running[identifier] = nil
+    }
 }
 
 /// RichContentWebView is one drawing, as tall as it says it is.
@@ -186,6 +215,7 @@ private struct RichContentWebView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {}
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
+        coordinator.cancel()
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "richContent")
     }
 
@@ -197,6 +227,21 @@ private struct RichContentWebView: UIViewRepresentable {
         private let onDrawn: (UIImage) -> Void
         weak var webView: WKWebView?
         private var snapshotTask: Task<Void, Never>?
+        /// When the height last changed, so the snapshot waits for the drawing to keep still.
+        private var lastHeightChange = Date()
+        private var isDone = false
+
+        func cancel() {
+            isDone = true
+            snapshotTask?.cancel()
+        }
+
+        /// The drawing cannot be shown: the source shows in its place, which removes the web view.
+        private func fail() {
+            guard !isDone else { return }
+            cancel()
+            hasFailed.wrappedValue = true
+        }
 
         init(height: Binding<CGFloat>, naturalWidth: Binding<CGFloat>, hasFailed: Binding<Bool>, onDrawn: @escaping (UIImage) -> Void) {
             self.height = height
@@ -206,13 +251,15 @@ private struct RichContentWebView: UIViewRepresentable {
         }
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard message.frameInfo.isMainFrame, let body = message.body as? [String: Any] else { return }
+            guard !isDone, message.frameInfo.isMainFrame, let body = message.body as? [String: Any] else { return }
             if body["failed"] as? Bool == true {
-                snapshotTask?.cancel()
-                hasFailed.wrappedValue = true
+                fail()
             } else if let reported = (body["height"] as? NSNumber)?.doubleValue, reported > 0 {
                 let fitted = min(CGFloat(reported), 2_000)
-                if abs(fitted - height.wrappedValue) > 1 { height.wrappedValue = fitted }
+                if abs(fitted - height.wrappedValue) > 1 {
+                    height.wrappedValue = fitted
+                    lastHeightChange = Date()
+                }
                 if let reportedWidth = (body["width"] as? NSNumber)?.doubleValue, reportedWidth > 0 {
                     let wide = min(CGFloat(reportedWidth), 4_000)
                     if abs(wide - naturalWidth.wrappedValue) > 1 { naturalWidth.wrappedValue = wide }
@@ -222,19 +269,47 @@ private struct RichContentWebView: UIViewRepresentable {
         }
 
         /// A drawing that has kept its height for a moment is pictured, and the picture stands in for the web view from then on, so a
-        /// long chat holds pictures rather than web views and a drawing never draws again as it scrolls.
+        /// long chat holds pictures rather than web views and a drawing never draws again as it scrolls. One task waits for the height
+        /// to keep still, however many heights the page reports, and pictures it after at most three seconds. A drawing that cannot be
+        /// pictured, or has no height, shows its source instead of keeping its web view for ever.
         private func takeSnapshotWhenSettled() {
-            snapshotTask?.cancel()
+            guard snapshotTask == nil else { return }
             snapshotTask = Task { [weak self] in
-                try? await Task.sleep(for: .milliseconds(600))
-                guard !Task.isCancelled, let self, let webView = self.webView, webView.bounds.height > 1 else { return }
+                let started = Date()
+                while true {
+                    try? await Task.sleep(for: .milliseconds(600))
+                    guard !Task.isCancelled, let self else { return }
+                    if Date().timeIntervalSince(self.lastHeightChange) >= 0.6 || Date().timeIntervalSince(started) >= 3 { break }
+                }
+                guard let self, !Task.isCancelled, let webView = self.webView else { return }
+                guard webView.bounds.height >= 1 else {
+                    self.fail()
+                    return
+                }
                 let configuration = WKSnapshotConfiguration()
                 configuration.rect = webView.bounds
                 configuration.afterScreenUpdates = true
-                guard let image = try? await webView.takeSnapshot(configuration: configuration), !Task.isCancelled else { return }
+                guard let image = try? await webView.takeSnapshot(configuration: configuration) else {
+                    self.fail()
+                    return
+                }
+                guard !Task.isCancelled, !self.isDone else { return }
+                self.isDone = true
                 self.onDrawn(image)
             }
         }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) { failUnlessCancelled(error) }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: any Error) {
+            failUnlessCancelled(error)
+        }
+
+        private func failUnlessCancelled(_ error: any Error) {
+            if (error as NSError).code != NSURLErrorCancelled { fail() }
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { fail() }
 
         /// The page loads once; nothing in it opens anything.
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -252,8 +327,14 @@ enum RichDrawingCache {
         return cache
     }()
 
-    static func key(_ content: RichContentPage.Content, isDark: Bool, width: CGFloat) -> NSString {
-        "\(isDark ? "dark" : "light")|\(Int(width.rounded()))|\(String(describing: content).hashValue)|\(String(describing: content).count)" as NSString
+    /// What a drawing's source is, as a short string, worked out once per drawing rather than each time its body runs.
+    static func digest(of content: RichContentPage.Content) -> String {
+        let described = String(describing: content)
+        return "\(described.hashValue)|\(described.count)"
+    }
+
+    static func key(digest: String, isDark: Bool, width: CGFloat) -> NSString {
+        "\(isDark ? "dark" : "light")|\(Int(width.rounded()))|\(digest)" as NSString
     }
 }
 
@@ -263,6 +344,14 @@ struct RichDrawing<Fallback: View>: View {
     let content: RichContentPage.Content
     let identifier: String
     @ViewBuilder let fallback: () -> Fallback
+    private let contentDigest: String
+
+    init(content: RichContentPage.Content, identifier: String, @ViewBuilder fallback: @escaping () -> Fallback) {
+        self.content = content
+        self.identifier = identifier
+        self.fallback = fallback
+        contentDigest = RichDrawingCache.digest(of: content)
+    }
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var height: CGFloat = 0
@@ -282,13 +371,14 @@ struct RichDrawing<Fallback: View>: View {
     /// at once when it opens.
     @State private var hasComeIntoView = false
 
-    private var key: NSString { RichDrawingCache.key(content, isDark: colorScheme == .dark, width: width) }
+    private var key: NSString { RichDrawingCache.key(digest: contentDigest, isDark: colorScheme == .dark, width: width) }
 
     var body: some View {
-        Group {
+        let currentKey = key
+        return Group {
             if hasFailed {
                 fallback()
-            } else if let shown = picture ?? (width > 0 ? RichDrawingCache.pictures.object(forKey: key) : nil) {
+            } else if let shown = picture ?? (width > 0 ? RichDrawingCache.pictures.object(forKey: currentKey) : nil) {
                 if isNaturalSize {
                     // A diagram or formula keeps its natural size: one wider than the block scrolls sideways, a narrower one is centered.
                     ScrollView(.horizontal, showsIndicators: shown.size.width > width) {
@@ -300,6 +390,7 @@ struct RichDrawing<Fallback: View>: View {
                     .frame(height: shown.size.height)
                     .accessibilityElement()
                     .accessibilityLabel(Text(accessibilityText))
+                    .accessibilityAddTraits(.isImage)
                     .accessibilityIdentifier(identifier)
                 } else {
                     Image(uiImage: shown)
@@ -308,15 +399,19 @@ struct RichDrawing<Fallback: View>: View {
                         .frame(maxWidth: .infinity)
                         .accessibilityElement()
                         .accessibilityLabel(Text(accessibilityText))
+                        .accessibilityAddTraits(.isImage)
                         .accessibilityIdentifier(identifier)
                 }
             } else if width > 0, hasComeIntoView {
                 // A diagram's or formula's web view is as wide as what it draws, so it is drawn, and pictured, whole.
                 ScrollView(.horizontal, showsIndicators: false) {
+                    // The key this drawing is made for is taken here, with the web view: a new appearance or width makes a new web view
+                    // under a new key, so a picture is never kept under a key it was not drawn for.
                     RichContentWebView(content: content, height: $height, naturalWidth: $naturalWidth, hasFailed: $hasFailed) { image in
-                        RichDrawingCache.pictures.setObject(image, forKey: key)
+                        RichDrawingCache.pictures.setObject(image, forKey: currentKey)
                         picture = image
                     }
+                    .id(currentKey)
                     .frame(width: isNaturalSize && naturalWidth > 0 ? naturalWidth : width, height: max(height, 24))
                 }
                 .scrollDisabled(true)
@@ -334,7 +429,11 @@ struct RichDrawing<Fallback: View>: View {
             if abs(newWidth - width) > 1 { width = newWidth }
         }
         // A new appearance or width draws again, from the picture made for it if there is one.
-        .onChange(of: key) { _, _ in picture = nil }
+        .onChange(of: currentKey) { _, _ in
+            picture = nil
+            height = 0
+            naturalWidth = 0
+        }
     }
 
     /// What VoiceOver reads for the picture: the formula's source, or what the diagram is.
@@ -405,29 +504,47 @@ final class InlineFormulaRenderer {
         let descent: CGFloat
     }
 
-    /// Bumped each time a picture is ready, so the paragraphs waiting for it draw again.
-    private(set) var version = 0
-    @ObservationIgnored private var pictures: [String: Picture] = [:]
-    @ObservationIgnored private var failures: Set<String> = []
+    /// One formula's answer. Each is observed on its own, so a paragraph draws again only when a formula it holds is ready, not
+    /// when any formula anywhere finishes.
+    @Observable
+    final class Answer {
+        fileprivate(set) var picture: Picture?
+        fileprivate(set) var hasFailed = false
+    }
+
+    @ObservationIgnored private var answers: [String: Answer] = [:]
     @ObservationIgnored private var queue: [(key: String, tex: String, isDark: Bool, fontSize: CGFloat)] = []
     @ObservationIgnored private var isWorking = false
     @ObservationIgnored private var webView: WKWebView?
     @ObservationIgnored private var isPageReady = false
+    @ObservationIgnored private var windowWatch: Task<Void, Never>?
+
+    init() {
+        // A formula asked for before the app has a key window waits in the queue and is drawn when a window appears.
+        windowWatch = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: UIWindow.didBecomeKeyNotification) {
+                guard let self else { return }
+                await self.work()
+            }
+        }
+    }
 
     static func key(tex: String, isDark: Bool, fontSize: CGFloat) -> String { "\(isDark ? "dark" : "light")|\(Int(fontSize * 10))|\(tex)" }
 
-    func picture(tex: String, isDark: Bool, fontSize: CGFloat) -> Picture? {
-        pictures[Self.key(tex: tex, isDark: isDark, fontSize: fontSize)]
-    }
-
-    func hasFailed(tex: String, isDark: Bool, fontSize: CGFloat) -> Bool {
-        failures.contains(Self.key(tex: tex, isDark: isDark, fontSize: fontSize))
+    /// The answer for a formula, made empty if there is none yet, which is what a paragraph reads and so observes.
+    func answer(tex: String, isDark: Bool, fontSize: CGFloat) -> Answer {
+        let key = Self.key(tex: tex, isDark: isDark, fontSize: fontSize)
+        if let existing = answers[key] { return existing }
+        let created = Answer()
+        answers[key] = created
+        return created
     }
 
     /// Asks for a formula's picture; the paragraph draws again when it is ready.
     func request(tex: String, isDark: Bool, fontSize: CGFloat) {
         let key = Self.key(tex: tex, isDark: isDark, fontSize: fontSize)
-        guard pictures[key] == nil, !failures.contains(key), !queue.contains(where: { $0.key == key }) else { return }
+        let answer = answer(tex: tex, isDark: isDark, fontSize: fontSize)
+        guard answer.picture == nil, !answer.hasFailed, !queue.contains(where: { $0.key == key }) else { return }
         queue.append((key, tex, isDark, fontSize))
         Task { await work() }
     }
@@ -436,45 +553,56 @@ final class InlineFormulaRenderer {
         guard !isWorking else { return }
         isWorking = true
         defer { isWorking = false }
-        while !queue.isEmpty {
-            let next = queue.removeFirst()
-            guard let webView = await readyWebView() else {
-                failures.insert(next.key)
+        while let next = queue.first {
+            let answer = answers[next.key] ?? Answer()
+            switch await readyWebView() {
+            case .noWindow:
+                // No window yet: the formulas stay queued until one becomes the key window.
+                return
+            case .failed:
+                queue.removeFirst()
+                answer.hasFailed = true
                 continue
+            case .ready(let webView):
+                queue.removeFirst()
+                webView.overrideUserInterfaceStyle = next.isDark ? .dark : .light
+                let measured = try? await webView.callAsyncJavaScript(
+                    "return window.drawFormula(tex, size)", arguments: ["tex": next.tex, "size": Double(next.fontSize)], contentWorld: .page)
+                guard let box = measured as? [String: Any], let width = (box["width"] as? NSNumber)?.doubleValue,
+                    let height = (box["height"] as? NSNumber)?.doubleValue, let baseline = (box["baseline"] as? NSNumber)?.doubleValue, width > 0, height > 0
+                else {
+                    answer.hasFailed = true
+                    continue
+                }
+                let configuration = WKSnapshotConfiguration()
+                configuration.rect = CGRect(x: 0, y: 0, width: ceil(width), height: ceil(height))
+                configuration.afterScreenUpdates = true
+                if let image = try? await webView.takeSnapshot(configuration: configuration) {
+                    answer.picture = Picture(image: image, descent: max(0, CGFloat(height - baseline)))
+                } else {
+                    answer.hasFailed = true
+                }
             }
-            webView.overrideUserInterfaceStyle = next.isDark ? .dark : .light
-            let measured = try? await webView.callAsyncJavaScript(
-                "return window.drawFormula(tex, size)", arguments: ["tex": next.tex, "size": Double(next.fontSize)], contentWorld: .page)
-            guard let box = measured as? [String: Any], let width = (box["width"] as? NSNumber)?.doubleValue,
-                let height = (box["height"] as? NSNumber)?.doubleValue, let baseline = (box["baseline"] as? NSNumber)?.doubleValue, width > 0, height > 0
-            else {
-                failures.insert(next.key)
-                version += 1
-                continue
-            }
-            let configuration = WKSnapshotConfiguration()
-            configuration.rect = CGRect(x: 0, y: 0, width: ceil(width), height: ceil(height))
-            configuration.afterScreenUpdates = true
-            if let image = try? await webView.takeSnapshot(configuration: configuration) {
-                pictures[next.key] = Picture(image: image, descent: max(0, CGFloat(height - baseline)))
-            } else {
-                failures.insert(next.key)
-            }
-            version += 1
         }
     }
 
+    private enum ReadyWebView {
+        case ready(WKWebView)
+        case noWindow
+        case failed
+    }
+
     /// The hidden web view, in the window so it draws, out of sight and out of reach.
-    private func readyWebView() async -> WKWebView? {
-        if let webView, isPageReady { return webView }
+    private func readyWebView() async -> ReadyWebView {
+        if let webView, isPageReady { return .ready(webView) }
         guard let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).flatMap(\.windows).first(where: \.isKeyWindow)
-        else { return nil }
+        else { return .noWindow }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         configuration.setURLSchemeHandler(RichContentSchemeHandler(page: Self.page), forURLScheme: RichContentPage.scheme)
         guard let list = try? await WKContentRuleListStore.default().compileContentRuleList(
             forIdentifier: "rich-content", encodedContentRuleList: RichContentPage.contentRuleListJSON)
-        else { return nil }
+        else { return .failed }
         configuration.userContentController.add(list)
         let created = WKWebView(frame: CGRect(x: -4_000, y: 0, width: 1_200, height: 400), configuration: configuration)
         created.isOpaque = false
@@ -488,10 +616,13 @@ final class InlineFormulaRenderer {
             try? await Task.sleep(for: .milliseconds(100))
             if (try? await created.evaluateJavaScript("typeof window.drawFormula === 'function' && typeof katex !== 'undefined'")) as? Bool == true {
                 isPageReady = true
-                return created
+                return .ready(created)
             }
         }
-        return nil
+        // The page never came up: the web view leaves the window, so the next formula starts a fresh one.
+        created.removeFromSuperview()
+        webView = nil
+        return .failed
     }
 
     private static let page = """
@@ -536,29 +667,35 @@ struct InlineMathText: View {
     var body: some View {
         let pieces = RichMath.pieces(of: text)
         let isDark = colorScheme == .dark
-        _ = renderer.version
         let formulas = pieces.compactMap { piece -> String? in
             if case .formula(let tex, _) = piece { return tex }
             return nil
         }
-        let isDrawn = formulas.allSatisfy { renderer.picture(tex: $0, isDark: isDark, fontSize: fontSize) != nil }
-        return pieces.reduce(Text(verbatim: "")) { line, piece in
+        // Each formula's own answer is read here, so this paragraph draws again only when one of its own formulas is ready.
+        let isDrawn = formulas.allSatisfy { renderer.answer(tex: $0, isDark: isDark, fontSize: fontSize).picture != nil }
+        let line = pieces.reduce(Text(verbatim: "")) { line, piece in
             switch piece {
             case .text(let wordsText):
                 return line + Text(words(wordsText))
             case .formula(let tex, _):
                 // Each formula carries its source as its spoken words, so VoiceOver reads it where it stands instead of a gap.
-                if let picture = renderer.picture(tex: tex, isDark: isDark, fontSize: fontSize) {
+                if let picture = renderer.answer(tex: tex, isDark: isDark, fontSize: fontSize).picture {
                     return line + Text(Image(uiImage: picture.image)).baselineOffset(-picture.descent).accessibilityLabel(Text(verbatim: tex))
                 }
                 return line + Text(MarkdownView.inline("`\(tex)`")).accessibilityLabel(Text(verbatim: tex))
             }
         }
-        .accessibilityLabel(Text(spokenText(pieces)))
-        .accessibilityIdentifier(isDrawn ? "mathParagraph" : "mathParagraphPending")
-        .task(id: "\(isDark)|\(fontSize)|\(text)") {
-            for tex in formulas { renderer.request(tex: tex, isDark: isDark, fontSize: fontSize) }
-        }
+        return spoken(line, as: spokenText(pieces))
+            .accessibilityIdentifier(isDrawn ? "mathParagraph" : "mathParagraphPending")
+            .task(id: "\(isDark)|\(fontSize)|\(text)") {
+                for tex in formulas { renderer.request(tex: tex, isDark: isDark, fontSize: fontSize) }
+            }
+    }
+
+    /// Gives the whole paragraph its spoken words. This is the label of the view, not of the Text: a label on a Text made of pieces
+    /// leaves the pictures in it unread, which VoiceOver reads as a gap where each formula stands.
+    private func spoken(_ view: some View, as words: String) -> some View {
+        view.accessibilityLabel(Text(verbatim: words))
     }
 
     /// What VoiceOver reads: the words, with each formula's source where it stands.

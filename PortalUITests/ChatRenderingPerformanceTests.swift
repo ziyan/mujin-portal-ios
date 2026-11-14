@@ -28,7 +28,8 @@ final class ChatRenderingPerformanceTests: XCTestCase {
         // Settled, every drawing on screen is a picture: the web views that made them are gone.
         Thread.sleep(forTimeInterval: 3)
         let webViewCount = app.webViews.count
-        let pictureCount = app.images.matching(NSPredicate(format: "identifier IN %@", ["mathParagraph", "mathFormula", "mermaidDiagram"])).count
+        // A paragraph with formulas is text with pictures in it, so drawings are counted by name, not by element type.
+        let pictureCount = drawings(app).count
         print("[rendering-performance] web views after settling: \(webViewCount); drawings shown as pictures: \(pictureCount)")
         XCTAssertLessThanOrEqual(webViewCount, 4, "Drawings that settled are still web views.\n\(app.debugDescription)")
         XCTAssertGreaterThan(pictureCount, 0, "No drawing became a picture.\n\(app.debugDescription)")

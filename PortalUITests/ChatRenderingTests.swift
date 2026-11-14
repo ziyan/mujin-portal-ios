@@ -241,7 +241,7 @@ final class ChatRenderingTests: XCTestCase {
         "headings-and-emphasis": [
             Check("h1 count 1: the first heading shows") { $0.hasLabel("Heading one") },
             Check("h4 count 1: the fourth heading shows") { $0.hasLabel("Heading four") },
-            Check("strong minimum 1: the bold words show") { $0.hasText("some bold") },
+            Check("strong minimum 1: the bold words show") { $0.hasText("Some bold") },
             Check("del, s count 1: the struck words show") { $0.hasText("struck through") },
             Check("code minimum 1: the inline code shows") { $0.hasText("inline code") },
         ],
@@ -315,7 +315,10 @@ final class ChatRenderingTests: XCTestCase {
             Check("textContains shift-summary.csv") { $0.hasText("shift-summary.csv") },
         ],
         "voice-message": [
-            Check("[data-testid=voice-message] minimum 1: the voice message shows with its play button") { $0.count(identifier: "voicePlayButton") == 1 },
+            // The fixture's recording is a browser's WebM, which the phone cannot play, so it shows its notice and length instead of a play button.
+            Check("[data-testid=voice-message] minimum 1: the voice message shows, with its play button or the notice that it cannot be played") {
+                $0.count(identifier: "voicePlayButton") == 1 || $0.hasText("made in a browser")
+            },
             Check("the voice message shows its length") { $0.hasText("0:04") },
         ],
         "link-previews-external": [
