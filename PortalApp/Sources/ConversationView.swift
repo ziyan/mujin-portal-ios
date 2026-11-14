@@ -390,7 +390,9 @@ struct ConversationView: View {
             // a scroll back to the message being read.
             .defaultScrollAnchor(.top, for: .alignment)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
-            .defaultScrollAnchor(.bottom, for: .sizeChanges)
+            // Only a list at its end keeps its end as it grows: one being read further up keeps its messages where they are while
+            // an answer is written below.
+            .defaultScrollAnchor(isAtEnd ? .bottom : nil, for: .sizeChanges)
             // The list goes back to the message being read as earlier messages go in above.
             .modifier(PullForEarlier(state: model.earlierRowState, pull: earlierPull) { Task { await model.loadEarlier() } })
             .onScrollGeometryChange(for: Bool.self, of: ListEnd.isShown) { _, isShown in isAtEnd = isShown }
