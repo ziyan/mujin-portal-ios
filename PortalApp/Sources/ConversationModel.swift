@@ -235,7 +235,7 @@ final class ConversationModel {
                 conversationId: conversationId, latestCount: isThread ? ThreadRouting.threadMessageCount : window.reloadCount,
                 threadRootMessageId: threadRootMessageId)
             async let waitingCards = connection.waitingCards(conversationId: conversationId)
-            async let loadedTodos = fetchTodos()
+            async let todoList = fetchTodos()
             // A thread is read whole, so it has no count of earlier messages.
             let shouldCountMessages = !isThread
             async let total: Int? = shouldCountMessages ? connection.messageCountOrNil(conversationId: conversationId) : nil
@@ -249,7 +249,7 @@ final class ConversationModel {
             )
             waitingThreadRootIds = isThread ? [] : ThreadViews.waitingThreads(questions: loadedCards.questions, approvals: loadedCards.approvals)
             threadToOpenOn = isThread ? nil : ThreadViews.threadToOpenOn(questions: loadedCards.questions, approvals: loadedCards.approvals)
-            if let loadedTodos = await loadedTodos { todos = loadedTodos }
+            if let loadedTodos = await todoList { todos = loadedTodos }
             isTitleCustom = loadedSummary.isTitleCustom == true
             hasSummary = !(loadedSummary.summary ?? "").isEmpty
             applyTitle(loadedSummary.title)
