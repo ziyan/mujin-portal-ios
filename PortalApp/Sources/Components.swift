@@ -232,13 +232,13 @@ struct StaffOnlyLockButton: View {
     }
 }
 
-/// InternalNoteLabel marks an internal note in a chat: a lock and the word Internal.
+/// InternalNoteLabel marks an internal note in a chat: a lock, read aloud as Internal.
 struct InternalNoteLabel: View {
     var body: some View {
-        Label("Internal", systemImage: "lock.fill")
-            .font(.caption2.weight(.semibold))
+        Image(systemName: "lock.fill")
+            .font(.caption.weight(.semibold))
             .foregroundStyle(Color.statusWarning)
-            .labelStyle(.titleAndIcon)
+            .accessibilityLabel(Text("Internal"))
             .accessibilityIdentifier("internalNoteLabel")
     }
 }

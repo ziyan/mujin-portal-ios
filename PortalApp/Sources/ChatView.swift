@@ -228,6 +228,18 @@ struct ChatView: View {
                         .buttonStyle(.bordered)
                         .disabled(model.isLoadingEarlier)
                     }
+                    if isThread, let subject = model.timeline.messages.first(where: { $0.id == model.threadRootMessageId })?.threadSubject {
+                        // What the thread is about, under the title. Opens the ticket or cell when the reader may see it.
+                        if subject.canOpen {
+                            Button { if let path = subject.path, let link = PortalLink(path: path) { appModel.openedLink = OpenedLink(link: link) } } label: {
+                                MessageReferenceChip(reference: subject)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("threadSubjectChip")
+                        } else {
+                            MessageReferenceChip(reference: subject).accessibilityIdentifier("threadSubjectChip")
+                        }
+                    }
                     if model.timeline.messages.isEmpty, !isThread {
                         ContentUnavailableView {
                             Label("No messages yet", systemImage: "bubble.left.and.bubble.right")
@@ -250,6 +262,10 @@ struct ChatView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 6)
+                                // A thread that goes on past midnight keeps its bar beside the day, so the bar shows one thread.
+                                .threadBar(
+                                    isShown: model.canOpenThreads && message.threadKey != nil && previous?.threadKey == message.threadKey,
+                                    joinsBelow: true, gap: 10)
                         }
                         // A deleted message is one quiet line, and a run of them is one.
                         if !(message.isDeleted && previous?.isDeleted == true) {
@@ -800,7 +816,7 @@ private struct MessageRow: View {
                         .frame(maxWidth: 320)
                 }
                 if let onOpenThread, message.threadSummary?.isCountShown == true || isAssistantWorkingInThread {
-                    ThreadReplyControl(summary: message.threadSummary, isWorking: isAssistantWorkingInThread) { onOpenThread(message.id) }
+                    ThreadReplyControl(summary: message.threadSummary, isWorking: isAssistantWorkingInThread, subjectText: message.threadSubject?.subjectText) { onOpenThread(message.id) }
                 }
                 if isMine, isLastOwn { receipt }
             }
@@ -923,11 +939,15 @@ private struct MessageRow: View {
                         }
                     })
             } else {
-            VStack(alignment: .leading, spacing: 2) {
-                // People's messages are Markdown. The words around code and links keep the name chips of the people mentioned.
-                RichBodyView(markdown: message.text, connection: model.connection, isSelectable: false) { words in markdownText(words) }
-                if message.isEdited {
-                    Text("edited").font(.caption2).foregroundStyle(AnyShapeStyle(.secondary))
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                // The lock sits beside the words, so it never covers a short note.
+                if message.isInternal { InternalNoteLabel() }
+                VStack(alignment: .leading, spacing: 2) {
+                    // People's messages are Markdown. The words around code and links keep the name chips of the people mentioned.
+                    RichBodyView(markdown: message.text, connection: model.connection, isSelectable: false) { words in markdownText(words) }
+                    if message.isEdited {
+                        Text("edited").font(.caption2).foregroundStyle(AnyShapeStyle(.secondary))
+                    }
                 }
             }
             .padding(.horizontal, 14)
@@ -938,9 +958,6 @@ private struct MessageRow: View {
                 if message.isInternal {
                     RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.statusWarning, lineWidth: 1)
                 }
-            }
-            .overlay(alignment: .topTrailing) {
-                if message.isInternal { InternalNoteLabel().padding(6) }
             }
             .foregroundStyle(.primary)
             }

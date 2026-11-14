@@ -131,6 +131,17 @@ final class ThreadTests: XCTestCase {
         XCTAssertFalse(threadTitle(app).exists, "The thread is still open.\n\(app.debugDescription)")
     }
 
+    /// A thread tied to a ticket shows it under the title, and the count line in the main history names it too.
+    func testAThreadTiedToATicketShowsItsSubjectAsAChip() {
+        let app = DemoApp.launch(screen: "thread-chat-open")
+        XCTAssertTrue(message(app, Self.chatReplyText).waitForExistence(timeout: 60), "The thread did not open.\n\(app.debugDescription)")
+        let chip = app.buttons.matching(identifier: "threadSubjectChip").firstMatch
+        XCTAssertTrue(chip.waitForExistence(timeout: 30), "The thread does not show what it is about.\n\(app.debugDescription)")
+        XCTAssertTrue(chip.label.contains("#13"), "The chip does not name the ticket.\n\(chip.label)")
+        DemoApp.goBack(app)
+        XCTAssertTrue(replyControl(app, containing: "Ticket 13").waitForExistence(timeout: 30), "The count line does not name the ticket.\n\(app.debugDescription)")
+    }
+
     func testAReplySentInAThreadStaysInTheThreadAndCountsInTheChat() {
         let app = DemoApp.launch(screen: "thread-chat-open")
         XCTAssertTrue(message(app, Self.chatReplyText).waitForExistence(timeout: 60), "The thread did not open.\n\(app.debugDescription)")

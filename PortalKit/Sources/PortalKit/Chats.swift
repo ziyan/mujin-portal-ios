@@ -358,8 +358,11 @@ public struct ChatMessage: Equatable, Identifiable, Sendable {
     public let isOnBehalfOfMujinUser: Bool
     /// What the message names, one per thing named, whichever way it was written.
     public let references: [ChatReference]
+    /// On a thread's root, the ticket or cell the thread is about.
+    public let threadSubject: ChatReference?
 
     public init(_ message: ConversationMessage) {
+        threadSubject = message.threadSubject
         references = ChatReferences.unique(message.references ?? [])
         isInternal = message.isInternal ?? false
         isAuthorMujinUser = message.isAuthorMujinUser
