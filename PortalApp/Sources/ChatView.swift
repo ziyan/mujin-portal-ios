@@ -249,6 +249,10 @@ struct ChatView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 6)
+                                // A thread that goes on past midnight keeps its bar beside the day, so the bar shows one thread.
+                                .threadBar(
+                                    isShown: model.canOpenThreads && message.threadKey != nil && previous?.threadKey == message.threadKey,
+                                    joinsBelow: true, gap: 10)
                         }
                         // A deleted message is one quiet line, and a run of them is one.
                         if !(message.isDeleted && previous?.isDeleted == true) {
