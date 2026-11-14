@@ -175,7 +175,8 @@ private struct MarkdownTableView: View {
     /// The width of the row the table sits in, which a table narrower than it fills.
     @State private var rowWidth: CGFloat = 0
 
-    /// The table drawn as a picture for the full screen viewer, while it is open.
+    /// Whether the full screen viewer is open, and the table drawn as a picture for it, which is made just after it opens.
+    @State private var isFullScreenOpen = false
     @State private var fullScreenPicture: UIImage?
 
     @Environment(\.colorScheme) private var colorScheme
@@ -226,8 +227,8 @@ private struct MarkdownTableView: View {
                 .accessibilityIdentifier("markdownTableOpenButton")
             }
         }
-        .fullScreenCover(isPresented: Binding(get: { fullScreenPicture != nil }, set: { if !$0 { fullScreenPicture = nil } })) {
-            if let fullScreenPicture { MarkdownTableViewer(picture: fullScreenPicture) }
+        .fullScreenCover(isPresented: $isFullScreenOpen, onDismiss: { fullScreenPicture = nil }) {
+            MarkdownTableViewer(picture: fullScreenPicture)
         }
         .task {
             // The screenshot run opens the viewer, since a pinch cannot be scripted there.
@@ -241,11 +242,17 @@ private struct MarkdownTableView: View {
         MarkdownTableGrid(headerCells: headerCells, columnAlignments: columnAlignments, bodyRows: Array(bodyRows.prefix(shownRowCount)))
     }
 
-    /// Draws the rows shown so far as a picture, in the person's appearance and text size, and opens it full screen.
+    /// Opens the viewer at once, then draws the rows shown so far as a picture, once, in the person's appearance and text size. The
+    /// drawing waits a moment so the viewer is on screen, with a spinner, before the main thread is busy with it.
     private func openFullScreen() {
-        guard fullScreenPicture == nil else { return }
-        fullScreenPicture = MarkdownTablePicture.render(
-            grid, colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize, displayScale: displayScale)
+        guard !isFullScreenOpen else { return }
+        isFullScreenOpen = true
+        Task {
+            try? await Task.sleep(for: .milliseconds(60))
+            guard isFullScreenOpen, fullScreenPicture == nil else { return }
+            fullScreenPicture = MarkdownTablePicture.render(
+                grid, colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize, displayScale: displayScale)
+        }
     }
 }
 
@@ -302,10 +309,13 @@ struct MarkdownTableGrid: View {
 @MainActor
 enum MarkdownTablePicture {
     /// The longest side of the picture, in pixels, so a long table does not ask for more memory than a phone has to spare.
-    static let maximumPixelSide: CGFloat = 8_000
+    static let maximumPixelSide: CGFloat = 4_096
+    /// The most pixels the picture may hold in all, about 48 MB at four bytes each, however the table is shaped.
+    static let maximumPixelCount: CGFloat = 12_000_000
     /// How many times sharper than the screen the picture is drawn, so it stays crisp zoomed in.
     static let zoomSharpness: CGFloat = 3
 
+    /// The picture is drawn once, at a scale worked out from the table's laid out size, which costs a layout and not a drawing.
     static func render(_ grid: some View, colorScheme: ColorScheme, dynamicTypeSize: DynamicTypeSize, displayScale: CGFloat) -> UIImage? {
         let content = grid
             .fixedSize()
@@ -315,11 +325,12 @@ enum MarkdownTablePicture {
             .background(Color(uiColor: .systemBackground))
             .environment(\.colorScheme, colorScheme)
             .environment(\.dynamicTypeSize, dynamicTypeSize)
+        let size = UIHostingController(rootView: content).sizeThatFits(in: CGSize(width: 100_000, height: 100_000))
+        guard size.width > 0, size.height > 0 else { return nil }
+        let scale = max(
+            0.25, min(displayScale * zoomSharpness, maximumPixelSide / max(size.width, size.height), (maximumPixelCount / (size.width * size.height)).squareRoot()))
         let renderer = ImageRenderer(content: content)
-        renderer.scale = 1
-        guard let measured = renderer.uiImage, measured.size.width > 0, measured.size.height > 0 else { return nil }
-        let longestSide = max(measured.size.width, measured.size.height)
-        renderer.scale = max(1, min(displayScale * zoomSharpness, maximumPixelSide / longestSide))
+        renderer.scale = scale
         return renderer.uiImage
     }
 }
@@ -328,16 +339,21 @@ enum MarkdownTablePicture {
 /// ways, double tap to zoom in and back, and close with the button or a swipe down when the whole table shows.
 struct MarkdownTableViewer: View {
     @Environment(\.dismiss) private var dismiss
-    let picture: UIImage
+    /// The table's picture, or nil while it is being drawn.
+    let picture: UIImage?
 
     var body: some View {
         ZStack(alignment: .top) {
             Color(uiColor: .systemBackground).ignoresSafeArea()
-            ZoomableImage(image: picture, onDismiss: { dismiss() })
-                .ignoresSafeArea()
-                .accessibilityElement()
-                .accessibilityLabel("Table")
-                .accessibilityIdentifier("markdownTableViewer")
+            if let picture {
+                ZoomableImage(image: picture, onDismiss: { dismiss() })
+                    .ignoresSafeArea()
+                    .accessibilityElement()
+                    .accessibilityLabel("Table")
+                    .accessibilityIdentifier("markdownTableViewer")
+            } else {
+                ProgressView().frame(maxHeight: .infinity)
+            }
             HStack {
                 Button { dismiss() } label: {
                     Image(systemName: "xmark").font(.body.weight(.semibold)).frame(width: 44, height: 44).contentShape(Circle())
@@ -347,12 +363,14 @@ struct MarkdownTableViewer: View {
                 .accessibilityLabel("Close")
                 .accessibilityIdentifier("markdownTableViewerCloseButton")
                 Spacer()
-                ShareLink(item: Image(uiImage: picture), preview: SharePreview(String(localized: "Table"), image: Image(uiImage: picture))) {
-                    Image(systemName: "square.and.arrow.up").font(.body.weight(.semibold)).frame(width: 44, height: 44).contentShape(Circle())
+                if let picture {
+                    ShareLink(item: Image(uiImage: picture), preview: SharePreview(String(localized: "Table"), image: Image(uiImage: picture))) {
+                        Image(systemName: "square.and.arrow.up").font(.body.weight(.semibold)).frame(width: 44, height: 44).contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: .circle)
+                    .accessibilityLabel("Share")
                 }
-                .buttonStyle(.plain)
-                .glassEffect(.regular.interactive(), in: .circle)
-                .accessibilityLabel("Share")
             }
             .padding(.horizontal, 12)
             .padding(.top, 8)
