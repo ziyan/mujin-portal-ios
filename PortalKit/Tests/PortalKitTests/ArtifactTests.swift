@@ -82,14 +82,10 @@ import Testing
         #expect(memory.height(artifactId: "artifact01") == nil, "The one used longest ago goes first.")
     }
 
-    @Test func aRememberedHeightDoesNotShrinkWhileThePageLoads() {
-        // A page never measured takes every report.
-        #expect(ArtifactSandbox.acceptedHeight(reported: 180, current: 320, isRemembered: false, secondsSinceLoad: 0.1) == 180)
-        // Drawn again at its remembered height, a half-drawn page's early report is not taken, but growing is.
-        #expect(ArtifactSandbox.acceptedHeight(reported: 180, current: 412, isRemembered: true, secondsSinceLoad: 0.5) == nil)
-        #expect(ArtifactSandbox.acceptedHeight(reported: 500, current: 412, isRemembered: true, secondsSinceLoad: 0.5) == 500)
-        #expect(ArtifactSandbox.acceptedHeight(reported: 180, current: 412, isRemembered: true, secondsSinceLoad: 3) == 180)
-        // The same height again changes nothing.
-        #expect(ArtifactSandbox.acceptedHeight(reported: 412.4, current: 413, isRemembered: false, secondsSinceLoad: 3) == nil)
+    @Test func aReportedHeightIsTakenWhenItDiffers() {
+        // A page drawn again starts at its remembered height and takes every report after, a shrink as much as a growth.
+        #expect(ArtifactSandbox.acceptedHeight(reported: 180, current: 412) == 180)
+        #expect(ArtifactSandbox.acceptedHeight(reported: 500, current: 412) == 500)
+        #expect(ArtifactSandbox.acceptedHeight(reported: 412.4, current: 413) == nil)
     }
 }

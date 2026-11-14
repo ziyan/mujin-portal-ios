@@ -21,21 +21,25 @@ public enum ArtifactSandbox {
     /// How tall the card is until the page says.
     public static let defaultHeight: Double = 320
 
+    /// A hash of a text that is the same in every launch, unlike `hashValue`: FNV-1a over its bytes.
+    public static func stableHash(_ text: String) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100_0000_01b3
+        }
+        return String(hash, radix: 16)
+    }
+
     public static func clampedHeight(_ measured: Double) -> Double {
         guard measured.isFinite else { return defaultHeight }
         return min(max(measured.rounded(.up), inlineHeightRange.lowerBound), inlineHeightRange.upperBound)
     }
 
-    /// How long a page drawn again from a remembered height keeps it while the page loads: early reports are of a page half drawn.
-    public static let rememberedHeightHoldSeconds: Double = 2
-
-    /// The height to take from a page's report. A page shown at a remembered height does not shrink while it is still loading, so a
-    /// row the list draws again stays the height it was; after that, or for a page never measured, the report is taken.
-    public static func acceptedHeight(reported: Double, current: Double, isRemembered: Bool, secondsSinceLoad: Double) -> Double? {
+    /// The height to take from a page's report: the clamped one, when it differs from the card's by more than a point.
+    public static func acceptedHeight(reported: Double, current: Double) -> Double? {
         let clamped = clampedHeight(reported)
-        guard abs(clamped - current) > 1 else { return nil }
-        if isRemembered, clamped < current, secondsSinceLoad < rememberedHeightHoldSeconds { return nil }
-        return clamped
+        return abs(clamped - current) > 1 ? clamped : nil
     }
 
     /// The page's address inside the frame. The fragment says the theme and the title the app already shows above the page; the
