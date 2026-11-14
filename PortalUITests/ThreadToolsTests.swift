@@ -10,7 +10,8 @@ final class ThreadToolsTests: XCTestCase {
 
     func testAnApprovalWaitingInAThreadOpensTheThreadAndTheMainHistoryPointsToIt() {
         let app = DemoApp.launch(screen: "thread-conversation-waiting")
-        let approval = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "restarts a dock door controller")).firstMatch
+        // The card names the tool; the reason the server gives for asking is not drawn.
+        let approval = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "The assistant wants to use shell")).firstMatch
         XCTAssertTrue(DemoApp.waitUntilExists(approval, timeout: 90), "The conversation did not open on the thread's approval.\n\(app.debugDescription)")
         XCTAssertTrue(app.navigationBars.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Thread")).firstMatch.exists,
             "The approval did not show in the thread.\n\(app.debugDescription)")
