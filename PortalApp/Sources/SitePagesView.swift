@@ -369,7 +369,9 @@ struct SitePageView: View {
                         Text("This page has no content yet.").foregroundStyle(.secondary)
                         if canEdit { Button("Edit") { isEditing = true } }
                     } else {
+                        // A container of its own, so the page's identifier does not replace those of the table, formulas and diagrams in it.
                         RichBodyView(markdown: words, connection: connection)
+                            .accessibilityElement(children: .contain)
                             .accessibilityIdentifier("sitePageWords")
                     }
                 }

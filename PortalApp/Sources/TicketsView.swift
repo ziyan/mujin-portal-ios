@@ -75,7 +75,7 @@ struct TicketsView: View {
     /// The screen a demo run opens on: a ticket, or the list.
     private static var demoPath: [PortalRoute] {
         if DemoOptions.screen == FeedbackDemo.ticketScreen { return [.ticket(id: FeedbackDemo.ticketId)] }
-        return ["ticket", "ticket-menu", "attachment-viewer", "attachment-viewer-tall"].contains(DemoOptions.screen ?? "") ? [.ticket(id: "ticket01")] : []
+        return ["ticket", "ticket-menu", "ticket-formula", "attachment-viewer", "attachment-viewer-tall"].contains(DemoOptions.screen ?? "") ? [.ticket(id: "ticket01")] : []
     }
 
     var body: some View {

@@ -673,22 +673,29 @@ struct InlineMathText: View {
         }
         // Each formula's own answer is read here, so this paragraph draws again only when one of its own formulas is ready.
         let isDrawn = formulas.allSatisfy { renderer.answer(tex: $0, isDark: isDark, fontSize: fontSize).picture != nil }
-        return pieces.reduce(Text(verbatim: "")) { line, piece in
+        let line = pieces.reduce(Text(verbatim: "")) { line, piece in
             switch piece {
             case .text(let wordsText):
                 return line + Text(words(wordsText))
             case .formula(let tex, _):
+                // Each formula carries its source as its spoken words, so VoiceOver reads it where it stands instead of a gap.
                 if let picture = renderer.answer(tex: tex, isDark: isDark, fontSize: fontSize).picture {
-                    return line + Text(Image(uiImage: picture.image)).baselineOffset(-picture.descent)
+                    return line + Text(Image(uiImage: picture.image)).baselineOffset(-picture.descent).accessibilityLabel(Text(verbatim: tex))
                 }
-                return line + Text(MarkdownView.inline("`\(tex)`"))
+                return line + Text(MarkdownView.inline("`\(tex)`")).accessibilityLabel(Text(verbatim: tex))
             }
         }
-        .accessibilityLabel(Text(spokenText(pieces)))
-        .accessibilityIdentifier(isDrawn ? "mathParagraph" : "mathParagraphPending")
-        .task(id: "\(isDark)|\(fontSize)|\(text)") {
-            for tex in formulas { renderer.request(tex: tex, isDark: isDark, fontSize: fontSize) }
-        }
+        return spoken(line, as: spokenText(pieces))
+            .accessibilityIdentifier(isDrawn ? "mathParagraph" : "mathParagraphPending")
+            .task(id: "\(isDark)|\(fontSize)|\(text)") {
+                for tex in formulas { renderer.request(tex: tex, isDark: isDark, fontSize: fontSize) }
+            }
+    }
+
+    /// Gives the whole paragraph its spoken words. This is the label of the view, not of the Text: a label on a Text made of pieces
+    /// leaves the pictures in it unread, which VoiceOver reads as a gap where each formula stands.
+    private func spoken(_ view: some View, as words: String) -> some View {
+        view.accessibilityLabel(Text(verbatim: words))
     }
 
     /// What VoiceOver reads: the words, with each formula's source where it stands.

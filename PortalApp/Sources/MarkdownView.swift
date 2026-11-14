@@ -1,5 +1,6 @@
 import PortalKit
 import SwiftUI
+import UIKit
 
 /// MarkdownView lays out an assistant answer. Blocks come from PortalKit's
 /// splitter; the system renders the bold, italic, code and links inside them.
@@ -156,11 +157,10 @@ private struct MarkdownListItemView: View {
     }
 }
 
-/// MarkdownTableView is a table of an answer: a header row in semibold, thin
-/// separators between rows, every other body row tinted, and each column
-/// aligned as the Markdown says. The cells never wrap or truncate, so a table
-/// wider than the bubble scrolls sideways, at any text size. The web draws
-/// the same table with a rounded border and a tinted header.
+/// MarkdownTableView is a table of an answer or a page: a header row in semibold, thin separators between rows, every other body
+/// row tinted, and each column aligned as the Markdown says. The cells never wrap or truncate, so a table wider than its row scrolls
+/// sideways with a drag, at any text size. A pinch on the table, or its full screen button, opens it full screen, where it can be
+/// pinched, dragged both ways and double tapped, as a picture is. The web draws the same table with a rounded border and a tinted header.
 private struct MarkdownTableView: View {
     let headerCells: [String]
     let columnAlignments: [MarkdownColumnAlignment]
@@ -175,38 +175,105 @@ private struct MarkdownTableView: View {
     /// The width of the row the table sits in, which a table narrower than it fills.
     @State private var rowWidth: CGFloat = 0
 
+    /// Whether the full screen viewer is open, and the table drawn as a picture for it, which is made just after it opens.
+    @State private var isFullScreenOpen = false
+    @State private var fullScreenPicture: UIImage?
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.displayScale) private var displayScale
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // The table fills the row, and scrolls sideways when it is wider. Asking first whether it fits drew a wide table on a
             // wide screen as fitting and then wider than its row, which pushed the words around it off the screen.
             ScrollView(.horizontal, showsIndicators: false) {
-                grid.frame(minWidth: rowWidth, idealWidth: rowWidth, maxWidth: .infinity, alignment: .leading)
+                // The grid at its own width, which is what makes the scroll content wider than the row. A frame that proposed the
+                // row's width as its ideal width cut the content to the row, so there was nothing to drag.
+                grid.fixedSize(horizontal: true, vertical: false).frame(minWidth: rowWidth, alignment: .leading)
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in rowWidth = width }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Self.frameColor, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(MarkdownTableGrid.frameColor, lineWidth: 1))
+            // Two fingers spreading on the table open it full screen; one finger still drags it sideways, and the page scrolls as before.
+            .simultaneousGesture(
+                MagnifyGesture(minimumScaleDelta: 0.05).onChanged { value in
+                    if value.magnification > 1.12 { openFullScreen() }
+                }
+            )
+            // Text selection on the page's words reaches over the table too, which is kept from taking the finger that drags it.
+            .textSelection(.disabled)
             .accessibilityIdentifier("markdownTable")
-            if shownRowCount < bodyRows.count {
+            .accessibilityAction(named: Text("Open full screen")) { openFullScreen() }
+            HStack {
+                if shownRowCount < bodyRows.count {
+                    Button {
+                        shownRowCount += Self.rowsPerPart
+                    } label: {
+                        Text("Show more (\(shownRowCount) of \(bodyRows.count) rows)")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("markdownTableShowMoreButton")
+                }
+                Spacer(minLength: 0)
                 Button {
-                    shownRowCount += Self.rowsPerPart
+                    openFullScreen()
                 } label: {
-                    Text("Show more (\(shownRowCount) of \(bodyRows.count) rows)")
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.footnote.weight(.semibold))
+                        .frame(minWidth: 44, minHeight: 32)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
-                .accessibilityIdentifier("markdownTableShowMoreButton")
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Open the table full screen")
+                .accessibilityIdentifier("markdownTableOpenButton")
             }
+        }
+        .fullScreenCover(isPresented: $isFullScreenOpen, onDismiss: { fullScreenPicture = nil }) {
+            MarkdownTableViewer(picture: fullScreenPicture)
+        }
+        .task {
+            // The screenshot run opens the viewer, since a pinch cannot be scripted there.
+            guard DemoOptions.screen == "site-page-table-zoom" else { return }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            openFullScreen()
         }
     }
 
+    private var grid: some View {
+        MarkdownTableGrid(headerCells: headerCells, columnAlignments: columnAlignments, bodyRows: Array(bodyRows.prefix(shownRowCount)))
+    }
+
+    /// Opens the viewer at once, then draws the rows shown so far as a picture, once, in the person's appearance and text size. The
+    /// drawing waits a moment so the viewer is on screen, with a spinner, before the main thread is busy with it.
+    private func openFullScreen() {
+        guard !isFullScreenOpen else { return }
+        isFullScreenOpen = true
+        Task {
+            try? await Task.sleep(for: .milliseconds(60))
+            guard isFullScreenOpen, fullScreenPicture == nil else { return }
+            fullScreenPicture = MarkdownTablePicture.render(
+                grid, colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize, displayScale: displayScale)
+        }
+    }
+}
+
+/// MarkdownTableGrid is the cells of a table and the lines between them, drawn in the row and, as a picture, full screen.
+struct MarkdownTableGrid: View {
+    let headerCells: [String]
+    let columnAlignments: [MarkdownColumnAlignment]
+    let bodyRows: [[String]]
+
     // Translucent greys, as on the web, so the table suits the person's tinted bubble and the grey one in both themes.
-    private static let frameColor = Color.gray.opacity(0.28)
+    static let frameColor = Color.gray.opacity(0.28)
     private static let headerColor = Color.gray.opacity(0.10)
     private static let headerRuleColor = Color.gray.opacity(0.35)
     private static let rowRuleColor = Color.gray.opacity(0.18)
     private static let bandColor = Color.gray.opacity(0.05)
 
-    private var grid: some View {
+    var body: some View {
         Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
             GridRow {
                 ForEach(Array(headerCells.enumerated()), id: \.offset) { column, cell in
@@ -216,7 +283,7 @@ private struct MarkdownTableView: View {
             }
             // A firmer rule under the header, a fainter one between rows, and none after the last.
             Rectangle().fill(Self.headerRuleColor).frame(height: 1)
-            ForEach(Array(bodyRows.prefix(shownRowCount).enumerated()), id: \.offset) { rowIndex, row in
+            ForEach(Array(bodyRows.enumerated()), id: \.offset) { rowIndex, row in
                 if rowIndex > 0 { Rectangle().fill(Self.rowRuleColor).frame(height: 0.5) }
                 GridRow {
                     ForEach(Array(row.enumerated()), id: \.offset) { column, cell in
@@ -239,6 +306,79 @@ private struct MarkdownTableView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
+    }
+}
+
+/// MarkdownTablePicture draws a table at its natural size as a picture, sharp enough to zoom into, on the page's own background.
+@MainActor
+enum MarkdownTablePicture {
+    /// The longest side of the picture, in pixels, so a long table does not ask for more memory than a phone has to spare.
+    static let maximumPixelSide: CGFloat = 4_096
+    /// The most pixels the picture may hold in all, about 48 MB at four bytes each, however the table is shaped.
+    static let maximumPixelCount: CGFloat = 12_000_000
+    /// How many times sharper than the screen the picture is drawn, so it stays crisp zoomed in.
+    static let zoomSharpness: CGFloat = 3
+
+    /// The picture is drawn once, at a scale worked out from the table's laid out size, which costs a layout and not a drawing.
+    static func render(_ grid: some View, colorScheme: ColorScheme, dynamicTypeSize: DynamicTypeSize, displayScale: CGFloat) -> UIImage? {
+        let content = grid
+            .fixedSize()
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(MarkdownTableGrid.frameColor, lineWidth: 1))
+            .padding(16)
+            .background(Color(uiColor: .systemBackground))
+            .environment(\.colorScheme, colorScheme)
+            .environment(\.dynamicTypeSize, dynamicTypeSize)
+        let size = UIHostingController(rootView: content).sizeThatFits(in: CGSize(width: 100_000, height: 100_000))
+        guard size.width > 0, size.height > 0 else { return nil }
+        let scale = max(
+            0.25, min(displayScale * zoomSharpness, maximumPixelSide / max(size.width, size.height), (maximumPixelCount / (size.width * size.height)).squareRoot()))
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = scale
+        return renderer.uiImage
+    }
+}
+
+/// MarkdownTableViewer shows a table full screen as the picture viewer shows a picture: pinch to zoom around the fingers, drag both
+/// ways, double tap to zoom in and back, and close with the button or a swipe down when the whole table shows.
+struct MarkdownTableViewer: View {
+    @Environment(\.dismiss) private var dismiss
+    /// The table's picture, or nil while it is being drawn.
+    let picture: UIImage?
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Color(uiColor: .systemBackground).ignoresSafeArea()
+            if let picture {
+                ZoomableImage(image: picture, onDismiss: { dismiss() })
+                    .ignoresSafeArea()
+                    .accessibilityElement()
+                    .accessibilityLabel("Table")
+                    .accessibilityIdentifier("markdownTableViewer")
+            } else {
+                ProgressView().frame(maxHeight: .infinity)
+            }
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark").font(.body.weight(.semibold)).frame(width: 44, height: 44).contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .accessibilityLabel("Close")
+                .accessibilityIdentifier("markdownTableViewerCloseButton")
+                Spacer()
+                if let picture {
+                    ShareLink(item: Image(uiImage: picture), preview: SharePreview(String(localized: "Table"), image: Image(uiImage: picture))) {
+                        Image(systemName: "square.and.arrow.up").font(.body.weight(.semibold)).frame(width: 44, height: 44).contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: .circle)
+                    .accessibilityLabel("Share")
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+        }
     }
 }
 
