@@ -6,7 +6,7 @@ import PortalKit
 enum CallDemo {
     static let screens: Set<String> = [
         "chat-voice", "chat-voice-composer", "chat-voice-recording", "chat-call-banner", "chat-call-transcript", "chat-in-call", "call-voice", "call-video", "call-transcription",
-        "call-minimized", "call-reconnecting", "call-picker", "call-ring-more", "call-ringing", "call-two", "call-three", "call-five", "call-twelve",
+        "call-minimized", "call-push", "call-reconnecting", "call-picker", "call-ring-more", "call-ringing", "call-two", "call-three", "call-five", "call-twelve",
     ]
 
     /// The screens that show people on camera.

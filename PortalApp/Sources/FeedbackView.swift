@@ -89,7 +89,10 @@ struct FeedbackView: View {
             .toolbar {
                 if sentTicket == nil {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
+                        Button("Cancel") {
+                            session.feedbackDraftText = ""
+                            dismiss()
+                        }
                             .disabled(isSending)
                             .accessibilityIdentifier("feedbackCancelButton")
                     }
@@ -111,6 +114,7 @@ struct FeedbackView: View {
         // Words that were typed are not lost to a swipe; Cancel is the way out.
         .interactiveDismissDisabled(isSending || (sentTicket == nil && !feedbackText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
         .task {
+            if feedbackText.isEmpty { feedbackText = session.feedbackDraftText }
             guard !hasAddedPicture, let pictureData = request.pictureData else { return }
             hasAddedPicture = true
             await drafts.addPicture(data: pictureData, source: .screenshot)
@@ -141,6 +145,8 @@ struct FeedbackView: View {
             }
             Section {
                 TextField("What's wrong, or what could be better?", text: $feedbackText, axis: .vertical)
+                    // Kept outside the sheet, so a page that puts the sheet away does not take the words with it.
+                    .onChange(of: feedbackText) { _, text in session.feedbackDraftText = text }
                     .lineLimit(4...12)
                     .accessibilityIdentifier("feedbackWordsField")
             }
@@ -214,8 +220,12 @@ struct FeedbackView: View {
     private func send() async {
         guard PortalFeedback.canSend(feedbackText: feedbackText, isSending: isSending) else { return }
         isSending = true
+        session.isSendingFeedback = true
         errorText = nil
-        defer { isSending = false }
+        defer {
+            isSending = false
+            session.isSendingFeedback = false
+        }
         do {
             let connection = appModel.connection(for: session.account)
             let files = try await drafts.upload(using: connection)
@@ -224,6 +234,7 @@ struct FeedbackView: View {
                     feedbackText: feedbackText, attachmentIds: files.map(\.id), clientVersion: AboutView.versionText, deviceName: FeedbackDevice.modelIdentifier,
                     systemVersion: UIDevice.current.systemVersion, screenName: request.screenName))
             session.cache.remove(CacheKey(accountKey: session.account.accountKey, name: "tickets", variables: ""))
+            session.feedbackDraftText = ""
         } catch {
             errorText = error.userMessage
             appModel.handle(error, account: session.account)
