@@ -23,6 +23,8 @@ struct ChatView: View {
     @State private var openedThreadRootId: String?
     /// How far a pull past the top has gone toward reading earlier messages, which only the row at the top reads.
     @State private var earlierPull = EarlierPull()
+    /// The message that was first when an earlier page was asked for, which the list goes back to once the page is in.
+    @State private var messageIdAtTopBeforeEarlier: String?
     /// The message a link pointed at, marked for a moment.
     @State private var highlightedMessageId: String?
     @State private var isOnScreen = false
@@ -279,8 +281,16 @@ struct ChatView: View {
             .scrollDismissesKeyboard(.immediately)
             .background(Color.portalPage)
             .defaultScrollAnchor(.bottom)
-            // Earlier messages are read only on a pull past the top; the bottom anchor keeps the reading place as they go in above.
+            // Earlier messages are read only on a pull past the top; the list goes back to the message being read as they go in above.
             .modifier(PullForEarlier(state: model.earlierRowState, pull: earlierPull) { Task { await model.loadEarlier() } })
+            .onChange(of: model.isLoadingEarlier) { _, isLoading in
+                if isLoading { messageIdAtTopBeforeEarlier = model.timeline.messages.first?.id }
+            }
+            .onChange(of: model.timeline.messages.first?.id) { _, _ in
+                guard let heldMessageId = messageIdAtTopBeforeEarlier else { return }
+                messageIdAtTopBeforeEarlier = nil
+                Task { @MainActor in await EarlierReadingPlace.keep(rowId: heldMessageId, proxy: proxy) }
+            }
             .task(id: focusedMessageId) { await showFocusedMessage(model, proxy: proxy) }
             .onChange(of: model.timeline.messages.last?.id) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }

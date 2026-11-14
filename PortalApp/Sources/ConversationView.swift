@@ -34,6 +34,8 @@ struct ConversationView: View {
     /// Whether the top of the thread is in view, where earlier messages load.
     /// How far a pull past the top has gone toward reading earlier messages, which only the row at the top reads.
     @State private var earlierPull = EarlierPull()
+    /// The entry that was first when an earlier page was asked for, which the list goes back to once the page is in.
+    @State private var entryIdAtTopBeforeEarlier: String?
 
     private var isThread: Bool { threadRootMessageId != nil }
     /// Where the call's stage ends on screen, and where the conversation's content begins, so the messages start below the stage.
@@ -349,8 +351,16 @@ struct ConversationView: View {
             .defaultScrollAnchor(.top, for: .alignment)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
-            // The bottom anchor keeps the reading place as earlier messages go in above.
+            // The list goes back to the message being read as earlier messages go in above.
             .modifier(PullForEarlier(state: model.earlierRowState, pull: earlierPull) { Task { await model.loadEarlier() } })
+            .onChange(of: model.isLoadingEarlier) { _, isLoading in
+                if isLoading { entryIdAtTopBeforeEarlier = model.transcript.displayEntries.first { Self.isShown($0, showWorkingNotes: showWorkingNotes) }?.id }
+            }
+            .onChange(of: model.transcript.entries.first?.id) { _, _ in
+                guard let heldEntryId = entryIdAtTopBeforeEarlier else { return }
+                entryIdAtTopBeforeEarlier = nil
+                Task { @MainActor in await EarlierReadingPlace.keep(rowId: heldEntryId, proxy: proxy) }
+            }
             // The end of the thread, which an answer being written changes. Reading the same messages again moves nothing.
             .onChange(of: model.transcript.entries.last) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
