@@ -53,7 +53,7 @@ public struct ChatReference: Codable, Equatable, Hashable, Sendable {
 
     /// A short name for a thread's subject, for a line with no room for the chip: "Ticket 13", else the name.
     public var subjectText: String {
-        if referenceKind == "ticket", let sequence = ticketSequence { return "Ticket \(sequence)" }
+        if referenceKind == "ticket", let sequence = ticketSequence { return "#\(sequence)" }
         return cellName ?? label ?? writtenText ?? ""
     }
 
