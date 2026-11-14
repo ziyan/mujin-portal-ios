@@ -35,16 +35,7 @@ struct MessageReferenceChip: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var symbol: String {
-        switch reference.referenceKind {
-        case "ticket": "ticket"
-        case "controller": "cpu"
-        case "virtual_controller": "cube.transparent"
-        case "site": "building.2"
-        case "cell": "square.grid.2x2"
-        default: "link"
-        }
-    }
+    private var symbol: String { reference.symbolName }
 
     private var detail: String? {
         switch reference.referenceKind {
@@ -94,6 +85,20 @@ struct FlowLayout: Layout {
             subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: min(size.width, bounds.width), height: size.height))
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
+extension ChatReference {
+    /// The symbol a reference of this kind is shown with, on its chip and beside a thread's count line.
+    var symbolName: String {
+        switch referenceKind {
+        case "ticket": "ticket"
+        case "controller": "cpu"
+        case "virtual_controller": "cube.transparent"
+        case "site": "building.2"
+        case "cell": "square.grid.2x2"
+        default: "link"
         }
     }
 }

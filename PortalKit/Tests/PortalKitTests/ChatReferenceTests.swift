@@ -42,7 +42,7 @@ import Testing
         let message = ChatMessage(try JSONDecoder().decode(ConversationMessage.self, from: Data(json.utf8)))
         let subject = try #require(message.threadSubject)
         #expect(subject.canOpen)
-        #expect(subject.subjectText == "Ticket 13")
+        #expect(subject.subjectText == "#13")
         let cell = ChatReference(referenceKind: "cell", writtenText: nil, isAccessible: false, cellName: "Cell North 2")
         #expect(cell.subjectText == "Cell North 2")
         #expect(!cell.canOpen)
