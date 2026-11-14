@@ -340,8 +340,6 @@ final class ChatModel {
                         isMujinUser: $0.isMujinUser)
                 }
             }
-            // The cards are read before the rows are shown, so a row has its full height from its first frame.
-            await loadPreviews(of: newRows)
             window.replace(with: newRows, totalCount: await total)
             timeline.load(window.messages)
             var marks: [String: String] = [:]
@@ -355,6 +353,8 @@ final class ChatModel {
             await reloadCards()
             await markRead()
             if agents.isEmpty, let loaded = try? await connection.authorizedAgents(organizationId: newRoom.organizationId) { agents = loaded }
+            // The chat shows at once; the cards of the newest rows follow. Only an earlier page waits for its cards, being one page.
+            await loadPreviews(timeline.messages.suffix(30).map(\.id))
         } catch {
             onError(error)
             if phase == .loading { phase = .failed(error.userMessage) }
