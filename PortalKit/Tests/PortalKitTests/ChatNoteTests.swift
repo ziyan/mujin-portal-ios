@@ -23,6 +23,21 @@ import Testing
         #expect(sentVariables(try #require(transport.requests.last))["isInternal"] as? Bool == true)
     }
 
+    @Test func aVoiceMessageSaysItIsInternalOnlyWhenItIs() async throws {
+        let (connection, transport) = scriptedConnection { _, _ in ["SendMessage": ["runId": "", "message": NSNull()]] }
+        _ = try await connection.sendChatVoiceMessage(conversationId: "c1", attachmentId: "attachment01", durationMS: 2_000, waveformLevels: [1, 2])
+        var body = String(decoding: try #require(transport.requests.last?.httpBody), as: UTF8.self)
+        #expect(!body.contains("isInternal"))
+        _ = try await connection.sendChatVoiceMessage(
+            conversationId: "c1", attachmentId: "attachment01", durationMS: 2_000, waveformLevels: [1, 2], isInternal: true)
+        body = String(decoding: try #require(transport.requests.last?.httpBody), as: UTF8.self)
+        #expect(body.contains("isInternal: $isInternal"))
+        #expect(body.contains("voiceMessage: $voiceMessage"))
+        let variables = sentVariables(try #require(transport.requests.last))
+        #expect(variables["isInternal"] as? Bool == true)
+        #expect(variables["voiceMessage"] != nil)
+    }
+
     @Test func aReplyToAnInternalNoteOrInAnInternalThreadIsHeldInternal() {
         #expect(InternalNoteRules.isForcedOn(threadRoot: message("r1", isInternal: true), replyTo: nil))
         #expect(InternalNoteRules.isForcedOn(threadRoot: nil, replyTo: message("m2", isInternal: true)))

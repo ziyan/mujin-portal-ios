@@ -471,6 +471,10 @@ jobs:
           shoot chat-voice chat-voice
           shoot chat-voice-composer chat-voice-composer
           shoot chat-voice-recording chat-voice-recording
+          shoot chat-internal-staff chat-internal staff
+          shoot chat-internal-on-staff chat-internal-on staff
+          shoot chat-voice-composer-staff chat-voice-composer staff
+          shoot chat-voice-recording-staff chat-voice-recording staff
           shoot chat-call-banner chat-call-banner
           shoot chat-in-call chat-in-call
           shoot chat-call-transcript chat-call-transcript
@@ -622,6 +626,10 @@ jobs:
           shoot chat-voice-dark chat-voice
           shoot chat-voice-composer-dark chat-voice-composer
           shoot chat-voice-recording-dark chat-voice-recording
+          shoot chat-internal-staff-dark chat-internal staff
+          shoot chat-internal-on-staff-dark chat-internal-on staff
+          shoot chat-voice-composer-staff-dark chat-voice-composer staff
+          shoot chat-voice-recording-staff-dark chat-voice-recording staff
           shoot chat-call-banner-dark chat-call-banner
           shoot chat-in-call-dark chat-in-call
           shoot chat-call-transcript-dark chat-call-transcript
@@ -755,6 +763,8 @@ jobs:
           shoot large-text-chat-voice chat-voice
           shoot large-text-chat-voice-composer chat-voice-composer
           shoot large-text-chat-voice-recording chat-voice-recording
+          shoot large-text-chat-internal-on-staff chat-internal-on staff
+          shoot large-text-chat-voice-recording-staff chat-voice-recording staff
           shoot large-text-chat-call-banner chat-call-banner
           shoot large-text-chat-in-call chat-in-call
           shoot large-text-voice voice

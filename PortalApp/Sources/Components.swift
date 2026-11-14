@@ -33,8 +33,10 @@ struct ComposerCard<Accessory: View>: View {
 
     /// More for the [+] menu than attaching files: talking, and the screen's own choices.
     var menuItems: [ComposerMenuItem] = []
-    /// Whether the next send is an internal note: the box turns amber and the card shows Staff only beside [+].
+    /// Whether the next send is an internal note: the box turns amber.
     var isInternalNote = false
+    /// The Staff only switch, for staff in a chat a customer reads: a round lock beside [+], like the composer's other buttons.
+    var internalNoteSwitch: InternalNoteSwitch?
 
     @State private var isFocused = false
     /// The round buttons grow with the text, held where their symbols stay inside them.
@@ -49,8 +51,16 @@ struct ComposerCard<Accessory: View>: View {
     /// The card: words across its whole width with the buttons on a row beneath, while the person types, has something attached or has
     /// written more than one line. Otherwise one pill: [+], the words, the microphone and send in a row.
     private var isExpanded: Bool {
-        isFocused || !(drafts?.items.isEmpty ?? true) || text.contains("\n") || wrapsInPill
+        isFocused || !(drafts?.items.isEmpty ?? true) || text.contains("\n") || wrapsInPill || isTooNarrowForButtonsBesideWords
     }
+
+    /// At the accessibility text sizes the round buttons, the Staff only lock among them, leave the words in a pill about a hundred points
+    /// to stand in, so the placeholder would read as an ellipsis. The card gives the words the whole width.
+    private var isTooNarrowForButtonsBesideWords: Bool {
+        internalNoteSwitch != nil && dynamicTypeSize.isAccessibilitySize
+    }
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Whether the words need a second line at the pill's width, in the text view's own font and at the current text size.
     private var wrapsInPill: Bool {
@@ -70,7 +80,9 @@ struct ComposerCard<Accessory: View>: View {
             HStack(spacing: 4) {
                 plusMenu
                 accessory
-                if isInternalNote, isExpanded { StaffOnlyChip() }
+                if let internalNoteSwitch {
+                    StaffOnlyLockButton(internalNoteSwitch: internalNoteSwitch, diameter: diameter)
+                }
             }
             field
             trailingButtons
@@ -184,18 +196,39 @@ struct ComposerCard<Accessory: View>: View {
     }
 }
 
-/// StaffOnlyChip says, in the composer's card beside [+], that what is sent is an internal note only Mujin staff read.
-struct StaffOnlyChip: View {
+/// InternalNoteSwitch is whether the next send is an internal note only Mujin staff read, and whether the person may change it: inside an
+/// internal thread, or replying to an internal note, it is held on.
+struct InternalNoteSwitch {
+    let isOn: Bool
+    let isLocked: Bool
+    let onToggle: () -> Void
+}
+
+/// StaffOnlyLockButton is the Staff only switch beside [+], in the pill, the card and the voice message bar: a round button like [+] and the
+/// microphone, an open lock while off and an amber closed lock while on. Held on in an internal thread or a reply to an internal note, it
+/// keeps its amber colors so it still says what a send does.
+struct StaffOnlyLockButton: View {
+    let internalNoteSwitch: InternalNoteSwitch
+    let diameter: CGFloat
+
     var body: some View {
-        Label("Staff only", systemImage: "lock.fill")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(Color.statusWarning)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.statusWarning.opacity(0.16), in: Capsule())
-            .lineLimit(1)
-            .fixedSize()
-            .accessibilityIdentifier("staffOnlyChip")
+        Button(action: internalNoteSwitch.onToggle) {
+            Image(systemName: internalNoteSwitch.isOn ? "lock.fill" : "lock.open")
+                .font(.body.weight(.medium))
+                .foregroundStyle(internalNoteSwitch.isOn ? Color.statusWarning : Color.secondary)
+                .frame(width: diameter, height: diameter)
+                .background(internalNoteSwitch.isOn ? Color.statusWarning.opacity(0.18) : Color(.tertiarySystemFill), in: .circle)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .disabled(internalNoteSwitch.isLocked)
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        .accessibilityLabel(Text("Staff only"))
+        .accessibilityValue(internalNoteSwitch.isOn ? Text("On") : Text("Off"))
+        .accessibilityHint(internalNoteSwitch.isLocked ? Text("This thread is internal") : Text("Only Mujin staff read what you send"))
+        .accessibilityAddTraits(internalNoteSwitch.isOn ? .isSelected : [])
+        .accessibilityIdentifier("staffOnlyLock")
     }
 }
 
@@ -375,12 +408,13 @@ extension ComposerCard {
         placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,
         isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", dictation: DictationControl? = nil,
         fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton", onEscape: (() -> Bool)? = nil,
-        isInternalNote: Bool = false, menuItems: [ComposerMenuItem] = [], onSend: @escaping () -> Void, @ViewBuilder accessory: () -> Accessory
+        isInternalNote: Bool = false, internalNoteSwitch: InternalNoteSwitch? = nil, menuItems: [ComposerMenuItem] = [], onSend: @escaping () -> Void,
+        @ViewBuilder accessory: () -> Accessory
     ) {
         self.init(
             placeholder: placeholder, text: text, drafts: drafts, isEnabled: isEnabled, canSend: canSend, isSending: isSending, sendSymbol: sendSymbol,
             sendLabel: sendLabel, onVoice: nil, onStop: nil, dictation: dictation, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
-            onSend: onSend, accessory: accessory, menuItems: menuItems, isInternalNote: isInternalNote)
+            onSend: onSend, accessory: accessory, menuItems: menuItems, isInternalNote: isInternalNote, internalNoteSwitch: internalNoteSwitch)
     }
 }
 
@@ -389,12 +423,13 @@ extension ComposerCard where Accessory == EmptyView {
         placeholder: LocalizedStringKey, text: Binding<String>, drafts: AttachmentDrafts? = nil, isEnabled: Bool = true, canSend: Bool,
         isSending: Bool = false, sendSymbol: String = "arrow.up", sendLabel: LocalizedStringKey = "Send", onVoice: (() -> Void)? = nil,
         onStop: (() -> Void)? = nil, dictation: DictationControl? = nil, fieldIdentifier: String = "messageField", sendIdentifier: String = "sendButton",
-        onEscape: (() -> Bool)? = nil, isInternalNote: Bool = false, menuItems: [ComposerMenuItem] = [], onSend: @escaping () -> Void
+        onEscape: (() -> Bool)? = nil, isInternalNote: Bool = false, internalNoteSwitch: InternalNoteSwitch? = nil, menuItems: [ComposerMenuItem] = [],
+        onSend: @escaping () -> Void
     ) {
         self.init(
             placeholder: placeholder, text: text, drafts: drafts, isEnabled: isEnabled, canSend: canSend, isSending: isSending, sendSymbol: sendSymbol,
             sendLabel: sendLabel, onVoice: onVoice, onStop: onStop, dictation: dictation, fieldIdentifier: fieldIdentifier, sendIdentifier: sendIdentifier, onEscape: onEscape,
-            onSend: onSend, accessory: { EmptyView() }, menuItems: menuItems, isInternalNote: isInternalNote)
+            onSend: onSend, accessory: { EmptyView() }, menuItems: menuItems, isInternalNote: isInternalNote, internalNoteSwitch: internalNoteSwitch)
     }
 }
 

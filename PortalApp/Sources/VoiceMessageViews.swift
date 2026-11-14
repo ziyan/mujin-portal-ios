@@ -172,6 +172,10 @@ struct VoiceHoldBar: View {
     let onKeyboard: () -> Void
     let onStart: () async -> VoiceMessageRecorder.StartResult
     let onFinish: (_ isCancelled: Bool) -> Void
+    /// Whether the voice message is an internal note: the bar turns amber, as the composer does.
+    var isInternalNote = false
+    /// The Staff only switch beside the keyboard button, for staff in a chat a customer reads.
+    var internalNoteSwitch: InternalNoteSwitch?
 
     @State private var isHolding = false
     @ScaledMetric(relativeTo: .body) private var scaledDiameter: CGFloat = 36
@@ -190,11 +194,19 @@ struct VoiceHoldBar: View {
             }
             .accessibilityLabel("Use the keyboard")
             .accessibilityIdentifier("voiceKeyboardButton")
+            if let internalNoteSwitch { StaffOnlyLockButton(internalNoteSwitch: internalNoteSwitch, diameter: diameter) }
+            // The rest of the bar is the button to hold: a line marks where it starts, with no fill of its own.
+            Rectangle()
+                .fill(Color(.separator))
+                .frame(width: 1, height: diameter * 0.7)
+                .accessibilityHidden(true)
             holdArea
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
-        .background(Color.portalCard.opacity(0.92), in: .rect(cornerRadius: 26, style: .continuous))
+        .background(
+            isInternalNote ? AnyShapeStyle(Color.statusWarning.opacity(0.16)) : AnyShapeStyle(Color.portalCard.opacity(0.92)),
+            in: .rect(cornerRadius: 26, style: .continuous))
         .glassEffect(.regular, in: .rect(cornerRadius: 26, style: .continuous))
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
@@ -214,10 +226,11 @@ struct VoiceHoldBar: View {
                     .multilineTextAlignment(.center)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 48)
+        .frame(maxWidth: .infinity, minHeight: 44)
         .padding(.horizontal, 8)
-        .background(recorder.isCancelling ? Color.statusError.opacity(0.18) : Color(.tertiarySystemFill), in: .capsule)
-        .contentShape(.capsule)
+        // Only letting go to cancel tints it; at rest it is the bar itself.
+        .background(recorder.isCancelling ? Color.statusError.opacity(0.18) : Color.clear, in: .capsule)
+        .contentShape(.rect)
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in

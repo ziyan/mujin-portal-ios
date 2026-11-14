@@ -146,7 +146,8 @@ struct ChatView: View {
             chatModel.onRead = { [session] id in session.noteChatRead(conversationId: id) }
             model = chatModel
             chatModel.start()
-            if appModel.isDemo, DemoOptions.screen == "chat-composer" { drafts.stageDemo() }
+            if appModel.isDemo, DemoOptions.screen == "chat-composer" || DemoOptions.screen == "chat-internal-on" { drafts.stageDemo() }
+            if appModel.isDemo, DemoOptions.startsInternalNote { chatModel.isInternalNoteChosen = true }
             if appModel.isDemo, SpeechDemo.stagesListening(DemoOptions.screen, isThread: isThread) { dictation.stageListening(captionText: DemoSpeech.firstCaption) }
             if appModel.isDemo, SpeechDemo.stagesWords(DemoOptions.screen) { draft = DemoSpeech.dictatedWords }
             if appModel.isDemo, let messageId = SpeechDemo.messageToPlay(DemoOptions.screen, isThread: isThread) {
@@ -546,7 +547,8 @@ struct ChatView: View {
                         if isVoiceMode, canUseVoice(model) {
                             VoiceHoldBar(
                                 recorder: recorder, isEnabled: model.canWrite && !model.isSendingVoice, onKeyboard: { isVoiceModePreferred = false },
-                                onStart: { await beginRecording(model) }, onFinish: { isCancelled in finishRecording(model, cancel: isCancelled) }
+                                onStart: { await beginRecording(model) }, onFinish: { isCancelled in finishRecording(model, cancel: isCancelled) },
+                                isInternalNote: model.isInternalNote, internalNoteSwitch: internalNoteSwitch(model)
                             )
                             .task {
                                 recorder.onLimitReached = { finishRecording(model, cancel: false) }
@@ -565,6 +567,7 @@ struct ChatView: View {
                             },
                             // A voice message is recorded instead of typed.
                             isInternalNote: model.isInternalNote,
+                            internalNoteSwitch: internalNoteSwitch(model),
                             menuItems: composerMenuItems(model),
                             onSend: {
                                 // What is still being said belongs to the message that was sent, not to the next one.
@@ -627,21 +630,20 @@ struct ChatView: View {
         return LocalizedStringKey("New thread")
     }
 
-    /// The composer's [+] choices beyond attaching: a voice message, and for staff the internal-note lock, held on where the thread or the
-    /// message replied to is internal.
+    /// The composer's [+] choices beyond attaching: a voice message.
     private func composerMenuItems(_ model: ChatModel) -> [ComposerMenuItem] {
         var items: [ComposerMenuItem] = []
         if canUseVoice(model) {
             items.append(ComposerMenuItem(title: "Voice message", systemImage: "mic.fill", identifier: "voiceModeButton") { isVoiceModePreferred = true })
         }
-        if model.canPostInternal {
-            items.append(
-                ComposerMenuItem(
-                    title: "Internal note", systemImage: "lock", identifier: "internalNoteToggle", isOn: model.isInternalNote,
-                    isDisabled: model.isInternalNoteForced
-                ) { model.isInternalNoteChosen.toggle() })
-        }
         return items
+    }
+
+    /// For staff in a chat a customer reads, the Staff only switch shown in the composer, held on where the thread or the message
+    /// replied to is internal.
+    private func internalNoteSwitch(_ model: ChatModel) -> InternalNoteSwitch? {
+        guard model.canPostInternal else { return nil }
+        return InternalNoteSwitch(isOn: model.isInternalNote, isLocked: model.isInternalNoteForced) { model.isInternalNoteChosen.toggle() }
     }
 
     /// The list that opens above the composer when the draft ends with a #: the tickets, controllers, virtual controllers, sites and
