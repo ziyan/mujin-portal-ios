@@ -39,7 +39,8 @@ struct ChatView: View {
     /// Counts the releases, so the scroll to the end runs after the released messages are laid out.
     @State private var releaseCount = 0
     @State private var isOnScreen = false
-    @State private var draft = DemoOptions.screen == "chat-mention" ? "Can @" : ""
+    /// The words being typed. Held in a model that only the composer's fields read, so a keystroke re-runs the composer, not the whole screen.
+    @State private var draftText = ChatDraftText(DemoOptions.screen == "chat-mention" ? "Can @" : "")
     @State private var messageToDelete: ChatMessage?
     @State private var isShowingInfo = DemoOptions.screen == "chat-info" || DemoOptions.screen == "chat-site-info" || DemoOptions.screen?.hasPrefix("chat-call-history") == true
     @State private var isAddingPeople = DemoOptions.screen == "chat-add-people"
@@ -51,6 +52,10 @@ struct ChatView: View {
     @AppStorage("chatVoiceMode") private var isVoiceModePreferred = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    private var draft: String {
+        get { draftText.text }
+        nonmutating set { draftText.text = newValue }
+    }
     private var callCenter: CallCenter { appModel.callCenter }
     private var isThread: Bool { threadRootMessageId != nil }
     /// Where the call's stage ends on screen, and where the chat's content begins, so the messages start below the stage.
@@ -575,66 +580,70 @@ struct ChatView: View {
                     ) {}
                     .padding(.horizontal, 12)
                 }
-                mentionList(model)
-                referenceList(model)
-                if let editing = model.editTarget {
-                    banner(icon: "pencil", title: String(localized: "Editing your message"), detail: editing.text) {
-                        model.editTarget = nil
-                        draft = ""
+                DraftObservingScope {
+                    VStack(spacing: 6) {
+                        mentionList(model)
+                        referenceList(model)
+                        if let editing = model.editTarget {
+                            banner(icon: "pencil", title: String(localized: "Editing your message"), detail: editing.text) {
+                                model.editTarget = nil
+                                draft = ""
+                            }
+                        }
+                        if let agent = model.addressedAgent(in: draft) {
+                            Label("\(agent.name ?? String(localized: "The assistant")) will answer", systemImage: "sparkles")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 20)
+                        }
+                        if model.editTarget == nil {
+                            if let attachError = drafts.errorText {
+                                Text(attachError).font(.footnote).foregroundStyle(Color.statusError).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
+                            }
+                        }
+                        if isShowingVoiceHint { VoiceHintView().transition(.opacity) }
+                        Group {
+                        if isVoiceMode, canUseVoice(model) {
+                            VoiceHoldBar(
+                                recorder: recorder, isEnabled: model.canWrite && !model.isSendingVoice, onKeyboard: { isVoiceModePreferred = false },
+                                onStart: { await beginRecording(model) }, onFinish: { isCancelled in finishRecording(model, cancel: isCancelled) },
+                                isInternalNote: model.isInternalNote, internalNoteSwitch: internalNoteSwitch(model)
+                            )
+                            .task {
+                                recorder.onLimitReached = { finishRecording(model, cancel: false) }
+                                if appModel.isDemo, DemoOptions.screen == "chat-voice-recording" { recorder.stageDemo() }
+                            }
+                        } else {
+                        ComposerCard(
+                            placeholder: fieldPrompt(model), text: Binding(get: { draft }, set: { draft = $0 }), drafts: model.editTarget == nil ? drafts : nil, isEnabled: model.canWrite,
+                            canSend: !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (model.editTarget == nil && !drafts.items.isEmpty),
+                            sendSymbol: model.editTarget == nil ? "arrow.up" : "checkmark", sendLabel: model.editTarget == nil ? "Send" : "Save edit",
+                            dictation: dictationControl(model), fieldIdentifier: "chatMessageField", sendIdentifier: "chatSendButton",
+                            onEscape: {
+                                guard draft.isEmpty, model.replyTarget != nil else { return false }
+                                model.replyTarget = nil
+                                return true
+                            },
+                            // A voice message is recorded instead of typed.
+                            isInternalNote: model.isInternalNote,
+                            internalNoteSwitch: internalNoteSwitch(model),
+                            menuItems: composerMenuItems(model),
+                            onSend: {
+                                // What is still being said belongs to the message that was sent, not to the next one.
+                                dictation.abort()
+                                let text = draft
+                                draft = ""
+                                Task { if await !model.send(text, attachments: drafts) { draft = text } }
+                            }
+                        )
+                        }
+                        }
+                        .onChange(of: draftText.text) { _, text in
+                            if !text.isEmpty && model.editTarget == nil { model.noteTyping() }
+                            model.searchReferences(for: text)
+                        }
                     }
-                }
-                if let agent = model.addressedAgent(in: draft) {
-                    Label("\(agent.name ?? String(localized: "The assistant")) will answer", systemImage: "sparkles")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                }
-                if model.editTarget == nil {
-                    if let attachError = drafts.errorText {
-                        Text(attachError).font(.footnote).foregroundStyle(Color.statusError).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
-                    }
-                }
-                if isShowingVoiceHint { VoiceHintView().transition(.opacity) }
-                Group {
-                if isVoiceMode, canUseVoice(model) {
-                    VoiceHoldBar(
-                        recorder: recorder, isEnabled: model.canWrite && !model.isSendingVoice, onKeyboard: { isVoiceModePreferred = false },
-                        onStart: { await beginRecording(model) }, onFinish: { isCancelled in finishRecording(model, cancel: isCancelled) },
-                        isInternalNote: model.isInternalNote, internalNoteSwitch: internalNoteSwitch(model)
-                    )
-                    .task {
-                        recorder.onLimitReached = { finishRecording(model, cancel: false) }
-                        if appModel.isDemo, DemoOptions.screen == "chat-voice-recording" { recorder.stageDemo() }
-                    }
-                } else {
-                ComposerCard(
-                    placeholder: fieldPrompt(model), text: $draft, drafts: model.editTarget == nil ? drafts : nil, isEnabled: model.canWrite,
-                    canSend: !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (model.editTarget == nil && !drafts.items.isEmpty),
-                    sendSymbol: model.editTarget == nil ? "arrow.up" : "checkmark", sendLabel: model.editTarget == nil ? "Send" : "Save edit",
-                    dictation: dictationControl(model), fieldIdentifier: "chatMessageField", sendIdentifier: "chatSendButton",
-                    onEscape: {
-                        guard draft.isEmpty, model.replyTarget != nil else { return false }
-                        model.replyTarget = nil
-                        return true
-                    },
-                    // A voice message is recorded instead of typed.
-                    isInternalNote: model.isInternalNote,
-                    internalNoteSwitch: internalNoteSwitch(model),
-                    menuItems: composerMenuItems(model),
-                    onSend: {
-                        // What is still being said belongs to the message that was sent, not to the next one.
-                        dictation.abort()
-                        let text = draft
-                        draft = ""
-                        Task { if await !model.send(text, attachments: drafts) { draft = text } }
-                    }
-                )
-                }
-                }
-                .onChange(of: draft) { _, text in
-                    if !text.isEmpty && model.editTarget == nil { model.noteTyping() }
-                    model.searchReferences(for: text)
                 }
                 // The voice message bar takes the composer's place, with no microphone button to stop dictating.
                 .onChange(of: isVoiceModePreferred) { _, _ in dictation.abort() }
@@ -1314,4 +1323,18 @@ private struct AddPeopleView: View {
         let present = Set((model.room?.currentMembers ?? []).map(\.userId))
         return candidates.filter { !present.contains($0.userId) }
     }
+}
+
+/// The words being typed in a chat's composer. Observation re-runs only the views that read `text`.
+@Observable
+final class ChatDraftText {
+    var text: String
+    init(_ text: String) { self.text = text }
+}
+
+/// DraftObservingScope runs its content in a view body of its own, so what the content reads from the draft re-runs this body alone.
+private struct DraftObservingScope<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View { content() }
 }
