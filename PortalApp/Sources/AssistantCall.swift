@@ -36,8 +36,11 @@ final class AssistantCall {
         }
     }
 
-    /// Whether the call is still going or being set up.
-    var isGoing: Bool { voice.isActive || voice.phase != .idle }
+    /// Whether the call is still going or being set up. A call that failed is over: it leaves no bar behind.
+    var isGoing: Bool {
+        if case .failed = voice.phase { return false }
+        return voice.isActive || voice.phase != .idle
+    }
 
     /// Hangs up from the bar, where no screen is left to stop the conversation's live feed.
     func end() {
