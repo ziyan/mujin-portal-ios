@@ -51,6 +51,12 @@ public struct ChatReference: Codable, Equatable, Hashable, Sendable {
         return written.hasPrefix("http://") || written.hasPrefix("https://")
     }
 
+    /// A short name for a thread's subject, for a line with no room for the chip: "Ticket 13", else the name.
+    public var subjectText: String {
+        if referenceKind == "ticket", let sequence = ticketSequence { return "Ticket \(sequence)" }
+        return cellName ?? label ?? writtenText ?? ""
+    }
+
     /// What the chip says: a ticket's number and title, else the name.
     public var chipText: String {
         if referenceKind == "ticket", let sequence = ticketSequence {
@@ -145,6 +151,8 @@ extension ServerCapabilities {
 extension Documents {
     static let chatReferenceFields = """
         references { referenceKind writtenText isAccessible targetId path label ticketSequence ticketTitle ticketStatus controllerName \
+        isControllerConnected virtualControllerName siteName cellName cellSiteName }
+        threadSubject { referenceKind writtenText isAccessible targetId path label ticketSequence ticketTitle ticketStatus controllerName \
         isControllerConnected virtualControllerName siteName cellName cellSiteName }
         """
 

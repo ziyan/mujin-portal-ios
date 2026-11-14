@@ -116,6 +116,10 @@ enum ThreadDemo {
         var rows: [[String: Any]] = [
             said("t01", "user03", "Robin Demo", "The dock door 4 sensor has been flickering since this morning.", 14_400, extra: [
                 "threadReplyCount": hasMedia ? 6 : 3, "threadLastReplyAt": stamp(hasMedia ? 1_200 : 1_500),
+                "threadSubject": [
+                    "referenceKind": "ticket", "writtenText": "", "isAccessible": true, "targetId": "ticket-demo13", "path": "/ticket/13",
+                    "label": "#13 Door 4 sensor flickers", "ticketSequence": 13, "ticketTitle": "Door 4 sensor flickers", "ticketStatus": "open",
+                ] as [String: Any],
             ]),
             said("t02", "user04", "Jordan Placeholder", "I saw it too. The cable looks loose at the frame.", 13_800, extra: ["threadRootMessageId": "t01", "replyToMessageId": "t01"]),
             said("t03", "user01", "Alex Example", "Can someone tighten it before the afternoon shift?", 12_000, extra: [
@@ -142,6 +146,10 @@ enum ThreadDemo {
         } else {
             rows[rows.count - 1]["threadReplyCount"] = 1
             rows[rows.count - 1]["threadLastReplyAt"] = stamp(840)
+            rows[rows.count - 1]["threadSubject"] = [
+                "referenceKind": "cell", "writtenText": "", "isAccessible": true, "targetId": "cell-demo01", "path": "/site/site-demo01/cell/cell-demo01",
+                "label": "Cell North 2", "cellName": "Cell North 2", "cellSiteName": "Example Depot",
+            ] as [String: Any]
             rows.append(
                 answer("t07", "Door 4 reported 212 changes today, door 2 reported 9 and the other doors fewer than 5.", 840, extra: [
                     "threadRootMessageId": "t06", "replyToMessageId": "t06",
