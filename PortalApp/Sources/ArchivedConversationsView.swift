@@ -87,15 +87,18 @@ struct ArchivedConversationsView: View {
         }
     }
 
-    /// The row leaves at once; it comes back if the server refuses.
+    /// The row leaves at once; it comes back if the server refuses, where it was, and only it: the list may have been read again
+    /// in between.
     private func restore(_ conversation: ConversationSummary) async {
-        let before = conversations
+        let index = conversations.firstIndex { $0.id == conversation.id }
         conversations.removeAll { $0.id == conversation.id }
         do {
             try await connection.restoreConversation(id: conversation.id)
             onRestored()
         } catch {
-            conversations = before
+            if !conversations.contains(where: { $0.id == conversation.id }) {
+                conversations.insert(conversation, at: min(index ?? 0, conversations.count))
+            }
             onError(error)
         }
     }
