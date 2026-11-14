@@ -22,7 +22,10 @@ final class MarkdownTableZoomTests: XCTestCase {
         let table = revealTable(app)
         Thread.sleep(forTimeInterval: 1)
         let before = table.screenshot().pngRepresentation
-        table.swipeLeft()
+        // A slow drag that stops where it ends, as one finger on the table does; a swipe is a flick the page may take for its own.
+        let start = table.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+        let end = table.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
+        start.press(forDuration: 0.1, thenDragTo: end)
         Thread.sleep(forTimeInterval: 1)
         XCTAssertNotEqual(table.screenshot().pngRepresentation, before, "A drag did not move the table sideways.")
         XCTAssertFalse(viewer(app).exists, "A one finger drag opened the table full screen.")
