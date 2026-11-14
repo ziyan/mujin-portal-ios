@@ -23,6 +23,18 @@ final class SpeechTests: XCTestCase {
         return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
     }
 
+    /// Waits until the element has stood still for half a second, as the composer does once it has taken its shape.
+    private func waitForSteadyFrame(_ element: XCUIElement, timeout: TimeInterval = 15) {
+        var previous = element.frame
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.5)
+            let current = element.frame
+            if current == previous { return }
+            previous = current
+        }
+    }
+
     private func waitForValue(_ element: XCUIElement, containing text: String, timeout: TimeInterval = 30) -> Bool {
         let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS %@", text), object: element)
         return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
@@ -113,8 +125,13 @@ final class SpeechTests: XCTestCase {
         let app = DemoApp.launch(screen: "dictate-chat-words")
         let button = dictateButton(app)
         XCTAssertTrue(button.waitForExistence(timeout: 90), "There is no Dictate button.\n\(app.debugDescription)")
+        // The words go into the box just after the screen opens, which turns the composer from one pill into a card and moves the
+        // buttons: a tap before that lands where the button was.
+        XCTAssertTrue(waitForValue(DemoApp.element(app, "chatMessageField"), containing: Self.dictatedWords), "The words never reached the box.\n\(app.debugDescription)")
+        waitForSteadyFrame(button)
         button.tap()
         XCTAssertTrue(waitForLabel(button, "Stop dictating"), "The button does not say it is listening.\n\(app.debugDescription)")
+        waitForSteadyFrame(DemoApp.button(app, "chatSendButton"))
         DemoApp.button(app, "chatSendButton").tap()
         XCTAssertTrue(waitForLabel(button, "Dictate"), "Dictation went on after the message was sent.\n\(app.debugDescription)")
         XCTAssertFalse(DemoApp.element(app, "dictationCaption").exists, "The caption is still shown after sending.")
