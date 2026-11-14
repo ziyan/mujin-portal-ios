@@ -34,6 +34,20 @@ import Testing
         #expect(ticket.chipText == "#123 Gripper drops boxes")
     }
 
+    @Test func aThreadRootDecodesItsSubject() throws {
+        let json = """
+            {"id": "m1", "role": "user", "threadSubject": {"referenceKind": "ticket", "isAccessible": true, "path": "/ticket/13",
+            "label": "#13 Door sensor", "ticketSequence": 13, "ticketTitle": "Door sensor"}}
+            """
+        let message = ChatMessage(try JSONDecoder().decode(ConversationMessage.self, from: Data(json.utf8)))
+        let subject = try #require(message.threadSubject)
+        #expect(subject.canOpen)
+        #expect(subject.subjectText == "Ticket 13")
+        let cell = ChatReference(referenceKind: "cell", writtenText: nil, isAccessible: false, cellName: "Cell North 2")
+        #expect(cell.subjectText == "Cell North 2")
+        #expect(!cell.canOpen)
+    }
+
     @Test func thePickerPutsATicketAsItsNumberAndTheRestAsLinks() {
         #expect(ChatReferenceCandidate(referenceKind: "ticket", targetId: "t1", path: "/ticket/123", label: "Gripper drops boxes").insertedText == "#123")
         #expect(
