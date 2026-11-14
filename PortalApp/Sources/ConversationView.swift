@@ -69,6 +69,8 @@ struct ConversationView: View {
         guard let last = model.transcript.displayEntries.last(where: { Self.isShown($0, showWorkingNotes: showWorkingNotes) }) else { return false }
         return last.id != heldEnd.lastEntry.id || last != heldEnd.lastEntry
     }
+    /// The entry that was first when an earlier page was asked for, which the list goes back to once the page is in.
+    @State private var entryIdAtTopBeforeEarlier: String?
 
     private var isThread: Bool { threadRootMessageId != nil }
     /// Whether a call can start here: from the conversation, or from a thread on a server with threads, where it goes in the thread.
@@ -496,12 +498,12 @@ struct ConversationView: View {
             }
             .scrollDismissesKeyboard(.immediately)
             .background(Color.portalPage)
-            // A short thread starts at the top; a long one opens, and follows, at the end. An earlier page going in above keeps the
-            // distance from the end, so the messages in view stay where they are.
+            // A short thread starts at the top; a long one opens, and follows, at the end. An earlier page going in above is followed by
+            // a scroll back to the message being read.
             .defaultScrollAnchor(.top, for: .alignment)
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
-            // The bottom anchor keeps the reading place as earlier messages go in above.
+            // The list goes back to the message being read as earlier messages go in above.
             .modifier(PullForEarlier(state: model.earlierRowState, pull: earlierPull) { Task { await model.loadEarlier() } })
             .onScrollGeometryChange(for: Bool.self, of: ListEnd.isShown) { _, isShown in isAtEnd = isShown }
             .onChange(of: isAtEnd) { _, isShown in
@@ -513,6 +515,14 @@ struct ConversationView: View {
                 }
             }
             .onChange(of: releaseCount) { _, _ in withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) } }
+            .onChange(of: model.isLoadingEarlier) { _, isLoading in
+                if isLoading { entryIdAtTopBeforeEarlier = shownEntries(model).first?.id }
+            }
+            .onChange(of: model.transcript.entries.first?.id) { _, _ in
+                guard let heldEntryId = entryIdAtTopBeforeEarlier else { return }
+                entryIdAtTopBeforeEarlier = nil
+                Task { @MainActor in await EarlierReadingPlace.keep(rowId: heldEntryId, proxy: proxy) }
+            }
             // The end of the thread, which an answer being written changes, is followed from the end, and always after the person
             // says something, which also lets out what waited. Reading the same messages again moves nothing.
             .onChange(of: model.transcript.entries.last) { _, last in

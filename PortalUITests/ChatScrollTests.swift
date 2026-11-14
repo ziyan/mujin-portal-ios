@@ -102,11 +102,15 @@ final class ChatScrollTests: XCTestCase {
         let app = openLongChat(screen: "chat-history")
         let row = DemoApp.element(app, "earlierMessagesRow")
         for page in 1...3 {
-            guard let earliestBefore = earliestHistoryNumber(app) else { return XCTFail("No history is listed.\n\(app.debugDescription)") }
+            // A flick that carries past the top while a finger is still down is a pull, and reads a page of its own: let that page go
+            // in, and go back to the top, before the pull that is measured. Reaching the top without a pull is tested in the earlier
+            // messages' own tests.
+            for _ in 0..<15 where !row.isHittable { app.swipeDown(velocity: .fast) }
+            Thread.sleep(forTimeInterval: 3)
             for _ in 0..<15 where !row.isHittable { app.swipeDown(velocity: .fast) }
             XCTAssertTrue(row.isHittable, "Page \(page): the top of the chat could not be reached.\n\(app.debugDescription)")
             Thread.sleep(forTimeInterval: 1)
-            XCTAssertEqual(earliestHistoryNumber(app), earliestBefore, "Page \(page): reaching the top read a page without a pull.")
+            guard let earliestBefore = earliestHistoryNumber(app) else { return XCTFail("No history is listed.\n\(app.debugDescription)") }
             let start = row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 420)))
             let firstHeld = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "(?s)History message \(earliestBefore)\\D.*")).firstMatch

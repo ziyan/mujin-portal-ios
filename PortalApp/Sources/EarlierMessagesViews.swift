@@ -67,6 +67,23 @@ struct EarlierMessagesRow: View {
     }
 }
 
+/// EarlierReadingPlace keeps the message a person was reading in view when an earlier page goes in above it. The list stays at its
+/// top while the page grows above, which would show the page and hide the message, so the list is scrolled back to the message, with
+/// some of the page above it in view.
+enum EarlierReadingPlace {
+    /// Where in the list the message lands: a little below its top, so the end of the page that went in shows above it.
+    static let anchor = UnitPoint(x: 0.5, y: 0.15)
+
+    /// Scrolls to the row once the page is laid out, and again once its pictures and cards have settled.
+    @MainActor
+    static func keep(rowId: String, proxy: ScrollViewProxy) async {
+        await Task.yield()
+        proxy.scrollTo(rowId, anchor: anchor)
+        try? await Task.sleep(for: .milliseconds(150))
+        proxy.scrollTo(rowId, anchor: anchor)
+    }
+}
+
 /// PullForEarlier reads how far the person pulls a list past its top, and reads earlier messages when they let go past the set
 /// distance, with a light tap as the pull arms. Reaching the top alone reads nothing. It follows the list only while a finger is on
 /// it: at rest, and while the list settles after a flick, it writes nothing, so a change of layout can never feed back into it.
