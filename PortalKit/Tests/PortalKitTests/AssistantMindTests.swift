@@ -83,6 +83,34 @@ import Testing
         #expect(MemoryCitation(url: URL(string: "https://example.test/a#1")!) == nil)
     }
 
+    @Test func sitePagesAreGroupedBySiteInPlaceOfTheSitesSection() {
+        let pages = [
+            MemoryPage(id: "g1", memoryScope: "global"),
+            MemoryPage(id: "s1", memoryScope: "site", siteId: "site02", siteName: "South yard"),
+            MemoryPage(id: "o1", memoryScope: "organization"),
+            MemoryPage(id: "s2", memoryScope: "site", siteId: "site01", siteName: "North dock"),
+            MemoryPage(id: "u1", memoryScope: "user"),
+            MemoryPage(id: "s3", memoryScope: "site", siteId: "site02", siteName: "South yard"),
+            MemoryPage(id: "s4", memoryScope: "site", siteId: "site09", siteName: ""),
+        ]
+        let groups = MemoryPageGrouping.groups(pages)
+        #expect(groups.map(\.siteTitle) == [nil, "North dock", "Site site09", "South yard", nil, nil])
+        #expect(groups.map(\.memoryScope) == ["user", "site", "site", "site", "organization", "global"])
+        #expect(groups[3].pages.map(\.id) == ["s1", "s3"])
+        #expect(Set(groups.map(\.id)).count == groups.count)
+    }
+
+    @Test func aSitePageIsTitledWithItsSiteAndOtherPagesAreNot() {
+        #expect(MemoryPage(id: "a", memoryScope: "site", siteId: "site01", siteName: " North dock ").siteTitle == "North dock")
+        #expect(MemoryPage(id: "b", memoryScope: "site", siteId: "site01").siteTitle == "Site site01")
+        #expect(MemoryPage(id: "c", memoryScope: "site").siteTitle == "Site")
+        #expect(MemoryPage(id: "d", memoryScope: "user", siteName: "North dock").siteTitle == nil)
+    }
+
+    @Test func memoryPagesAskForTheSiteName() {
+        #expect(Documents.memoryPageFields.contains("siteName"))
+    }
+
     @Test func aFactIsLiveUnlessReplacedOrFaded() {
         #expect(MemoryFact(id: "f1").isLive)
         #expect(!MemoryFact(id: "f2", supersededByFactId: "f3").isLive)

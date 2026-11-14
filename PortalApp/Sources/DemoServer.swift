@@ -1327,7 +1327,8 @@ struct DemoTransport: HTTPTransport {
                 "ListMemoryPages": [
                     "memoryPages": [
                         ["id": "page01", "path": "people/sample-person/work-habits", "memoryScope": "user", "name": "", "summary": "How you like answers written.", "liveFactCount": 3],
-                        ["id": "page02", "path": "site/site01/docks", "memoryScope": "site", "name": "Site01 docks", "summary": "Door timings and known quirks.", "liveFactCount": 5],
+                        ["id": "page02", "path": "site/site01/docks", "memoryScope": "site", "siteId": "site01", "siteName": "North dock", "name": "Dock doors", "summary": "Door timings and known quirks.", "liveFactCount": 5],
+                        ["id": "page05", "path": "site/site02/racking", "memoryScope": "site", "siteId": "site02", "siteName": "South yard", "name": "Racking layout", "summary": "Aisle numbering and rack heights.", "liveFactCount": 2],
                         ["id": "page03", "path": "organization/shifts", "memoryScope": "organization", "name": "Shift pattern", "summary": "Three shifts, handover at 06:00, 14:00 and 22:00.", "liveFactCount": 2],
                         ["id": "page04", "path": "organization/dock-door-rules", "memoryScope": "organization", "name": "", "liveFactCount": 1],
                     ], "meta": ["totalCount": 3],
