@@ -21,6 +21,16 @@ public enum ArtifactSandbox {
     /// How tall the card is until the page says.
     public static let defaultHeight: Double = 320
 
+    /// A hash of a text that is the same in every launch, unlike `hashValue`: FNV-1a over its bytes.
+    public static func stableHash(_ text: String) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100_0000_01b3
+        }
+        return String(hash, radix: 16)
+    }
+
     public static func clampedHeight(_ measured: Double) -> Double {
         guard measured.isFinite else { return defaultHeight }
         return min(max(measured.rounded(.up), inlineHeightRange.lowerBound), inlineHeightRange.upperBound)

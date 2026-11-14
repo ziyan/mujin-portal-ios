@@ -70,4 +70,10 @@ import Testing
         await #expect(throws: PortalError.self) { try await connection.fetch(path: "https://elsewhere.example.test/x") }
         #expect(transport.requests.isEmpty)
     }
+
+    @Test func theRuleListIsNamedByItsRulesTheSameInEveryLaunch() {
+        #expect(ArtifactSandbox.stableHash("abc") == ArtifactSandbox.stableHash("abc"))
+        #expect(ArtifactSandbox.stableHash("abc") != ArtifactSandbox.stableHash("abd"))
+        #expect(ArtifactSandbox.stableHash("") == "cbf29ce484222325")
+    }
 }
