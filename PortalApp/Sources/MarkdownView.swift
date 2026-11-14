@@ -33,35 +33,36 @@ struct MarkdownView: View {
     private func view(for block: MarkdownBlock) -> some View {
         switch block {
         case .paragraph(let text):
-            Text(Self.chips(Self.inline(text), names: mentionNames, isOnAccent: isOnAccent))
+            if RichMath.hasFormula(text) {
+                // A paragraph that holds a formula stays text: each formula is drawn on its own and set in the words.
+                InlineMathText(text: text) { words in Self.chips(Self.inline(words), names: mentionNames, isOnAccent: isOnAccent) }
+            } else {
+                Text(Self.chips(Self.inline(text), names: mentionNames, isOnAccent: isOnAccent))
+            }
         case .heading(let level, let text):
             Text(Self.inline(text))
                 .font(level == 1 ? .title2.bold() : level == 2 ? .title3.bold() : .headline)
                 .padding(.top, 4)
-        case .code(_, let text):
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(text)
-                    .font(.callout.monospaced())
-                    .padding(12)
+                .accessibilityAddTraits(.isHeader)
+        case .code(let language, let text):
+            if let chart = AnswerChart.parse(language: language, text: text) {
+                AnswerChartView(chart: chart)
+            } else if language == "math" {
+                // A formula on its own line, drawn with KaTeX, or its source where it cannot be.
+                RichDrawing(content: .formula(text), identifier: "mathFormula") { codeBlock(text, language: "math") }
+            } else if language.split(separator: " ").first == "mermaid" {
+                // A diagram sits under the code block's header; one that cannot be drawn shows its source there.
+                CodeFrame(language: "mermaid", source: text) {
+                    RichDrawing(content: .diagram(text), identifier: "mermaidDiagram") { codeBody(text).accessibilityIdentifier("markdownCode") }
+                }
+            } else {
+                codeBlock(text, language: language)
             }
-            .background(Color.portalCard, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        case .bulletList(let items):
+
+        case .list(let items):
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\u{2022}")
-                        Text(Self.inline(item))
-                    }
-                }
-            }
-        case .numberedList(let items):
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(index + 1).")
-                            .monospacedDigit()
-                        Text(Self.inline(item))
-                    }
+                    MarkdownListItemView(item: item, text: Self.chips(Self.inline(item.text), names: mentionNames, isOnAccent: isOnAccent))
                 }
             }
         case .quote(let text):
@@ -76,10 +77,26 @@ struct MarkdownView: View {
         }
     }
 
+    /// Code as typed, which scrolls sideways rather than wrap. A diagram or formula the app cannot draw shows its source this way.
+    private func codeBlock(_ text: String, language: String) -> some View {
+        CodeFrame(language: language, source: text) { codeBody(text) }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("markdownCode")
+    }
+
+    private func codeBody(_ text: String) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            Text(text)
+                .font(.callout.monospaced())
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     static func inline(_ text: String) -> AttributedString {
         // Web addresses typed as plain text become links too, which the
         // app opens in its own browser. Code and existing links stay as they are.
-        let result = (try? AttributedString(markdown: BareLinks.markdown(text), options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
+        let result = (try? AttributedString(markdown: BareLinks.markdown(AnswerMath.inlineAsCode(text)), options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
         return styledLinks(result)
     }
 
@@ -113,6 +130,32 @@ struct MarkdownView: View {
     }
 }
 
+/// MarkdownListItemView is one item of a list: indented by its level, after its bullet, its number or its task's box.
+private struct MarkdownListItemView: View {
+    let item: MarkdownListItem
+    let text: AttributedString
+    @ScaledMetric(relativeTo: .body) private var levelIndent: CGFloat = 18
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            switch (item.isChecked, item.marker) {
+            case (let isChecked?, _):
+                Image(systemName: isChecked ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(isChecked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .accessibilityLabel(isChecked ? Text("Done") : Text("Not done"))
+                    .accessibilityIdentifier(isChecked ? "markdownTaskBoxDone" : "markdownTaskBox")
+            case (nil, .number(let number)):
+                Text("\(number).").monospacedDigit()
+            case (nil, .bullet):
+                // A deeper bullet is hollow, then square, as on the web.
+                Text(["\u{2022}", "\u{25E6}", "\u{25AA}"][min(item.level, 2)])
+            }
+            Text(text)
+        }
+        .padding(.leading, CGFloat(item.level) * levelIndent)
+    }
+}
+
 /// MarkdownTableView is a table of an answer: a header row in semibold, thin
 /// separators between rows, every other body row tinted, and each column
 /// aligned as the Markdown says. The cells never wrap or truncate, so a table
@@ -141,8 +184,9 @@ private struct MarkdownTableView: View {
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .onGeometryChange(for: CGFloat.self) { proxy in proxy.size.width } action: { width in rowWidth = width }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Self.frameColor, lineWidth: 1))
+            .accessibilityIdentifier("markdownTable")
             if shownRowCount < bodyRows.count {
                 Button {
                     shownRowCount += Self.rowsPerPart
@@ -155,34 +199,45 @@ private struct MarkdownTableView: View {
         }
     }
 
+    // Translucent greys, as on the web, so the table suits the person's tinted bubble and the grey one in both themes.
+    private static let frameColor = Color.gray.opacity(0.28)
+    private static let headerColor = Color.gray.opacity(0.10)
+    private static let headerRuleColor = Color.gray.opacity(0.35)
+    private static let rowRuleColor = Color.gray.opacity(0.18)
+    private static let bandColor = Color.gray.opacity(0.05)
+
     private var grid: some View {
         Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
-                GridRow {
-                    ForEach(Array(headerCells.enumerated()), id: \.offset) { column, cell in
-                        cellView(cell, column: column, isHeader: true)
-                            .background { Rectangle().fill(Color(.tertiarySystemFill)) }
-                    }
+            GridRow {
+                ForEach(Array(headerCells.enumerated()), id: \.offset) { column, cell in
+                    cellView(cell, column: column, isHeader: true)
+                        .background { Rectangle().fill(Self.headerColor) }
                 }
-                ForEach(Array(bodyRows.prefix(shownRowCount).enumerated()), id: \.offset) { rowIndex, row in
-                    Divider()
-                    GridRow {
-                        ForEach(Array(row.enumerated()), id: \.offset) { column, cell in
-                            cellView(cell, column: column, isHeader: false)
-                                .background { Rectangle().fill(rowIndex % 2 == 1 ? Color(.quaternarySystemFill) : Color.clear) }
-                        }
+            }
+            // A firmer rule under the header, a fainter one between rows, and none after the last.
+            Rectangle().fill(Self.headerRuleColor).frame(height: 1)
+            ForEach(Array(bodyRows.prefix(shownRowCount).enumerated()), id: \.offset) { rowIndex, row in
+                if rowIndex > 0 { Rectangle().fill(Self.rowRuleColor).frame(height: 0.5) }
+                GridRow {
+                    ForEach(Array(row.enumerated()), id: \.offset) { column, cell in
+                        cellView(cell, column: column, isHeader: false)
+                            .background { Rectangle().fill(rowIndex % 2 == 1 ? Self.bandColor : Color.clear) }
                     }
                 }
             }
+        }
     }
 
+    /// One cell, aligned as its column says, header included. Digits are all one width, so a column of numbers lines up.
     private func cellView(_ text: String, column: Int, isHeader: Bool) -> some View {
         let alignment = column < columnAlignments.count ? columnAlignments[column] : .leading
         return Text(MarkdownView.inline(text))
-            .font(isHeader ? .callout.weight(.semibold) : .callout)
+            .font(isHeader ? .caption.weight(.semibold) : .callout)
+            .monospacedDigit()
             .fixedSize(horizontal: true, vertical: false)
             .multilineTextAlignment(alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: alignment == .trailing ? .trailing : alignment == .center ? .center : .leading)
     }
 }

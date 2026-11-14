@@ -284,6 +284,7 @@ struct ChatView: View {
                                 RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.accentColor.opacity(0.18)).padding(-4)
                             }
                         }
+                        .modifier(RenderedMessageIdentifier(messageId: message.id))
                         .id(message.id)
                         }
                         // The replies of a thread follow its root, which says how many there are.
@@ -808,8 +809,8 @@ private struct MessageRow: View {
                         if let link = PortalLink(path: path) { appModel.openedLink = OpenedLink(link: link) }
                     }
                 }
-                // A link already shown as a reference chip gets no card of its own.
-                ForEach((model.previews[message.id] ?? []).filter { card in !openableReferences.contains { $0.path == card.path && card.path != nil } }) { card in
+                // A link already shown as a reference chip gets no card of its own, and a message shows at most three cards.
+                ForEach(LinkPreviewRules.shownCards(model.previews[message.id] ?? [], chipPaths: Set(openableReferences.compactMap(\.path)))) { card in
                     LinkPreviewCardView(card: card, connection: model.connection)
                         .frame(maxWidth: 320)
                 }
@@ -895,8 +896,9 @@ private struct MessageRow: View {
     }
 
     /// The tickets, controllers, virtual controllers, sites and cells the message names that the reader may open, once each.
+    /// A Portal link pasted on its own is shown by its card, not as a chip.
     private var openableReferences: [ChatReference] {
-        message.isDeleted ? [] : message.references.filter(\.canOpen)
+        message.isDeleted ? [] : message.references.filter { $0.canOpen && !$0.isPastedLink }
     }
 
     private var bubbleFill: AnyShapeStyle {

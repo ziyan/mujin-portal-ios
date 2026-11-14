@@ -1,0 +1,691 @@
+{
+  "version": 1,
+  "description": "Messages that cover how a chat draws what people and the assistant write. Shared by the web visual suite and the phone apps' demo servers. Everything here is invented. Text may hold {{placeholders}}, filled in by whoever seeds it: ticketSequence, siteId, siteName, cellId, cellName, controllerId, pageId, pageTitle, portalOrigin (the instance's own https address), staffName, customerName.",
+  "people": {
+    "customer": {
+      "name": "Alex Example",
+      "isMujinStaff": false
+    },
+    "staff": {
+      "name": "Riley Stub",
+      "isMujinStaff": true
+    }
+  },
+  "linkPreviews": [
+    {
+      "url": "https://docs.example.com/guides/gripper-pads",
+      "status": "ok",
+      "title": "Replacing gripper pads",
+      "description": "Step by step: remove the worn pads, clean the plate, fit and check the new set.",
+      "siteName": "Example Docs",
+      "image": "preview-card.png",
+      "imageWidth": 1200,
+      "imageHeight": 630
+    },
+    {
+      "url": "https://status.example.org/incidents/belt-speed",
+      "status": "ok",
+      "title": "Belt speed advisory",
+      "description": "A text-only page with no picture, to check a card without one.",
+      "siteName": "Example Status"
+    },
+    {
+      "url": "https://unreachable.example.net/report",
+      "status": "failed",
+      "failureReason": "The page could not be reached"
+    },
+    {
+      "url": "https://example.com/a/very/long/path/that/keeps/going/and/going/without/any/spaces/to/check/that/it/wraps/inside/the/bubble?with=a&query=string",
+      "status": "failed",
+      "failureReason": "The page could not be reached"
+    }
+  ],
+  "messages": [
+    {
+      "key": "headings-and-emphasis",
+      "title": "Headings h1 to h4, bold, italic, strikethrough",
+      "surface": "chat",
+      "author": "customer",
+      "text": "# Heading one\n## Heading two\n### Heading three\n#### Heading four\nSome **bold**, some *italic*, some ***both*** and some ~~struck through~~ words, with `inline code` in the middle of a sentence.",
+      "checks": [
+        {
+          "selector": "h1",
+          "count": 1
+        },
+        {
+          "selector": "h4",
+          "count": 1
+        },
+        {
+          "selector": "strong",
+          "minimum": 1
+        },
+        {
+          "selector": "del, s",
+          "count": 1
+        },
+        {
+          "selector": "code",
+          "minimum": 1
+        }
+      ]
+    },
+    {
+      "key": "lists",
+      "title": "Ordered, unordered, nested and task lists",
+      "surface": "chat",
+      "author": "staff",
+      "text": "Checks before the shift:\n\n1. Inspect the gripper\n2. Clear the belt\n   - left side\n   - right side\n     - under the guard\n3. Start the line\n\n- [x] Pads replaced\n- [ ] Sensor cleaned\n- [ ] Report sent",
+      "checks": [
+        {
+          "selector": "ol",
+          "minimum": 1
+        },
+        {
+          "selector": "ul ul",
+          "minimum": 1
+        },
+        {
+          "selector": ".task-box",
+          "count": 3
+        },
+        {
+          "selector": ".task-box--done",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "key": "table-narrow",
+      "title": "A narrow table with alignment and inline code",
+      "surface": "chat",
+      "author": "customer",
+      "text": "| Station | Rate | State |\n|:--------|-----:|:-----:|\n| Pick 1 | 412 | `ok` |\n| Pick 2 | 398 | `slow` |\n| Pack | 405 | `ok` |",
+      "checks": [
+        {
+          "selector": "table",
+          "count": 1
+        },
+        {
+          "selector": "th",
+          "count": 3
+        },
+        {
+          "selector": "tbody tr",
+          "count": 3
+        },
+        {
+          "selector": "td code",
+          "count": 3
+        },
+        {
+          "columnAlignment": [
+            "left",
+            "right",
+            "center"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "table-wide",
+      "title": "A wide table that scrolls inside the message, from staff with the mark on the avatar",
+      "surface": "chat",
+      "author": "staff",
+      "text": "| Hour | Picks | Faults | Gripper | Vision | Belt | Operator | Notes about the hour that run long |\n|---|---|---|---|---|---|---|---|\n| 06:00 | 410 | 0 | ok | ok | ok | A | quiet start with no stops at all |\n| 07:00 | 455 | 1 | pad worn | ok | ok | A | one drop, pad replaced at the break |\n| 08:00 | 470 | 0 | ok | ok | slow | B | belt slowed for a jam upstream |",
+      "checks": [
+        {
+          "selector": ".table-wrap",
+          "count": 1
+        },
+        {
+          "selector": "th",
+          "count": 8
+        },
+        {
+          "hasNoOverflow": true
+        },
+        {
+          "selector": "[data-testid=mujin-staff-badge]",
+          "minimum": 1
+        }
+      ]
+    },
+    {
+      "key": "quote-and-rule",
+      "title": "Blockquote and horizontal rule",
+      "surface": "chat",
+      "author": "customer",
+      "text": "> The line stopped twice before the break.\n> Both stops were at the packing station.\n\n---\n\nAfter the rule, the reply goes on.",
+      "checks": [
+        {
+          "selector": "blockquote",
+          "count": 1
+        },
+        {
+          "selector": "hr",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "key": "code-blocks",
+      "title": "Fenced code in several languages, with a long line",
+      "surface": "assistant",
+      "author": "assistant",
+      "text": "Here is the same check in a few languages.\n\n```go\nfunc isJammed(rate float64, expected float64) bool {\n\treturn rate < expected*0.5 // a line that is long enough to need the code block to scroll sideways rather than wrap\n}\n```\n\n```ts\nexport function isJammed(rate: number, expected: number): boolean {\n  return rate < expected * 0.5;\n}\n```\n\n```python\ndef is_jammed(rate: float, expected: float) -> bool:\n    return rate < expected * 0.5\n```\n\n```bash\ncurl -s https://api.example.com/rate | jq '.rate'\n```\n\n```json\n{ \"station\": \"pick-1\", \"rate\": 412, \"isJammed\": false }\n```\n\n```yaml\nstation: pick-1\nrate: 412\nisJammed: false\n```\n\n```sql\nSELECT station, avg(rate) FROM pick_rate WHERE hour >= 6 GROUP BY station;\n```",
+      "checks": [
+        {
+          "selector": "pre",
+          "count": 7
+        },
+        {
+          "selector": "pre [class*=hljs-], pre [class*=token]",
+          "minimum": 5
+        }
+      ]
+    },
+    {
+      "key": "mermaid-diagrams",
+      "title": "Mermaid flowchart, sequence, state and gantt",
+      "surface": "assistant",
+      "author": "assistant",
+      "text": "```mermaid\nflowchart LR\n  Inspect[Inspect gripper] --> Decide{Pads worn?}\n  Decide -- yes --> Replace[Replace pads]\n  Decide -- no --> Run[Start line]\n  Replace --> Run\n```\n\n```mermaid\nsequenceDiagram\n  Operator->>Planner: Start order\n  Planner->>Robot: Pick plan\n  Robot-->>Planner: Done\n```\n\n```mermaid\nstateDiagram-v2\n  [*] --> Idle\n  Idle --> Picking\n  Picking --> Idle\n  Picking --> Faulted\n  Faulted --> Idle\n```\n\n```mermaid\ngantt\n  dateFormat HH:mm\n  axisFormat %H:%M\n  section Line\n  Warm up :a1, 06:00, 30m\n  Picking :after a1, 4h\n```",
+      "checks": [
+        {
+          "selector": "svg[id^=mermaid], .mermaid svg, [data-testid=mermaid-diagram] svg",
+          "count": 4
+        },
+        {
+          "drawnDiagrams": 4
+        }
+      ],
+      "pending": "mermaid diagrams in assistant messages: the diagram is never drawn, its source stays a code block"
+    },
+    {
+      "key": "mermaid-broken",
+      "title": "A diagram that cannot be drawn falls back to its source",
+      "surface": "assistant",
+      "author": "assistant",
+      "text": "```mermaid\nflowchart LR\n  A --> \n  this is not a diagram\n```",
+      "checks": [
+        {
+          "selector": "pre",
+          "count": 1
+        }
+      ],
+      "pending": "mermaid diagrams in assistant messages: the diagram is never drawn, its source stays a code block"
+    },
+    {
+      "key": "math",
+      "title": "Inline and display math, and dollar amounts that stay text",
+      "surface": "assistant",
+      "author": "assistant",
+      "text": "The pick rate is $r = \\frac{n}{t}$ and its spread is\n\n$$\\sigma = \\sqrt{\\frac{1}{N}\\sum_{i=1}^{N}(r_i - \\bar{r})^2}$$\n\nThe spare pads cost $5 and $10 a pair, which is money, not math.",
+      "checks": [
+        {
+          "selector": ".katex",
+          "minimum": 2
+        },
+        {
+          "selector": ".katex-display",
+          "count": 1
+        },
+        {
+          "textContains": "$5 and $10"
+        },
+        {
+          "katexOutput": 2
+        }
+      ],
+      "pending": "math in assistant messages: the formulas are left blank, never drawn"
+    },
+    {
+      "key": "chart-bar",
+      "title": "The assistant's bar chart",
+      "surface": "assistant",
+      "author": "assistant",
+      "text": "Picks per hour this morning:\n\n```chart title=\"Picks per hour\"\n{\"chartType\": \"bar\", \"xAxis\": {\"label\": \"Hour\", \"data\": [\"06\", \"07\", \"08\", \"09\"]}, \"yAxis\": {\"label\": \"Picks\"}, \"series\": [{\"name\": \"Picks\", \"data\": [410, 455, 470, 438]}]}\n```",
+      "checks": [
+        {
+          "selector": "svg",
+          "minimum": 1
+        }
+      ]
+    },
+    {
+      "key": "chart-line",
+      "title": "The assistant's line chart with two series",
+      "surface": "assistant",
+      "author": "assistant",
+      "text": "```chart title=\"Rate through the day\"\n{\"chartType\": \"line\", \"xAxis\": {\"data\": [\"06\", \"08\", \"10\", \"12\", \"14\"]}, \"series\": [{\"name\": \"Pick 1\", \"data\": [400, 420, 415, 430, 410]}, {\"name\": \"Pick 2\", \"data\": [380, 395, 405, 390, 400]}]}\n```",
+      "checks": [
+        {
+          "selector": "svg",
+          "minimum": 1
+        }
+      ]
+    },
+    {
+      "key": "chart-pie",
+      "title": "The assistant's pie chart with labels",
+      "surface": "assistant",
+      "author": "assistant",
+      "text": "```chart title=\"Where the time went\"\n{\"chartType\": \"pie\", \"series\": [{\"name\": \"Time\", \"data\": [82, 9, 6, 3], \"labels\": [\"Picking\", \"Waiting\", \"Faulted\", \"Maintenance\"]}]}\n```",
+      "checks": [
+        {
+          "selector": "svg",
+          "minimum": 1
+        }
+      ]
+    },
+    {
+      "key": "image-landscape",
+      "title": "One landscape picture",
+      "surface": "chat",
+      "author": "customer",
+      "text": "Photo of the packing station after cleaning.",
+      "attachments": [
+        "photo-landscape.png"
+      ],
+      "checks": [
+        {
+          "selector": "img[src*='/api/v1/attachment/']",
+          "minimum": 1,
+          "hasSize": true
+        }
+      ]
+    },
+    {
+      "key": "image-portrait",
+      "title": "One portrait picture",
+      "surface": "chat",
+      "author": "staff",
+      "attachments": [
+        "photo-portrait.png"
+      ],
+      "checks": [
+        {
+          "selector": "img[src*='/api/v1/attachment/']",
+          "minimum": 1,
+          "hasSize": true
+        }
+      ]
+    },
+    {
+      "key": "images-several",
+      "title": "Several pictures in one message",
+      "surface": "chat",
+      "author": "customer",
+      "text": "Three angles of the same jam.",
+      "attachments": [
+        "photo-landscape.png",
+        "photo-portrait.png",
+        "photo-square.png"
+      ],
+      "checks": [
+        {
+          "selector": "img[src*='/api/v1/attachment/']",
+          "minimum": 3,
+          "hasSize": true
+        }
+      ]
+    },
+    {
+      "key": "video",
+      "title": "A video attachment",
+      "surface": "chat",
+      "author": "staff",
+      "text": "Short clip of the belt.",
+      "attachments": [
+        "clip.mp4"
+      ],
+      "checks": [
+        {
+          "selector": "video",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "key": "files",
+      "title": "PDF, ZIP, CSV and a long file name",
+      "surface": "chat",
+      "author": "customer",
+      "text": "The files from this morning.",
+      "attachments": [
+        "maintenance-checklist.pdf",
+        "debug-logs.zip",
+        "shift-summary.csv",
+        "a-very-long-file-name-that-keeps-going-to-check-wrapping-and-ellipsis-in-the-card.txt"
+      ],
+      "checks": [
+        {
+          "textContains": "maintenance-checklist.pdf"
+        },
+        {
+          "textContains": "debug-logs.zip"
+        },
+        {
+          "textContains": "shift-summary.csv"
+        }
+      ]
+    },
+    {
+      "key": "voice-message",
+      "title": "A voice message, with no text",
+      "surface": "chat",
+      "author": "staff",
+      "voiceMessage": {
+        "file": "voice.webm",
+        "durationMS": 4000,
+        "waveformLevels": [
+          0.2,
+          0.36,
+          0.57,
+          0.55,
+          0.72,
+          0.56,
+          0.64,
+          0.63,
+          0.39,
+          0.28,
+          0.27,
+          0.44,
+          0.65,
+          0.59,
+          0.74,
+          0.55,
+          0.59,
+          0.55,
+          0.32,
+          0.23,
+          0.33,
+          0.52,
+          0.72,
+          0.61,
+          0.73,
+          0.52,
+          0.53,
+          0.45,
+          0.24,
+          0.33,
+          0.4,
+          0.58,
+          0.77,
+          0.62,
+          0.71,
+          0.48,
+          0.46,
+          0.34,
+          0.24,
+          0.43,
+          0.45,
+          0.63,
+          0.79,
+          0.61,
+          0.67,
+          0.43,
+          0.38,
+          0.22
+        ]
+      },
+      "checks": [
+        {
+          "selector": "audio, [data-testid=voice-message]",
+          "minimum": 1
+        }
+      ]
+    },
+    {
+      "key": "link-previews-external",
+      "title": "External link previews: with a picture, without one, and failed",
+      "surface": "chat",
+      "author": "customer",
+      "text": "Guide: https://docs.example.com/guides/gripper-pads\nAdvisory: https://status.example.org/incidents/belt-speed\nOld report: https://unreachable.example.net/report",
+      "checks": [
+        {
+          "textContains": "Replacing gripper pads"
+        },
+        {
+          "textContains": "Belt speed advisory"
+        }
+      ]
+    },
+    {
+      "key": "link-previews-portal",
+      "title": "Portal's own cards for pasted links: ticket, controller and site",
+      "surface": "chat",
+      "author": "staff",
+      "text": "Ticket: {{portalOrigin}}/ticket/{{ticketSequence}}\nController: {{portalOrigin}}/controller/{{controllerId}}\nSite: {{portalOrigin}}/site/{{siteId}}",
+      "checks": [
+        {
+          "textContains": "Conveyor jam at packing"
+        },
+        {
+          "textContains": "Chat rendering fixture controller"
+        },
+        {
+          "textContains": "{{siteName}}"
+        }
+      ]
+    },
+    {
+      "key": "link-previews-portal-more",
+      "title": "Portal's own cards for a cell and a page (a message gets at most three cards)",
+      "surface": "chat",
+      "author": "staff",
+      "text": "Cell: {{portalOrigin}}/site/{{siteId}}/cell/{{cellId}}\nPage: {{portalOrigin}}/site/{{siteId}}/page/{{pageId}}",
+      "checks": [
+        {
+          "textContains": "{{cellName}}"
+        },
+        {
+          "textContains": "{{pageTitle}}"
+        }
+      ]
+    },
+    {
+      "key": "references-mentions-emoji",
+      "title": "Reference chips, a mention and emoji",
+      "surface": "chat",
+      "author": "staff",
+      "text": "@{{customerName}} see #{{ticketSequence}}, [{{controllerId}}](/controller/{{controllerId}}) and [{{siteName}}](/site/{{siteId}}) 👍 🚚 ✅",
+      "checks": [
+        {
+          "selector": "[data-testid=reference-chip]",
+          "minimum": 2
+        },
+        {
+          "selector": ".mention-chip",
+          "minimum": 1
+        }
+      ]
+    },
+    {
+      "key": "long-words",
+      "title": "A long URL and a long word that must wrap",
+      "surface": "chat",
+      "author": "customer",
+      "text": "https://example.com/a/very/long/path/that/keeps/going/and/going/without/any/spaces/to/check/that/it/wraps/inside/the/bubble?with=a&query=string\nSupercalifragilisticexpialidociousconveyorbeltalignmentcheckword",
+      "checks": [
+        {
+          "hasNoOverflow": true
+        }
+      ]
+    },
+    {
+      "key": "reply-quote",
+      "title": "A reply that quotes an earlier message",
+      "surface": "chat",
+      "author": "staff",
+      "replyTo": "quote-and-rule",
+      "text": "Both stops were the same sensor; it is cleaned now.",
+      "checks": [
+        {
+          "textContains": "The line stopped twice"
+        }
+      ]
+    },
+    {
+      "key": "reactions",
+      "title": "Reactions on a message",
+      "surface": "chat",
+      "author": "customer",
+      "text": "Line is back up.",
+      "reactions": [
+        {
+          "author": "staff",
+          "emoji": "👍"
+        },
+        {
+          "author": "customer",
+          "emoji": "🎉"
+        }
+      ],
+      "checks": [
+        {
+          "textContains": "👍"
+        }
+      ]
+    },
+    {
+      "key": "internal-note",
+      "title": "An internal note, read by staff",
+      "surface": "chat",
+      "author": "staff",
+      "isInternal": true,
+      "viewer": "staff",
+      "text": "Internal: the pads came from the old batch, swap the stock.",
+      "checks": [
+        {
+          "textContains": "Internal"
+        }
+      ]
+    },
+    {
+      "key": "thread-root",
+      "title": "A message with a thread of replies",
+      "surface": "chat",
+      "author": "customer",
+      "text": "Should we move the inspection to the start of the shift?",
+      "threadReplies": [
+        {
+          "author": "staff",
+          "text": "Yes, before the first order."
+        },
+        {
+          "author": "customer",
+          "text": "Agreed, I will update the checklist."
+        },
+        {
+          "author": "staff",
+          "text": "Thanks, I will check it tomorrow."
+        }
+      ],
+      "checks": [
+        {
+          "textContains": "3 replies"
+        }
+      ]
+    },
+    {
+      "key": "edited",
+      "title": "An edited message",
+      "surface": "chat",
+      "author": "customer",
+      "text": "The belt speed is 1.2 meters per second.",
+      "editedText": "The belt speed is 1.4 meters per second.",
+      "checks": [
+        {
+          "textContains": "1.4 meters"
+        }
+      ]
+    },
+    {
+      "key": "deleted",
+      "title": "A deleted message",
+      "surface": "chat",
+      "author": "customer",
+      "text": "This message is deleted after it is sent.",
+      "isDeleted": true,
+      "checks": []
+    },
+    {
+      "key": "tool-activity",
+      "title": "The assistant's tool activity rows",
+      "surface": "assistant",
+      "author": "assistant",
+      "text": "There is one open ticket for the site, about the conveyor.",
+      "toolCalls": [
+        {
+          "name": "tickets",
+          "arguments": {
+            "action": "list",
+            "status": "open"
+          },
+          "result": {
+            "tickets": [
+              {
+                "sequence": "{{ticketSequence}}",
+                "title": "Conveyor jam at packing"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sites",
+          "arguments": {
+            "action": "get",
+            "siteId": "{{siteId}}"
+          },
+          "result": {
+            "site": {
+              "id": "{{siteId}}",
+              "name": "{{siteName}}"
+            }
+          }
+        }
+      ],
+      "checks": []
+    },
+    {
+      "key": "artifact-markdown",
+      "title": "A markdown document artifact",
+      "surface": "assistant",
+      "author": "assistant",
+      "text": "I wrote up the week as a document.",
+      "artifact": {
+        "file": "weekly-report.md",
+        "kind": "markdown",
+        "title": "Weekly line report"
+      },
+      "checks": [
+        {
+          "textContains": "Weekly line report"
+        },
+        {
+          "textContains": "Uptime held above 95 percent"
+        }
+      ]
+    },
+    {
+      "key": "artifact-html",
+      "title": "An HTML page artifact",
+      "surface": "assistant",
+      "author": "assistant",
+      "text": "And a small page with the hourly bars.",
+      "artifact": {
+        "file": "throughput-page.html",
+        "kind": "html",
+        "title": "Throughput by hour"
+      },
+      "checks": [
+        {
+          "selector": "iframe",
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

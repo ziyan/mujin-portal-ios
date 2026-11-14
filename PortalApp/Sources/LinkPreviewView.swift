@@ -64,7 +64,10 @@ struct LinkPreviewCardView: View {
             if !Task.isCancelled { open() }
         }
         .task(id: card.urlHash) {
-            guard !appModel.isDemo, let path = card.imageUrl, path.hasPrefix("/api/") else { return }
+            // The demo has pictures only for the rendering fixture's cards.
+            guard let path = card.imageUrl, path.hasPrefix("/api/"),
+                !appModel.isDemo || path.hasPrefix("/api/v1/attachment/\(ChatRenderingDemo.assetPrefix)")
+            else { return }
             imageData = try? await connection.fetch(path: path)
         }
     }
