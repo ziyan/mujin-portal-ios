@@ -252,7 +252,16 @@ import Testing
             questions: [], approvals: [], isRunning: false)
         #expect(transcript.threadToOpen(forMessage: "m2") == "m2")
         #expect(transcript.threadToOpen(forMessage: "m3") == "m2")
-        #expect(transcript.threadToOpen(forMessage: "m4") == nil)
+        // A stored message with no replies opens its own thread, as on the web; one not stored yet opens none.
+        #expect(transcript.threadToOpen(forMessage: "m4") == "m4")
+        #expect(transcript.threadToOpen(forMessage: "pending:1") == nil)
+    }
+
+    @Test func aTapOnAConversationMessageOpensItsThreadOnceItIsStored() {
+        #expect(ThreadRouting.conversationThreadToOpen(messageId: "m2", threadRootMessageId: "m1", isStored: true) == "m1")
+        #expect(ThreadRouting.conversationThreadToOpen(messageId: "m1", threadRootMessageId: nil, isStored: true) == "m1")
+        #expect(ThreadRouting.conversationThreadToOpen(messageId: "m3", threadRootMessageId: "", isStored: true) == "m3")
+        #expect(ThreadRouting.conversationThreadToOpen(messageId: "m4", threadRootMessageId: nil, isStored: false) == nil)
     }
 
     @Test func aReplySentInAThreadIsAnsweredInThatThread() {
