@@ -33,8 +33,8 @@ struct ConversationView: View {
     @State private var drafts = AttachmentDrafts()
     @State private var isOnScreen = false
     /// Whether the top of the thread is in view, where earlier messages load.
-    /// How far a pull past the top has gone toward reading earlier messages, from 0 to 1.
-    @State private var earlierPullProgress = 0.0
+    /// How far a pull past the top has gone toward reading earlier messages, which only the row at the top reads.
+    @State private var earlierPull = EarlierPull()
     /// Whether the conversation already opened on the thread where something waited, which it does once.
     @State private var hasOpenedWaitingThread = false
     /// Whether the transcript shows its end. Only then does it follow an answer being written or a message that arrives.
@@ -406,17 +406,6 @@ struct ConversationView: View {
         }
     }
 
-    /// Reads the page before the first message held, then brings the first row shown before back to the top of the screen, so what
-    /// was being read stays where it was and the earlier messages wait above it.
-    private func loadEarlierKeepingPlace(_ model: ConversationModel, proxy: ScrollViewProxy) {
-        let firstShown = model.transcript.displayEntries.first { Self.isShown($0, showWorkingNotes: showWorkingNotes) }?.id
-        Task {
-            await model.loadEarlier()
-            guard let firstShown else { return }
-            proxy.scrollTo(firstShown, anchor: .top)
-        }
-    }
-
     /// The row at the top of the messages, or nil where it would say nothing useful: an empty conversation, or the start of a thread,
     /// whose root is at the top.
     private func earlierRowState(_ model: ConversationModel) -> EarlierMessages.RowState? {
@@ -433,7 +422,7 @@ struct ConversationView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     // Earlier messages are read on a pull past the top, which this row says.
                     if let state = earlierRowState(model) {
-                        EarlierMessagesRow(state: state, pullProgress: earlierPullProgress) { loadEarlierKeepingPlace(model, proxy: proxy) }
+                        EarlierMessagesRow(state: state, pull: earlierPull) { Task { await model.loadEarlier() } }
                     }
                     if model.transcript.entries.isEmpty, !model.isThread {
                         ContentUnavailableView {
@@ -504,7 +493,7 @@ struct ConversationView: View {
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
             // The bottom anchor keeps the reading place as earlier messages go in above.
-            .modifier(PullForEarlier(state: model.earlierRowState, pullProgress: $earlierPullProgress) { loadEarlierKeepingPlace(model, proxy: proxy) })
+            .modifier(PullForEarlier(state: model.earlierRowState, pull: earlierPull) { Task { await model.loadEarlier() } })
             .onScrollGeometryChange(for: Bool.self, of: ListEnd.isShown) { _, isShown in isAtEnd = isShown }
             .onChange(of: isAtEnd) { _, isShown in
                 if isShown {

@@ -21,8 +21,8 @@ struct ChatView: View {
 
     @State private var model: ChatModel?
     @State private var openedThreadRootId: String?
-    /// How far a pull past the top has gone toward reading earlier messages, from 0 to 1.
-    @State private var earlierPullProgress = 0.0
+    /// How far a pull past the top has gone toward reading earlier messages, which only the row at the top reads.
+    @State private var earlierPull = EarlierPull()
     /// The threads the person waved away from the hint that offers to continue one, while this screen is open.
     /// The message a link pointed at, marked for a moment.
     @State private var highlightedMessageId: String?
@@ -230,7 +230,7 @@ struct ChatView: View {
                 // at a time when the person pulls down past the top.
                 VStack(alignment: .leading, spacing: 10) {
                     if let state = earlierRowState(model) {
-                        EarlierMessagesRow(state: state, pullProgress: earlierPullProgress) { loadEarlierKeepingPlace(model, proxy: proxy) }
+                        EarlierMessagesRow(state: state, pull: earlierPull) { Task { await model.loadEarlier() } }
                     }
                     if model.timeline.messages.isEmpty, !isThread {
                         ContentUnavailableView {
@@ -312,7 +312,7 @@ struct ChatView: View {
             // earlier page going in above is the one change made at the top, and while it does the list keeps its distance from the end.
             .defaultScrollAnchor(.bottom)
             // Earlier messages are read only on a pull past the top; the bottom anchor keeps the reading place as they go in above.
-            .modifier(PullForEarlier(state: model.earlierRowState, pullProgress: $earlierPullProgress) { loadEarlierKeepingPlace(model, proxy: proxy) })
+            .modifier(PullForEarlier(state: model.earlierRowState, pull: earlierPull) { Task { await model.loadEarlier() } })
             .onScrollGeometryChange(for: Bool.self, of: ListEnd.isShown) { _, isShown in isAtEnd = isShown }
             .onChange(of: isAtEnd) { _, isShown in
                 if isShown {
@@ -382,17 +382,6 @@ struct ChatView: View {
         let isOwn = rootMessage.authorUserId == model.currentUserId && !rootMessage.isAssistant
         let author: String? = isOwn ? nil : (rootMessage.isAssistant ? String(localized: "Assistant") : (rootMessage.authorName ?? model.member(rootMessage.authorUserId)?.shownName ?? String(localized: "Someone")))
         return CommentLine(rootMessageId: root, author: author, excerpt: ThreadExcerpt.start(of: rootMessage.text))
-    }
-
-    /// Reads the page before the first message held, then brings that message back to the top of the screen, so what was being read
-    /// stays where it was and the earlier messages wait above it.
-    private func loadEarlierKeepingPlace(_ model: ChatModel, proxy: ScrollViewProxy) {
-        let firstHeld = model.timeline.messages.first?.id
-        Task {
-            await model.loadEarlier()
-            guard let firstHeld, model.timeline.messages.first?.id != firstHeld else { return }
-            proxy.scrollTo(firstHeld, anchor: .top)
-        }
     }
 
     /// The row at the top of the messages, or nil where it would say nothing useful: an empty chat, or the start of a thread, whose

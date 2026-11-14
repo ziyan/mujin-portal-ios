@@ -4,8 +4,9 @@ import Foundation
 /// page, read a page at a time as the server does, whose earlier page arrives, never arrives, or is refused.
 enum EarlierDemo {
     static let conversationId = "conversation01"
-    /// How many messages the staged conversation holds: more than one page, less than two.
-    static let messageCount = 40
+    /// How many messages the staged conversation holds: well past what the screen reads at first and again as it reloads, which is
+    /// everything it holds and 20 more, so a pull always has an earlier page to read.
+    static let messageCount = 120
     static let failureMessage = "The server is not answering."
 
     static func owns(_ screen: String?) -> Bool { ["earlier-more", "earlier-loading", "earlier-failed"].contains(screen ?? "") }
