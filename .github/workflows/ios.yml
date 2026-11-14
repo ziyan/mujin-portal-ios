@@ -1030,18 +1030,19 @@ jobs:
       KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
-      # The server a first sign-in offers, as a bare host. A secret keeps it out
-      # of this public repository and its logs; unset offers production.
-      DEFAULT_SERVER: ${{ secrets.PORTAL_DEFAULT_SERVER }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # The project is generated, with what Homebrew installs, before the
       # App Store Connect key is on disk: nothing installed reads it.
       - name: Generate the project
+        env:
+          # The server a first sign-in offers, as a bare host. A secret keeps it
+          # out of this public repository and its logs; unset offers production.
+          DEFAULT_SERVER: ${{ secrets.PORTAL_DEFAULT_SERVER }}
         run: |
           printf 'DEVELOPMENT_TEAM = %s\n' "${TEAM}" > Configuration/Identity.xcconfig
-          printf 'MUJINPORTAL_DEFAULT_SERVER = %s\n' "${DEFAULT_SERVER}" >> Configuration/Identity.xcconfig
+          printf 'MUJINPORTAL_DEFAULT_SERVER = %s\n' "$(printf '%s' "${DEFAULT_SERVER}" | tr -d '[:space:]')" >> Configuration/Identity.xcconfig
           brew install xcodegen
           xcodegen generate
 
