@@ -85,16 +85,21 @@ enum DemoApp {
         XCTAssertTrue(element.waitForExistence(timeout: 90), "\(element) never appeared", file: file, line: line)
         // Whether the last move pushed the page up (to show what is below), so a row that left the screen can be brought back.
         var didLastMovePageUp: Bool?
+        // The way short drags go while the row is missing: chosen once, the other way from the move that lost it, and kept, so
+        // drag after drag goes on toward it instead of each one undoing the last.
+        var missingDragIsUp: Bool?
         for attempt in 0..<20 {
             if isInTapBand(element, in: app), waitUntilStill(element), isInTapBand(element, in: app), waitUntilHittable(element) { return }
             guard element.exists, element.frame.height > 0 else {
                 // A row a scroll carried out of a lazy list leaves the accessibility tree, so its frame says nothing. It went the way the
-                // page last moved: a short drag the other way brings it back without overshooting again.
-                let isUp = !(didLastMovePageUp ?? true)
+                // page last moved: short drags the other way bring it back without overshooting again.
+                let isUp = missingDragIsUp ?? !(didLastMovePageUp ?? true)
+                missingDragIsUp = isUp
                 dragPage(app, isUp: isUp)
                 didLastMovePageUp = isUp
                 continue
             }
+            missingDragIsUp = nil
             let window = app.windows.firstMatch.frame
             let isAboveBand = element.frame.midY <= window.minY + window.height * 0.15
             if attempt >= 4 {
