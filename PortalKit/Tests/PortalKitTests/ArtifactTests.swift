@@ -71,9 +71,21 @@ import Testing
         #expect(transport.requests.isEmpty)
     }
 
-    @Test func theRuleListIsNamedByItsRulesTheSameInEveryLaunch() {
-        #expect(ArtifactSandbox.stableHash("abc") == ArtifactSandbox.stableHash("abc"))
-        #expect(ArtifactSandbox.stableHash("abc") != ArtifactSandbox.stableHash("abd"))
-        #expect(ArtifactSandbox.stableHash("") == "cbf29ce484222325")
+    @Test func aRowDrawnAgainStartsAtTheHeightAndTextItHad() {
+        var memory = ArtifactRowMemory()
+        #expect(memory.height(artifactId: "artifact01") == nil)
+        memory.remember(height: 412, artifactId: "artifact01")
+        memory.remember(text: "# Notes", artifactId: "artifact02")
+        #expect(memory.height(artifactId: "artifact01") == 412)
+        #expect(memory.text(artifactId: "artifact02") == "# Notes")
+        for index in 0..<ArtifactRowMemory.capacity { memory.remember(height: 200, artifactId: "other\(index)") }
+        #expect(memory.height(artifactId: "artifact01") == nil, "The one used longest ago goes first.")
+    }
+
+    @Test func aReportedHeightIsTakenWhenItDiffers() {
+        // A page drawn again starts at its remembered height and takes every report after, a shrink as much as a growth.
+        #expect(ArtifactSandbox.acceptedHeight(reported: 180, current: 412) == 180)
+        #expect(ArtifactSandbox.acceptedHeight(reported: 500, current: 412) == 500)
+        #expect(ArtifactSandbox.acceptedHeight(reported: 412.4, current: 413) == nil)
     }
 }
