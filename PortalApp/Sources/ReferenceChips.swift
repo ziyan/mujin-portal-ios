@@ -10,7 +10,7 @@ struct ReferenceChipRow: View {
 
     var body: some View {
         FlowLayout(spacing: 6) {
-            ForEach(references, id: \.self) { reference in
+            ForEach(Array(references.enumerated()), id: \.offset) { _, reference in
                 Button { if let path = reference.path { onOpen(path) } } label: { MessageReferenceChip(reference: reference) }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("referenceChip")

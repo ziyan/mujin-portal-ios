@@ -25,7 +25,8 @@ struct ChatView: View {
     /// The message a link pointed at, marked for a moment.
     @State private var highlightedMessageId: String?
     @State private var isOnScreen = false
-    @State private var draft = DemoOptions.screen == "chat-mention" ? "Can @" : ""
+    /// The words being typed. Held in a model that only the composer's fields read, so a keystroke re-runs the composer, not the whole screen.
+    @State private var draftText = ChatDraftText(DemoOptions.screen == "chat-mention" ? "Can @" : "")
     @State private var messageToDelete: ChatMessage?
     @State private var isShowingInfo = DemoOptions.screen == "chat-info" || DemoOptions.screen == "chat-site-info" || DemoOptions.screen?.hasPrefix("chat-call-history") == true
     @State private var isAddingPeople = DemoOptions.screen == "chat-add-people"
@@ -37,6 +38,10 @@ struct ChatView: View {
     @AppStorage("chatVoiceMode") private var isVoiceModePreferred = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    private var draft: String {
+        get { draftText.text }
+        nonmutating set { draftText.text = newValue }
+    }
     private var callCenter: CallCenter { appModel.callCenter }
     private var isThread: Bool { threadRootMessageId != nil }
     /// Where the call's stage ends on screen, and where the chat's content begins, so the messages start below the stage.
@@ -222,6 +227,18 @@ struct ChatView: View {
                         .buttonStyle(.bordered)
                         .disabled(model.isLoadingEarlier)
                     }
+                    if isThread, let subject = model.timeline.messages.first(where: { $0.id == model.threadRootMessageId })?.threadSubject {
+                        // What the thread is about, under the title. Opens the ticket or cell when the reader may see it.
+                        if subject.canOpen {
+                            Button { if let path = subject.path, let link = PortalLink(path: path) { appModel.openedLink = OpenedLink(link: link) } } label: {
+                                MessageReferenceChip(reference: subject)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("threadSubjectChip")
+                        } else {
+                            MessageReferenceChip(reference: subject).accessibilityIdentifier("threadSubjectChip")
+                        }
+                    }
                     if model.timeline.messages.isEmpty, !isThread {
                         ContentUnavailableView {
                             Label("No messages yet", systemImage: "bubble.left.and.bubble.right")
@@ -244,6 +261,10 @@ struct ChatView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 6)
+                                // A thread that goes on past midnight keeps its bar beside the day, so the bar shows one thread.
+                                .threadBar(
+                                    isShown: model.canOpenThreads && message.threadKey != nil && previous?.threadKey == message.threadKey,
+                                    joinsBelow: true, gap: 10)
                         }
                         // A deleted message is one quiet line, and a run of them is one.
                         if !(message.isDeleted && previous?.isDeleted == true) {
@@ -499,64 +520,68 @@ struct ChatView: View {
                     ) {}
                     .padding(.horizontal, 12)
                 }
-                mentionList(model)
-                referenceList(model)
-                if let editing = model.editTarget {
-                    banner(icon: "pencil", title: String(localized: "Editing your message"), detail: editing.text) {
-                        model.editTarget = nil
-                        draft = ""
+                DraftObservingScope {
+                    VStack(spacing: 6) {
+                        mentionList(model)
+                        referenceList(model)
+                        if let editing = model.editTarget {
+                            banner(icon: "pencil", title: String(localized: "Editing your message"), detail: editing.text) {
+                                model.editTarget = nil
+                                draft = ""
+                            }
+                        }
+                        if let agent = model.addressedAgent(in: draft) {
+                            Label("\(agent.name ?? String(localized: "The assistant")) will answer", systemImage: "sparkles")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 20)
+                        }
+                        if model.editTarget == nil {
+                            if let attachError = drafts.errorText {
+                                Text(attachError).font(.footnote).foregroundStyle(Color.statusError).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
+                            }
+                        }
+                        if isShowingVoiceHint { VoiceHintView().transition(.opacity) }
+                        Group {
+                        if isVoiceMode, canUseVoice(model) {
+                            VoiceHoldBar(
+                                recorder: recorder, isEnabled: model.canWrite && !model.isSendingVoice, onKeyboard: { isVoiceModePreferred = false },
+                                onStart: { await beginRecording(model) }, onFinish: { isCancelled in finishRecording(model, cancel: isCancelled) }
+                            )
+                            .task {
+                                recorder.onLimitReached = { finishRecording(model, cancel: false) }
+                                if appModel.isDemo, DemoOptions.screen == "chat-voice-recording" { recorder.stageDemo() }
+                            }
+                        } else {
+                        ComposerCard(
+                            placeholder: fieldPrompt(model), text: Binding(get: { draft }, set: { draft = $0 }), drafts: model.editTarget == nil ? drafts : nil, isEnabled: model.canWrite,
+                            canSend: !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (model.editTarget == nil && !drafts.items.isEmpty),
+                            sendSymbol: model.editTarget == nil ? "arrow.up" : "checkmark", sendLabel: model.editTarget == nil ? "Send" : "Save edit",
+                            dictation: dictationControl(model), fieldIdentifier: "chatMessageField", sendIdentifier: "chatSendButton",
+                            onEscape: {
+                                guard draft.isEmpty, model.replyTarget != nil else { return false }
+                                model.replyTarget = nil
+                                return true
+                            },
+                            // A voice message is recorded instead of typed.
+                            isInternalNote: model.isInternalNote,
+                            menuItems: composerMenuItems(model),
+                            onSend: {
+                                // What is still being said belongs to the message that was sent, not to the next one.
+                                dictation.abort()
+                                let text = draft
+                                draft = ""
+                                Task { if await !model.send(text, attachments: drafts) { draft = text } }
+                            }
+                        )
+                        }
+                        }
+                        .onChange(of: draftText.text) { _, text in
+                            if !text.isEmpty && model.editTarget == nil { model.noteTyping() }
+                            model.searchReferences(for: text)
+                        }
                     }
-                }
-                if let agent = model.addressedAgent(in: draft) {
-                    Label("\(agent.name ?? String(localized: "The assistant")) will answer", systemImage: "sparkles")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                }
-                if model.editTarget == nil {
-                    if let attachError = drafts.errorText {
-                        Text(attachError).font(.footnote).foregroundStyle(Color.statusError).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
-                    }
-                }
-                if isShowingVoiceHint { VoiceHintView().transition(.opacity) }
-                Group {
-                if isVoiceMode, canUseVoice(model) {
-                    VoiceHoldBar(
-                        recorder: recorder, isEnabled: model.canWrite && !model.isSendingVoice, onKeyboard: { isVoiceModePreferred = false },
-                        onStart: { await beginRecording(model) }, onFinish: { isCancelled in finishRecording(model, cancel: isCancelled) }
-                    )
-                    .task {
-                        recorder.onLimitReached = { finishRecording(model, cancel: false) }
-                        if appModel.isDemo, DemoOptions.screen == "chat-voice-recording" { recorder.stageDemo() }
-                    }
-                } else {
-                ComposerCard(
-                    placeholder: fieldPrompt(model), text: $draft, drafts: model.editTarget == nil ? drafts : nil, isEnabled: model.canWrite,
-                    canSend: !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (model.editTarget == nil && !drafts.items.isEmpty),
-                    sendSymbol: model.editTarget == nil ? "arrow.up" : "checkmark", sendLabel: model.editTarget == nil ? "Send" : "Save edit",
-                    dictation: dictationControl(model), fieldIdentifier: "chatMessageField", sendIdentifier: "chatSendButton",
-                    onEscape: {
-                        guard draft.isEmpty, model.replyTarget != nil else { return false }
-                        model.replyTarget = nil
-                        return true
-                    },
-                    // A voice message is recorded instead of typed.
-                    isInternalNote: model.isInternalNote,
-                    menuItems: composerMenuItems(model),
-                    onSend: {
-                        // What is still being said belongs to the message that was sent, not to the next one.
-                        dictation.abort()
-                        let text = draft
-                        draft = ""
-                        Task { if await !model.send(text, attachments: drafts) { draft = text } }
-                    }
-                )
-                }
-                }
-                .onChange(of: draft) { _, text in
-                    if !text.isEmpty && model.editTarget == nil { model.noteTyping() }
-                    model.searchReferences(for: text)
                 }
                 // The voice message bar takes the composer's place, with no microphone button to stop dictating.
                 .onChange(of: isVoiceModePreferred) { _, _ in dictation.abort() }
@@ -790,7 +815,7 @@ private struct MessageRow: View {
                         .frame(maxWidth: 320)
                 }
                 if let onOpenThread, message.threadSummary?.isCountShown == true || isAssistantWorkingInThread {
-                    ThreadReplyControl(summary: message.threadSummary, isWorking: isAssistantWorkingInThread) { onOpenThread(message.id) }
+                    ThreadReplyControl(summary: message.threadSummary, isWorking: isAssistantWorkingInThread, subjectText: message.threadSubject?.subjectText) { onOpenThread(message.id) }
                 }
                 if isMine, isLastOwn { receipt }
             }
@@ -914,11 +939,15 @@ private struct MessageRow: View {
                         }
                     })
             } else {
-            VStack(alignment: .leading, spacing: 2) {
-                // People's messages are Markdown. The words around code and links keep the name chips of the people mentioned.
-                RichBodyView(markdown: message.text, connection: model.connection, isSelectable: false) { words in markdownText(words) }
-                if message.isEdited {
-                    Text("edited").font(.caption2).foregroundStyle(AnyShapeStyle(.secondary))
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                // The lock sits beside the words, so it never covers a short note.
+                if message.isInternal { InternalNoteLabel() }
+                VStack(alignment: .leading, spacing: 2) {
+                    // People's messages are Markdown. The words around code and links keep the name chips of the people mentioned.
+                    RichBodyView(markdown: message.text, connection: model.connection, isSelectable: false) { words in markdownText(words) }
+                    if message.isEdited {
+                        Text("edited").font(.caption2).foregroundStyle(AnyShapeStyle(.secondary))
+                    }
                 }
             }
             .padding(.horizontal, 14)
@@ -929,9 +958,6 @@ private struct MessageRow: View {
                 if message.isInternal {
                     RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.statusWarning, lineWidth: 1)
                 }
-            }
-            .overlay(alignment: .topTrailing) {
-                if message.isInternal { InternalNoteLabel().padding(6) }
             }
             .foregroundStyle(.primary)
             }
@@ -1237,4 +1263,18 @@ private struct AddPeopleView: View {
         let present = Set((model.room?.currentMembers ?? []).map(\.userId))
         return candidates.filter { !present.contains($0.userId) }
     }
+}
+
+/// The words being typed in a chat's composer. Observation re-runs only the views that read `text`.
+@Observable
+final class ChatDraftText {
+    var text: String
+    init(_ text: String) { self.text = text }
+}
+
+/// DraftObservingScope runs its content in a view body of its own, so what the content reads from the draft re-runs this body alone.
+private struct DraftObservingScope<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View { content() }
 }

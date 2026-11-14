@@ -189,7 +189,7 @@ final class ChatModel {
     func searchReferences(for draft: String) {
         referenceSearch?.cancel()
         guard offersChatReferences, canWrite, let query = ChatReferences.pickerQuery(in: draft) else {
-            referenceCandidates = []
+            if !referenceCandidates.isEmpty { referenceCandidates = [] }
             return
         }
         referenceSearch = Task { [connection, chatId] in
@@ -197,7 +197,7 @@ final class ChatModel {
             guard !Task.isCancelled else { return }
             let found = (try? await connection.searchChatReferences(query: query, chatId: chatId)) ?? []
             guard !Task.isCancelled else { return }
-            referenceCandidates = found
+            if found != referenceCandidates { referenceCandidates = found }
         }
     }
 
